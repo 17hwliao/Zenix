@@ -21,7 +21,13 @@ export default function App() {
   const [recentTracks, setRecentTracks] = useState<Track[]>(() => {
     try {
       const saved: unknown = JSON.parse(localStorage.getItem('zenix.recentTracks') || localStorage.getItem('yzqxy.recentTracks') || '[]');
-      return Array.isArray(saved) ? saved.filter((item): item is Track => typeof item?.id === 'string' && typeof item?.title === 'string').slice(0, 50) : [];
+      if (!Array.isArray(saved)) return [];
+      const seen = new Set<string>();
+      return saved.filter((item): item is Track => {
+        if (typeof item?.id !== 'string' || typeof item?.title !== 'string' || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      }).slice(0, 50);
     } catch { return []; }
   });
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);

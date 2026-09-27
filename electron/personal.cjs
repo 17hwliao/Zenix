@@ -19,6 +19,25 @@ function cleanTrack(value) {
   };
 }
 
+function historyKey(track) {
+  if (track.source === 'online' && track.remoteId) {
+    const provider = track.providerId || (track.id.includes(':') ? track.id.split(':')[0] : 'netease');
+    return `online:${provider}:${track.remoteId}`;
+  }
+  if (track.source !== 'online' && track.path) return `local:${path.normalize(track.path).toLocaleLowerCase()}`;
+  return `${track.source || 'local'}:${track.id}`;
+}
+
+function uniqueHistory(entries) {
+  const seen = new Set();
+  return [...entries].sort((a, b) => b.playedAt - a.playedAt).filter(entry => {
+    const key = historyKey(entry.track);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 class PersonalStore {
   constructor(userDataPath) {
     this.file = path.join(userDataPath, 'personal-library.json');
@@ -29,18 +48,20 @@ class PersonalStore {
   async load() {
     try {
       const raw = JSON.parse(await fs.readFile(this.file, 'utf8'));
+      const loadedHistory = (Array.isArray(raw.history) ? raw.history : []).map(entry => {
+        const track = cleanTrack(entry?.track);
+        return track ? { id: String(entry.id || randomUUID()), track, playedAt: Number(entry.playedAt) || Date.now() } : null;
+      }).filter(Boolean);
       this.data = {
         liked: (Array.isArray(raw.liked) ? raw.liked : []).map(cleanTrack).filter(Boolean),
         favorites: (Array.isArray(raw.favorites) ? raw.favorites : []).map(cleanTrack).filter(Boolean),
-        history: (Array.isArray(raw.history) ? raw.history : []).map(entry => {
-          const track = cleanTrack(entry.track);
-          return track ? { id: String(entry.id || randomUUID()), track, playedAt: Number(entry.playedAt) || Date.now() } : null;
-        }).filter(Boolean),
+        history: uniqueHistory(loadedHistory),
         playlists: (Array.isArray(raw.playlists) ? raw.playlists : []).map(entry => ({
           id: String(entry.id || randomUUID()), name: String(entry.name || '未命名歌单').slice(0, 100),
           tracks: (Array.isArray(entry.tracks) ? entry.tracks : []).map(cleanTrack).filter(Boolean),
         })),
       };
+      if (this.data.history.length !== loadedHistory.length) await this.save();
     } catch { /* First launch has no personal library yet. */ }
     return this.snapshot();
   }
@@ -69,7 +90,9 @@ class PersonalStore {
   async record(value) {
     const track = cleanTrack(value);
     if (!track) return this.snapshot();
-    this.data.history.unshift({ id: randomUUID(), track, playedAt: Date.now() });
+    const key = historyKey(track);
+    const existing = this.data.history.find(entry => historyKey(entry.track) === key);
+    this.data.history = [{ id: existing?.id || randomUUID(), track, playedAt: Date.now() }, ...this.data.history.filter(entry => historyKey(entry.track) !== key)];
     return this.save();
   }
 

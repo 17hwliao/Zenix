@@ -64,7 +64,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, onPlayTra
   const cards: OrbitCard[] = [
     { id: 'liked', label: '我的喜欢', caption: `${personal.liked.length} 首歌曲`, icon: Heart, image: likedCover, action: () => onOpenManager('liked') },
     { id: 'favorites', label: '我的收藏', caption: `${personal.favorites.length} 首歌曲`, icon: Star, image: favoriteCover, action: () => onOpenManager('favorites') },
-    { id: 'history', label: '听歌历史', caption: `${personal.history.length} 次聆听`, icon: History, image: latestCover, action: () => onOpenManager('history') },
+    { id: 'history', label: '听歌历史', caption: `${personal.history.length} 首歌曲`, icon: History, image: latestCover, action: () => onOpenManager('history') },
     { id: 'playlists', label: '自定义歌单', caption: `${personal.playlists.length} 个歌单`, icon: ListMusic, action: () => onOpenManager('playlists') },
     { id: 'library', label: '本地曲库', caption: `${tracks.length} 首音乐`, icon: FolderOpen, action: () => onOpenLocalLibrary ? onOpenLocalLibrary() : onOpenManager('playlists') },
     { id: 'settings', label: '个性化设置', caption: '背景 · 音效 · 桌面歌词', icon: Settings2, action: onOpenSettings },
