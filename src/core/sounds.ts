@@ -1,34 +1,51 @@
 export type SoundKind = 'enter' | 'cancel' | 'slide';
-export type SoundSettings = { enabled: boolean; enter: number; cancel: number; slide: number };
+export type SoundSettings = { enabled: boolean; volume: number; enter: number; cancel: number; slide: number };
+
 const KEY = 'zenix.ui-sounds.v1';
-const defaults: SoundSettings = { enabled: true, enter: 1, cancel: 1, slide: 1 };
-let context: AudioContext | null = null;
+const defaults: SoundSettings = { enabled: true, volume: .85, enter: 1, cancel: 1, slide: 1 };
+const files = import.meta.glob('../../assets/sounds/*.wav', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const channels = new Map<string, HTMLAudioElement[]>();
 let lastSlide = 0;
+
+const variantNumber = (value: unknown) => Number.isFinite(Number(value)) ? Math.max(1, Math.min(5, Math.round(Number(value)))) : 1;
+const level = (value: unknown) => Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : defaults.volume;
+
 export function getSoundSettings(): SoundSettings {
-  try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return defaults; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}') as Partial<SoundSettings>;
+    return {
+      enabled: saved.enabled !== false,
+      volume: level(saved.volume),
+      enter: variantNumber(saved.enter),
+      cancel: variantNumber(saved.cancel),
+      slide: variantNumber(saved.slide),
+    };
+  } catch { return defaults; }
 }
-export function setSoundSettings(next: SoundSettings) { localStorage.setItem(KEY, JSON.stringify(next)); window.dispatchEvent(new Event('zenix:sounds-changed')); }
+
+export function setSoundSettings(next: SoundSettings) {
+  localStorage.setItem(KEY, JSON.stringify(next));
+  window.dispatchEvent(new Event('zenix:sounds-changed'));
+}
+
 export function playUiSound(kind: SoundKind) {
   const settings = getSoundSettings();
-  if (!settings.enabled) return;
-  if (kind === 'slide' && performance.now() - lastSlide < 210) return;
+  if (!settings.enabled || settings.volume <= 0) return;
+  if (kind === 'slide' && performance.now() - lastSlide < 180) return;
   if (kind === 'slide') lastSlide = performance.now();
+  const key = `${kind}-${settings[kind]}`;
+  const url = files[`../../assets/sounds/${key}.wav`];
+  if (!url) return;
   try {
-    context ??= new AudioContext();
-    if (context.state === 'suspended') void context.resume();
-    const variant = Math.max(1, Math.min(5, settings[kind]));
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = kind === 'slide' ? 'sine' : variant % 2 ? 'triangle' : 'sine';
-    const base = kind === 'enter' ? 560 + variant * 55 : kind === 'cancel' ? 460 + variant * 35 : 220 + variant * 30;
-    oscillator.frequency.setValueAtTime(base * (kind === 'cancel' ? 1.5 : .78), now);
-    oscillator.frequency.exponentialRampToValueAtTime(base * (kind === 'cancel' ? .65 : 1.25), now + (kind === 'slide' ? .17 : .085));
-    gain.gain.setValueAtTime(.0001, now);
-    gain.gain.exponentialRampToValueAtTime(kind === 'slide' ? .022 : .037, now + .012);
-    gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'slide' ? .19 : .13) + variant * .008);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + .23);
-  } catch { /* Audio is optional if output is unavailable. */ }
+    let pool = channels.get(key);
+    if (!pool) {
+      pool = Array.from({ length: 3 }, () => { const audio = new Audio(url); audio.preload = 'auto'; return audio; });
+      channels.set(key, pool);
+    }
+    const audio = pool.find(channel => channel.paused || channel.ended) || pool[0];
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = settings.volume;
+    void audio.play().catch(() => {});
+  } catch { /* The music player remains usable when the output device is unavailable. */ }
 }

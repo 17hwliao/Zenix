@@ -1,4 +1,77 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
-html,body{margin:0;background:transparent;overflow:hidden;font-family:Inter,"Microsoft Yahei",sans-serif;user-select:none}body{padding:7px;box-sizing:border-box}.pill{height:88px;box-sizing:border-box;position:relative;display:flex;align-items:center;gap:16px;padding:13px 22px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:linear-gradient(150deg,rgba(212,232,255,.30),rgba(29,35,50,.77) 35%,rgba(15,17,28,.83));box-shadow:inset 0 2px 1px #ffffff72,inset 0 -1px 1px #ffffff27,0 16px 35px #0006;backdrop-filter:blur(35px) saturate(160%);-webkit-app-region:drag}.pill:before{content:"";position:absolute;inset:3px 70px auto;height:18px;border-radius:50%;background:linear-gradient(#ffffff40,transparent);pointer-events:none}.orb{width:40px;height:40px;flex:none;border-radius:50%;background:conic-gradient(from 50deg,#a29fff,#86eeef,#ffc0e6,#a29fff);box-shadow:0 0 20px #9bb7ff80;animation:turn 9s linear infinite}@keyframes turn{to{transform:rotate(360deg)}}.text{min-width:0;flex:1;text-align:center}.line{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:800;font-size:22px;letter-spacing:.02em;background:linear-gradient(95deg,#fff,#b5e9ff,#f5b9ff,#fff);background-size:200% auto;color:transparent;background-clip:text;animation:shimmer 5s linear infinite;text-shadow:0 0 28px #91cfff6b}@keyframes shimmer{to{background-position:200% 0}}.next{margin-top:4px;color:#ffffff8c;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.close{display:grid;place-items:center;flex:none;width:26px;height:26px;border:0;border-radius:50%;background:#ffffff25;color:#fff;font-size:17px;cursor:pointer;-webkit-app-region:no-drag}.close:hover{background:#ffffff55}
-.theme{display:grid;place-items:center;flex:none;width:26px;height:26px;border:0;border-radius:50%;background:#ffffff20;color:#fff;cursor:pointer;-webkit-app-region:no-drag}.theme:hover{background:#ffffff50}body[data-theme="amber"] .line{background-image:linear-gradient(95deg,#fff,#ffd27b,#ff9f76,#fff)}body[data-theme="mint"] .line{background-image:linear-gradient(95deg,#fff,#80ffd9,#96daff,#fff)}body[data-theme="rose"] .line{background-image:linear-gradient(95deg,#fff,#ff9bc3,#d2a2ff,#fff)}body[data-theme="white"] .line{background-image:linear-gradient(95deg,#fff,#ddd,#fff)}
-</style></head><body><div class="pill"><div class="orb"></div><div class="text"><div class="line" id="line">Zenix 桌面歌词</div><div class="next" id="next">歌词会随着音乐在这里流动</div></div><button class="theme" id="theme" title="切换歌词颜色">◉</button><button class="close" id="close" title="关闭桌面歌词">×</button></div><script>const themes=['blue','amber','mint','rose','white'];let theme=localStorage.getItem('zenix.lyrics.theme')||'blue';document.body.dataset.theme=theme;document.getElementById('theme').onclick=()=>{theme=themes[(themes.indexOf(theme)+1)%themes.length];document.body.dataset.theme=theme;localStorage.setItem('zenix.lyrics.theme',theme)};window.desktopLyrics.onData(data=>{document.getElementById('line').textContent=data.line||data.title||'Zenix 桌面歌词';document.getElementById('next').textContent=data.next||data.title||''});document.getElementById('close').onclick=()=>window.desktopLyrics.hide();</script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zenix 桌面歌词</title>
+  <style>
+    :root { --tone-a:#b7e7ff; --tone-b:#eac4ff; --glow:#9cbeff80; }
+    body[data-theme="amber"] { --tone-a:#ffe0a1; --tone-b:#ff9a77; --glow:#ffb87080; }
+    body[data-theme="mint"] { --tone-a:#8affd5; --tone-b:#a5dfff; --glow:#79e6cf80; }
+    body[data-theme="rose"] { --tone-a:#ffadd4; --tone-b:#d2a4ff; --glow:#e9a4ec80; }
+    body[data-theme="white"] { --tone-a:#fff; --tone-b:#d5dce7; --glow:#ffffff66; }
+    * { box-sizing:border-box; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; color:#fff; font-family:Inter,"Microsoft YaHei",sans-serif; user-select:none; }
+    body { padding:7px; }
+    .pill { position:relative; display:flex; align-items:center; width:100%; height:96px; gap:11px; padding:12px 18px; overflow:hidden; border:1px solid #ffffffa0; border-radius:999px; background:linear-gradient(152deg,#d1e5fa64,#47546ca9 20%,#161c2ae8 58%,#0d111bef); box-shadow:inset 0 2px 1px #ffffff80,inset 0 -1px 1px #ffffff24,0 14px 34px #0008; backdrop-filter:blur(36px) saturate(165%); -webkit-backdrop-filter:blur(36px) saturate(165%); -webkit-app-region:drag; }
+    .pill::before { content:""; position:absolute; top:3px; left:52px; right:52px; height:23px; border-radius:50%; background:linear-gradient(#ffffff30,transparent); pointer-events:none; }
+    .orb { flex:none; width:34px; height:34px; border-radius:50%; background:conic-gradient(from 30deg,var(--tone-a),var(--tone-b),var(--tone-a)); box-shadow:0 0 18px var(--glow),inset 0 0 12px #ffffff55; animation:turn 8s linear infinite; }
+    body.is-paused .orb { animation-play-state:paused; opacity:.58; }
+    @keyframes turn { to { transform:rotate(360deg); } }
+    .transport { display:flex; flex:none; align-items:center; gap:3px; }
+    button { display:grid; place-items:center; flex:none; width:27px; height:27px; padding:0; border:0; border-radius:50%; background:#ffffff1d; color:#f7f9ff; font-size:15px; cursor:pointer; -webkit-app-region:no-drag; }
+    button:hover,button:focus-visible { background:#ffffff58; outline:none; }
+    .info { flex:1; min-width:0; text-align:center; pointer-events:none; }
+    .song { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#ffffffa1; font-size:10px; font-weight:650; letter-spacing:.09em; }
+    .line { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:2px; background:linear-gradient(94deg,#fff,var(--tone-a),var(--tone-b),#fff); background-size:200% 100%; background-clip:text; color:transparent; font-size:21px; font-weight:820; text-shadow:0 0 23px var(--glow); animation:shimmer 6s linear infinite; }
+    @keyframes shimmer { to { background-position:200% 0; } }
+    .next { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:2px; color:#ffffffac; font-size:10px; }
+    .theme { font-size:18px; color:var(--tone-a); }
+    .close { font-size:19px; }
+    .progress { position:absolute; right:38px; bottom:7px; left:38px; height:3px; overflow:hidden; border-radius:9px; background:#ffffff36; pointer-events:none; }
+    .progress span { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--tone-a),var(--tone-b)); box-shadow:0 0 10px var(--glow); transition:width .12s linear; }
+    @media (prefers-reduced-motion:reduce) { .orb,.line { animation:none; } }
+  </style>
+</head>
+<body data-theme="blue" class="is-paused">
+  <div class="pill" title="拖动这里移动桌面歌词">
+    <div class="orb" aria-hidden="true"></div>
+    <div class="transport">
+      <button id="previous" title="上一首" aria-label="上一首">‹</button>
+      <button id="play" title="播放或暂停" aria-label="播放或暂停">▶</button>
+      <button id="next-track" title="下一首" aria-label="下一首">›</button>
+    </div>
+    <div class="info">
+      <div class="song" id="song">ZENIX · 桌面歌词</div>
+      <div class="line" id="line">播放歌曲后显示歌词</div>
+      <div class="next" id="next">按住玻璃条可拖动位置</div>
+    </div>
+    <button class="theme" id="theme" title="切换歌词颜色" aria-label="切换歌词颜色">◉</button>
+    <button class="close" id="close" title="关闭桌面歌词" aria-label="关闭桌面歌词">×</button>
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  </div>
+  <script>
+    const themes = ['blue','amber','mint','rose','white'];
+    let theme = localStorage.getItem('zenix.lyrics.theme') || 'blue';
+    if (!themes.includes(theme)) theme = 'blue';
+    document.body.dataset.theme = theme;
+    document.getElementById('theme').onclick = () => {
+      theme = themes[(themes.indexOf(theme) + 1) % themes.length];
+      document.body.dataset.theme = theme;
+      localStorage.setItem('zenix.lyrics.theme', theme);
+    };
+    document.getElementById('previous').onclick = () => window.desktopLyrics?.command('previous');
+    document.getElementById('play').onclick = () => window.desktopLyrics?.command('play-pause');
+    document.getElementById('next-track').onclick = () => window.desktopLyrics?.command('next');
+    document.getElementById('close').onclick = () => window.desktopLyrics?.hide();
+    window.desktopLyrics?.onData(data => {
+      document.getElementById('song').textContent = data.title || 'ZENIX · 桌面歌词';
+      document.getElementById('line').textContent = data.line || data.title || '播放歌曲后显示歌词';
+      document.getElementById('next').textContent = data.next || (data.title ? '暂无同步歌词' : '按住玻璃条可拖动位置');
+      document.getElementById('progress').style.width = `${Math.max(0, Math.min(100, Number(data.progress || 0) * 100))}%`;
+      document.body.classList.toggle('is-paused', !data.playing);
+      document.getElementById('play').textContent = data.playing ? 'Ⅱ' : '▶';
+    });
+  </script>
+</body>
+</html>

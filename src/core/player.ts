@@ -30,6 +30,7 @@ class PlayerController {
   private selectionToken = 0;
   private playbackToken = 0;
   private resolvingSource?: { token: number; pending: Promise<boolean> };
+  private pendingSeek?: { token: number; seconds: number };
 
   constructor() {
     this.audio = new Audio();
@@ -56,7 +57,14 @@ class PlayerController {
     this.audio.addEventListener('pause', () => this.update({ playing: false }));
     this.audio.addEventListener('timeupdate', () => this.updateClock());
     this.audio.addEventListener('durationchange', () => this.updateClock());
-    this.audio.addEventListener('loadedmetadata', () => this.updateClock());
+    this.audio.addEventListener('loadedmetadata', () => {
+      const pending = this.pendingSeek;
+      if (pending && pending.token === this.selectionToken) {
+        this.audio.currentTime = Math.min(pending.seconds, Number.isFinite(this.audio.duration) ? this.audio.duration : pending.seconds);
+        this.pendingSeek = undefined;
+      }
+      this.updateClock();
+    });
     this.audio.addEventListener('ended', () => void this.onEnded());
     this.audio.addEventListener('error', () => {
       const error = this.audio.error;
@@ -90,7 +98,9 @@ class PlayerController {
   }
 
   private updateClock(): void {
-    const position = Number.isFinite(this.audio.currentTime) ? this.audio.currentTime : 0;
+    if (this.pendingSeek?.token === this.selectionToken && this.audio.readyState >= HTMLMediaElement.HAVE_METADATA && Math.abs(this.audio.currentTime - this.pendingSeek.seconds) < 0.15) this.pendingSeek = undefined;
+    const pending = this.pendingSeek?.token === this.selectionToken ? this.pendingSeek : undefined;
+    const position = pending?.seconds ?? (Number.isFinite(this.audio.currentTime) ? this.audio.currentTime : 0);
     const duration = Number.isFinite(this.audio.duration) ? this.audio.duration : this.state.track?.duration ?? 0;
     if (Math.abs(position - this.state.position) > 0.1 || duration !== this.state.duration) {
       this.update({ position, duration });
@@ -123,6 +133,7 @@ class PlayerController {
     const track = queue[queueIndex];
     this.playbackToken += 1;
     this.selectionToken += 1;
+    this.pendingSeek = undefined;
     this.setAudioSource(track.audioUrl);
     this.update({ queue, queueIndex, track, position: 0, duration: track.duration, playing: false });
     this.updateMediaMetadata();
@@ -134,6 +145,7 @@ class PlayerController {
     this.shufflePool.clear();
     this.playbackToken += 1;
     this.selectionToken += 1;
+    this.pendingSeek = undefined;
     if (entries.length === 0) {
       this.audio.pause();
       this.setAudioSource('');
@@ -309,7 +321,20 @@ class PlayerController {
   seek(seconds: number): void {
     if (!this.state.track || !Number.isFinite(seconds)) return;
     const maximum = Number.isFinite(this.audio.duration) ? this.audio.duration : this.state.duration;
-    this.audio.currentTime = Math.max(0, Math.min(seconds, maximum || seconds));
+    const target = Math.max(0, Math.min(seconds, maximum || seconds));
+    if (!this.audio.currentSrc && !this.state.track.audioUrl) {
+      const token = this.selectionToken;
+      this.pendingSeek = { token, seconds: target };
+      this.update({ position: target });
+      void this.ensureAudioSource().then(ok => {
+        if (!ok && this.pendingSeek?.token === token) { this.pendingSeek = undefined; this.updateClock(); }
+      }).catch(() => {
+        if (this.pendingSeek?.token === token) { this.pendingSeek = undefined; this.updateClock(); }
+      });
+      return;
+    }
+    this.pendingSeek = { token: this.selectionToken, seconds: target };
+    try { this.audio.currentTime = target; } catch { /* Apply after metadata arrives. */ }
     this.updateClock();
   }
 

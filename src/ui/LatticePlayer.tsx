@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
-import { Home, ListMusic, Maximize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { Captions, Home, ListMusic, Maximize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { playUiSound } from '../core/sounds';
 import CoverArt from './CoverArt';
 import { formatTime } from './library';
@@ -33,6 +33,8 @@ type LatticePlayerProps = {
   onOpenSettings: () => void;
   onOpenSearch: () => void;
   searchAvailable?: boolean;
+  desktopLyricsVisible?: boolean;
+  onToggleDesktopLyrics?: () => void;
 };
 
 const wrap = (value: number, length: number) => ((value % length) + length) % length;
@@ -40,7 +42,7 @@ const wrap = (value: number, length: number) => ((value % length) + length) % le
 export default function LatticePlayer({
   track, queue, queueIndex, recentTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
-  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true,
+  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +57,9 @@ export default function LatticePlayer({
   const [selectedSlot, setSelectedSlot] = useState(CENTER_STICKER_SLOT);
   const [dragging, setDragging] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [seekDraft, setSeekDraft] = useState<number | null>(null);
+  const seekDraftRef = useRef<number | null>(null);
+  const seekDraggingRef = useRef(false);
   const [, setFocusRevision] = useState(0);
 
   // The playback queue determines the posters. Songs played from earlier queues remain available.
@@ -78,6 +83,7 @@ export default function LatticePlayer({
   const wallWidth = WALL_COLUMNS * cellPitch - STICKER_GAP;
   const wallHeight = WALL_ROWS * cellPitch - STICKER_GAP;
   const total = duration || track.duration || 0;
+  const shownPosition = seekDraft ?? position;
   const activeLyric = lyrics.reduce((found, line, index) => position >= line.time ? index : found, -1);
   const expandedRects = useMemo(() => expandedStickerLayout(selectedSlot), [selectedSlot]);
 
@@ -180,6 +186,13 @@ export default function LatticePlayer({
     event.stopPropagation();
   };
   const playFocused = () => focusedIsCurrent ? onTogglePlay() : onPlayTrack(focusedTrack);
+  const commitMiniSeek = () => {
+    const seconds = seekDraftRef.current;
+    seekDraggingRef.current = false;
+    seekDraftRef.current = null;
+    setSeekDraft(null);
+    if (seconds !== null) onSeek(seconds);
+  };
 
   return <div className="yz-lattice">
     <div className="yz-sticker-viewport" ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
@@ -219,8 +232,9 @@ export default function LatticePlayer({
     <button className="yz-lattice-back" onClick={onBack} aria-label="个人主页" title="个人主页"><Home size={19} /></button>
     {searchAvailable && <div className="yz-lattice-search-zone"><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}
     <div className="yz-lattice-mini">
-      <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={track.coverUrl} /><span className="yz-lattice-mini-text"><small>正在播放 · 点击定位</small><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
-      <div className="yz-lattice-mini-progress"><span style={{ width: `${total ? Math.min(100, position / total * 100) : 0}%` }} /></div><small className="yz-lattice-mini-time">{formatTime(position)} / {formatTime(total)}</small>
+      <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={track.coverUrl} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
+      <button className={`yz-lattice-mini-lyrics${desktopLyricsVisible ? ' is-active' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} title={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-label={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-pressed={desktopLyricsVisible}><Captions size={18} /></button>
+      <input className="yz-lattice-mini-progress" type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(shownPosition, Math.max(total, 1))} disabled={total <= 0} onPointerDown={() => { seekDraggingRef.current = true; seekDraftRef.current = position; setSeekDraft(position); }} onChange={event => { const seconds = Number(event.target.value); if (seekDraggingRef.current) { seekDraftRef.current = seconds; setSeekDraft(seconds); } else onSeek(seconds); }} onPointerUp={commitMiniSeek} onPointerCancel={() => { seekDraggingRef.current = false; seekDraftRef.current = null; setSeekDraft(null); }} aria-label="拖动歌曲进度" style={{ '--range-fill': `${total ? Math.min(100, shownPosition / total * 100) : 0}%` } as CSSProperties} /><small className="yz-lattice-mini-time">{formatTime(shownPosition)} / {formatTime(total)}</small>
       <div className="yz-lattice-mini-controls">
         <button onClick={onPrevious} title="上一首" aria-label="上一首"><SkipBack size={16} fill="currentColor" /></button>
         <button onClick={onTogglePlay} title={playing ? '暂停' : '播放'} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>

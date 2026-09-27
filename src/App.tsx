@@ -58,16 +58,39 @@ export default function App() {
   useEffect(() => {
     const bridge = window.yzqxy?.desktopLyrics;
     if (!bridge) return;
-    void bridge.isVisible().then(setDesktopLyricsVisible);
-    return bridge.onVisibleChanged(setDesktopLyricsVisible);
+    let active = true;
+    const unsubscribe = bridge.onVisibleChanged(visible => {
+      if (!active) return;
+      setDesktopLyricsVisible(visible);
+      localStorage.setItem('zenix.desktopLyrics.enabled', visible ? '1' : '0');
+    });
+    void bridge.isVisible().then(async visible => {
+      if (!active) return;
+      if (!visible && localStorage.getItem('zenix.desktopLyrics.enabled') === '1') visible = await bridge.toggle();
+      if (active) setDesktopLyricsVisible(visible);
+    }).catch(() => {});
+    return () => { active = false; unsubscribe(); };
   }, []);
   useEffect(() => {
     if (!desktopLyricsVisible) return;
     const bridge = window.yzqxy?.desktopLyrics;
     if (!bridge) return;
     const active = lyrics.reduce((index, line, i) => playback.position >= line.time ? i : index, -1);
-    void bridge.update({ line: lyrics[active]?.text || '', next: lyrics[active + 1]?.text || '', title: playback.track?.title || '' });
-  }, [desktopLyricsVisible, lyrics, playback.position, playback.track?.title]);
+    const current = lyrics[active];
+    const following = lyrics[active + 1];
+    const lineEnd = following?.time ?? playback.duration;
+    const progress = current && lineEnd > current.time ? (playback.position - current.time) / (lineEnd - current.time) : 0;
+    void bridge.update({ line: current?.text || (lyrics.length ? '即将开始' : playback.track?.title || ''), next: following?.text || (lyrics.length ? '' : playback.track ? '暂无同步歌词' : ''), title: playback.track?.title || '', playing: playback.playing, progress });
+  }, [desktopLyricsVisible, lyrics, playback.position, playback.duration, playback.playing, playback.track?.title]);
+
+  const toggleDesktopLyrics = () => {
+    const bridge = window.yzqxy?.desktopLyrics;
+    if (!bridge) { setNotice('桌面歌词只在桌面版中可用'); return; }
+    void bridge.toggle().then(visible => {
+      setDesktopLyricsVisible(visible);
+      localStorage.setItem('zenix.desktopLyrics.enabled', visible ? '1' : '0');
+    }).catch(error => setNotice(error instanceof Error ? error.message : '桌面歌词无法打开'));
+  };
 
   useEffect(() => {
     const bridge = window.yzqxy?.appearance;
@@ -269,7 +292,7 @@ export default function App() {
       tracks={collection.tracks}
       personal={personal}
       desktopLyricsVisible={desktopLyricsVisible}
-      onToggleDesktopLyrics={() => { void window.yzqxy?.desktopLyrics.toggle().then(setDesktopLyricsVisible); }}
+      onToggleDesktopLyrics={toggleDesktopLyrics}
       onToggleSaved={(kind, track) => toggleSaved(kind, track as Track)}
       onCreatePersonalPlaylist={(name, track) => createPersonalPlaylist(name, track as Track | undefined)}
       onAddToPersonalPlaylist={(id, track) => addToPersonalPlaylist(id, track as Track)}

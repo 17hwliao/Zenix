@@ -15,7 +15,10 @@ protocol.registerSchemesAsPrivileged([{
 
 let mainWindow = null;
 let lyricsWindow = null;
-let lyricsPayload = { line: '', next: '', title: '' };
+let lyricsPayload = { line: '', next: '', title: '', playing: false, progress: 0 };
+let lyricsBounds = null;
+let lyricsReady = null;
+let lyricsSaveTimer = null;
 let library = null;
 let appearance = null;
 let personal = null;
@@ -126,6 +129,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   });
 
@@ -162,29 +166,50 @@ function createWindow() {
 function createLyricsWindow() {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) return lyricsWindow;
   lyricsWindow = new BrowserWindow({
-    width: 760, height: 104, minWidth: 420, minHeight: 84, frame: false,
+    width: lyricsBounds?.width || 760, height: lyricsBounds?.height || 112, minWidth: 540, minHeight: 100, frame: false,
     transparent: true, hasShadow: false, alwaysOnTop: true, skipTaskbar: true,
     resizable: true, show: false, backgroundColor: '#00000000',
-    webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
-  lyricsWindow.setAlwaysOnTop(true, 'floating');
-  const area = screen.getPrimaryDisplay().workArea;
-  lyricsWindow.setPosition(Math.round(area.x + (area.width - 760) / 2), area.y + 68);
+  const win = lyricsWindow;
+  win.setAlwaysOnTop(true, 'floating');
+  const area = screen.getDisplayMatching(mainWindow?.getBounds() || screen.getPrimaryDisplay().workArea).workArea;
+  const preferredX = lyricsBounds?.x ?? Math.round(area.x + (area.width - win.getBounds().width) / 2);
+  const preferredY = lyricsBounds?.y ?? area.y + 68;
+  win.setPosition(Math.min(Math.max(preferredX, area.x), area.x + area.width - win.getBounds().width), Math.min(Math.max(preferredY, area.y), area.y + area.height - win.getBounds().height));
+  const saveBounds = () => {
+    if (lyricsSaveTimer) clearTimeout(lyricsSaveTimer);
+    lyricsSaveTimer = setTimeout(() => {
+      if (win.isDestroyed()) return;
+      lyricsBounds = win.getBounds();
+      void fsp.writeFile(path.join(app.getPath('userData'), 'desktop-lyrics-bounds.json'), JSON.stringify(lyricsBounds)).catch(() => {});
+    }, 350);
+  };
+  win.on('move', saveBounds);
+  win.on('resize', saveBounds);
   lyricsWindow.webContents.on('did-fail-load', (_event, code, description) => console.error('Desktop lyrics load failed:', code, description));
-  void lyricsWindow.loadFile(path.join(__dirname, 'desktop-lyrics.html')).catch(error => console.error('Desktop lyrics load error:', error));
-  lyricsWindow.webContents.once('did-finish-load', () => lyricsWindow?.webContents.send('lyrics:data', lyricsPayload));
-  lyricsWindow.on('closed', () => { lyricsWindow = null; broadcast('lyrics:visible', false); });
-  return lyricsWindow;
+  lyricsReady = win.loadFile(path.join(__dirname, 'desktop-lyrics.html')).then(() => {
+    if (!win.isDestroyed()) win.webContents.send('lyrics:data', lyricsPayload);
+  });
+  win.on('closed', () => { lyricsWindow = null; lyricsReady = null; broadcast('lyrics:visible', false); });
+  return win;
 }
 
 function registerHandlers() {
-  ipcMain.handle('lyrics:toggle', () => {
+  ipcMain.handle('lyrics:toggle', async () => {
     if (lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()) { lyricsWindow.hide(); broadcast('lyrics:visible', false); return false; }
-    const win = createLyricsWindow(); win.showInactive(); broadcast('lyrics:visible', true); return true;
+    const win = createLyricsWindow();
+    await lyricsReady;
+    if (win.isDestroyed()) return false;
+    win.showInactive();
+    win.setAlwaysOnTop(true, 'floating');
+    broadcast('lyrics:visible', true);
+    return true;
   });
   ipcMain.handle('lyrics:is-visible', () => Boolean(lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()));
-  ipcMain.handle('lyrics:update', (_event, payload) => { lyricsPayload = { line: String(payload?.line || ''), next: String(payload?.next || ''), title: String(payload?.title || '') }; if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload); });
+  ipcMain.handle('lyrics:update', (_event, payload) => { lyricsPayload = { line: String(payload?.line || ''), next: String(payload?.next || ''), title: String(payload?.title || ''), playing: Boolean(payload?.playing), progress: Math.max(0, Math.min(1, Number(payload?.progress) || 0)) }; if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload); });
   ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
+  ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
   const personalAction = (channel, handler) => ipcMain.handle(channel, async (_event, ...args) => {
     const state = await handler(...args);
     broadcast('personal:changed', state);
@@ -279,6 +304,10 @@ const previousUserData = path.join(app.getPath('appData'), 'YzqxY Music Player')
 if (fs.existsSync(previousUserData)) app.setPath('userData', previousUserData);
 
 app.whenReady().then(async () => {
+  try {
+    const saved = JSON.parse(await fsp.readFile(path.join(app.getPath('userData'), 'desktop-lyrics-bounds.json'), 'utf8'));
+    if (['x', 'y', 'width', 'height'].every(key => Number.isFinite(saved[key]))) lyricsBounds = saved;
+  } catch { /* First launch uses the current screen. */ }
   library = new LocalLibrary(app.getPath('userData'), broadcast);
   appearance = new AppearanceStore(app.getPath('userData'));
   personal = new PersonalStore(app.getPath('userData'));
