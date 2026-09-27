@@ -4,7 +4,7 @@
 .zenix-personal-media { position: absolute; inset: -2%; width: 104%; height: 104%; object-fit: cover; object-position: center; opacity: var(--personal-strength); filter: saturate(.8) contrast(1.04); transition: opacity 1.2s ease, filter .6s ease, transform .9s ease; }
 .zenix-personal-veil { position: absolute; inset: 0; background: linear-gradient(90deg,rgba(4,6,11,.21),transparent 42%,rgba(4,6,11,.13)),linear-gradient(0deg,rgba(4,6,11,.55),transparent 35%,rgba(4,6,11,.17)),rgba(3,5,9,var(--personal-shade)); transition: background .7s ease; }
 .zenix-personal-backdrop--home .zenix-personal-media { filter: saturate(.83) contrast(1.05) blur(2px); transform: scale(1.025); }
-.zenix-personal-backdrop--search .zenix-personal-media { filter: saturate(.53) contrast(1.05) blur(12px); transform: scale(1.09); }
+.zenix-personal-backdrop--search .zenix-personal-media { filter: saturate(.7) contrast(1.04) blur(7px); transform: scale(1.055); }
 .zenix-personal-backdrop--collection .zenix-personal-media { filter: saturate(.68) contrast(1.05) blur(8px); transform: scale(1.065); }
 .zenix-personal-backdrop--settings, .zenix-personal-backdrop--queue { filter: saturate(.7); }
 .zenix-personal-backdrop--settings .zenix-personal-media, .zenix-personal-backdrop--queue .zenix-personal-media { filter: saturate(.6) blur(17px); transform: scale(1.09); }

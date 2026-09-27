@@ -7,7 +7,7 @@ type PersonalBackdropProps = { background: AppearanceBackground | null; scene: P
 
 const sceneStrength: Record<PersonalScene, number> = {
   home: .82,
-  search: .41,
+  search: .69,
   collection: .57,
   settings: .48,
   queue: .45,
@@ -15,7 +15,7 @@ const sceneStrength: Record<PersonalScene, number> = {
 };
 const sceneShade: Record<PersonalScene, number> = {
   home: .16,
-  search: .47,
+  search: .28,
   collection: .33,
   settings: .41,
   queue: .44,

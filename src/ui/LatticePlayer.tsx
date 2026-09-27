@@ -32,6 +32,7 @@ type LatticePlayerProps = {
   onOpenQueue: () => void;
   onOpenSettings: () => void;
   onOpenSearch: () => void;
+  searchAvailable?: boolean;
 };
 
 const wrap = (value: number, length: number) => ((value % length) + length) % length;
@@ -39,7 +40,7 @@ const wrap = (value: number, length: number) => ((value % length) + length) % le
 export default function LatticePlayer({
   track, queue, queueIndex, recentTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
-  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch,
+  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true,
 }: LatticePlayerProps) {
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
@@ -216,7 +217,7 @@ export default function LatticePlayer({
       </div>
     </div>
     <button className="yz-lattice-back" onClick={onBack} aria-label="个人主页" title="个人主页"><Home size={19} /></button>
-    <div className="yz-lattice-search-zone"><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={19} /></button></div>
+    {searchAvailable && <div className="yz-lattice-search-zone"><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}
     <div className="yz-lattice-mini">
       <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={track.coverUrl} /><span className="yz-lattice-mini-text"><small>正在播放 · 点击定位</small><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
       <div className="yz-lattice-mini-progress"><span style={{ width: `${total ? Math.min(100, position / total * 100) : 0}%` }} /></div><small className="yz-lattice-mini-time">{formatTime(position)} / {formatTime(total)}</small>

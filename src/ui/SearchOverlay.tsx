@@ -3,8 +3,10 @@ import { Loader2, Search, X } from 'lucide-react';
 import CoverArt from './CoverArt';
 import { formatTime } from './library';
 import type { TrackView } from './types';
+import type { AppearanceBackground } from '../core/types';
+import PersonalBackdrop from './PersonalBackdrop';
 
-// Full-screen search surface for anonymous online results and the local library.
+// The search tray stays above the sticker wall and uses the selected personal media.
 type SearchSource = 'netease' | 'local' | 'navidrome';
 
 type SearchOverlayProps = {
@@ -19,9 +21,10 @@ type SearchOverlayProps = {
   onLoadMore?: () => void | Promise<void>;
   onPlayTrack: (track: TrackView, queue?: TrackView[]) => void;
   onClose: () => void;
+  background?: AppearanceBackground | null;
 };
 
-export default function SearchOverlay({ initialSource, query, onQueryChange, localTracks, onlineResults, onlineSearching, onlineHasMore, onSearchOnline, onLoadMore, onPlayTrack, onClose }: SearchOverlayProps) {
+export default function SearchOverlay({ initialSource, query, onQueryChange, localTracks, onlineResults, onlineSearching, onlineHasMore, onSearchOnline, onLoadMore, onPlayTrack, onClose, background }: SearchOverlayProps) {
   const [source, setSource] = useState<SearchSource>(initialSource);
   const [submittedQuery, setSubmittedQuery] = useState(query.trim());
   const keyword = query.trim().toLocaleLowerCase();
@@ -35,8 +38,10 @@ export default function SearchOverlay({ initialSource, query, onQueryChange, loc
     if (source === 'netease' && query.trim()) void onSearchOnline?.(query.trim());
   };
 
-  return (
-    <div className="yz-search-overlay">
+  return <>
+    <button className="yz-search-dismiss" onClick={onClose} aria-label="关闭搜索" tabIndex={-1} />
+    <div className="yz-search-overlay" role="dialog" aria-label="搜索音乐">
+      <PersonalBackdrop background={background ?? null} scene="search" />
       <div className="yz-search-top">
         <form onSubmit={submit} className="yz-search-large"><Search size={20} /><input autoFocus value={query} onChange={event => onQueryChange(event.target.value)} placeholder="搜索音乐" aria-label="搜索音乐" /><button title="搜索" aria-label="搜索"><Search size={18} /></button></form>
         <button className="yz-search-close" onClick={onClose} title="关闭搜索" aria-label="关闭搜索"><X size={20} /></button>
@@ -51,5 +56,5 @@ export default function SearchOverlay({ initialSource, query, onQueryChange, loc
         </div> : <div className="yz-search-status"><span>{source === 'navidrome' ? '未连接 Navidrome' : submittedQuery || source === 'local' ? '未找到相关结果' : '搜索音乐'}</span></div>}
       </div>
     </div>
-  );
+  </>;
 }

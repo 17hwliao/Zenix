@@ -44,7 +44,7 @@ export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBac
           <button className={openCard === 'guide' ? 'is-active' : ''} onClick={() => setOpenCard(openCard === 'guide' ? null : 'guide')}><BookOpen size={20} /><span><strong>使用帮助</strong><small>播放与曲库操作</small></span><ArrowUpRight size={16} /></button>
         </div>
         {openCard && <p className="yz-help-detail">{openCard === 'version' ? 'Zenix 0.1.0' : '导入音乐文件夹后，点击封面打开歌曲；在搜索栏中按 Enter 搜索。'}</p>}
-        <div className="yz-shortcuts"><h3>快捷键</h3><div><span>播放或暂停</span><kbd>Space</kbd></div><div><span>切换歌曲或跳转进度</span><span><kbd>←</kbd><kbd>→</kbd></span></div><div><span>关闭当前面板</span><kbd>Esc</kbd></div></div>
+        <div className="yz-shortcuts"><h3>快捷键</h3><div><span>播放或暂停（未聚焦按钮时）</span><kbd>Space</kbd></div><div><span>贴纸页快退或快进 5 秒</span><span><kbd>←</kbd><kbd>→</kbd></span></div><div><span>打开搜索</span><kbd>Ctrl K</kbd></div><div><span>关闭当前面板</span><kbd>Esc</kbd></div></div>
         <div className="yz-settings-footer"><button onClick={() => { void onImportFolder(); onClose(); }}><FolderOpen size={15} /> 导入音乐</button><button onClick={onReplayIntro}>重播开屏</button><span>Zenix Music</span></div>
       </div>}
       {tab === 'options' && <div className="yz-settings-body">
