@@ -1,0 +1,330 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ZenixShell } from './ui';
+import ZenixIntro from './ui/ZenixIntro';
+import AppearanceOnboarding from './ui/AppearanceOnboarding';
+import { library, loadLyrics, player } from './core';
+import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
+import { isOnlineTrack, loadOnlineLyrics, resolveOnlineTrack, searchOnlineTracks } from './online';
+import type { OnlineTrack } from './online';
+import { PlaylistManager } from './playlists';
+
+export default function App() {
+  const [introVisible, setIntroVisible] = useState(true);
+  const [appearance, setAppearance] = useState<AppearanceState>({ completed: true, background: null });
+  const [appearanceLoaded, setAppearanceLoaded] = useState(false);
+  const [appearanceBusy, setAppearanceBusy] = useState(false);
+  const finishIntro = useCallback(() => setIntroVisible(false), []);
+  const [collection, setCollection] = useState<LibrarySnapshot>(library.snapshot);
+  const [playback, setPlayback] = useState<PlayerState>(player.snapshot);
+  const [personal, setPersonal] = useState<PersonalState>({ liked: [], favorites: [], history: [], playlists: [] });
+  const [desktopLyricsVisible, setDesktopLyricsVisible] = useState(false);
+  const [recentTracks, setRecentTracks] = useState<Track[]>(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem('zenix.recentTracks') || localStorage.getItem('yzqxy.recentTracks') || '[]');
+      return Array.isArray(saved) ? saved.filter((item): item is Track => typeof item?.id === 'string' && typeof item?.title === 'string').slice(0, 50) : [];
+    } catch { return []; }
+  });
+  const [lyrics, setLyrics] = useState<LyricLine[]>([]);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [playlistsOpen, setPlaylistsOpen] = useState(false);
+  const [playerViewRequestKey, setPlayerViewRequestKey] = useState(0);
+  const [onlineResults, setOnlineResults] = useState<OnlineTrack[]>([]);
+  const [onlineSearching, setOnlineSearching] = useState(false);
+  const [onlineHasMore, setOnlineHasMore] = useState(false);
+  const onlineQuery = useRef('');
+  const onlineOffset = useRef(0);
+  const searchRequest = useRef(0);
+  const lastHistoryEvent = useRef('');
+
+  useEffect(() => {
+    const bridge = window.yzqxy?.personal;
+    if (!bridge) return;
+    let active = true;
+    void bridge.load().then(state => { if (active) setPersonal(state); })
+      .catch(error => { if (active) setNotice(error instanceof Error ? error.message : '个人曲库读取失败'); });
+    const unsubscribe = bridge.onChanged(state => { if (active) setPersonal(state); });
+    return () => { active = false; unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (!playback.playing || !playback.track) { lastHistoryEvent.current = ''; return; }
+    if (lastHistoryEvent.current === playback.track.id) return;
+    lastHistoryEvent.current = playback.track.id;
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void bridge.record(playback.track).then(setPersonal).catch(() => {});
+  }, [playback.playing, playback.track?.id]);
+
+  useEffect(() => {
+    const bridge = window.yzqxy?.desktopLyrics;
+    if (!bridge) return;
+    void bridge.isVisible().then(setDesktopLyricsVisible);
+    return bridge.onVisibleChanged(setDesktopLyricsVisible);
+  }, []);
+  useEffect(() => {
+    if (!desktopLyricsVisible) return;
+    const bridge = window.yzqxy?.desktopLyrics;
+    if (!bridge) return;
+    const active = lyrics.reduce((index, line, i) => playback.position >= line.time ? i : index, -1);
+    void bridge.update({ line: lyrics[active]?.text || '', next: lyrics[active + 1]?.text || '', title: playback.track?.title || '' });
+  }, [desktopLyricsVisible, lyrics, playback.position, playback.track?.title]);
+
+  useEffect(() => {
+    const bridge = window.yzqxy?.appearance;
+    if (!bridge) { setAppearanceLoaded(true); return; }
+    let active = true;
+    void bridge.load().then(state => { if (active) setAppearance(state); })
+      .catch(error => { if (active) setNotice(error instanceof Error ? error.message : '外观设置读取失败'); })
+      .finally(() => { if (active) setAppearanceLoaded(true); });
+    const unsubscribe = bridge.onChanged(state => { if (active) setAppearance(state); });
+    return () => { active = false; unsubscribe(); };
+  }, []);
+
+  const chooseBackground = async () => {
+    if (!window.yzqxy?.appearance || appearanceBusy) return;
+    setAppearanceBusy(true);
+    try { const state = await window.yzqxy.appearance.choose(); if (state) setAppearance(state); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '背景文件无法使用'); }
+    finally { setAppearanceBusy(false); }
+  };
+  const completeAppearance = async () => {
+    if (!window.yzqxy?.appearance || appearanceBusy) return;
+    setAppearanceBusy(true);
+    try { setAppearance(await window.yzqxy.appearance.complete()); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '外观设置保存失败'); }
+    finally { setAppearanceBusy(false); }
+  };
+  const clearBackground = async () => {
+    if (!window.yzqxy?.appearance || appearanceBusy) return;
+    setAppearanceBusy(true);
+    try { setAppearance(await window.yzqxy.appearance.clear()); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '背景移除失败'); }
+    finally { setAppearanceBusy(false); }
+  };
+
+  useEffect(() => {
+    player.setTrackResolver(resolveOnlineTrack);
+    const unsubscribeLibrary = library.subscribe(setCollection);
+    const unsubscribePlayer = player.subscribe(setPlayback);
+    const unsubscribeProgress = library.subscribeProgress(progress => setLibraryBusy(Boolean(progress)));
+    let active = true;
+    void library.init().then(snapshot => {
+      if (active) player.restoreQueue(snapshot.tracks);
+    }).catch(error => {
+      if (active) setNotice(error instanceof Error ? error.message : '曲库读取失败');
+    });
+    return () => {
+      player.setTrackResolver(undefined);
+      active = false;
+      unsubscribeLibrary();
+      unsubscribePlayer();
+      unsubscribeProgress();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLyrics([]);
+    if (playback.track) {
+      const visited = playback.track;
+      setRecentTracks(previous => [visited, ...previous.filter(item => item.id !== visited.id)].slice(0, 50));
+      const request = isOnlineTrack(playback.track) ? loadOnlineLyrics(playback.track) : loadLyrics(playback.track);
+      void request.then(lines => {
+        if (active) setLyrics(lines);
+      }).catch(() => {
+        if (active) setLyrics([]);
+      });
+    }
+    return () => { active = false; };
+  }, [playback.track?.id]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('zenix.recentTracks', JSON.stringify(recentTracks.map(item => isOnlineTrack(item) ? { ...item, audioUrl: undefined } : item)));
+    } catch { /* Browsing history is optional when storage is unavailable. */ }
+  }, [recentTracks]);
+
+  const importFolder = async () => {
+    setLibraryBusy(true);
+    try { await library.importFolder(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '导入失败'); }
+    finally { setLibraryBusy(false); }
+  };
+
+  const addFiles = async () => {
+    setLibraryBusy(true);
+    try { await library.addFiles(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '导入文件失败'); }
+    finally { setLibraryBusy(false); }
+  };
+
+  const importPlaylist = async () => {
+    setLibraryBusy(true);
+    try { await library.importPlaylist(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '导入歌单失败'); }
+    finally { setLibraryBusy(false); }
+  };
+
+  const refreshLibrary = async () => {
+    setLibraryBusy(true);
+    try { await library.rescan(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '刷新失败'); }
+    finally { setLibraryBusy(false); }
+  };
+
+  const searchOnline = async (query: string) => {
+    const normalized = query.trim();
+    const requestId = ++searchRequest.current;
+    onlineQuery.current = normalized;
+    onlineOffset.current = 0;
+    setOnlineHasMore(false);
+    setOnlineResults([]);
+    if (!normalized) return;
+    setOnlineSearching(true);
+    try {
+      const page = await searchOnlineTracks(normalized);
+      if (requestId !== searchRequest.current) return;
+      setOnlineResults(page.tracks);
+      onlineOffset.current = page.nextOffset;
+      setOnlineHasMore(page.hasMore);
+    } catch (error) {
+      if (requestId === searchRequest.current) setNotice(error instanceof Error ? error.message : '在线搜索失败');
+    } finally {
+      if (requestId === searchRequest.current) setOnlineSearching(false);
+    }
+  };
+
+  const loadMoreOnline = async () => {
+    if (onlineSearching || !onlineHasMore || !onlineQuery.current) return;
+    const requestId = searchRequest.current;
+    setOnlineSearching(true);
+    try {
+      const page = await searchOnlineTracks(onlineQuery.current, onlineOffset.current);
+      if (requestId !== searchRequest.current) return;
+      setOnlineResults(existing => [...existing, ...page.tracks.filter(track => !existing.some(item => item.id === track.id))]);
+      onlineOffset.current = page.nextOffset;
+      setOnlineHasMore(page.hasMore);
+    } catch (error) {
+      if (requestId === searchRequest.current) setNotice(error instanceof Error ? error.message : '加载更多失败');
+    } finally {
+      if (requestId === searchRequest.current) setOnlineSearching(false);
+    }
+  };
+
+  const playTrack = async (track: Track, queue?: Track[]) => {
+    try {
+      const ready = isOnlineTrack(track) ? await resolveOnlineTrack(track) : track;
+      const readyQueue = queue?.map(item => item.id === ready.id ? ready : item);
+      await player.playTrack(ready, readyQueue);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '无法播放这首歌');
+    }
+  };
+
+  const personalAction = async (action: () => Promise<PersonalState>) => {
+    try { setPersonal(await action()); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '保存失败'); }
+  };
+  const toggleSaved = (kind: 'liked' | 'favorites', track: Track) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(() => bridge.toggle(kind, track));
+  };
+  const createPersonalPlaylist = (name: string, firstTrack?: Track) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(async () => {
+      const before = await bridge.load();
+      const created = await bridge.createPlaylist(name);
+      const playlist = created.playlists.find(item => !before.playlists.some(old => old.id === item.id));
+      return firstTrack && playlist ? bridge.addToPlaylist(playlist.id, firstTrack) : created;
+    });
+  };
+  const addToPersonalPlaylist = (id: string, track: Track) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(() => bridge.addToPlaylist(id, track));
+  };
+  const removePersonalTrack = (id: string, trackId: string) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(() => bridge.removeFromPlaylist(id, trackId));
+  };
+  const removeSaved = (kind: 'liked' | 'favorites' | 'history', id: string) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(() => bridge.removeSaved(kind, id));
+  };
+  const renamePersonalPlaylist = (id: string, name: string) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(() => bridge.renamePlaylist(id, name));
+  };
+  const deletePersonalPlaylist = (id: string) => {
+    const bridge = window.yzqxy?.personal;
+    if (bridge) void personalAction(() => bridge.deletePlaylist(id));
+  };
+
+  return <>
+    <ZenixShell
+      appearanceBackground={introVisible ? null : appearance.background}
+      interactionLocked={introVisible || (appearanceLoaded && !appearance.completed)}
+      appearanceBusy={appearanceBusy}
+      onChooseBackground={chooseBackground}
+      onClearBackground={clearBackground}
+      tracks={collection.tracks}
+      personal={personal}
+      desktopLyricsVisible={desktopLyricsVisible}
+      onToggleDesktopLyrics={() => { void window.yzqxy?.desktopLyrics.toggle().then(setDesktopLyricsVisible); }}
+      onToggleSaved={(kind, track) => toggleSaved(kind, track as Track)}
+      onCreatePersonalPlaylist={(name, track) => createPersonalPlaylist(name, track as Track | undefined)}
+      onAddToPersonalPlaylist={(id, track) => addToPersonalPlaylist(id, track as Track)}
+      onRemovePersonalTrack={removePersonalTrack}
+      onRemoveSaved={removeSaved}
+      onRenamePersonalPlaylist={renamePersonalPlaylist}
+      onDeletePersonalPlaylist={deletePersonalPlaylist}
+      onSetQueue={(tracks, index) => player.setQueue(tracks as Track[], index)}
+      onRemoveFromQueue={index => player.removeFromQueue(index)}
+      playlists={collection.playlists}
+      playerViewRequestKey={playerViewRequestKey}
+      currentTrack={playback.track}
+      playing={playback.playing}
+      position={playback.position}
+      duration={playback.duration}
+      volume={playback.volume}
+      muted={playback.muted}
+      shuffle={playback.shuffle}
+      repeat={playback.repeat}
+      queue={playback.queue}
+      queueIndex={playback.queueIndex}
+      recentTracks={recentTracks}
+      lyrics={lyrics}
+      libraryBusy={libraryBusy}
+      onlineResults={onlineResults}
+      onlineSearching={onlineSearching}
+      onlineHasMore={onlineHasMore}
+      onSearchOnline={searchOnline}
+      onLoadMore={loadMoreOnline}
+      onPlayTrack={(track, queue) => { void playTrack(track as Track, queue as Track[] | undefined); }}
+      onTogglePlay={() => player.toggle()}
+      onPrevious={() => { void player.previous(); }}
+      onNext={() => { void player.next(); }}
+      onSeek={seconds => player.seek(seconds)}
+      onVolumeChange={volume => player.setVolume(volume)}
+      onToggleMute={() => player.toggleMute()}
+      onToggleShuffle={() => player.setShuffle(!player.snapshot.shuffle)}
+      onCycleRepeat={() => player.cycleRepeat()}
+      onImportFolder={importFolder}
+      onAddFiles={addFiles}
+      onImportPlaylist={importPlaylist}
+      onOpenPlaylists={() => setPlaylistsOpen(true)}
+      onRefreshLibrary={refreshLibrary}
+      onMinimize={window.yzqxy ? () => { void window.yzqxy?.window.minimize(); } : undefined}
+      onMaximize={window.yzqxy ? () => { void window.yzqxy?.window.toggleMaximize(); } : undefined}
+      onClose={window.yzqxy ? () => { void window.yzqxy?.window.close(); } : undefined}
+      onReplayIntro={() => setIntroVisible(true)}
+    />
+    {playlistsOpen && <PlaylistManager onClose={() => setPlaylistsOpen(false)} onPlayTrack={(track, queue) => {
+      void playTrack(track, queue);
+      setPlaylistsOpen(false);
+      setPlayerViewRequestKey(value => value + 1);
+    }} />}
+    {(notice || playback.error) && <div className="yz-runtime-notice" role="alert" onClick={() => setNotice('')}>{notice || playback.error}</div>}
+    {appearanceLoaded && !introVisible && !appearance.completed && <AppearanceOnboarding busy={appearanceBusy} onChoose={chooseBackground} onSkip={completeAppearance} />}
+    {introVisible && <ZenixIntro background={appearance.background} onFinish={finishIntro} />}
+  </>;
+}

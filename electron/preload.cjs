@@ -1,0 +1,66 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+function subscribe(channel, callback) {
+  const listener = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
+
+contextBridge.exposeInMainWorld('yzqxy', {
+  desktopLyrics: {
+    toggle: () => ipcRenderer.invoke('lyrics:toggle'),
+    isVisible: () => ipcRenderer.invoke('lyrics:is-visible'),
+    update: (payload) => ipcRenderer.invoke('lyrics:update', payload),
+    onVisibleChanged: (callback) => subscribe('lyrics:visible', callback),
+  },
+  personal: {
+    load: () => ipcRenderer.invoke('personal:load'),
+    toggle: (kind, track) => ipcRenderer.invoke('personal:toggle', kind, track),
+    record: (track) => ipcRenderer.invoke('personal:record', track),
+    createPlaylist: (name) => ipcRenderer.invoke('personal:create-playlist', name),
+    renamePlaylist: (id, name) => ipcRenderer.invoke('personal:rename-playlist', id, name),
+    deletePlaylist: (id) => ipcRenderer.invoke('personal:delete-playlist', id),
+    addToPlaylist: (id, track) => ipcRenderer.invoke('personal:add-to-playlist', id, track),
+    removeFromPlaylist: (id, trackId) => ipcRenderer.invoke('personal:remove-from-playlist', id, trackId),
+    removeSaved: (kind, id) => ipcRenderer.invoke('personal:remove-saved', kind, id),
+    onChanged: (callback) => subscribe('personal:changed', callback),
+  },
+  appearance: {
+    load: () => ipcRenderer.invoke('appearance:load'),
+    choose: () => ipcRenderer.invoke('appearance:choose'),
+    complete: () => ipcRenderer.invoke('appearance:complete'),
+    clear: () => ipcRenderer.invoke('appearance:clear'),
+    onChanged: (callback) => subscribe('appearance:changed', callback),
+  },
+  online: {
+    search: (query, offset, limit) => ipcRenderer.invoke('online:search', query, offset, limit),
+    resolve: (remoteId) => ipcRenderer.invoke('online:resolve', remoteId),
+    lyrics: (remoteId) => ipcRenderer.invoke('online:lyrics', remoteId),
+  },
+  library: {
+    load: () => ipcRenderer.invoke('library:load'),
+    importFolder: () => ipcRenderer.invoke('library:import-folder'),
+    addFiles: () => ipcRenderer.invoke('library:add-files'),
+    rescan: () => ipcRenderer.invoke('library:rescan'),
+    removeRoot: (path) => ipcRenderer.invoke('library:remove-root', path),
+    removeFile: (path) => ipcRenderer.invoke('library:remove-file', path),
+    readLyrics: (trackId) => ipcRenderer.invoke('library:read-lyrics', trackId),
+    createPlaylist: (name) => ipcRenderer.invoke('library:create-playlist', name),
+    renamePlaylist: (id, name) => ipcRenderer.invoke('library:rename-playlist', id, name),
+    deletePlaylist: (id) => ipcRenderer.invoke('library:delete-playlist', id),
+    setPlaylistTracks: (id, trackIds) => ipcRenderer.invoke('library:set-playlist-tracks', id, trackIds),
+    importPlaylist: () => ipcRenderer.invoke('library:import-playlist'),
+    exportPlaylist: (id) => ipcRenderer.invoke('library:export-playlist', id),
+    onChanged: (callback) => subscribe('library:changed', callback),
+    onProgress: (callback) => subscribe('library:progress', callback),
+  },
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
+    isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+    toggleFullscreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+    close: () => ipcRenderer.invoke('window:close'),
+    onMaximizedChanged: (callback) => subscribe('window:maximized-changed', callback),
+  },
+  onMediaCommand: (callback) => subscribe('media:command', callback),
+});
