@@ -14,13 +14,15 @@ type Props = {
   onAddFiles?: () => void | Promise<void>; onOpenLocalLibrary?: () => void;
   onImportPlaylist?: () => void | Promise<void>;
 };
-type Profile = { name: string; tagline: string; cardLine: string; cardNumber: string; about: string; tags: string; contact: string; subject: string; background: string };
+type OrbitCoverKey = 'liked' | 'favorites' | 'history' | 'playlists' | 'library';
+type Profile = { name: string; tagline: string; cardLine: string; cardNumber: string; about: string; tags: string; contact: string; subject: string; background: string; orbitCovers: Record<OrbitCoverKey, string> };
 const PROFILE_KEY = 'zenix.profile.card.v2';
-const defaults: Profile = { name: '我的音乐空间', tagline: '把喜欢的声音，留在自己的宇宙里。', cardLine: 'PERSONAL MUSIC SPACE', cardNumber: 'NO. 001', about: '', tags: '', contact: '', subject: '', background: '' };
+const emptyOrbitCovers: Record<OrbitCoverKey, string> = { liked: '', favorites: '', history: '', playlists: '', library: '' };
+const defaults: Profile = { name: '我的音乐空间', tagline: '把喜欢的声音，留在自己的宇宙里。', cardLine: 'PERSONAL MUSIC SPACE', cardNumber: 'NO. 001', about: '', tags: '', contact: '', subject: '', background: '', orbitCovers: emptyOrbitCovers };
 function readProfile(): Profile {
   try {
     const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') as Partial<Profile>;
-    return { ...defaults, ...saved, name: saved.name ?? localStorage.getItem('zenix.profile.name') ?? defaults.name, tagline: saved.tagline ?? localStorage.getItem('zenix.profile.tagline') ?? defaults.tagline };
+    return { ...defaults, ...saved, name: saved.name ?? localStorage.getItem('zenix.profile.name') ?? defaults.name, tagline: saved.tagline ?? localStorage.getItem('zenix.profile.tagline') ?? defaults.tagline, orbitCovers: { ...emptyOrbitCovers, ...saved.orbitCovers } };
   } catch { return defaults; }
 }
 function imageToDataUrl(file: File, maxEdge: number, transparent: boolean): Promise<string> {
@@ -40,7 +42,7 @@ function imageToDataUrl(file: File, maxEdge: number, transparent: boolean): Prom
     image.src = url;
   });
 }
-type OrbitCard = { id: string; label: string; caption: string; icon: typeof Heart; image?: string; action: () => void };
+type OrbitCard = { id: OrbitCoverKey | 'settings'; label: string; caption: string; icon: typeof Heart; image?: string; action: () => void };
 
 export default function PersonalHome({ personal, tracks, currentTrack, onPlayTrack, onOpenPlayer, onOpenSearch, onOpenManager, onOpenSettings, onChooseBackground, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist }: Props) {
   const [profile, setProfile] = useState<Profile>(readProfile);
@@ -48,7 +50,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, onPlayTra
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [query, setQuery] = useState('');
-  const ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
+  const stageRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
   const subjectInputRef = useRef<HTMLInputElement>(null), backgroundInputRef = useRef<HTMLInputElement>(null);
   const rotation = useRef(0), velocity = useRef(0);
   const pointer = useRef<{ id: number; x: number; distance: number; target: HTMLElement } | null>(null);
@@ -58,18 +60,34 @@ export default function PersonalHome({ personal, tracks, currentTrack, onPlayTra
     return word ? tracks.filter(track => `${track.title} ${track.artist}`.toLocaleLowerCase().includes(word)).slice(0, 4) : [];
   }, [query, tracks]);
   const historyTracks = personal.history.slice(0, 24).map(entry => entry.track);
-  const latestCover = (personal.history[0]?.track || currentTrack)?.coverUrl;
-  const favoriteCover = personal.favorites[0]?.coverUrl;
-  const likedCover = personal.liked[0]?.coverUrl;
+  const defaultCovers: Record<OrbitCoverKey, string | undefined> = {
+    liked: personal.liked[0]?.coverUrl,
+    favorites: personal.favorites[0]?.coverUrl,
+    history: personal.history[0]?.track.coverUrl,
+    playlists: personal.playlists[0]?.tracks[0]?.coverUrl,
+    library: tracks[0]?.coverUrl,
+  };
   const cards: OrbitCard[] = [
-    { id: 'liked', label: '我的喜欢', caption: `${personal.liked.length} 首歌曲`, icon: Heart, image: likedCover, action: () => onOpenManager('liked') },
-    { id: 'favorites', label: '我的收藏', caption: `${personal.favorites.length} 首歌曲`, icon: Star, image: favoriteCover, action: () => onOpenManager('favorites') },
-    { id: 'history', label: '听歌历史', caption: `${personal.history.length} 首歌曲`, icon: History, image: latestCover, action: () => onOpenManager('history') },
-    { id: 'playlists', label: '自定义歌单', caption: `${personal.playlists.length} 个歌单`, icon: ListMusic, action: () => onOpenManager('playlists') },
-    { id: 'library', label: '本地曲库', caption: `${tracks.length} 首音乐`, icon: FolderOpen, action: () => onOpenLocalLibrary ? onOpenLocalLibrary() : onOpenManager('playlists') },
+    { id: 'liked', label: '我的喜欢', caption: `${personal.liked.length} 首歌曲`, icon: Heart, image: profile.orbitCovers.liked || defaultCovers.liked, action: () => onOpenManager('liked') },
+    { id: 'favorites', label: '我的收藏', caption: `${personal.favorites.length} 首歌曲`, icon: Star, image: profile.orbitCovers.favorites || defaultCovers.favorites, action: () => onOpenManager('favorites') },
+    { id: 'history', label: '听歌历史', caption: `${personal.history.length} 首歌曲`, icon: History, image: profile.orbitCovers.history || defaultCovers.history, action: () => onOpenManager('history') },
+    { id: 'playlists', label: '自定义歌单', caption: `${personal.playlists.length} 个歌单`, icon: ListMusic, image: profile.orbitCovers.playlists || defaultCovers.playlists, action: () => onOpenManager('playlists') },
+    { id: 'library', label: '本地曲库', caption: `${tracks.length} 首音乐`, icon: FolderOpen, image: profile.orbitCovers.library || defaultCovers.library, action: () => onOpenLocalLibrary ? onOpenLocalLibrary() : onOpenManager('playlists') },
     { id: 'settings', label: '个性化设置', caption: '背景 · 音效 · 桌面歌词', icon: Settings2, action: onOpenSettings },
   ];
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rotateOnWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      velocity.current = Math.max(-5, Math.min(5, velocity.current + delta * .025));
+    };
+    stage.addEventListener('wheel', rotateOnWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', rotateOnWheel);
+  }, []);
   useEffect(() => {
     let frame = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -118,6 +136,15 @@ export default function PersonalHome({ personal, tracks, currentTrack, onPlayTra
     try { update(key, await imageToDataUrl(file, key === 'subject' ? 700 : 960, key === 'subject')); setSaveError(''); }
     catch { setSaveError('无法读取这张图片，请更换文件。'); }
   };
+  const chooseOrbitCover = async (event: ChangeEvent<HTMLInputElement>, key: OrbitCoverKey) => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file) return;
+    try {
+      const cover = await imageToDataUrl(file, 480, false);
+      setDraft(current => ({ ...current, orbitCovers: { ...current.orbitCovers, [key]: cover } }));
+      setSaveError('');
+    } catch { setSaveError('无法读取这张图片，请更换文件。'); }
+  };
   const onStageDown = (event: PointerEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('.zenix-card-center, input, form, a')) return;
     suppressClick.current = false;
@@ -155,7 +182,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, onPlayTra
   return <div className="zenix-home-space">
     <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div><button onClick={onOpenSettings} title="个性化设置"><Settings2 size={17} />设置</button><button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
     <div className="zenix-home-scroll">
-      <section className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp} onWheel={event => { velocity.current = Math.max(-5, Math.min(5, velocity.current + event.deltaY * .025)); }}>
+      <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
         <div className="zenix-stage-aura" aria-hidden="true" />
         <div className="zenix-stage-heading"><span>PERSONAL SPACE / {profile.cardNumber}</span><strong>你的音乐，自成宇宙。</strong><small>拖动或滚轮旋转 · 点击卡片打开</small></div>
         <div className="zenix-orbit-scene"><div className="zenix-orbit-guide" aria-hidden="true" /><div className="zenix-orbit-ring" ref={ringRef}>
@@ -179,6 +206,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, onPlayTra
       <header><div><span>IDENTITY CARD / EDIT</span><h2>编辑个人名片</h2><p>这里的信息只保存在本机，点击中心卡片可以随时修改。</p></div><button type="button" className="zenix-editor-close" onClick={() => setEditing(false)} aria-label="关闭编辑"><X size={17} /></button></header>
       <div className="zenix-editor-body"><div className="zenix-editor-images"><div className="zenix-editor-mini-card" style={draft.background ? { backgroundImage: `linear-gradient(180deg, rgba(9,10,13,.1), rgba(9,10,13,.84)), url(${JSON.stringify(draft.background)})` } : undefined}>{draft.subject ? <img src={draft.subject} alt="主体图预览" /> : <span>{draft.name.slice(0, 1).toUpperCase() || 'Z'}</span>}<strong>{draft.name || defaults.name}</strong><small>{draft.cardLine || defaults.cardLine}</small></div><div className="zenix-editor-image-actions"><button type="button" onClick={() => subjectInputRef.current?.click()}><ImagePlus size={14} />主体图</button><button type="button" onClick={() => backgroundInputRef.current?.click()}><ImagePlus size={14} />卡面背景</button></div><button type="button" className="zenix-editor-clear" onClick={() => setDraft(current => ({ ...current, subject: '', background: '' }))}>移除卡面图片</button><input ref={subjectInputRef} type="file" accept="image/*" hidden onChange={event => void chooseImage(event, 'subject')} /><input ref={backgroundInputRef} type="file" accept="image/*" hidden onChange={event => void chooseImage(event, 'background')} /></div>
         <div className="zenix-editor-fields"><label>显示名称<input value={draft.name} maxLength={36} onChange={event => update('name', event.target.value)} placeholder="你的名称" /></label><div className="zenix-editor-field-row"><label>卡面副标题<input value={draft.cardLine} maxLength={36} onChange={event => update('cardLine', event.target.value)} placeholder="PERSONAL MUSIC SPACE" /></label><label>卡片编号<input value={draft.cardNumber} maxLength={18} onChange={event => update('cardNumber', event.target.value)} placeholder="NO. 001" /></label></div><label>空间宣言<input value={draft.tagline} maxLength={100} onChange={event => update('tagline', event.target.value)} placeholder="一句话介绍你的音乐空间" /></label><label>关于我<textarea value={draft.about} maxLength={500} onChange={event => update('about', event.target.value)} placeholder="写下你的故事、喜爱的声音，或任何想记录的事" rows={3} /></label><label>个人标签<input value={draft.tags} maxLength={120} onChange={event => update('tags', event.target.value)} placeholder="用逗号分隔，例如 夜间听歌, 摇滚, 旅行" /></label><label>联系信息或主页<input value={draft.contact} maxLength={180} onChange={event => update('contact', event.target.value)} placeholder="邮箱、网址或其他你愿意展示的信息" /></label></div></div>
+      <section className="zenix-editor-orbit-section"><div className="zenix-editor-orbit-heading"><span>首页卡片封面</span><small>默认跟随每个列表的第一首歌曲；上传图片后可单独覆盖。</small></div><div className="zenix-editor-orbit-grid">{cards.filter((card): card is OrbitCard & { id: OrbitCoverKey } => card.id !== 'settings').map(card => { const cover = draft.orbitCovers[card.id] || defaultCovers[card.id]; return <div className="zenix-editor-orbit-item" key={card.id}><div className="zenix-editor-orbit-preview">{cover ? <img src={cover} alt="" /> : <card.icon size={28} strokeWidth={1.25} />}</div><strong>{card.label}</strong><small>{draft.orbitCovers[card.id] ? '自定义封面' : '跟随列表'}</small><label className="zenix-editor-orbit-upload"><ImagePlus size={13} />更换<input type="file" accept="image/*" hidden onChange={event => void chooseOrbitCover(event, card.id)} /></label>{draft.orbitCovers[card.id] && <button type="button" onClick={() => setDraft(current => ({ ...current, orbitCovers: { ...current.orbitCovers, [card.id]: '' } }))}>恢复默认</button>}</div>; })}</div></section>
       {(draft.about || draft.tags || draft.contact) && <div className="zenix-editor-info-preview"><span>信息预览</span>{draft.about && <p>{draft.about}</p>}{draft.tags && <div>{draft.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).map(tag => <em key={tag}>{tag}</em>)}</div>}{draft.contact && <small>{draft.contact}</small>}</div>}{saveError && <p className="zenix-editor-error" role="alert">{saveError}</p>}
       <footer><button type="button" onClick={() => setEditing(false)}>取消</button><button type="submit"><Check size={15} />保存名片</button></footer>
     </form></div>, document.body)}
