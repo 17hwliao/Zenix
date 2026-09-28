@@ -5,72 +5,166 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zenix 桌面歌词</title>
   <style>
-    :root { --tone-a:#b7e7ff; --tone-b:#eac4ff; --glow:#9cbeff80; }
-    body[data-theme="amber"] { --tone-a:#ffe0a1; --tone-b:#ff9a77; --glow:#ffb87080; }
-    body[data-theme="mint"] { --tone-a:#8affd5; --tone-b:#a5dfff; --glow:#79e6cf80; }
-    body[data-theme="rose"] { --tone-a:#ffadd4; --tone-b:#d2a4ff; --glow:#e9a4ec80; }
-    body[data-theme="white"] { --tone-a:#fff; --tone-b:#d5dce7; --glow:#ffffff66; }
+    :root {
+      --lyric-color:#b7e7ff;
+      --lyric-size:28px;
+      --lyric-weight:750;
+      --lyric-family:Inter,"Microsoft YaHei",sans-serif;
+      --glass-opacity:.56;
+    }
     * { box-sizing:border-box; }
-    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; color:#fff; font-family:Inter,"Microsoft YaHei",sans-serif; user-select:none; }
-    body { padding:7px; }
-    .pill { position:relative; display:flex; align-items:center; width:100%; height:96px; gap:11px; padding:12px 18px; overflow:hidden; border:1px solid #ffffffa0; border-radius:999px; background:linear-gradient(152deg,#d1e5fa64,#47546ca9 20%,#161c2ae8 58%,#0d111bef); box-shadow:inset 0 2px 1px #ffffff80,inset 0 -1px 1px #ffffff24,0 14px 34px #0008; backdrop-filter:blur(36px) saturate(165%); -webkit-backdrop-filter:blur(36px) saturate(165%); -webkit-app-region:drag; }
-    .pill::before { content:""; position:absolute; top:3px; left:52px; right:52px; height:23px; border-radius:50%; background:linear-gradient(#ffffff30,transparent); pointer-events:none; }
-    .orb { flex:none; width:34px; height:34px; border-radius:50%; background:conic-gradient(from 30deg,var(--tone-a),var(--tone-b),var(--tone-a)); box-shadow:0 0 18px var(--glow),inset 0 0 12px #ffffff55; animation:turn 8s linear infinite; }
-    body.is-paused .orb { animation-play-state:paused; opacity:.58; }
-    @keyframes turn { to { transform:rotate(360deg); } }
-    .transport { display:flex; flex:none; align-items:center; gap:3px; }
-    button { display:grid; place-items:center; flex:none; width:27px; height:27px; padding:0; border:0; border-radius:50%; background:#ffffff1d; color:#f7f9ff; font-size:15px; cursor:pointer; -webkit-app-region:no-drag; }
-    button:hover,button:focus-visible { background:#ffffff58; outline:none; }
-    .info { flex:1; min-width:0; text-align:center; pointer-events:none; }
-    .song { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#ffffffa1; font-size:10px; font-weight:650; letter-spacing:.09em; }
-    .line { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:2px; background:linear-gradient(94deg,#fff,var(--tone-a),var(--tone-b),#fff); background-size:200% 100%; background-clip:text; color:transparent; font-size:21px; font-weight:820; text-shadow:0 0 23px var(--glow); animation:shimmer 6s linear infinite; }
-    @keyframes shimmer { to { background-position:200% 0; } }
-    .next { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:2px; color:#ffffffac; font-size:10px; }
-    .theme { font-size:18px; color:var(--tone-a); }
-    .close { font-size:19px; }
-    .progress { position:absolute; right:38px; bottom:7px; left:38px; height:3px; overflow:hidden; border-radius:9px; background:#ffffff36; pointer-events:none; }
-    .progress span { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--tone-a),var(--tone-b)); box-shadow:0 0 10px var(--glow); transition:width .12s linear; }
-    @media (prefers-reduced-motion:reduce) { .orb,.line { animation:none; } }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; color:#f7f9fc; font-family:Inter,"Microsoft YaHei",sans-serif; user-select:none; }
+    body { padding:8px; }
+    button,select,input { font:inherit; }
+    .glass {
+      position:relative; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid rgba(255,255,255,.2); border-radius:30px;
+      background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(30,36,44,var(--glass-opacity)) 30%,rgba(13,17,23,var(--glass-opacity)));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 7px 22px rgba(0,0,0,.13);
+      backdrop-filter:blur(25px) saturate(108%); -webkit-backdrop-filter:blur(25px) saturate(108%);
+      -webkit-app-region:drag;
+    }
+    .glass::before,.glass::after { display:none; }
+    .top { position:relative; z-index:1; display:flex; align-items:center; gap:10px; height:39px; padding:8px 19px 0; }
+    .mark { flex:none; width:25px; height:25px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.17); border-radius:50%; background:rgba(255,255,255,.09); color:rgba(255,255,255,.76); font-size:12px; font-weight:750; }
+    .song { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:rgba(255,255,255,.74); font-size:10px; font-weight:700; letter-spacing:.13em; }
+    .controls { display:flex; align-items:center; gap:5px; opacity:.62; transition:opacity .18s; -webkit-app-region:no-drag; }
+    .glass:hover .controls,.glass:focus-within .controls { opacity:1; }
+    .icon-button { flex:none; display:grid; place-items:center; width:28px; height:28px; padding:0; border:1px solid rgba(255,255,255,.16); border-radius:50%; background:rgba(255,255,255,.09); color:#f8fbff; cursor:pointer; -webkit-app-region:no-drag; transition:background .18s,border-color .18s,transform .18s; }
+    .icon-button:hover,.icon-button:focus-visible { outline:none; border-color:rgba(255,255,255,.37); background:rgba(255,255,255,.17); }
+    .icon-button.play { width:30px; height:30px; background:rgba(255,255,255,.16); color:#f8fbff; }
+    .icon-button.appearance { width:37px; border-radius:14px; color:var(--lyric-color); font-size:11px; font-weight:800; }
+    .icon-button.close { font-size:19px; line-height:1; }
+    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 62px); min-height:109px; padding:0 30px; text-align:center; pointer-events:none; }
+    .line { display:block; width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-family:var(--lyric-family); font-weight:var(--lyric-weight); }
+    .line.previous,.line.next { color:rgba(244,248,255,.54); font-size:calc(var(--lyric-size) * .57); line-height:1.27; text-shadow:0 1px 8px rgba(0,0,0,.45); }
+    .line.current { color:var(--lyric-color); font-size:var(--lyric-size); line-height:1.3; text-shadow:0 1px 5px rgba(0,0,0,.65); letter-spacing:.02em; }
+    body.is-paused .line.current { opacity:.67; text-shadow:0 1px 9px rgba(0,0,0,.7); }
+    .line.is-placeholder { opacity:.38; }
+    .bottom { position:absolute; z-index:1; left:26px; right:26px; bottom:13px; display:flex; align-items:center; gap:10px; height:10px; }
+    .bottom span { color:rgba(255,255,255,.39); font:8px Consolas,monospace; letter-spacing:.14em; }
+    .progress { flex:1; height:2px; overflow:hidden; border-radius:20px; background:rgba(255,255,255,.15); }
+    .progress i { display:block; width:0; height:100%; border-radius:inherit; background:var(--lyric-color); transition:width .12s linear; }
+    .editor { position:absolute; z-index:5; inset:5px; display:none; flex-direction:column; padding:12px 17px; border:1px solid rgba(255,255,255,.28); border-radius:30px; background:linear-gradient(150deg,rgba(59,71,85,.95),rgba(13,18,28,.97)); box-shadow:0 9px 25px rgba(0,0,0,.3); -webkit-app-region:no-drag; }
+    .editor.is-open { display:flex; }
+    .editor-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .editor-head strong { font-size:12px; letter-spacing:.08em; }.editor-head small { margin-left:10px; color:rgba(255,255,255,.45); font-size:10px; }
+    .editor-close { display:grid; place-items:center; width:23px; height:23px; border:1px solid rgba(255,255,255,.25); border-radius:50%; background:rgba(255,255,255,.12); color:#fff; cursor:pointer; }
+    .editor-grid { display:grid; grid-template-columns:1.4fr .7fr 1fr 1fr; gap:10px; }
+    .editor label { display:flex; flex-direction:column; gap:4px; min-width:0; color:rgba(255,255,255,.69); font-size:10px; }
+    .editor select,.editor input[type=range] { width:100%; }
+    .editor select { height:27px; padding:3px 7px; border:1px solid rgba(255,255,255,.22); border-radius:8px; outline:none; background:#303b4b; color:#fff; font-size:11px; cursor:pointer; }
+    .editor input[type=range] { height:27px; margin:0; accent-color:var(--lyric-color); cursor:pointer; }
+    .editor-value { color:#fff; font:10px Consolas,monospace; }
+    .editor-colors { display:flex; align-items:center; gap:9px; margin-top:10px; }
+    .editor-colors > span { margin-right:2px; color:rgba(255,255,255,.69); font-size:10px; }
+    .editor-colors input[type=color] { width:30px; height:25px; padding:2px; border:1px solid rgba(255,255,255,.28); border-radius:8px; background:rgba(255,255,255,.1); cursor:pointer; }
+    .swatch { width:22px; height:22px; padding:0; border:1px solid rgba(255,255,255,.55); border-radius:50%; background:var(--swatch); cursor:pointer; }
+    .swatch:hover { outline:2px solid #fff; outline-offset:2px; }
+    .editor-hint { margin-left:auto; color:rgba(255,255,255,.36); font-size:9px; }
+    .editor-preview { position:relative; display:flex; flex:1; align-items:center; justify-content:center; min-height:30px; margin-top:10px; overflow:hidden; border-top:1px solid rgba(255,255,255,.13); }
+    .editor-preview small { position:absolute; top:5px; left:0; color:rgba(255,255,255,.37); font-size:9px; }
+    .editor-preview strong { max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--lyric-color); font-family:var(--lyric-family); font-size:var(--lyric-size); font-weight:var(--lyric-weight); text-shadow:0 1px 5px rgba(0,0,0,.6); }
+    @media (max-width:680px) { .editor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 10px; }.editor { padding:9px 14px; }.editor-colors { margin-top:6px; }.editor-hint { display:none; } }
+    @media (prefers-reduced-motion:reduce) { .progress i,.icon-button { transition:none; } }
   </style>
 </head>
-<body data-theme="blue" class="is-paused">
-  <div class="pill" title="拖动这里移动桌面歌词">
-    <div class="orb" aria-hidden="true"></div>
-    <div class="transport">
-      <button id="previous" title="上一首" aria-label="上一首">‹</button>
-      <button id="play" title="播放或暂停" aria-label="播放或暂停">▶</button>
-      <button id="next-track" title="下一首" aria-label="下一首">›</button>
-    </div>
-    <div class="info">
+<body class="is-paused">
+  <div class="glass" title="拖动玻璃贴纸以移动位置">
+    <div class="top">
+      <div class="mark" aria-hidden="true">Z</div>
       <div class="song" id="song">ZENIX · 桌面歌词</div>
-      <div class="line" id="line">播放歌曲后显示歌词</div>
-      <div class="next" id="next">按住玻璃条可拖动位置</div>
+      <div class="controls">
+        <button class="icon-button" id="previous-track" title="上一首" aria-label="上一首">‹</button>
+        <button class="icon-button play" id="play" title="播放或暂停" aria-label="播放或暂停">▶</button>
+        <button class="icon-button" id="next-track" title="下一首" aria-label="下一首">›</button>
+        <button class="icon-button appearance" id="appearance" title="调整歌词外观" aria-label="调整歌词外观" aria-expanded="false">Aa</button>
+        <button class="icon-button close" id="close" title="隐藏桌面歌词" aria-label="隐藏桌面歌词">×</button>
+      </div>
     </div>
-    <button class="theme" id="theme" title="切换歌词颜色" aria-label="切换歌词颜色">◉</button>
-    <button class="close" id="close" title="关闭桌面歌词" aria-label="关闭桌面歌词">×</button>
-    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+    <div class="lines" aria-live="off">
+      <span class="line previous is-placeholder" id="previous">上一句歌词</span>
+      <span class="line current" id="current">播放歌曲后显示歌词</span>
+      <span class="line next is-placeholder" id="next">下一句歌词</span>
+    </div>
+    <div class="bottom"><span>LRC / ZENIX</span><div class="progress" aria-hidden="true"><i id="progress"></i></div><span>DESKTOP</span></div>
+    <div class="editor" id="editor" role="dialog" aria-label="桌面歌词外观" aria-hidden="true">
+      <div class="editor-head"><div><strong>歌词外观</strong><small>字体 · 字号 · 颜色 · 玻璃透明度</small></div><button class="editor-close" id="editor-close" title="返回歌词" aria-label="返回歌词">×</button></div>
+      <div class="editor-grid">
+        <label>字体<select id="font"><option value="system">系统默认</option><option value="yahei">微软雅黑</option><option value="heiti">黑体</option><option value="songti">宋体</option><option value="kaiti">楷体</option><option value="mono">等宽字体</option></select></label>
+        <label>字重<select id="weight"><option value="500">常规</option><option value="700">加粗</option><option value="850">特粗</option></select></label>
+        <label>字号 <span class="editor-value" id="size-value">28 px</span><input id="size" type="range" min="18" max="42" step="1"></label>
+        <label>玻璃透明度 <span class="editor-value" id="opacity-value">56%</span><input id="opacity" type="range" min="20" max="85" step="1"></label>
+      </div>
+      <div class="editor-colors"><span>歌词颜色</span><input id="color" type="color" aria-label="自定义歌词颜色"><button class="swatch" style="--swatch:#b7e7ff" data-color="#b7e7ff" title="冰蓝"></button><button class="swatch" style="--swatch:#ffe0a1" data-color="#ffe0a1" title="暖金"></button><button class="swatch" style="--swatch:#8affd5" data-color="#8affd5" title="薄荷"></button><button class="swatch" style="--swatch:#ffadd4" data-color="#ffadd4" title="玫瑰"></button><button class="swatch" style="--swatch:#ffffff" data-color="#ffffff" title="纯白"></button><span class="editor-hint">设置自动保存在本机</span></div>
+      <div class="editor-preview"><small>实时预览</small><strong id="preview-line">播放歌曲后显示歌词</strong></div>
+    </div>
   </div>
   <script>
-    const themes = ['blue','amber','mint','rose','white'];
-    let theme = localStorage.getItem('zenix.lyrics.theme') || 'blue';
-    if (!themes.includes(theme)) theme = 'blue';
-    document.body.dataset.theme = theme;
-    document.getElementById('theme').onclick = () => {
-      theme = themes[(themes.indexOf(theme) + 1) % themes.length];
-      document.body.dataset.theme = theme;
-      localStorage.setItem('zenix.lyrics.theme', theme);
+    'use strict';
+    const storageKey = 'zenix.lyrics.appearance.v2';
+    const fonts = {
+      system:'Inter,"Microsoft YaHei",sans-serif',
+      yahei:'"Microsoft YaHei","Noto Sans SC",sans-serif',
+      heiti:'SimHei,"Microsoft YaHei",sans-serif',
+      songti:'SimSun,"Songti SC",serif',
+      kaiti:'KaiTi,"Kaiti SC",serif',
+      mono:'Consolas,"Courier New",monospace',
     };
-    document.getElementById('previous').onclick = () => window.desktopLyrics?.command('previous');
-    document.getElementById('play').onclick = () => window.desktopLyrics?.command('play-pause');
-    document.getElementById('next-track').onclick = () => window.desktopLyrics?.command('next');
-    document.getElementById('close').onclick = () => window.desktopLyrics?.hide();
+    const oldThemes = { blue:'#b7e7ff', amber:'#ffe0a1', mint:'#8affd5', rose:'#ffadd4', white:'#ffffff' };
+    const defaults = { font:'system', weight:700, size:28, opacity:56, color:oldThemes[localStorage.getItem('zenix.lyrics.theme')] || '#b7e7ff' };
+    let settings = defaults;
+    try { settings = { ...defaults, ...JSON.parse(localStorage.getItem(storageKey) || '{}') }; } catch {}
+    const byId = id => document.getElementById(id);
+    function applySettings() {
+      settings.font = fonts[settings.font] ? settings.font : 'system';
+      settings.weight = [500,700,850].includes(Number(settings.weight)) ? Number(settings.weight) : 700;
+      settings.size = Math.max(18,Math.min(42,Number(settings.size) || 28));
+      settings.opacity = Math.max(20,Math.min(85,Number(settings.opacity) || 56));
+      settings.color = /^#[0-9a-fA-F]{6}$/.test(settings.color) ? settings.color : defaults.color;
+      const root = document.documentElement.style;
+      root.setProperty('--lyric-family',fonts[settings.font]);
+      root.setProperty('--lyric-weight',settings.weight);
+      root.setProperty('--lyric-size',settings.size + 'px');
+      root.setProperty('--lyric-color',settings.color);
+      root.setProperty('--glass-opacity',(settings.opacity / 100).toFixed(2));
+      byId('font').value = settings.font;
+      byId('weight').value = String(settings.weight);
+      byId('size').value = String(settings.size);
+      byId('opacity').value = String(settings.opacity);
+      byId('color').value = settings.color;
+      byId('size-value').textContent = settings.size + ' px';
+      byId('opacity-value').textContent = settings.opacity + '%';
+      try { localStorage.setItem(storageKey,JSON.stringify(settings)); } catch {}
+    }
+    applySettings();
+    function change(key,value) { settings = { ...settings,[key]:value }; applySettings(); }
+    byId('font').addEventListener('change',event => change('font',event.target.value));
+    byId('weight').addEventListener('change',event => change('weight',Number(event.target.value)));
+    byId('size').addEventListener('input',event => change('size',Number(event.target.value)));
+    byId('opacity').addEventListener('input',event => change('opacity',Number(event.target.value)));
+    byId('color').addEventListener('input',event => change('color',event.target.value));
+    document.querySelectorAll('.swatch').forEach(button => button.addEventListener('click',() => change('color',button.dataset.color)));
+    function setEditor(open) { byId('editor').classList.toggle('is-open',open); byId('editor').setAttribute('aria-hidden',String(!open)); byId('appearance').setAttribute('aria-expanded',String(open)); }
+    byId('appearance').addEventListener('click',() => setEditor(true));
+    byId('editor-close').addEventListener('click',() => setEditor(false));
+    document.addEventListener('keydown',event => { if (event.key === 'Escape') setEditor(false); });
+    byId('previous-track').addEventListener('click',() => window.desktopLyrics?.command('previous'));
+    byId('play').addEventListener('click',() => window.desktopLyrics?.command('play-pause'));
+    byId('next-track').addEventListener('click',() => window.desktopLyrics?.command('next'));
+    byId('close').addEventListener('click',() => window.desktopLyrics?.hide());
     window.desktopLyrics?.onData(data => {
-      document.getElementById('song').textContent = data.title || 'ZENIX · 桌面歌词';
-      document.getElementById('line').textContent = data.line || data.title || '播放歌曲后显示歌词';
-      document.getElementById('next').textContent = data.next || (data.title ? '暂无同步歌词' : '按住玻璃条可拖动位置');
-      document.getElementById('progress').style.width = `${Math.max(0, Math.min(100, Number(data.progress || 0) * 100))}%`;
-      document.body.classList.toggle('is-paused', !data.playing);
-      document.getElementById('play').textContent = data.playing ? 'Ⅱ' : '▶';
+      const previous = String(data.previous || '');
+      const next = String(data.next || '');
+      byId('song').textContent = data.title || 'ZENIX · 桌面歌词';
+      byId('previous').textContent = previous || '上一句歌词';
+      byId('current').textContent = data.line || data.title || '播放歌曲后显示歌词';
+      byId('preview-line').textContent = data.line || data.title || '播放歌曲后显示歌词';
+      byId('next').textContent = next || '下一句歌词';
+      byId('previous').classList.toggle('is-placeholder',!previous);
+      byId('next').classList.toggle('is-placeholder',!next);
+      byId('progress').style.width = Math.max(0,Math.min(100,Number(data.progress || 0) * 100)) + '%';
+      document.body.classList.toggle('is-paused',!data.playing);
+      byId('play').textContent = data.playing ? 'Ⅱ' : '▶';
     });
   </script>
 </body>

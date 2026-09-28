@@ -15,7 +15,7 @@ protocol.registerSchemesAsPrivileged([{
 
 let mainWindow = null;
 let lyricsWindow = null;
-let lyricsPayload = { line: '', next: '', title: '', playing: false, progress: 0 };
+let lyricsPayload = { previous: '', line: '', next: '', title: '', playing: false, progress: 0 };
 let lyricsBounds = null;
 let lyricsReady = null;
 let lyricsSaveTimer = null;
@@ -166,7 +166,7 @@ function createWindow() {
 function createLyricsWindow() {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) return lyricsWindow;
   lyricsWindow = new BrowserWindow({
-    width: lyricsBounds?.width || 760, height: lyricsBounds?.height || 112, minWidth: 540, minHeight: 100, frame: false,
+    width: Math.max(lyricsBounds?.width || 790, 700), height: Math.max(lyricsBounds?.height || 218, 210), minWidth: 700, minHeight: 210, frame: false,
     transparent: true, hasShadow: false, alwaysOnTop: true, skipTaskbar: true,
     resizable: true, show: false, backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
@@ -207,7 +207,7 @@ function registerHandlers() {
     return true;
   });
   ipcMain.handle('lyrics:is-visible', () => Boolean(lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()));
-  ipcMain.handle('lyrics:update', (_event, payload) => { lyricsPayload = { line: String(payload?.line || ''), next: String(payload?.next || ''), title: String(payload?.title || ''), playing: Boolean(payload?.playing), progress: Math.max(0, Math.min(1, Number(payload?.progress) || 0)) }; if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload); });
+  ipcMain.handle('lyrics:update', (_event, payload) => { lyricsPayload = { previous: String(payload?.previous || ''), line: String(payload?.line || ''), next: String(payload?.next || ''), title: String(payload?.title || ''), playing: Boolean(payload?.playing), progress: Math.max(0, Math.min(1, Number(payload?.progress) || 0)) }; if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload); });
   ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
   ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
   const personalAction = (channel, handler) => ipcMain.handle(channel, async (_event, ...args) => {
