@@ -44,19 +44,24 @@
     .icon-button.appearance { width:37px; border-radius:14px; color:var(--lyric-color); font-size:11px; font-weight:800; }
     .icon-button.lock svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
     .icon-button.close { font-size:19px; line-height:1; }
-    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 76px); min-height:105px; padding:0 30px; text-align:center; touch-action:none; cursor:grab; }
+    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 76px); min-height:105px; padding:0 30px; text-align:center; touch-action:none; cursor:grab; --drag-offset:0px; }
     .lines:active { cursor:grabbing; }
     .lines.is-browsing { padding-left:100px; padding-right:100px; }
-    .lines.is-browsing::before { content:'歌词预览 · 点击空白处返回'; position:absolute; top:1px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.43); font-size:9px; white-space:nowrap; pointer-events:none; }
+    .lines.is-browsing::before { content:'歌词预览 · 3 秒后自动同步'; position:absolute; z-index:2; top:1px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.48); font-size:9px; white-space:nowrap; pointer-events:none; }
+    .lines.is-browsing::after { content:''; position:absolute; z-index:0; top:50%; left:50%; width:min(70%,540px); height:66px; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(ellipse,rgba(255,255,255,.045),transparent 72%); pointer-events:none; animation:preview-glow .34s ease-out both; }
     .line { display:block; width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-family:var(--lyric-family); font-weight:var(--lyric-weight); }
-    .lines .line { pointer-events:none; }
+    .lines .line { position:relative; z-index:1; translate:0 var(--drag-offset); transition:translate .13s cubic-bezier(.2,.8,.2,1); pointer-events:none; }
     .line.previous,.line.next { color:rgba(244,248,255,.54); font-size:calc(var(--lyric-size) * .57); line-height:1.27; text-shadow:0 1px 8px rgba(0,0,0,.45); }
     .line.current { color:var(--lyric-color); font-size:var(--lyric-size); line-height:1.3; text-shadow:0 1px 5px rgba(0,0,0,.65); letter-spacing:.02em; }
     body.is-paused .line.current { opacity:.67; text-shadow:0 1px 9px rgba(0,0,0,.7); }
+    body.is-paused .lines.is-browsing .line.current { opacity:1; }
+    .lines.is-browsing .line.current { text-shadow:0 1px 6px rgba(0,0,0,.7),0 0 19px color-mix(in srgb,var(--lyric-color) 26%,transparent); }
     .line.is-placeholder { opacity:.38; }
-    .jump { position:absolute; right:14px; top:50%; display:none; align-items:center; justify-content:center; gap:5px; min-width:65px; height:32px; padding:0 9px; transform:translateY(-50%); border:1px solid rgba(255,255,255,.26); border-radius:18px; background:rgba(255,255,255,.12); color:var(--lyric-color); font-size:11px; font-weight:700; cursor:pointer; backdrop-filter:blur(10px); }
+    .jump { position:absolute; z-index:2; right:14px; top:50%; display:none; align-items:center; justify-content:center; gap:5px; min-width:65px; height:32px; padding:0 9px; transform:translateY(-50%); border:1px solid rgba(255,255,255,.26); border-radius:18px; background:rgba(255,255,255,.12); color:var(--lyric-color); font-size:11px; font-weight:700; cursor:pointer; backdrop-filter:blur(10px); }
     .jump:hover,.jump:focus-visible { outline:none; border-color:var(--lyric-color); background:rgba(255,255,255,.2); }
-    .lines.is-browsing .jump { display:flex; }
+    .lines.is-browsing .jump { display:flex; animation:preview-jump .28s cubic-bezier(.16,1,.3,1) both; }
+    @keyframes preview-glow { from { opacity:0; scale:.78; } to { opacity:1; scale:1; } }
+    @keyframes preview-jump { from { opacity:0; translate:10px 0; scale:.82; } to { opacity:1; translate:0 0; scale:1; } }
     .bottom { position:absolute; z-index:1; left:26px; right:26px; bottom:12px; display:flex; align-items:center; gap:9px; height:19px; -webkit-app-region:no-drag; }
     .bottom time { flex:none; min-width:32px; color:rgba(255,255,255,.66); font:10px Consolas,monospace; text-align:center; }
     .song-progress { flex:1; min-width:0; height:18px; margin:0; padding:0; appearance:none; -webkit-appearance:none; border:0; background:transparent; cursor:pointer; --seek-progress:0%; -webkit-app-region:no-drag; }
@@ -85,7 +90,7 @@
     .editor-preview small { position:absolute; top:5px; left:0; color:rgba(255,255,255,.37); font-size:9px; }
     .editor-preview strong { max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--lyric-color); font-family:var(--lyric-family); font-size:var(--lyric-size); font-weight:var(--lyric-weight); text-shadow:0 1px 5px rgba(0,0,0,.6); }
     @media (max-width:680px) { .editor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 10px; }.editor { padding:9px 14px; }.editor-colors { margin-top:6px; }.editor-hint { display:none; } }
-    @media (prefers-reduced-motion:reduce) { .icon-button { transition:none; } }
+    @media (prefers-reduced-motion:reduce) { .icon-button,.lines .line { transition:none; }.lines.is-browsing::after,.lines.is-browsing .jump { animation:none; } }
   </style>
 </head>
 <body class="is-paused">
@@ -181,22 +186,60 @@
     let previewIndex = null;
     let drag = null;
     let scrubbing = false;
+    let previewReturnTimer = null;
+    const lineAnimations = new WeakMap();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
     const formatTime = value => { const seconds = Math.max(0,Math.floor(Number(value) || 0)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2,'0')}`; };
-    function renderLines() {
+    const activeLineIndex = () => latestData.lines.reduce((index,line,i) => latestData.position >= line.time ? i : index,-1);
+    function cancelPreviewReturn() { if (previewReturnTimer !== null) clearTimeout(previewReturnTimer); previewReturnTimer = null; }
+    function schedulePreviewReturn() {
+      cancelPreviewReturn();
+      if (previewIndex === null) return;
+      previewReturnTimer = setTimeout(() => {
+        previewReturnTimer = null;
+        if (drag) { schedulePreviewReturn(); return; }
+        const direction = Math.sign(activeLineIndex() - previewIndex);
+        previewIndex = null;
+        byId('lines').style.setProperty('--drag-offset','0px');
+        renderLines(direction);
+      },3000);
+    }
+    function clearPreview() {
+      cancelPreviewReturn();
+      const direction = previewIndex === null ? 0 : Math.sign(activeLineIndex() - previewIndex);
+      previewIndex = null;
+      byId('lines').style.setProperty('--drag-offset','0px');
+      renderLines(direction);
+    }
+    function renderLines(direction = 0) {
       const lines = latestData.lines || [];
       const browsing = previewIndex !== null && lines.length > 0;
       const index = browsing ? clamp(previewIndex,0,lines.length - 1) : -1;
       const previous = browsing ? lines[index - 1]?.text || '' : latestData.previous || '';
       const current = browsing ? lines[index]?.text || '' : latestData.line || latestData.title || '播放歌曲后显示歌词';
       const next = browsing ? lines[index + 1]?.text || '' : latestData.next || '';
-      byId('previous').textContent = previous || '上一句歌词';
-      byId('current').textContent = current;
-      byId('preview-line').textContent = current;
-      byId('next').textContent = next || '下一句歌词';
+      const area = byId('lines');
+      const animate = !reducedMotion && (browsing || area.classList.contains('is-browsing'));
+      const updateLine = (id,text,order) => {
+        const element = byId(id);
+        if (element.textContent === text) return;
+        element.textContent = text;
+        if (!animate) return;
+        lineAnimations.get(element)?.cancel();
+        const opacity = getComputedStyle(element).opacity;
+        lineAnimations.set(element,element.animate([
+          { opacity:.24, transform:`translateY(${(direction || 1) * 16}px) scale(.97)`, filter:'blur(3px)' },
+          { opacity, transform:'translateY(0) scale(1)', filter:'blur(0)' },
+        ],{ duration:browsing ? 290 : 380, delay:order * 24, easing:'cubic-bezier(.16,1,.3,1)' }));
+      };
+      area.classList.toggle('is-browsing',browsing);
       byId('previous').classList.toggle('is-placeholder',!previous);
       byId('next').classList.toggle('is-placeholder',!next);
-      byId('lines').classList.toggle('is-browsing',browsing);
+      updateLine('previous',previous || '上一句歌词',0);
+      updateLine('current',current,1);
+      byId('preview-line').textContent = current;
+      updateLine('next',next || '下一句歌词',2);
       if (browsing) {
         const time = formatTime(lines[index].time);
         byId('jump-time').textContent = time;
@@ -217,8 +260,8 @@
     const lyricArea = byId('lines');
     lyricArea.addEventListener('pointerdown',event => {
       if (event.target.closest('button') || !latestData.lines?.length) return;
-      const active = latestData.lines.reduce((index,line,i) => latestData.position >= line.time ? i : index,-1);
-      drag = { pointerId:event.pointerId, startY:event.clientY, base:previewIndex ?? Math.max(0,active), moved:false };
+      cancelPreviewReturn();
+      drag = { pointerId:event.pointerId, startY:event.clientY, base:previewIndex ?? Math.max(0,activeLineIndex()), moved:false };
       lyricArea.setPointerCapture(event.pointerId);
     });
     lyricArea.addEventListener('pointermove',event => {
@@ -226,13 +269,22 @@
       const distance = drag.startY - event.clientY;
       if (Math.abs(distance) < 7 && !drag.moved) return;
       drag.moved = true;
-      previewIndex = clamp(drag.base + Math.round(distance / 25),0,latestData.lines.length - 1);
-      renderLines();
+      const steps = Math.round(distance / 25);
+      const nextIndex = clamp(drag.base + steps,0,latestData.lines.length - 1);
+      lyricArea.style.setProperty('--drag-offset',`${clamp((steps * 25 - distance) * .55,-9,9)}px`);
+      if (nextIndex !== previewIndex) {
+        const direction = Math.sign(nextIndex - (previewIndex ?? drag.base)) || Math.sign(distance);
+        previewIndex = nextIndex;
+        renderLines(direction);
+      }
     });
     const endLyricDrag = event => {
       if (!drag || drag.pointerId !== event.pointerId) return;
-      if (!drag.moved && previewIndex !== null) { previewIndex = null; renderLines(); }
+      const moved = drag.moved;
       drag = null;
+      lyricArea.style.setProperty('--drag-offset','0px');
+      if (!moved && previewIndex !== null) clearPreview();
+      else if (moved) schedulePreviewReturn();
       if (lyricArea.hasPointerCapture(event.pointerId)) lyricArea.releasePointerCapture(event.pointerId);
     };
     lyricArea.addEventListener('pointerup',endLyricDrag);
@@ -240,9 +292,10 @@
     lyricArea.addEventListener('wheel',event => {
       if (!latestData.lines?.length) return;
       event.preventDefault();
-      const active = latestData.lines.reduce((index,line,i) => latestData.position >= line.time ? i : index,-1);
-      previewIndex = clamp((previewIndex ?? Math.max(0,active)) + (event.deltaY > 0 ? 1 : -1),0,latestData.lines.length - 1);
-      renderLines();
+      if (drag) return;
+      const nextIndex = clamp((previewIndex ?? Math.max(0,activeLineIndex())) + (event.deltaY > 0 ? 1 : -1),0,latestData.lines.length - 1);
+      if (nextIndex !== previewIndex) { previewIndex = nextIndex; renderLines(Math.sign(event.deltaY)); }
+      schedulePreviewReturn();
     },{ passive:false });
     byId('jump').addEventListener('click',event => {
       event.stopPropagation();
@@ -250,8 +303,7 @@
       if (!line || !latestData.trackId) return;
       window.desktopLyrics?.seek(latestData.trackId,line.time);
       window.desktopLyrics?.command('play');
-      previewIndex = null;
-      renderLines();
+      clearPreview();
     });
     const slider = byId('song-progress');
     slider.addEventListener('pointerdown',() => { scrubbing = true; });
@@ -260,13 +312,12 @@
       const seconds = Number(event.target.value);
       scrubbing = false;
       if (latestData.trackId && Number.isFinite(seconds)) window.desktopLyrics?.seek(latestData.trackId,seconds);
-      previewIndex = null;
-      renderLines();
+      clearPreview();
     });
     slider.addEventListener('pointercancel',() => { scrubbing = false; renderProgress(); });
-    document.addEventListener('keydown',event => { if (event.key === 'Escape' && previewIndex !== null) { previewIndex = null; renderLines(); } });
+    document.addEventListener('keydown',event => { if (event.key === 'Escape' && previewIndex !== null) clearPreview(); });
     window.desktopLyrics?.onData(data => {
-      if (data.trackId !== latestData.trackId) { previewIndex = null; drag = null; scrubbing = false; }
+      if (data.trackId !== latestData.trackId) { cancelPreviewReturn(); previewIndex = null; drag = null; scrubbing = false; byId('lines').style.setProperty('--drag-offset','0px'); }
       latestData = data;
       byId('song').textContent = data.title || 'ZENIX · 桌面歌词';
       renderLines();
