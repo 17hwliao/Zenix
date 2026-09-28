@@ -68,11 +68,12 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const goldTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const suppressGoldClick = useRef(false);
   const suppressClick = useRef(false);
-  const inOrbitSquare = (x: number, y: number) => {
+  const inOrbitInteraction = (x: number, y: number) => {
     const bounds = stageRef.current?.getBoundingClientRect();
     if (!bounds) return false;
-    const radius = Math.min(400, (bounds.width - 8) / 2, (bounds.height - 8) / 2);
-    return Math.abs(x - (bounds.left + bounds.width / 2)) <= radius && Math.abs(y - (bounds.top + bounds.height * .46)) <= radius;
+    const horizontalReach = Math.min(400, (bounds.width - 8) / 2);
+    const verticalReach = Math.min(300, horizontalReach * .76, (bounds.height - 8) / 2);
+    return Math.abs(x - (bounds.left + bounds.width / 2)) <= horizontalReach && Math.abs(y - (bounds.top + bounds.height * .46)) <= verticalReach;
   };
   const suggested = useMemo(() => {
     const word = query.trim().toLocaleLowerCase();
@@ -99,7 +100,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     const stage = stageRef.current;
     if (!stage) return;
     const rotateOnWheel = (event: WheelEvent) => {
-      if (!inOrbitSquare(event.clientX, event.clientY)) return;
+      if (!inOrbitInteraction(event.clientX, event.clientY)) return;
       event.preventDefault();
       event.stopPropagation();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
@@ -169,14 +170,14 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     } catch { setSaveError('无法读取这张图片，请更换文件。'); }
   };
   const onStageDown = (event: PointerEvent<HTMLDivElement>) => {
-    if ((event.target as Element).closest('.zenix-card-center') || !inOrbitSquare(event.clientX, event.clientY)) return;
+    if ((event.target as Element).closest('.zenix-card-center') || !inOrbitInteraction(event.clientX, event.clientY)) return;
     const target = ((event.target as Element).closest('.zenix-orbit-card') as HTMLElement | null) || event.currentTarget;
     suppressClick.current = false;
     pointer.current = { id: event.pointerId, x: event.clientX, distance: 0, target };
     velocity.current = 0; target.setPointerCapture(event.pointerId);
   };
   const onStageMove = (event: PointerEvent<HTMLDivElement>) => {
-    event.currentTarget.classList.toggle('is-orbit-hot', inOrbitSquare(event.clientX, event.clientY) && !(event.target as Element).closest('.zenix-card-center'));
+    event.currentTarget.classList.toggle('is-orbit-hot', inOrbitInteraction(event.clientX, event.clientY) && !(event.target as Element).closest('.zenix-card-center'));
     const p = pointer.current;
     if (p && p.id === event.pointerId) {
       const dx = event.clientX - p.x; p.x = event.clientX; p.distance += Math.abs(dx);
