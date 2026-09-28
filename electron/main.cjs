@@ -18,8 +18,11 @@ let lyricsWindow = null;
 let lyricsPayload = { previous: '', line: '', next: '', title: '', trackId: '', playing: false, position: 0, duration: 0, lines: [] };
 let lyricsTrack = null;
 let lyricsBounds = null;
+let lyricsOrientation = 'horizontal';
+const lyricsLayouts = { horizontal: null, vertical: null };
 let lyricsReady = null;
 let lyricsSaveTimer = null;
+let lyricsLayoutSave = Promise.resolve();
 let lyricsLocked = false;
 let lyricsLockWindow = null;
 let lyricsLockTimer = null;
@@ -206,7 +209,7 @@ function updateLyricsLockBadge() {
   if (!inside) { hideLyricsLockWindow(); return; }
   const badge = createLyricsLockWindow();
   const x = bounds.x + Math.round((bounds.width - 36) / 2);
-  const y = bounds.y + 35;
+  const y = bounds.y + (lyricsOrientation === 'vertical' ? 86 : 35);
   const current = badge.getBounds();
   if (current.x !== x || current.y !== y) badge.setPosition(x, y);
   if (!badge.isVisible()) badge.showInactive();
@@ -232,10 +235,44 @@ function setLyricsLocked(value) {
   return lyricsLocked;
 }
 
+function saveLyricsLayout() {
+  const payload = JSON.stringify({ orientation: lyricsOrientation, ...lyricsLayouts });
+  lyricsLayoutSave = lyricsLayoutSave.catch(() => {}).then(() => fsp.writeFile(path.join(app.getPath('userData'), 'desktop-lyrics-bounds.json'), payload));
+  void lyricsLayoutSave.catch(() => {});
+}
+
+function setLyricsOrientation(value) {
+  if (value !== 'horizontal' && value !== 'vertical') throw new Error('不支持的歌词方向');
+  if (value === lyricsOrientation) return lyricsOrientation;
+  const win = lyricsWindow;
+  const previous = win && !win.isDestroyed() ? win.getBounds() : lyricsBounds;
+  if (previous) lyricsLayouts[lyricsOrientation] = previous;
+  lyricsOrientation = value;
+  if (win && !win.isDestroyed()) {
+    if (lyricsSaveTimer) clearTimeout(lyricsSaveTimer);
+    const area = screen.getDisplayMatching(previous || win.getBounds()).workArea;
+    const stored = lyricsLayouts[value];
+    const width = Math.min(area.width, Math.max(value === 'vertical' ? 260 : 650, Math.min(stored?.width || (value === 'vertical' ? 326 : 740), value === 'vertical' ? 380 : 820)));
+    const height = Math.min(area.height, Math.max(value === 'vertical' ? 500 : 190, Math.min(stored?.height || (value === 'vertical' ? 640 : 205), value === 'vertical' ? 760 : 235)));
+    const x = Math.max(area.x, Math.min(area.x + area.width - width, stored?.x ?? Math.round(previous.x + (previous.width - width) / 2)));
+    const y = Math.max(area.y, Math.min(area.y + area.height - height, stored?.y ?? Math.round(previous.y + (previous.height - height) / 2)));
+    win.setMinimumSize(1, 1);
+    win.setBounds({ x, y, width, height });
+    win.setMinimumSize(Math.min(width, value === 'vertical' ? 260 : 650), Math.min(height, value === 'vertical' ? 500 : 190));
+    lyricsBounds = win.getBounds();
+    lyricsLayouts[value] = lyricsBounds;
+    win.webContents.send('lyrics:orientation', value);
+    trackLyricsLockBadge();
+  } else lyricsBounds = lyricsLayouts[value];
+  saveLyricsLayout();
+  return lyricsOrientation;
+}
+
 function createLyricsWindow() {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) return lyricsWindow;
+  const vertical = lyricsOrientation === 'vertical';
   lyricsWindow = new BrowserWindow({
-    width: Math.max(650, Math.min(lyricsBounds?.width || 740, 820)), height: Math.max(190, Math.min(lyricsBounds?.height || 205, 235)), minWidth: 650, minHeight: 190, frame: false,
+    width: Math.max(vertical ? 260 : 650, Math.min(lyricsBounds?.width || (vertical ? 326 : 740), vertical ? 380 : 820)), height: Math.max(vertical ? 500 : 190, Math.min(lyricsBounds?.height || (vertical ? 640 : 205), vertical ? 760 : 235)), minWidth: vertical ? 260 : 650, minHeight: vertical ? 500 : 190, frame: false,
     transparent: true, hasShadow: false, alwaysOnTop: true, skipTaskbar: true,
     resizable: true, show: false, backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
@@ -252,7 +289,8 @@ function createLyricsWindow() {
     lyricsSaveTimer = setTimeout(() => {
       if (win.isDestroyed()) return;
       lyricsBounds = win.getBounds();
-      void fsp.writeFile(path.join(app.getPath('userData'), 'desktop-lyrics-bounds.json'), JSON.stringify(lyricsBounds)).catch(() => {});
+      lyricsLayouts[lyricsOrientation] = lyricsBounds;
+      saveLyricsLayout();
     }, 350);
   };
   win.on('move', saveBounds);
@@ -281,6 +319,8 @@ function registerHandlers() {
   ipcMain.handle('lyrics:is-visible', () => Boolean(lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()));
   ipcMain.handle('lyrics:lock-state', () => lyricsLocked);
   ipcMain.handle('lyrics:set-locked', (_event, value) => setLyricsLocked(value));
+  ipcMain.handle('lyrics:orientation', () => lyricsOrientation);
+  ipcMain.handle('lyrics:set-orientation', (_event, value) => setLyricsOrientation(value));
   ipcMain.on('lyrics:unlock', () => setLyricsLocked(false));
   ipcMain.handle('lyrics:update', (_event, payload) => {
     const duration = Number(payload?.duration);
@@ -417,7 +457,14 @@ app.whenReady().then(async () => {
   } catch { /* First launch starts unlocked. */ }
   try {
     const saved = JSON.parse(await fsp.readFile(path.join(app.getPath('userData'), 'desktop-lyrics-bounds.json'), 'utf8'));
-    if (['x', 'y', 'width', 'height'].every(key => Number.isFinite(saved[key]))) lyricsBounds = saved;
+    const valid = bounds => bounds && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(bounds[key]));
+    if (valid(saved)) lyricsLayouts.horizontal = saved;
+    else {
+      if (valid(saved.horizontal)) lyricsLayouts.horizontal = saved.horizontal;
+      if (valid(saved.vertical)) lyricsLayouts.vertical = saved.vertical;
+      lyricsOrientation = saved.orientation === 'vertical' ? 'vertical' : 'horizontal';
+    }
+    lyricsBounds = lyricsLayouts[lyricsOrientation];
   } catch { /* First launch uses the current screen. */ }
   library = new LocalLibrary(app.getPath('userData'), broadcast);
   appearance = new AppearanceStore(app.getPath('userData'));

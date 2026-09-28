@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('desktopLyrics', {
   personalAction: (action, value) => ipcRenderer.invoke('lyrics:personal-action', action, value),
   lockState: () => ipcRenderer.invoke('lyrics:lock-state'),
   setLocked: value => ipcRenderer.invoke('lyrics:set-locked', value),
+  getOrientation: () => ipcRenderer.invoke('lyrics:orientation'),
+  setOrientation: value => ipcRenderer.invoke('lyrics:set-orientation', value),
+  onOrientationChanged: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('lyrics:orientation', listener); return () => ipcRenderer.removeListener('lyrics:orientation', listener); },
   unlock: () => ipcRenderer.send('lyrics:unlock'),
   onLockedChanged: callback => { const listener = (_event, value) => callback(Boolean(value)); ipcRenderer.on('lyrics:locked', listener); return () => ipcRenderer.removeListener('lyrics:locked', listener); },
 });

@@ -20,6 +20,7 @@ type Props = {
 type OrbitCoverKey = 'liked' | 'favorites' | 'history' | 'playlists' | 'library';
 type Profile = { name: string; tagline: string; cardLine: string; cardNumber: string; about: string; tags: string; contact: string; subject: string; background: string; orbitCovers: Record<OrbitCoverKey, string> };
 const PROFILE_KEY = 'zenix.profile.card.v2';
+const GOLD_LAYER_KEY = 'zenix.profile.gold-layer';
 const emptyOrbitCovers: Record<OrbitCoverKey, string> = { liked: '', favorites: '', history: '', playlists: '', library: '' };
 const defaults: Profile = { name: '我的音乐空间', tagline: '把喜欢的声音，留在自己的宇宙里。', cardLine: 'PERSONAL MUSIC SPACE', cardNumber: 'NO. 001', about: '', tags: '', contact: '', subject: '', background: '', orbitCovers: emptyOrbitCovers };
 function readProfile(): Profile {
@@ -53,11 +54,26 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [query, setQuery] = useState('');
+  const [goldBehind, setGoldBehind] = useState(() => { try { return localStorage.getItem(GOLD_LAYER_KEY) === 'behind'; } catch { return false; } });
+  const [goldDragging, setGoldDragging] = useState(false);
+  const [goldDragY, setGoldDragY] = useState(0);
+  const [goldTossFrom, setGoldTossFrom] = useState(0);
+  const [goldTossing, setGoldTossing] = useState(false);
+  const goldBehindRef = useRef(goldBehind);
   const stageRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
   const subjectInputRef = useRef<HTMLInputElement>(null), backgroundInputRef = useRef<HTMLInputElement>(null);
   const rotation = useRef(0), velocity = useRef(0);
   const pointer = useRef<{ id: number; x: number; distance: number; target: HTMLElement } | null>(null);
+  const goldPointer = useRef<{ id: number; x: number; y: number; dx: number; dy: number } | null>(null);
+  const goldTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const suppressGoldClick = useRef(false);
   const suppressClick = useRef(false);
+  const inOrbitSquare = (x: number, y: number) => {
+    const bounds = stageRef.current?.getBoundingClientRect();
+    if (!bounds) return false;
+    const radius = Math.min(400, (bounds.width - 8) / 2, (bounds.height - 8) / 2);
+    return Math.abs(x - (bounds.left + bounds.width / 2)) <= radius && Math.abs(y - (bounds.top + bounds.height * .46)) <= radius;
+  };
   const suggested = useMemo(() => {
     const word = query.trim().toLocaleLowerCase();
     return word ? tracks.filter(track => `${track.title} ${track.artist}`.toLocaleLowerCase().includes(word)).slice(0, 4) : [];
@@ -83,7 +99,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     const stage = stageRef.current;
     if (!stage) return;
     const rotateOnWheel = (event: WheelEvent) => {
-      if (!(event.target as Element).closest('.zenix-orbit-card')) return;
+      if (!inOrbitSquare(event.clientX, event.clientY)) return;
       event.preventDefault();
       event.stopPropagation();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
@@ -92,6 +108,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     stage.addEventListener('wheel', rotateOnWheel, { passive: false, capture: true });
     return () => stage.removeEventListener('wheel', rotateOnWheel, true);
   }, []);
+  useEffect(() => () => goldTimers.current.forEach(timer => clearTimeout(timer)), []);
   useEffect(() => {
     let frame = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -152,13 +169,14 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     } catch { setSaveError('无法读取这张图片，请更换文件。'); }
   };
   const onStageDown = (event: PointerEvent<HTMLDivElement>) => {
-    const target = (event.target as Element).closest('.zenix-orbit-card') as HTMLElement | null;
-    if (!target) return;
+    if ((event.target as Element).closest('.zenix-card-center') || !inOrbitSquare(event.clientX, event.clientY)) return;
+    const target = ((event.target as Element).closest('.zenix-orbit-card') as HTMLElement | null) || event.currentTarget;
     suppressClick.current = false;
     pointer.current = { id: event.pointerId, x: event.clientX, distance: 0, target };
     velocity.current = 0; target.setPointerCapture(event.pointerId);
   };
   const onStageMove = (event: PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.classList.toggle('is-orbit-hot', inOrbitSquare(event.clientX, event.clientY) && !(event.target as Element).closest('.zenix-card-center'));
     const p = pointer.current;
     if (p && p.id === event.pointerId) {
       const dx = event.clientX - p.x; p.x = event.clientX; p.distance += Math.abs(dx);
@@ -182,13 +200,55 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
       if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
     }
   };
+  const tossGold = (from: number) => {
+    goldTimers.current.forEach(timer => clearTimeout(timer));
+    goldTimers.current = [];
+    setGoldTossFrom(from);
+    setGoldTossing(true);
+    setGoldDragY(0);
+    goldTimers.current.push(setTimeout(() => {
+      const next = !goldBehindRef.current;
+      goldBehindRef.current = next;
+      setGoldBehind(next);
+      try { localStorage.setItem(GOLD_LAYER_KEY, next ? 'behind' : 'front'); } catch { /* Visual preference is still applied for this session. */ }
+    }, 250));
+    goldTimers.current.push(setTimeout(() => setGoldTossing(false), 640));
+  };
+  const onGoldDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0 || !event.isPrimary || goldTossing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressGoldClick.current = false;
+    goldPointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, dy: 0 };
+    setGoldDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onGoldMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const drag = goldPointer.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    event.stopPropagation();
+    drag.dx = event.clientX - drag.x;
+    drag.dy = event.clientY - drag.y;
+    if (Math.hypot(drag.dx, drag.dy) > 8) suppressGoldClick.current = true;
+    setGoldDragY(Math.max(-130, Math.min(0, drag.dy)));
+  };
+  const finishGold = (event: PointerEvent<HTMLButtonElement>, cancelled = false) => {
+    const drag = goldPointer.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    event.stopPropagation();
+    goldPointer.current = null;
+    setGoldDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!cancelled && drag.dy < -72 && Math.abs(drag.dy) > Math.abs(drag.dx) * 1.2) tossGold(Math.max(-130, drag.dy));
+    else setGoldDragY(0);
+  };
   const playQuick = (event: FormEvent) => { event.preventDefault(); if (suggested[0]) { onPlayTrack(suggested[0], suggested); onOpenPlayer(); } else onOpenSearch(query); };
   const handleOrbitClick = (action: () => void) => { if (suppressClick.current) { suppressClick.current = false; return; } action(); };
 
   return <div className="zenix-home-space">
     <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div><button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
     <div className="zenix-home-scroll">
-      <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
+      <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp} onPointerLeave={event => event.currentTarget.classList.remove('is-orbit-hot')}>
         <div className="zenix-stage-aura" aria-hidden="true" />
         <div className="zenix-stage-heading"><strong>你的音乐，自成宇宙。</strong></div>
         <div className="zenix-orbit-scene"><div className="zenix-orbit-guide" aria-hidden="true" /><div className="zenix-orbit-ring" ref={ringRef}>
@@ -196,7 +256,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
             {card.image && <img src={card.image} alt="" />}<span className="zenix-orbit-sheen" aria-hidden="true" /><span className="zenix-orbit-no">{String(index + 1).padStart(2, '0')}</span><card.icon className="zenix-orbit-icon" size={38} strokeWidth={1.25} /><span className="zenix-orbit-copy"><strong>{card.label}</strong><small>{card.caption}</small></span><ArrowRight className="zenix-orbit-arrow" size={16} />
           </button>)}
         </div></div>
-        <div className="zenix-card-center"><button ref={holoRef} className="zenix-holo-card" type="button" onClick={openEditor} aria-label="编辑个人名片">
+        <div className={`zenix-card-center${goldBehind ? ' is-behind' : ''}${goldDragging ? ' is-dragging' : ''}${goldTossing ? ' is-tossing' : ''}`} style={{ '--gold-drag-y': `${goldDragY}px`, '--gold-toss-from': `${goldTossFrom}px` } as CSSProperties}><button ref={holoRef} className="zenix-holo-card" type="button" draggable={false} onDragStart={event => event.preventDefault()} onPointerDown={onGoldDown} onPointerMove={onGoldMove} onPointerUp={event => finishGold(event)} onPointerCancel={event => finishGold(event, true)} onClick={event => { if (suppressGoldClick.current) { suppressGoldClick.current = false; event.preventDefault(); return; } openEditor(); }} onKeyDown={event => { if (event.shiftKey && event.key === 'ArrowUp') { event.preventDefault(); suppressGoldClick.current = true; tossGold(-85); } }} aria-label="编辑个人名片，向上拖动可切换前后层" title="向上拖动金卡切换前后层；点击编辑名片">
           {profile.background && <img className="zenix-holo-background" src={profile.background} alt="" />}<span className="zenix-holo-grid" aria-hidden="true" /><span className="zenix-holo-head"><span>ZENIX / v{appVersion}</span><span>{profile.cardNumber}</span></span><span className="zenix-holo-subject">{profile.subject ? <img src={profile.subject} alt="个人名片主体图" /> : <span className="zenix-holo-monogram">{profile.name.slice(0, 1).toUpperCase() || 'Z'}</span>}</span><span className="zenix-holo-info"><small>{profile.cardLine}</small><strong>{profile.name}</strong><span>{profile.tagline}</span>{profile.about && <p>{profile.about}</p>}{profile.tags && <em>{profile.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 3).join(' · ')}</em>}{profile.contact && <i>{profile.contact}</i>}</span><span className="zenix-holo-foil" aria-hidden="true" /><span className="zenix-holo-glare" aria-hidden="true" /><span className="zenix-holo-edge" aria-hidden="true" />
         </button><div className="zenix-card-shadow" aria-hidden="true" /><button type="button" className="zenix-card-edit" onClick={openEditor}><Pencil size={13} />编辑个人名片</button></div>
       </section>
