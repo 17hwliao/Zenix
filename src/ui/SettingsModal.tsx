@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, BookOpen, FolderOpen, ImagePlus, RefreshCw, Sparkles, Trash2, Volume2, X } from 'lucide-react';
+import { FolderOpen, ImagePlus, RefreshCw, Sparkles, Trash2, Volume2, X } from 'lucide-react';
 import type { AppearanceBackground } from '../core/types';
 import { getSoundSettings, playUiSound, setSoundSettings, type SoundKind } from '../core/sounds';
 
@@ -15,13 +15,11 @@ type SettingsModalProps = {
   onReduceMotionChange: (value: boolean) => void;
   onImportFolder: () => void | Promise<void>;
   onRefreshLibrary?: () => void | Promise<void>;
-  onReplayIntro?: () => void;
   onClose: () => void;
 };
 
-export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBackground, appearanceBusy, desktopLyricsVisible, onToggleDesktopLyrics, onChooseBackground, onClearBackground, onReduceMotionChange, onImportFolder, onRefreshLibrary, onReplayIntro, onClose }: SettingsModalProps) {
-  const [tab, setTab] = useState<'help' | 'options' | 'appearance'>('help');
-  const [openCard, setOpenCard] = useState<'version' | 'guide' | null>(null);
+export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBackground, appearanceBusy, desktopLyricsVisible, onToggleDesktopLyrics, onChooseBackground, onClearBackground, onReduceMotionChange, onImportFolder, onRefreshLibrary, onClose }: SettingsModalProps) {
+  const [tab, setTab] = useState<'options' | 'appearance'>('options');
   const [previewError, setPreviewError] = useState(false);
   const [sounds, setSounds] = useState(getSoundSettings);
   const updateSounds = (change: Partial<typeof sounds>) => { const next = { ...sounds, ...change }; setSounds(next); setSoundSettings(next); };
@@ -31,22 +29,11 @@ export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBac
     <div className="yz-settings-modal" role="dialog" aria-modal="true" aria-label="Zenix 选项" onClick={event => event.stopPropagation()}>
       <div className="yz-settings-top">
         <div className="yz-settings-tabs" role="tablist" aria-label="选项分类">
-          <button role="tab" aria-selected={tab === 'help'} className={tab === 'help' ? 'is-active' : ''} onClick={() => setTab('help')}>帮助</button>
           <button role="tab" aria-selected={tab === 'options'} className={tab === 'options' ? 'is-active' : ''} onClick={() => setTab('options')}>选项</button>
           <button role="tab" aria-selected={tab === 'appearance'} className={tab === 'appearance' ? 'is-active' : ''} onClick={() => setTab('appearance')}>外观</button>
         </div>
         <button className="yz-settings-close" onClick={onClose} aria-label="关闭"><X size={17} /></button>
       </div>
-      {tab === 'help' && <div className="yz-settings-body">
-        <div className="yz-settings-intro"><h2>Zenix</h2><p>播放本地音乐，也可搜索在线歌曲。</p></div>
-        <div className="yz-help-cards">
-          <button className={openCard === 'version' ? 'is-active' : ''} onClick={() => setOpenCard(openCard === 'version' ? null : 'version')}><Sparkles size={20} /><span><strong>版本信息</strong><small>查看当前应用版本</small></span><ArrowUpRight size={16} /></button>
-          <button className={openCard === 'guide' ? 'is-active' : ''} onClick={() => setOpenCard(openCard === 'guide' ? null : 'guide')}><BookOpen size={20} /><span><strong>使用帮助</strong><small>播放与曲库操作</small></span><ArrowUpRight size={16} /></button>
-        </div>
-        {openCard && <p className="yz-help-detail">{openCard === 'version' ? 'Zenix 0.1.0' : '导入音乐文件夹后，点击封面打开歌曲；在搜索栏中按 Enter 搜索。'}</p>}
-        <div className="yz-shortcuts"><h3>快捷键</h3><div><span>播放或暂停（未聚焦按钮时）</span><kbd>Space</kbd></div><div><span>贴纸页快退或快进 5 秒</span><span><kbd>←</kbd><kbd>→</kbd></span></div><div><span>打开搜索</span><kbd>Ctrl K</kbd></div><div><span>关闭当前面板</span><kbd>Esc</kbd></div></div>
-        <div className="yz-settings-footer"><button onClick={() => { void onImportFolder(); onClose(); }}><FolderOpen size={15} /> 导入音乐</button><button onClick={onReplayIntro}>重播开屏</button><span>Zenix Music</span></div>
-      </div>}
       {tab === 'options' && <div className="yz-settings-body">
         <div className="yz-settings-intro"><h2>选项</h2><p>调整播放界面的使用方式。</p></div>
         <div className="yz-setting-row"><div><strong>减少动效</strong><small>关闭页面间的过渡动画</small></div><button className={`yz-switch ${reduceMotion ? 'is-on' : ''}`} onClick={() => onReduceMotionChange(!reduceMotion)} role="switch" aria-checked={reduceMotion} aria-label="减少动效"><span /></button></div>
