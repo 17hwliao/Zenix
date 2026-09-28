@@ -19,6 +19,9 @@ let lyricsPayload = { previous: '', line: '', next: '', title: '', playing: fals
 let lyricsBounds = null;
 let lyricsReady = null;
 let lyricsSaveTimer = null;
+let lyricsLocked = false;
+let lyricsLockWindow = null;
+let lyricsLockTimer = null;
 let library = null;
 let appearance = null;
 let personal = null;
@@ -163,6 +166,58 @@ function createWindow() {
   }
 }
 
+function createLyricsLockWindow() {
+  if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) return lyricsLockWindow;
+  lyricsLockWindow = new BrowserWindow({
+    width: 44, height: 44, frame: false, transparent: true, hasShadow: false,
+    alwaysOnTop: true, skipTaskbar: true, resizable: false, show: false,
+    webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  lyricsLockWindow.setAlwaysOnTop(true, 'floating');
+  void lyricsLockWindow.loadFile(path.join(__dirname, 'lyrics-lock.html'));
+  lyricsLockWindow.on('closed', () => { lyricsLockWindow = null; });
+  return lyricsLockWindow;
+}
+
+function hideLyricsLockWindow() {
+  if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) lyricsLockWindow.hide();
+}
+
+function updateLyricsLockBadge() {
+  const win = lyricsWindow;
+  if (!lyricsLocked || !win || win.isDestroyed() || !win.isVisible()) { hideLyricsLockWindow(); return; }
+  const bounds = win.getBounds();
+  const point = screen.getCursorScreenPoint();
+  const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height;
+  if (!inside) { hideLyricsLockWindow(); return; }
+  const badge = createLyricsLockWindow();
+  const x = bounds.x + bounds.width - 54;
+  const y = bounds.y + 12;
+  const current = badge.getBounds();
+  if (current.x !== x || current.y !== y) badge.setPosition(x, y);
+  if (!badge.isVisible()) badge.showInactive();
+}
+
+function trackLyricsLockBadge() {
+  if (lyricsLockTimer) clearInterval(lyricsLockTimer);
+  lyricsLockTimer = null;
+  if (!lyricsLocked || !lyricsWindow?.isVisible()) { hideLyricsLockWindow(); return; }
+  updateLyricsLockBadge();
+  lyricsLockTimer = setInterval(updateLyricsLockBadge, 90);
+  lyricsLockTimer.unref();
+}
+
+function setLyricsLocked(value) {
+  lyricsLocked = Boolean(value);
+  if (lyricsWindow && !lyricsWindow.isDestroyed()) {
+    lyricsWindow.setIgnoreMouseEvents(lyricsLocked, { forward: true });
+    lyricsWindow.webContents.send('lyrics:locked', lyricsLocked);
+  }
+  trackLyricsLockBadge();
+  void fsp.writeFile(path.join(app.getPath('userData'), 'desktop-lyrics-state.json'), JSON.stringify({ locked: lyricsLocked })).catch(() => {});
+  return lyricsLocked;
+}
+
 function createLyricsWindow() {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) return lyricsWindow;
   lyricsWindow = new BrowserWindow({
@@ -173,6 +228,7 @@ function createLyricsWindow() {
   });
   const win = lyricsWindow;
   win.setAlwaysOnTop(true, 'floating');
+  win.setIgnoreMouseEvents(lyricsLocked, { forward: true });
   const area = screen.getDisplayMatching(mainWindow?.getBounds() || screen.getPrimaryDisplay().workArea).workArea;
   const preferredX = lyricsBounds?.x ?? Math.round(area.x + (area.width - win.getBounds().width) / 2);
   const preferredY = lyricsBounds?.y ?? area.y + 68;
@@ -187,11 +243,13 @@ function createLyricsWindow() {
   };
   win.on('move', saveBounds);
   win.on('resize', saveBounds);
+  win.on('show', trackLyricsLockBadge);
+  win.on('hide', trackLyricsLockBadge);
   lyricsWindow.webContents.on('did-fail-load', (_event, code, description) => console.error('Desktop lyrics load failed:', code, description));
   lyricsReady = win.loadFile(path.join(__dirname, 'desktop-lyrics.html')).then(() => {
     if (!win.isDestroyed()) win.webContents.send('lyrics:data', lyricsPayload);
   });
-  win.on('closed', () => { lyricsWindow = null; lyricsReady = null; broadcast('lyrics:visible', false); });
+  win.on('closed', () => { lyricsWindow = null; lyricsReady = null; trackLyricsLockBadge(); if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) lyricsLockWindow.close(); broadcast('lyrics:visible', false); });
   return win;
 }
 
@@ -207,6 +265,9 @@ function registerHandlers() {
     return true;
   });
   ipcMain.handle('lyrics:is-visible', () => Boolean(lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()));
+  ipcMain.handle('lyrics:lock-state', () => lyricsLocked);
+  ipcMain.handle('lyrics:set-locked', (_event, value) => setLyricsLocked(value));
+  ipcMain.on('lyrics:unlock', () => setLyricsLocked(false));
   ipcMain.handle('lyrics:update', (_event, payload) => { lyricsPayload = { previous: String(payload?.previous || ''), line: String(payload?.line || ''), next: String(payload?.next || ''), title: String(payload?.title || ''), playing: Boolean(payload?.playing), progress: Math.max(0, Math.min(1, Number(payload?.progress) || 0)) }; if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload); });
   ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
   ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
@@ -304,6 +365,10 @@ const previousUserData = path.join(app.getPath('appData'), 'YzqxY Music Player')
 if (fs.existsSync(previousUserData)) app.setPath('userData', previousUserData);
 
 app.whenReady().then(async () => {
+  try {
+    const saved = JSON.parse(await fsp.readFile(path.join(app.getPath('userData'), 'desktop-lyrics-state.json'), 'utf8'));
+    lyricsLocked = saved.locked === true;
+  } catch { /* First launch starts unlocked. */ }
   try {
     const saved = JSON.parse(await fsp.readFile(path.join(app.getPath('userData'), 'desktop-lyrics-bounds.json'), 'utf8'));
     if (['x', 'y', 'width', 'height'].every(key => Number.isFinite(saved[key]))) lyricsBounds = saved;

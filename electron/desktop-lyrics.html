@@ -17,14 +17,20 @@
     body { padding:8px; }
     button,select,input { font:inherit; }
     .glass {
-      position:relative; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid rgba(255,255,255,.2); border-radius:30px;
+      position:relative; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid transparent; border-radius:30px;
+      background:transparent; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+      -webkit-app-region:no-drag;
+    }
+    body:not(.is-locked) .glass:hover,body.is-editor-open .glass {
+      border-color:rgba(255,255,255,.2);
       background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(30,36,44,var(--glass-opacity)) 30%,rgba(13,17,23,var(--glass-opacity)));
       box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 7px 22px rgba(0,0,0,.13);
       backdrop-filter:blur(25px) saturate(108%); -webkit-backdrop-filter:blur(25px) saturate(108%);
-      -webkit-app-region:drag;
     }
     .glass::before,.glass::after { display:none; }
-    .top { position:relative; z-index:1; display:flex; align-items:center; gap:10px; height:39px; padding:8px 19px 0; }
+    .top { position:relative; z-index:1; display:flex; align-items:center; gap:10px; height:39px; padding:8px 19px 0; opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s; -webkit-app-region:drag; }
+    .bottom { opacity:0; visibility:hidden; transition:opacity .18s; }
+    body:not(.is-locked) .glass:hover .top,body:not(.is-locked) .glass:hover .bottom,body.is-editor-open .top,body.is-editor-open .bottom { opacity:1; visibility:visible; pointer-events:auto; }
     .mark { flex:none; width:25px; height:25px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.17); border-radius:50%; background:rgba(255,255,255,.09); color:rgba(255,255,255,.76); font-size:12px; font-weight:750; }
     .song { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:rgba(255,255,255,.74); font-size:10px; font-weight:700; letter-spacing:.13em; }
     .controls { display:flex; align-items:center; gap:5px; opacity:.62; transition:opacity .18s; -webkit-app-region:no-drag; }
@@ -33,6 +39,7 @@
     .icon-button:hover,.icon-button:focus-visible { outline:none; border-color:rgba(255,255,255,.37); background:rgba(255,255,255,.17); }
     .icon-button.play { width:30px; height:30px; background:rgba(255,255,255,.16); color:#f8fbff; }
     .icon-button.appearance { width:37px; border-radius:14px; color:var(--lyric-color); font-size:11px; font-weight:800; }
+    .icon-button.lock svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
     .icon-button.close { font-size:19px; line-height:1; }
     .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 62px); min-height:109px; padding:0 30px; text-align:center; pointer-events:none; }
     .line { display:block; width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-family:var(--lyric-family); font-weight:var(--lyric-weight); }
@@ -69,7 +76,7 @@
   </style>
 </head>
 <body class="is-paused">
-  <div class="glass" title="拖动玻璃贴纸以移动位置">
+  <div class="glass">
     <div class="top">
       <div class="mark" aria-hidden="true">Z</div>
       <div class="song" id="song">ZENIX · 桌面歌词</div>
@@ -78,6 +85,7 @@
         <button class="icon-button play" id="play" title="播放或暂停" aria-label="播放或暂停">▶</button>
         <button class="icon-button" id="next-track" title="下一首" aria-label="下一首">›</button>
         <button class="icon-button appearance" id="appearance" title="调整歌词外观" aria-label="调整歌词外观" aria-expanded="false">Aa</button>
+        <button class="icon-button lock" id="lock" title="锁定歌词，让鼠标点击穿透" aria-label="锁定歌词，让鼠标点击穿透"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/><path d="M12 14v3"/></svg></button>
         <button class="icon-button close" id="close" title="隐藏桌面歌词" aria-label="隐藏桌面歌词">×</button>
       </div>
     </div>
@@ -144,7 +152,11 @@
     byId('opacity').addEventListener('input',event => change('opacity',Number(event.target.value)));
     byId('color').addEventListener('input',event => change('color',event.target.value));
     document.querySelectorAll('.swatch').forEach(button => button.addEventListener('click',() => change('color',button.dataset.color)));
-    function setEditor(open) { byId('editor').classList.toggle('is-open',open); byId('editor').setAttribute('aria-hidden',String(!open)); byId('appearance').setAttribute('aria-expanded',String(open)); }
+    function setEditor(open) { byId('editor').classList.toggle('is-open',open); byId('editor').setAttribute('aria-hidden',String(!open)); byId('appearance').setAttribute('aria-expanded',String(open)); document.body.classList.toggle('is-editor-open',open); }
+    function applyLock(locked) { document.body.classList.toggle('is-locked',Boolean(locked)); if (locked) setEditor(false); }
+    window.desktopLyrics?.onLockedChanged(applyLock);
+    window.desktopLyrics?.lockState().then(applyLock).catch(() => {});
+    byId('lock').addEventListener('click',() => { void window.desktopLyrics?.setLocked(true).then(applyLock); });
     byId('appearance').addEventListener('click',() => setEditor(true));
     byId('editor-close').addEventListener('click',() => setEditor(false));
     document.addEventListener('keydown',event => { if (event.key === 'Escape') setEditor(false); });
