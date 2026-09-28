@@ -2,12 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Captions, Home, ListMusic, Maximize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { playUiSound } from '../core/sounds';
 import CoverArt from './CoverArt';
+import TrackQuickActions from './TrackQuickActions';
 import { formatTime } from './library';
+import type { PersonalState } from '../core/types';
 import { CENTER_STICKER_SLOT, STICKER_GAP, STICKER_SLOTS, WALL_COLUMNS, WALL_ROWS, expandedStickerLayout } from './stickerMosaic';
 import type { LyricLineView, RepeatMode, TrackView } from './types';
 
 type LatticePlayerProps = {
   track: TrackView;
+  personal: PersonalState;
+  onToggleSaved?: (kind: 'liked' | 'favorites', track: TrackView) => void;
+  onAddToPlaylist?: (id: string, track: TrackView) => void;
+  onCreatePlaylist?: (name: string, track: TrackView) => void;
   queue: TrackView[];
   queueIndex: number;
   recentTracks: TrackView[];
@@ -40,7 +46,7 @@ type LatticePlayerProps = {
 const wrap = (value: number, length: number) => ((value % length) + length) % length;
 
 export default function LatticePlayer({
-  track, queue, queueIndex, recentTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
+  track, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, recentTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
   onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
@@ -52,6 +58,9 @@ export default function LatticePlayer({
   const offsetRef = useRef<number | null>(null);
   const queueSignatureRef = useRef<string | null>(null);
   const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lyricResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lyricPreviewRef = useRef<number | null>(null);
+  const [lyricPreview, setLyricPreview] = useState<number | null>(null);
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [camera, setCamera] = useState({ x: 0, y: 0 });
   const [selectedSlot, setSelectedSlot] = useState(CENTER_STICKER_SLOT);
@@ -130,11 +139,36 @@ export default function LatticePlayer({
 
   useEffect(() => {
     const container = lyricsContainerRef.current;
-    const line = lyricRefs.current[activeLyric];
+    const line = lyricRefs.current[lyricPreview ?? activeLyric];
     if (!container || !line || !focusedIsCurrent) return;
     const lineTop = line.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
     container.scrollTo({ top: Math.max(0, lineTop - 22), behavior: 'smooth' });
-  }, [activeLyric, focusedIsCurrent, track.id]);
+  }, [activeLyric, lyricPreview, focusedIsCurrent, track.id]);
+
+  useEffect(() => {
+    const container = lyricsContainerRef.current;
+    if (!container || !lyrics.length || !focusedIsCurrent) return;
+    const browse = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || !event.deltaY) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const step = Math.max(1, Math.min(3, Math.round(Math.abs(event.deltaY) / 100)));
+      const index = Math.max(0, Math.min(lyrics.length - 1, (lyricPreviewRef.current ?? Math.max(0, activeLyric)) + Math.sign(event.deltaY) * step));
+      lyricPreviewRef.current = index;
+      setLyricPreview(index);
+      if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current);
+      lyricResetTimer.current = setTimeout(() => { lyricPreviewRef.current = null; setLyricPreview(null); }, 3000);
+    };
+    container.addEventListener('wheel', browse, { passive: false });
+    return () => container.removeEventListener('wheel', browse);
+  }, [activeLyric, focusedIsCurrent, lyrics.length]);
+
+  useEffect(() => {
+    lyricPreviewRef.current = null;
+    setLyricPreview(null);
+    if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current);
+    return () => { if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); };
+  }, [track.id]);
 
   useEffect(() => {
     const node = wallRef.current;
@@ -215,7 +249,7 @@ export default function LatticePlayer({
               <div className="yz-sticker-focus-shade" />
               <div className="yz-sticker-focus-meta"><small>{focusedIsCurrent ? '正在播放 · ' : itemIndex < activeIndex ? '此前播放 · ' : ''}{String(itemIndex + 1).padStart(2, '0')}</small><h1>{item.title}</h1><p>{item.artist || '未知艺术家'}</p></div>
               {focusedIsCurrent && <div className="yz-lattice-lyrics" ref={lyricsContainerRef}>
-                {lyrics.length ? lyrics.map((line, index) => <button key={`${line.time}-${index}`} ref={element => { lyricRefs.current[index] = element; }} className={`yz-lattice-lyric ${index === activeLyric ? 'is-current' : ''} ${index < activeLyric ? 'is-past' : ''}`} onClick={() => onSeek(line.time)} title={`跳转到 ${formatTime(line.time)}`}>{line.text}<small>{line.translation}</small></button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
+                {lyrics.length ? lyrics.map((line, index) => <button key={`${line.time}-${index}`} ref={element => { lyricRefs.current[index] = element; }} className={`yz-lattice-lyric ${index === (lyricPreview ?? activeLyric) ? 'is-current' : ''} ${index < (lyricPreview ?? activeLyric) ? 'is-past' : ''}`} onClick={() => { onSeek(line.time); lyricPreviewRef.current = null; setLyricPreview(null); if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); }} title={`跳转到 ${formatTime(line.time)}`}>{line.text}<small>{line.translation}</small></button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
               </div>}
               <div className="yz-sticker-focus-controls">
                 <button onClick={playFocused} title={focusedIsCurrent && playing ? '暂停' : `播放 ${item.title}`} aria-label={focusedIsCurrent && playing ? '暂停' : `播放 ${item.title}`}>{focusedIsCurrent && playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
@@ -234,6 +268,7 @@ export default function LatticePlayer({
     <div className="yz-lattice-mini">
       <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={track.coverUrl} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
       <button className={`yz-lattice-mini-lyrics${desktopLyricsVisible ? ' is-active' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} title={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-label={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-pressed={desktopLyricsVisible}><Captions size={18} /></button>
+      <TrackQuickActions track={track} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPlaylist} onCreatePlaylist={onCreatePlaylist} compact />
       <input className="yz-lattice-mini-progress" type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(shownPosition, Math.max(total, 1))} disabled={total <= 0} onPointerDown={() => { seekDraggingRef.current = true; seekDraftRef.current = position; setSeekDraft(position); }} onChange={event => { const seconds = Number(event.target.value); if (seekDraggingRef.current) { seekDraftRef.current = seconds; setSeekDraft(seconds); } else onSeek(seconds); }} onPointerUp={commitMiniSeek} onPointerCancel={() => { seekDraggingRef.current = false; seekDraftRef.current = null; setSeekDraft(null); }} aria-label="拖动歌曲进度" style={{ '--range-fill': `${total ? Math.min(100, shownPosition / total * 100) : 0}%` } as CSSProperties} /><small className="yz-lattice-mini-time">{formatTime(shownPosition)} / {formatTime(total)}</small>
       <div className="yz-lattice-mini-controls">
         <button onClick={onPrevious} title="上一首" aria-label="上一首"><SkipBack size={16} fill="currentColor" /></button>

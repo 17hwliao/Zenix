@@ -1,0 +1,16 @@
+.yz-track-actions { display:flex; align-items:center; flex:none; gap:2px; }
+.yz-track-actions > button { display:grid; place-items:center; flex:none; width:30px; height:30px; padding:0; border:0; border-radius:50%; background:transparent; color:rgba(255,255,255,.68); cursor:pointer; }
+.yz-track-actions > button:hover,.yz-track-actions > button:focus-visible { background:rgba(255,255,255,.14); color:white; }
+.yz-track-actions > button.is-on { color:#f1c3d5; }
+.yz-track-actions.is-compact > button { width:26px; height:26px; }
+.yz-track-actions-menu { position:fixed; z-index:10000; width:220px; max-height:260px; padding:9px; border:1px solid rgba(255,255,255,.24); border-radius:13px; background:rgba(25,26,30,.96); box-shadow:0 15px 45px rgba(0,0,0,.5); color:white; backdrop-filter:blur(20px); -webkit-app-region:no-drag; }
+.yz-track-actions-menu-head { display:flex; align-items:center; justify-content:space-between; padding:2px 4px 8px; font-size:12px; }
+.yz-track-actions-menu-head button { display:grid; place-items:center; border:0; background:none; color:#ddd; cursor:pointer; }
+.yz-track-actions-menu-list { max-height:138px; overflow:auto; }
+.yz-track-actions-menu-list button { display:flex; justify-content:space-between; width:100%; padding:9px 8px; border:0; border-radius:7px; background:none; color:white; text-align:left; cursor:pointer; }
+.yz-track-actions-menu-list button:hover { background:rgba(255,255,255,.14); }
+.yz-track-actions-menu-list small { color:#aaa; }
+.yz-track-actions-menu form { display:flex; gap:5px; padding-top:7px; border-top:1px solid rgba(255,255,255,.15); }
+.yz-track-actions-menu form input { min-width:0; flex:1; padding:7px; border:1px solid rgba(255,255,255,.2); border-radius:6px; outline:none; background:rgba(0,0,0,.25); color:white; font-size:11px; }
+.yz-track-actions-menu form button { border:0; border-radius:6px; padding:0 9px; background:#eee; color:#111; cursor:pointer; }
+.yz-track-actions-menu form button:disabled { opacity:.4; cursor:default; }

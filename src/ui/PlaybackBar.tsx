@@ -1,7 +1,9 @@
 import { ListMusic, Pause, Play, Repeat2, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import CoverArt from './CoverArt';
+import TrackQuickActions from './TrackQuickActions';
 import { formatTime } from './library';
 import type { TrackView, RepeatMode } from './types';
+import type { PersonalState } from '../core/types';
 
 // A glass playback capsule shared by the library and lyric surfaces.
 interface PlaybackBarProps {
@@ -14,6 +16,10 @@ interface PlaybackBarProps {
   shuffle: boolean;
   repeat: RepeatMode;
   surface: 'home' | 'player';
+  personal: PersonalState;
+  onToggleSaved?: (kind: 'liked' | 'favorites', track: TrackView) => void;
+  onAddToPlaylist?: (id: string, track: TrackView) => void;
+  onCreatePlaylist?: (name: string, track: TrackView) => void;
   onTogglePlay: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -28,7 +34,7 @@ interface PlaybackBarProps {
 
 export default function PlaybackBar(props: PlaybackBarProps) {
   const {
-    track, playing, position, duration, volume, muted, shuffle, repeat, surface,
+    track, playing, position, duration, volume, muted, shuffle, repeat, surface, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist,
     onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange, onToggleMute,
     onToggleShuffle, onCycleRepeat, onOpenPlayer, onOpenQueue,
   } = props;
@@ -50,6 +56,7 @@ export default function PlaybackBar(props: PlaybackBarProps) {
           <button className="yz-icon-button yz-playerbar-secondary" onClick={onNext} title="下一首" aria-label="下一首"><SkipForward size={17} fill="currentColor" /></button>
         </div>
         <div className="yz-playerbar-end">
+          <TrackQuickActions track={track} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPlaylist} onCreatePlaylist={onCreatePlaylist} compact />
           <button className={`yz-icon-button yz-playerbar-secondary ${shuffle ? 'is-active' : ''}`} onClick={onToggleShuffle} disabled={!onToggleShuffle} title="随机播放" aria-label="随机播放"><Shuffle size={17} /></button>
           <button className={`yz-icon-button yz-playerbar-secondary ${repeat !== 'off' ? 'is-active' : ''}`} onClick={onCycleRepeat} disabled={!onCycleRepeat} title={repeat === 'one' ? '单曲循环' : repeat === 'all' ? '列表循环' : '循环关闭'} aria-label="切换循环模式">
             {repeat === 'one' ? <Repeat1 size={17} /> : <Repeat2 size={17} />}

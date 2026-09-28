@@ -83,31 +83,34 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     const stage = stageRef.current;
     if (!stage) return;
     const rotateOnWheel = (event: WheelEvent) => {
+      if (!(event.target as Element).closest('.zenix-orbit-card')) return;
       event.preventDefault();
       event.stopPropagation();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
       velocity.current = Math.max(-5, Math.min(5, velocity.current + delta * .025));
     };
-    stage.addEventListener('wheel', rotateOnWheel, { passive: false });
-    return () => stage.removeEventListener('wheel', rotateOnWheel);
+    stage.addEventListener('wheel', rotateOnWheel, { passive: false, capture: true });
+    return () => stage.removeEventListener('wheel', rotateOnWheel, true);
   }, []);
   useEffect(() => {
     let frame = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const tick = () => {
+      const ring = ringRef.current;
+      const hoveringCard = Boolean(ring && Array.from(ring.children).some(child => child.matches(':hover')));
       if (!pointer.current) {
-        rotation.current += reduced ? 0 : .075;
+        rotation.current += reduced || hoveringCard ? 0 : .075;
         rotation.current += velocity.current;
         velocity.current *= .94;
         if (Math.abs(velocity.current) < .001) velocity.current = 0;
       }
-      const ring = ringRef.current;
       if (ring) {
         ring.style.transform = `rotateY(${rotation.current}deg)`;
         Array.from(ring.children).forEach((child, index) => {
           const depth = (Math.cos((index * 60 + rotation.current) * Math.PI / 180) + 1) / 2;
-          (child as HTMLElement).style.opacity = String(.48 + depth * .52);
-          (child as HTMLElement).style.filter = `brightness(${.58 + depth * .42})`;
+          const hovered = child.matches(':hover');
+          (child as HTMLElement).style.opacity = String(hovered ? 1 : .48 + depth * .52);
+          (child as HTMLElement).style.filter = `brightness(${hovered ? 1 : .58 + depth * .42})`;
         });
       }
       frame = requestAnimationFrame(tick);
@@ -149,9 +152,9 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     } catch { setSaveError('无法读取这张图片，请更换文件。'); }
   };
   const onStageDown = (event: PointerEvent<HTMLDivElement>) => {
-    if ((event.target as Element).closest('.zenix-card-center, input, form, a')) return;
+    const target = (event.target as Element).closest('.zenix-orbit-card') as HTMLElement | null;
+    if (!target) return;
     suppressClick.current = false;
-    const target = ((event.target as Element).closest('button') as HTMLElement | null) || event.currentTarget;
     pointer.current = { id: event.pointerId, x: event.clientX, distance: 0, target };
     velocity.current = 0; target.setPointerCapture(event.pointerId);
   };
@@ -187,23 +190,22 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     <div className="zenix-home-scroll">
       <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
         <div className="zenix-stage-aura" aria-hidden="true" />
-        <div className="zenix-stage-heading"><span>PERSONAL SPACE / {profile.cardNumber}</span><strong>你的音乐，自成宇宙。</strong><small>拖动或滚轮旋转 · 点击卡片打开</small></div>
+        <div className="zenix-stage-heading"><strong>你的音乐，自成宇宙。</strong></div>
         <div className="zenix-orbit-scene"><div className="zenix-orbit-guide" aria-hidden="true" /><div className="zenix-orbit-ring" ref={ringRef}>
           {cards.map((card, index) => <button key={card.id} type="button" className={`zenix-orbit-card${card.image ? ' has-cover' : ''}`} style={{ '--orbit-angle': `${index * 60}deg`, '--card-delay': `${index * 1.2}s` } as CSSProperties} onClick={() => handleOrbitClick(card.action)}>
             {card.image && <img src={card.image} alt="" />}<span className="zenix-orbit-sheen" aria-hidden="true" /><span className="zenix-orbit-no">{String(index + 1).padStart(2, '0')}</span><card.icon className="zenix-orbit-icon" size={38} strokeWidth={1.25} /><span className="zenix-orbit-copy"><strong>{card.label}</strong><small>{card.caption}</small></span><ArrowRight className="zenix-orbit-arrow" size={16} />
           </button>)}
         </div></div>
         <div className="zenix-card-center"><button ref={holoRef} className="zenix-holo-card" type="button" onClick={openEditor} aria-label="编辑个人名片">
-          {profile.background && <img className="zenix-holo-background" src={profile.background} alt="" />}<span className="zenix-holo-grid" aria-hidden="true" /><span className="zenix-holo-head"><span>ZENIX / v{appVersion}</span><span>{profile.cardNumber}</span></span><span className="zenix-holo-subject">{profile.subject ? <img src={profile.subject} alt="个人名片主体图" /> : <span className="zenix-holo-monogram">{profile.name.slice(0, 1).toUpperCase() || 'Z'}</span>}</span><span className="zenix-holo-words"><strong>{profile.name}</strong><small>{profile.cardLine}</small></span><span className="zenix-holo-foil" aria-hidden="true" /><span className="zenix-holo-glare" aria-hidden="true" /><span className="zenix-holo-edge" aria-hidden="true" />
+          {profile.background && <img className="zenix-holo-background" src={profile.background} alt="" />}<span className="zenix-holo-grid" aria-hidden="true" /><span className="zenix-holo-head"><span>ZENIX / v{appVersion}</span><span>{profile.cardNumber}</span></span><span className="zenix-holo-subject">{profile.subject ? <img src={profile.subject} alt="个人名片主体图" /> : <span className="zenix-holo-monogram">{profile.name.slice(0, 1).toUpperCase() || 'Z'}</span>}</span><span className="zenix-holo-info"><small>{profile.cardLine}</small><strong>{profile.name}</strong><span>{profile.tagline}</span>{profile.about && <p>{profile.about}</p>}{profile.tags && <em>{profile.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 3).join(' · ')}</em>}{profile.contact && <i>{profile.contact}</i>}</span><span className="zenix-holo-foil" aria-hidden="true" /><span className="zenix-holo-glare" aria-hidden="true" /><span className="zenix-holo-edge" aria-hidden="true" />
         </button><div className="zenix-card-shadow" aria-hidden="true" /><button type="button" className="zenix-card-edit" onClick={openEditor}><Pencil size={13} />编辑个人名片</button></div>
-        <div className="zenix-stage-profile"><span>ZENIX · {profile.name}</span><p>{profile.tagline}</p>{profile.about && <small>{profile.about}</small>}{profile.tags && <div className="zenix-stage-tags">{profile.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).map(tag => <em key={tag}>{tag}</em>)}</div>}{profile.contact && <small className="zenix-stage-contact">{profile.contact}</small>}<div className="zenix-stage-stats"><b>{tracks.length}</b> 首本地歌曲<i /> <b>{personal.liked.length}</b> 首喜欢<i /> <b>{personal.playlists.length}</b> 个歌单</div></div>
       </section>
-      <section className="zenix-home-search-section"><div><span className="zenix-home-eyebrow">QUICK SEARCH</span><h2>下一首，想听什么？</h2></div><form onSubmit={playQuick}><Search size={19} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索本地歌曲，或按 Enter 搜索在线音乐" aria-label="快速搜索歌曲" /><button type="submit" aria-label="搜索"><ArrowRight size={18} /></button></form></section>
+      <section className="zenix-home-search-section"><div><h2>下一首，想听什么？</h2></div><form onSubmit={playQuick}><Search size={19} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索歌曲" aria-label="快速搜索歌曲" /><button type="submit" aria-label="搜索"><ArrowRight size={18} /></button></form></section>
       {suggested.length > 0 && <div className="zenix-home-suggestions">{suggested.map(track => <button key={track.id} onClick={() => { onPlayTrack(track, suggested); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={track.coverUrl} /><span><strong>{track.title}</strong><small>{track.artist}</small></span><ArrowRight size={15} /></button>)}</div>}
-      <section className="zenix-home-section"><div className="zenix-home-section-head"><div><span className="zenix-home-eyebrow">YOUR COLLECTION</span><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
+      <section className="zenix-home-section"><div className="zenix-home-section-head"><div><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
         {historyTracks.length ? <div className="zenix-recent-strip">{historyTracks.slice(0, 8).map((track, index) => <button key={`${track.id}-${index}`} onClick={() => { onPlayTrack(track, historyTracks); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={track.coverUrl} /><strong>{track.title}</strong><small>{track.artist}</small></button>)}</div> : <div className="zenix-home-empty"><Music2 size={25} /><span>听过的歌曲会出现在这里</span>{currentTrack && <button onClick={onOpenPlayer}>继续播放</button>}</div>}
       </section>
-      <div className="zenix-home-foot"><div><button onClick={() => void onImportFolder()}><Upload size={13} />导入文件夹</button>{onAddFiles && <button onClick={() => void onAddFiles()}><Plus size={13} />添加音乐文件</button>}{onImportPlaylist && <button onClick={() => void onImportPlaylist()}>导入 M3U 歌单</button>}</div><span>ZENIX · MADE PERSONAL</span></div>
+      <div className="zenix-home-foot"><div><button onClick={() => void onImportFolder()}><Upload size={13} />导入文件夹</button>{onAddFiles && <button onClick={() => void onAddFiles()}><Plus size={13} />添加音乐文件</button>}{onImportPlaylist && <button onClick={() => void onImportPlaylist()}>导入 M3U 歌单</button>}</div></div>
     </div>
     {editing && createPortal(<div className="zenix-profile-editor-mask" onPointerDown={event => { if (event.target === event.currentTarget) setEditing(false); }}><form className="zenix-profile-editor" onSubmit={save}>
       <header><div><span>IDENTITY CARD / EDIT</span><h2>编辑个人名片</h2><p>名片与空间设置保存在本机，点击中心卡片可以随时修改。</p></div><button type="button" className="zenix-editor-close" onClick={() => setEditing(false)} aria-label="关闭编辑"><X size={17} /></button></header>

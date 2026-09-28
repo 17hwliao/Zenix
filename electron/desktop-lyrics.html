@@ -14,40 +14,41 @@
     }
     * { box-sizing:border-box; }
     html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; color:#f7f9fc; font-family:Inter,"Microsoft YaHei",sans-serif; user-select:none; }
-    body { padding:8px; }
+    body { padding:6px; }
     button,select,input { font:inherit; }
     .glass {
       position:relative; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid transparent; border-radius:30px;
-      background:transparent; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+      background:rgba(0,0,0,.005); box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
       -webkit-app-region:no-drag;
     }
-    body:not(.is-locked) .glass:hover,body.is-editor-open .glass {
+    body:not(.is-locked).is-hovered .glass,body.is-editor-open .glass {
       border-color:rgba(255,255,255,.2);
       background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(30,36,44,var(--glass-opacity)) 30%,rgba(13,17,23,var(--glass-opacity)));
       box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 7px 22px rgba(0,0,0,.13);
-      backdrop-filter:blur(25px) saturate(108%); -webkit-backdrop-filter:blur(25px) saturate(108%);
+      backdrop-filter:blur(16px) saturate(108%); -webkit-backdrop-filter:blur(16px) saturate(108%);
     }
     .glass::before,.glass::after { display:none; }
-    .top { position:relative; z-index:1; display:flex; align-items:center; gap:10px; height:39px; padding:8px 19px 0; opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s; -webkit-app-region:drag; }
+    .top { position:relative; z-index:1; display:flex; align-items:center; gap:10px; height:35px; padding:5px 16px 0; opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s; -webkit-app-region:drag; }
     .bottom { opacity:0; visibility:hidden; transition:opacity .18s; }
-    body:not(.is-locked) .glass:hover .top,body:not(.is-locked) .glass:hover .bottom,body.is-editor-open .top,body.is-editor-open .bottom { opacity:1; visibility:visible; pointer-events:auto; }
+    body:not(.is-locked).is-hovered .top,body:not(.is-locked).is-hovered .bottom,body.is-editor-open .top,body.is-editor-open .bottom { opacity:1; visibility:visible; pointer-events:auto; }
     .drag-handle { display:flex; flex:1; align-items:center; gap:10px; min-width:0; height:100%; cursor:move; -webkit-app-region:drag; }
     .drag-grip { flex:none; display:grid; grid-template-columns:repeat(3,2px); gap:3px; opacity:.46; }
     .drag-grip i { width:2px; height:2px; border-radius:50%; background:currentColor; }
     .mark { flex:none; width:25px; height:25px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.17); border-radius:50%; background:rgba(255,255,255,.09); color:rgba(255,255,255,.76); font-size:12px; font-weight:750; }
     .song { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:rgba(255,255,255,.74); font-size:10px; font-weight:700; letter-spacing:.13em; }
     .controls { display:flex; align-items:center; gap:5px; opacity:.62; transition:opacity .18s; -webkit-app-region:no-drag; }
-    .glass:hover .controls,.glass:focus-within .controls { opacity:1; }
+    body.is-hovered .controls,.glass:focus-within .controls { opacity:1; }
     .icon-button { flex:none; display:grid; place-items:center; width:28px; height:28px; padding:0; border:1px solid rgba(255,255,255,.16); border-radius:50%; background:rgba(255,255,255,.09); color:#f8fbff; cursor:pointer; -webkit-app-region:no-drag; transition:background .18s,border-color .18s,transform .18s; }
     .icon-button:hover,.icon-button:focus-visible { outline:none; border-color:rgba(255,255,255,.37); background:rgba(255,255,255,.17); }
     .icon-button.play { width:30px; height:30px; background:rgba(255,255,255,.16); color:#f8fbff; }
     .icon-button.appearance { width:37px; border-radius:14px; color:var(--lyric-color); font-size:11px; font-weight:800; }
     .icon-button.lock svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+    .icon-button.lock { position:absolute; z-index:4; top:34px; left:50%; width:29px; height:29px; transform:translateX(-50%); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s,background .18s; }
+    body:not(.is-locked).is-hovered .icon-button.lock { opacity:1; visibility:visible; pointer-events:auto; }
     .icon-button.close { font-size:19px; line-height:1; }
-    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 76px); min-height:105px; padding:0 30px; text-align:center; touch-action:none; cursor:grab; --drag-offset:0px; }
+    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 68px); min-height:99px; padding:0 28px; text-align:center; touch-action:none; cursor:grab; --drag-offset:0px; }
     .lines:active { cursor:grabbing; }
     .lines.is-browsing { padding-left:100px; padding-right:100px; }
-    .lines.is-browsing::before { content:'歌词预览 · 3 秒后自动同步'; position:absolute; z-index:2; top:1px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.48); font-size:9px; white-space:nowrap; pointer-events:none; }
     .lines.is-browsing::after { content:''; position:absolute; z-index:0; top:50%; left:50%; width:min(70%,540px); height:66px; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(ellipse,rgba(255,255,255,.045),transparent 72%); pointer-events:none; animation:preview-glow .34s ease-out both; }
     .line { display:block; width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-family:var(--lyric-family); font-weight:var(--lyric-weight); }
     .lines .line { position:relative; z-index:1; translate:0 var(--drag-offset); transition:translate .13s cubic-bezier(.2,.8,.2,1); pointer-events:none; }
@@ -62,7 +63,19 @@
     .lines.is-browsing .jump { display:flex; animation:preview-jump .28s cubic-bezier(.16,1,.3,1) both; }
     @keyframes preview-glow { from { opacity:0; scale:.78; } to { opacity:1; scale:1; } }
     @keyframes preview-jump { from { opacity:0; translate:10px 0; scale:.82; } to { opacity:1; translate:0 0; scale:1; } }
-    .bottom { position:absolute; z-index:1; left:26px; right:26px; bottom:12px; display:flex; align-items:center; gap:9px; height:19px; -webkit-app-region:no-drag; }
+    .bottom { position:absolute; z-index:1; left:20px; right:20px; bottom:9px; display:flex; align-items:center; gap:7px; height:20px; -webkit-app-region:no-drag; }
+    .saved-actions { display:flex; align-items:center; gap:2px; flex:none; }
+    .saved-actions button { display:grid; place-items:center; width:25px; height:25px; padding:0; border:0; border-radius:50%; background:transparent; color:rgba(255,255,255,.72); cursor:pointer; -webkit-app-region:no-drag; }
+    .saved-actions button:hover,.saved-actions button.is-on { background:rgba(255,255,255,.14); color:var(--lyric-color); }
+    .saved-actions svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .saved-actions button.is-on svg { fill:currentColor; }
+    .playlist-menu { position:absolute; z-index:4; right:10px; bottom:37px; display:none; width:186px; max-height:130px; overflow:auto; padding:7px; border:1px solid rgba(255,255,255,.22); border-radius:10px; background:rgba(22,27,34,.95); box-shadow:0 8px 22px rgba(0,0,0,.3); -webkit-app-region:no-drag; }
+    .playlist-menu.is-open { display:block; }
+    .playlist-menu #playlist-choices button { display:block; width:100%; padding:7px; border:0; border-radius:5px; background:transparent; color:#fff; text-align:left; cursor:pointer; }
+    .playlist-menu #playlist-choices button:hover { background:rgba(255,255,255,.13); }
+    .playlist-menu form { display:flex; gap:4px; margin-top:3px; }
+    .playlist-menu input { min-width:0; flex:1; padding:5px; border:1px solid #ffffff44; border-radius:5px; background:#0007; color:#fff; font-size:10px; }
+    .playlist-menu form button { border:0; border-radius:5px; padding:0 6px; cursor:pointer; }
     .bottom time { flex:none; min-width:32px; color:rgba(255,255,255,.66); font:10px Consolas,monospace; text-align:center; }
     .song-progress { flex:1; min-width:0; height:18px; margin:0; padding:0; appearance:none; -webkit-appearance:none; border:0; background:transparent; cursor:pointer; --seek-progress:0%; -webkit-app-region:no-drag; }
     .song-progress::-webkit-slider-runnable-track { height:4px; border-radius:10px; background:linear-gradient(to right,var(--lyric-color) 0 var(--seek-progress),rgba(255,255,255,.24) var(--seek-progress) 100%); }
@@ -72,7 +85,7 @@
     .editor { position:absolute; z-index:5; inset:5px; display:none; flex-direction:column; padding:12px 17px; border:1px solid rgba(255,255,255,.28); border-radius:30px; background:linear-gradient(150deg,rgba(59,71,85,.95),rgba(13,18,28,.97)); box-shadow:0 9px 25px rgba(0,0,0,.3); -webkit-app-region:no-drag; }
     .editor.is-open { display:flex; }
     .editor-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-    .editor-head strong { font-size:12px; letter-spacing:.08em; }.editor-head small { margin-left:10px; color:rgba(255,255,255,.45); font-size:10px; }
+    .editor-head strong { font-size:12px; letter-spacing:.08em; }
     .editor-close { display:grid; place-items:center; width:23px; height:23px; border:1px solid rgba(255,255,255,.25); border-radius:50%; background:rgba(255,255,255,.12); color:#fff; cursor:pointer; }
     .editor-grid { display:grid; grid-template-columns:1.4fr .7fr 1fr 1fr; gap:10px; }
     .editor label { display:flex; flex-direction:column; gap:4px; min-width:0; color:rgba(255,255,255,.69); font-size:10px; }
@@ -85,11 +98,9 @@
     .editor-colors input[type=color] { width:30px; height:25px; padding:2px; border:1px solid rgba(255,255,255,.28); border-radius:8px; background:rgba(255,255,255,.1); cursor:pointer; }
     .swatch { width:22px; height:22px; padding:0; border:1px solid rgba(255,255,255,.55); border-radius:50%; background:var(--swatch); cursor:pointer; }
     .swatch:hover { outline:2px solid #fff; outline-offset:2px; }
-    .editor-hint { margin-left:auto; color:rgba(255,255,255,.36); font-size:9px; }
     .editor-preview { position:relative; display:flex; flex:1; align-items:center; justify-content:center; min-height:30px; margin-top:10px; overflow:hidden; border-top:1px solid rgba(255,255,255,.13); }
-    .editor-preview small { position:absolute; top:5px; left:0; color:rgba(255,255,255,.37); font-size:9px; }
     .editor-preview strong { max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--lyric-color); font-family:var(--lyric-family); font-size:var(--lyric-size); font-weight:var(--lyric-weight); text-shadow:0 1px 5px rgba(0,0,0,.6); }
-    @media (max-width:680px) { .editor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 10px; }.editor { padding:9px 14px; }.editor-colors { margin-top:6px; }.editor-hint { display:none; } }
+    @media (max-width:680px) { .editor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 10px; }.editor { padding:9px 14px; }.editor-colors { margin-top:6px; } }
     @media (prefers-reduced-motion:reduce) { .icon-button,.lines .line { transition:none; }.lines.is-browsing::after,.lines.is-browsing .jump { animation:none; } }
   </style>
 </head>
@@ -102,27 +113,28 @@
         <button class="icon-button play" id="play" title="播放或暂停" aria-label="播放或暂停">▶</button>
         <button class="icon-button" id="next-track" title="下一首" aria-label="下一首">›</button>
         <button class="icon-button appearance" id="appearance" title="调整歌词外观" aria-label="调整歌词外观" aria-expanded="false">Aa</button>
-        <button class="icon-button lock" id="lock" title="锁定歌词，让鼠标点击穿透" aria-label="锁定歌词，让鼠标点击穿透"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/><path d="M12 14v3"/></svg></button>
         <button class="icon-button close" id="close" title="隐藏桌面歌词" aria-label="隐藏桌面歌词">×</button>
       </div>
     </div>
+    <button class="icon-button lock" id="lock" title="锁定歌词，让鼠标点击穿透" aria-label="锁定歌词，让鼠标点击穿透"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/><path d="M12 14v3"/></svg></button>
     <div class="lines" id="lines" aria-label="上下拖动预览歌词" aria-live="off">
       <span class="line previous is-placeholder" id="previous">上一句歌词</span>
       <span class="line current" id="current">播放歌曲后显示歌词</span>
       <span class="line next is-placeholder" id="next">下一句歌词</span>
       <button class="jump" id="jump" title="播放预览的这一句" aria-label="跳转到预览歌词">▶ <span id="jump-time">0:00</span></button>
     </div>
-    <div class="bottom"><time id="elapsed">0:00</time><input class="song-progress" id="song-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="歌曲播放进度"><time id="total">0:00</time></div>
+    <div class="bottom"><time id="elapsed">0:00</time><input class="song-progress" id="song-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="歌曲播放进度"><time id="total">0:00</time><div class="saved-actions"><button id="like" title="喜欢" aria-label="喜欢"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></svg></button><button id="favorite" title="收藏" aria-label="收藏"><svg viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 7 .9-5.1 5 .9 7-5.9-3.3-5.9 3.3.9-7-5.1-5 7-.9L12 2Z"/></svg></button><button id="playlist-toggle" title="加入歌单" aria-label="加入歌单"><svg viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M19 15v7M15.5 18.5h7"/></svg></button></div></div>
+    <div class="playlist-menu" id="playlist-menu"><div id="playlist-choices"></div><form id="playlist-create"><input id="playlist-name" aria-label="新歌单名称" placeholder="新歌单名称"><button type="submit">新建</button></form></div>
     <div class="editor" id="editor" role="dialog" aria-label="桌面歌词外观" aria-hidden="true">
-      <div class="editor-head"><div><strong>歌词外观</strong><small>字体 · 字号 · 颜色 · 玻璃透明度</small></div><button class="editor-close" id="editor-close" title="返回歌词" aria-label="返回歌词">×</button></div>
+      <div class="editor-head"><div><strong>歌词外观</strong></div><button class="editor-close" id="editor-close" title="返回歌词" aria-label="返回歌词">×</button></div>
       <div class="editor-grid">
         <label>字体<select id="font"><option value="system">系统默认</option><option value="yahei">微软雅黑</option><option value="heiti">黑体</option><option value="songti">宋体</option><option value="kaiti">楷体</option><option value="mono">等宽字体</option></select></label>
         <label>字重<select id="weight"><option value="500">常规</option><option value="700">加粗</option><option value="850">特粗</option></select></label>
         <label>字号 <span class="editor-value" id="size-value">28 px</span><input id="size" type="range" min="18" max="42" step="1"></label>
         <label>玻璃透明度 <span class="editor-value" id="opacity-value">56%</span><input id="opacity" type="range" min="20" max="85" step="1"></label>
       </div>
-      <div class="editor-colors"><span>歌词颜色</span><input id="color" type="color" aria-label="自定义歌词颜色"><button class="swatch" style="--swatch:#b7e7ff" data-color="#b7e7ff" title="冰蓝"></button><button class="swatch" style="--swatch:#ffe0a1" data-color="#ffe0a1" title="暖金"></button><button class="swatch" style="--swatch:#8affd5" data-color="#8affd5" title="薄荷"></button><button class="swatch" style="--swatch:#ffadd4" data-color="#ffadd4" title="玫瑰"></button><button class="swatch" style="--swatch:#ffffff" data-color="#ffffff" title="纯白"></button><span class="editor-hint">设置自动保存在本机</span></div>
-      <div class="editor-preview"><small>实时预览</small><strong id="preview-line">播放歌曲后显示歌词</strong></div>
+      <div class="editor-colors"><span>歌词颜色</span><input id="color" type="color" aria-label="自定义歌词颜色"><button class="swatch" style="--swatch:#b7e7ff" data-color="#b7e7ff" title="冰蓝"></button><button class="swatch" style="--swatch:#ffe0a1" data-color="#ffe0a1" title="暖金"></button><button class="swatch" style="--swatch:#8affd5" data-color="#8affd5" title="薄荷"></button><button class="swatch" style="--swatch:#ffadd4" data-color="#ffadd4" title="玫瑰"></button><button class="swatch" style="--swatch:#ffffff" data-color="#ffffff" title="纯白"></button></div>
+      <div class="editor-preview"><strong id="preview-line">播放歌曲后显示歌词</strong></div>
     </div>
   </div>
   <script>
@@ -141,6 +153,11 @@
     let settings = defaults;
     try { settings = { ...defaults, ...JSON.parse(localStorage.getItem(storageKey) || '{}') }; } catch {}
     const byId = id => document.getElementById(id);
+    let hoverExitTimer = null;
+    const reveal = () => { if (hoverExitTimer) clearTimeout(hoverExitTimer); hoverExitTimer = null; document.body.classList.add('is-hovered'); };
+    document.body.addEventListener('pointerenter',reveal);
+    document.body.addEventListener('pointermove',reveal);
+    document.body.addEventListener('pointerleave',() => { if (hoverExitTimer) clearTimeout(hoverExitTimer); hoverExitTimer = setTimeout(() => { document.body.classList.remove('is-hovered'); byId('playlist-menu').classList.remove('is-open'); },180); });
     function applySettings() {
       settings.font = fonts[settings.font] ? settings.font : 'system';
       settings.weight = [500,700,850].includes(Number(settings.weight)) ? Number(settings.weight) : 700;
@@ -182,7 +199,38 @@
     byId('play').addEventListener('click',() => window.desktopLyrics?.command('play-pause'));
     byId('next-track').addEventListener('click',() => window.desktopLyrics?.command('next'));
     byId('close').addEventListener('click',() => window.desktopLyrics?.hide());
-    let latestData = { previous:'', line:'', next:'', title:'', trackId:'', playing:false, position:0, duration:0, lines:[] };
+    let latestData = { previous:'', line:'', next:'', title:'', trackId:'', playing:false, position:0, duration:0, lines:[], saved:{ liked:false, favorite:false, playlists:[] } };
+    let savedSignature = '';
+    function renderSaved() {
+      const saved = latestData.saved || { liked:false, favorite:false, playlists:[] };
+      byId('like').classList.toggle('is-on',Boolean(saved.liked));
+      byId('favorite').classList.toggle('is-on',Boolean(saved.favorite));
+      byId('like').setAttribute('aria-pressed',String(Boolean(saved.liked)));
+      byId('favorite').setAttribute('aria-pressed',String(Boolean(saved.favorite)));
+      const signature = JSON.stringify(saved.playlists || []);
+      if (signature === savedSignature) return;
+      savedSignature = signature;
+      const choices = byId('playlist-choices');
+      choices.replaceChildren();
+      for (const list of saved.playlists || []) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = list.name;
+        button.addEventListener('click',() => { void saveAction('add',list.id); });
+        choices.append(button);
+      }
+    }
+    async function saveAction(action,value) {
+      try {
+        latestData.saved = await window.desktopLyrics?.personalAction(action,value) || latestData.saved;
+        renderSaved();
+        byId('playlist-menu').classList.remove('is-open');
+      } catch (error) { console.error('无法保存歌曲',error); }
+    }
+    byId('like').addEventListener('click',() => { void saveAction('liked'); });
+    byId('favorite').addEventListener('click',() => { void saveAction('favorites'); });
+    byId('playlist-toggle').addEventListener('click',() => byId('playlist-menu').classList.toggle('is-open'));
+    byId('playlist-create').addEventListener('submit',event => { event.preventDefault(); const input = byId('playlist-name'); if (!input.value.trim()) return; void saveAction('create',input.value.trim()); input.value = ''; });
     let previewIndex = null;
     let drag = null;
     let scrubbing = false;
@@ -320,6 +368,7 @@
       if (data.trackId !== latestData.trackId) { cancelPreviewReturn(); previewIndex = null; drag = null; scrubbing = false; byId('lines').style.setProperty('--drag-offset','0px'); }
       latestData = data;
       byId('song').textContent = data.title || 'ZENIX · 桌面歌词';
+      renderSaved();
       renderLines();
       if (!scrubbing) renderProgress();
       document.body.classList.toggle('is-paused',!data.playing);

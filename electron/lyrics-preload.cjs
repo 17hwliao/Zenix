@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('desktopLyrics', {
   hide: () => ipcRenderer.send('lyrics:hide'),
   command: command => ipcRenderer.send('lyrics:command', command),
   seek: (trackId, seconds) => ipcRenderer.send('lyrics:seek', { trackId, seconds }),
+  personalAction: (action, value) => ipcRenderer.invoke('lyrics:personal-action', action, value),
   lockState: () => ipcRenderer.invoke('lyrics:lock-state'),
   setLocked: value => ipcRenderer.invoke('lyrics:set-locked', value),
   unlock: () => ipcRenderer.send('lyrics:unlock'),

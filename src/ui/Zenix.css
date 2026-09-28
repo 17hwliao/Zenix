@@ -227,8 +227,8 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .yz-lattice-focus-controls input:hover::-webkit-slider-thumb { opacity: 1; }
 .yz-lattice-back { position: absolute; z-index: 85; top: 18px; left: 18px; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: rgba(13,13,16,.55); box-shadow: 0 2px 12px rgba(0,0,0,.28); backdrop-filter: blur(18px); }
 .yz-lattice-back:hover { background: rgba(255,255,255,.2); }
-.yz-lattice-mini { position: absolute; z-index: 7; left: 16px; bottom: 17px; display: flex; align-items: center; gap: 12px; width: 315px; max-width: calc(100vw - 85px); height: 70px; padding: 8px 11px; overflow: hidden; border: 1px solid rgba(255,255,255,.23); border-radius: 5px; background: rgba(6,6,8,.86); box-shadow: 0 7px 28px rgba(0,0,0,.44); backdrop-filter: blur(22px); transition: width .32s cubic-bezier(.2,.7,.2,1); }
-.yz-lattice-mini:hover, .yz-lattice-mini:focus-within { width: min(710px,calc(100vw - 85px)); }
+.yz-lattice-mini { position: absolute; z-index: 7; left: 16px; bottom: 17px; display: flex; align-items: center; gap: 7px; width: 402px; max-width: calc(100vw - 85px); height: 70px; padding: 8px 11px; overflow: hidden; border: 1px solid rgba(255,255,255,.23); border-radius: 5px; background: rgba(6,6,8,.86); box-shadow: 0 7px 28px rgba(0,0,0,.44); backdrop-filter: blur(22px); transition: width .32s cubic-bezier(.2,.7,.2,1); }
+.yz-lattice-mini:hover, .yz-lattice-mini:focus-within { width: min(810px,calc(100vw - 85px)); }
 .yz-lattice-mini > .yz-cover { width: 48px; height: 48px; border-radius: 2px; }
 .yz-lattice-mini-text { flex: 0 0 165px; min-width: 0; display: flex; flex-direction: column; line-height: 1.12; }
 .yz-lattice-mini-text strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; font-weight: 730; }
@@ -397,11 +397,11 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   .yz-lattice-focus-meta h1 { font-size: 13px; }
   .yz-lattice-lyrics { top: 115px; left: 7%; right: 5%; bottom: 60px; }
   .yz-lattice-lyric { font-size: clamp(16px,5vw,27px); }
-  .yz-lattice-mini { left: 8px; bottom: 9px; height: 58px; width: 282px; gap: 7px; }
+  .yz-lattice-mini { left: 8px; bottom: 9px; height: 58px; width: min(390px,calc(100vw - 70px)); gap: 5px; }
   .yz-lattice-mini-focus { flex-basis: 212px; }
   .yz-lattice-mini > .yz-cover { width: 40px; height: 40px; }
   .yz-lattice-mini-text { flex-basis: 140px; }
-  .yz-lattice-mini:hover, .yz-lattice-mini:focus-within { width: min(610px,calc(100vw - 70px)); }
+  .yz-lattice-mini:hover, .yz-lattice-mini:focus-within { width: min(740px,calc(100vw - 70px)); }
   .yz-lattice-settings { right: 10px; bottom: 15px; }
   .yz-search-overlay { top: 37px; width: calc(100vw - 20px); padding: 10px; border-radius: 20px; }
   .yz-search-top { gap: 8px; }

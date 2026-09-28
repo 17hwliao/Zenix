@@ -89,7 +89,7 @@ export interface DesktopBridge {
   desktopLyrics: {
     toggle(): Promise<boolean>;
     isVisible(): Promise<boolean>;
-    update(payload: { previous: string; line: string; next: string; title: string; trackId: string; playing: boolean; position: number; duration: number; lines: { time: number; text: string }[] }): Promise<void>;
+    update(payload: { previous: string; line: string; next: string; title: string; trackId: string; track: Track | null; playing: boolean; position: number; duration: number; lines: { time: number; text: string }[] }): Promise<void>;
     onVisibleChanged(callback: (visible: boolean) => void): () => void;
   };
   personal: {

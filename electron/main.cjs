@@ -16,6 +16,7 @@ protocol.registerSchemesAsPrivileged([{
 let mainWindow = null;
 let lyricsWindow = null;
 let lyricsPayload = { previous: '', line: '', next: '', title: '', trackId: '', playing: false, position: 0, duration: 0, lines: [] };
+let lyricsTrack = null;
 let lyricsBounds = null;
 let lyricsReady = null;
 let lyricsSaveTimer = null;
@@ -29,6 +30,19 @@ const onlineService = createOnlineService();
 
 function broadcast(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+}
+
+function lyricsData() {
+  const state = personal?.snapshot();
+  return { ...lyricsPayload, saved: {
+    liked: Boolean(state?.liked.some(track => track.id === lyricsPayload.trackId)),
+    favorite: Boolean(state?.favorites.some(track => track.id === lyricsPayload.trackId)),
+    playlists: (state?.playlists || []).map(list => ({ id: list.id, name: list.name, count: list.tracks.length })),
+  } };
+}
+
+function publishLyrics() {
+  if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsData());
 }
 
 function mimeType(filePath) {
@@ -169,7 +183,7 @@ function createWindow() {
 function createLyricsLockWindow() {
   if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) return lyricsLockWindow;
   lyricsLockWindow = new BrowserWindow({
-    width: 44, height: 44, frame: false, transparent: true, hasShadow: false,
+    width: 36, height: 36, frame: false, transparent: true, hasShadow: false,
     alwaysOnTop: true, skipTaskbar: true, resizable: false, show: false,
     webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -191,8 +205,8 @@ function updateLyricsLockBadge() {
   const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width && point.y >= bounds.y && point.y < bounds.y + bounds.height;
   if (!inside) { hideLyricsLockWindow(); return; }
   const badge = createLyricsLockWindow();
-  const x = bounds.x + bounds.width - 54;
-  const y = bounds.y + 12;
+  const x = bounds.x + Math.round((bounds.width - 36) / 2);
+  const y = bounds.y + 35;
   const current = badge.getBounds();
   if (current.x !== x || current.y !== y) badge.setPosition(x, y);
   if (!badge.isVisible()) badge.showInactive();
@@ -221,7 +235,7 @@ function setLyricsLocked(value) {
 function createLyricsWindow() {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) return lyricsWindow;
   lyricsWindow = new BrowserWindow({
-    width: Math.max(lyricsBounds?.width || 790, 700), height: Math.max(lyricsBounds?.height || 218, 210), minWidth: 700, minHeight: 210, frame: false,
+    width: Math.max(650, Math.min(lyricsBounds?.width || 740, 820)), height: Math.max(190, Math.min(lyricsBounds?.height || 205, 235)), minWidth: 650, minHeight: 190, frame: false,
     transparent: true, hasShadow: false, alwaysOnTop: true, skipTaskbar: true,
     resizable: true, show: false, backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
@@ -247,7 +261,7 @@ function createLyricsWindow() {
   win.on('hide', trackLyricsLockBadge);
   lyricsWindow.webContents.on('did-fail-load', (_event, code, description) => console.error('Desktop lyrics load failed:', code, description));
   lyricsReady = win.loadFile(path.join(__dirname, 'desktop-lyrics.html')).then(() => {
-    if (!win.isDestroyed()) win.webContents.send('lyrics:data', lyricsPayload);
+    if (!win.isDestroyed()) win.webContents.send('lyrics:data', lyricsData());
   });
   win.on('closed', () => { lyricsWindow = null; lyricsReady = null; trackLyricsLockBadge(); if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) lyricsLockWindow.close(); broadcast('lyrics:visible', false); });
   return win;
@@ -278,7 +292,23 @@ function registerHandlers() {
       position: Number.isFinite(position) ? Math.max(0, position) : 0,
       lines: Array.isArray(payload?.lines) ? payload.lines.slice(0, 2000).filter(line => Number.isFinite(line?.time) && typeof line?.text === 'string').map(line => ({ time: Math.max(0, line.time), text: line.text.slice(0, 500) })) : [],
     };
-    if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload);
+    lyricsTrack = payload?.track?.id === lyricsPayload.trackId ? payload.track : null;
+    publishLyrics();
+  });
+  ipcMain.handle('lyrics:personal-action', async (_event, action, value) => {
+    if (!lyricsTrack || !lyricsPayload.trackId || lyricsTrack.id !== lyricsPayload.trackId) throw new Error('当前没有可保存的歌曲');
+    let state;
+    if (action === 'liked' || action === 'favorites') state = await personal.toggle(action, lyricsTrack);
+    else if (action === 'add') state = await personal.addToPlaylist(String(value || ''), lyricsTrack);
+    else if (action === 'create') {
+      const before = personal.snapshot();
+      const created = await personal.createPlaylist(String(value || ''));
+      const list = created.playlists.find(item => !before.playlists.some(old => old.id === item.id));
+      state = list ? await personal.addToPlaylist(list.id, lyricsTrack) : created;
+    } else throw new Error('不支持的操作');
+    broadcast('personal:changed', state);
+    publishLyrics();
+    return lyricsData().saved;
   });
   ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
   ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'play', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
@@ -289,6 +319,7 @@ function registerHandlers() {
   const personalAction = (channel, handler) => ipcMain.handle(channel, async (_event, ...args) => {
     const state = await handler(...args);
     broadcast('personal:changed', state);
+    publishLyrics();
     return state;
   });
   ipcMain.handle('personal:load', () => personal.snapshot());
