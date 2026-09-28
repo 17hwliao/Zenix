@@ -89,7 +89,7 @@ export interface DesktopBridge {
   desktopLyrics: {
     toggle(): Promise<boolean>;
     isVisible(): Promise<boolean>;
-    update(payload: { previous: string; line: string; next: string; title: string; playing: boolean; progress: number }): Promise<void>;
+    update(payload: { previous: string; line: string; next: string; title: string; trackId: string; playing: boolean; position: number; duration: number; lines: { time: number; text: string }[] }): Promise<void>;
     onVisibleChanged(callback: (visible: boolean) => void): () => void;
   };
   personal: {
@@ -142,6 +142,7 @@ export interface DesktopBridge {
     onMaximizedChanged(callback: (maximized: boolean) => void): () => void;
   };
   onMediaCommand(callback: (command: MediaCommand) => void): () => void;
+  onMediaSeek(callback: (request: { trackId: string; seconds: number }) => void): () => void;
 }
 
 declare global {

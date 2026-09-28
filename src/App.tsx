@@ -85,10 +85,8 @@ export default function App() {
     const previous = lyrics[active - 1];
     const current = lyrics[active];
     const following = lyrics[active + 1];
-    const lineEnd = following?.time ?? playback.duration;
-    const progress = current && lineEnd > current.time ? (playback.position - current.time) / (lineEnd - current.time) : 0;
-    void bridge.update({ previous: previous?.text || '', line: current?.text || (lyrics.length ? '即将开始' : playback.track?.title || ''), next: following?.text || (lyrics.length ? '' : playback.track ? '暂无同步歌词' : ''), title: playback.track?.title || '', playing: playback.playing, progress });
-  }, [desktopLyricsVisible, lyrics, playback.position, playback.duration, playback.playing, playback.track?.title]);
+    void bridge.update({ previous: previous?.text || '', line: current?.text || (lyrics.length ? '即将开始' : playback.track?.title || ''), next: following?.text || (lyrics.length ? '' : playback.track ? '暂无同步歌词' : ''), title: playback.track?.title || '', trackId: playback.track?.id || '', playing: playback.playing, position: playback.position, duration: playback.duration, lines: lyrics.map(line => ({ time: line.time, text: line.text })) });
+  }, [desktopLyricsVisible, lyrics, playback.position, playback.duration, playback.playing, playback.track?.id, playback.track?.title]);
 
   const toggleDesktopLyrics = () => {
     const bridge = window.yzqxy?.desktopLyrics;

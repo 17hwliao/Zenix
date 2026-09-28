@@ -26,6 +26,7 @@ class PlayerController {
   private history: number[] = [];
   private shufflePool = new Set<number>();
   private unlistenMedia?: () => void;
+  private unlistenMediaSeek?: () => void;
   private trackResolver?: (track: Track) => Promise<Track>;
   private selectionToken = 0;
   private playbackToken = 0;
@@ -73,6 +74,9 @@ class PlayerController {
 
     if (typeof window !== 'undefined') {
       this.unlistenMedia = window.yzqxy?.onMediaCommand((command) => this.handleMediaCommand(command));
+      this.unlistenMediaSeek = window.yzqxy?.onMediaSeek(({ trackId, seconds }) => {
+        if (trackId === this.state.track?.id) this.seek(seconds);
+      });
     }
     this.setupMediaSession();
   }
@@ -465,6 +469,7 @@ class PlayerController {
   dispose(): void {
     this.playbackToken += 1;
     this.unlistenMedia?.();
+    this.unlistenMediaSeek?.();
     this.audio.pause();
     this.audio.removeAttribute('src');
     this.audio.load();

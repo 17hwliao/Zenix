@@ -63,4 +63,5 @@ contextBridge.exposeInMainWorld('yzqxy', {
     onMaximizedChanged: (callback) => subscribe('window:maximized-changed', callback),
   },
   onMediaCommand: (callback) => subscribe('media:command', callback),
+  onMediaSeek: (callback) => subscribe('media:seek', callback),
 });

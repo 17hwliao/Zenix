@@ -15,7 +15,7 @@ protocol.registerSchemesAsPrivileged([{
 
 let mainWindow = null;
 let lyricsWindow = null;
-let lyricsPayload = { previous: '', line: '', next: '', title: '', playing: false, progress: 0 };
+let lyricsPayload = { previous: '', line: '', next: '', title: '', trackId: '', playing: false, position: 0, duration: 0, lines: [] };
 let lyricsBounds = null;
 let lyricsReady = null;
 let lyricsSaveTimer = null;
@@ -268,9 +268,24 @@ function registerHandlers() {
   ipcMain.handle('lyrics:lock-state', () => lyricsLocked);
   ipcMain.handle('lyrics:set-locked', (_event, value) => setLyricsLocked(value));
   ipcMain.on('lyrics:unlock', () => setLyricsLocked(false));
-  ipcMain.handle('lyrics:update', (_event, payload) => { lyricsPayload = { previous: String(payload?.previous || ''), line: String(payload?.line || ''), next: String(payload?.next || ''), title: String(payload?.title || ''), playing: Boolean(payload?.playing), progress: Math.max(0, Math.min(1, Number(payload?.progress) || 0)) }; if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload); });
+  ipcMain.handle('lyrics:update', (_event, payload) => {
+    const duration = Number(payload?.duration);
+    const position = Number(payload?.position);
+    lyricsPayload = {
+      previous: String(payload?.previous || ''), line: String(payload?.line || ''), next: String(payload?.next || ''),
+      title: String(payload?.title || ''), trackId: String(payload?.trackId || ''), playing: Boolean(payload?.playing),
+      duration: Number.isFinite(duration) ? Math.max(0, duration) : 0,
+      position: Number.isFinite(position) ? Math.max(0, position) : 0,
+      lines: Array.isArray(payload?.lines) ? payload.lines.slice(0, 2000).filter(line => Number.isFinite(line?.time) && typeof line?.text === 'string').map(line => ({ time: Math.max(0, line.time), text: line.text.slice(0, 500) })) : [],
+    };
+    if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsPayload);
+  });
   ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
-  ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
+  ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'play', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
+  ipcMain.on('lyrics:seek', (_event, request) => {
+    const seconds = Number(request?.seconds);
+    if (request?.trackId && request.trackId === lyricsPayload.trackId && Number.isFinite(seconds)) broadcast('media:seek', { trackId: lyricsPayload.trackId, seconds: Math.max(0, Math.min(seconds, lyricsPayload.duration || seconds)) });
+  });
   const personalAction = (channel, handler) => ipcMain.handle(channel, async (_event, ...args) => {
     const state = await handler(...args);
     broadcast('personal:changed', state);
