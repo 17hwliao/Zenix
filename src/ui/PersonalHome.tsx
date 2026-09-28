@@ -73,7 +73,8 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     if (!bounds) return false;
     const horizontalReach = Math.min(400, (bounds.width - 8) / 2);
     const verticalReach = Math.min(300, horizontalReach * .76, (bounds.height - 8) / 2);
-    return Math.abs(x - (bounds.left + bounds.width / 2)) <= horizontalReach && Math.abs(y - (bounds.top + bounds.height * .46)) <= verticalReach;
+    const verticalOffset = y - (bounds.top + bounds.height * .46);
+    return Math.abs(x - (bounds.left + bounds.width / 2)) <= horizontalReach && verticalOffset >= -verticalReach && verticalOffset <= verticalReach * (2 / 3);
   };
   const suggested = useMemo(() => {
     const word = query.trim().toLocaleLowerCase();
