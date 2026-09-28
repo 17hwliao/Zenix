@@ -38,6 +38,14 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .yz-window-controls button:last-child:hover, .yz-window-controls button:last-child:focus-visible { background: rgba(185,62,70,.32); }
 .yz-titlebar-drag { position: absolute; z-index: 80; top: 0; left: 0; right: 178px; height: 32px; -webkit-app-region: drag; }
 .yz-window-controls, .yz-window-controls button, .yz-header button, .yz-header input, .yz-lattice-back, .yz-lattice-settings { -webkit-app-region: no-drag; }
+.yz-home-search-dock { position: absolute; z-index: 85; top: 0; left: 50%; display: flex; align-items: center; width: min(440px, calc(100% - 360px)); height: 76px; transform: translateX(-50%); -webkit-app-region: no-drag; }
+.yz-home-search-dock form { display: flex; align-items: center; gap: 12px; width: 100%; height: 43px; padding: 0 7px 0 17px; border: 1px solid rgba(255,255,255,.27); border-radius: 999px; background: rgba(29,34,43,.48); box-shadow: inset 0 1px rgba(255,255,255,.19), 0 12px 34px rgba(0,0,0,.18); backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%); opacity: 0; pointer-events: none; transform: translateY(-10px); transition: opacity .22s ease, transform .28s cubic-bezier(.2,.8,.2,1); }
+.yz-home-search-dock.is-revealed form, .yz-home-search-dock:focus-within form { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.yz-home-search-dock form > svg { flex: none; color: rgba(255,255,255,.72); }
+.yz-home-search-dock input { flex: 1; min-width: 0; padding: 0; border: 0; outline: 0 !important; background: transparent; color: #fff; font-size: 12px; }
+.yz-home-search-dock input::placeholder { color: rgba(255,255,255,.58); }
+.yz-home-search-dock button { display: grid; flex: none; place-items: center; width: 29px; height: 29px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.88); color: #202530 !important; transition: background .18s ease, transform .18s ease; }
+.yz-home-search-dock button:hover { background: #fff; transform: translateX(2px); }
 
 .yz-header { position: absolute; z-index: 10; left: 0; right: 0; top: 0; height: 104px; display: grid; grid-template-columns: minmax(210px,1fr) auto minmax(210px,1fr); align-items: start; padding: 34px 32px 0; gap: 16px; }
 .yz-header-brand { display: flex; align-items: center; height: 38px; gap: 20px; }

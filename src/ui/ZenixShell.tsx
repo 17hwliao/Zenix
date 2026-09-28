@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Home, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
+import { ArrowRight, Home, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
 import ShaderBackdrop from './ShaderBackdrop';
 import PersonalBackdrop, { type PersonalScene } from './PersonalBackdrop';
 import LatticePlayer from './LatticePlayer';
@@ -35,6 +35,7 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [maximized, setMaximized] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [titlebarRevealed, setTitlebarRevealed] = useState(false);
+  const [homeSearchRevealed, setHomeSearchRevealed] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const previousViewRequestRef = useRef(playerViewRequestKey);
   const enterPlayer = () => { playUiSound('enter'); setEnteringPlayer(Boolean(appearanceBackground)); setView('player'); };
@@ -126,6 +127,16 @@ export default function ZenixShell(props: ZenixShellProps) {
       <div className="yz-grain" aria-hidden="true" />
       <div className="yz-titlebar-drag" aria-hidden="true" />
 
+      {view === 'home' && !searchOpen && (
+        <div className={`yz-home-search-dock${homeSearchRevealed ? ' is-revealed' : ''}`} onMouseEnter={() => setHomeSearchRevealed(true)} onMouseLeave={() => setHomeSearchRevealed(false)}>
+          <form role="search" onSubmit={event => { event.preventDefault(); openSearch(query); setHomeSearchRevealed(false); }}>
+            <Search size={17} aria-hidden="true" />
+            <input value={query} onChange={event => setQuery(event.target.value)} onFocus={() => setHomeSearchRevealed(true)} placeholder="搜索音乐" aria-label="搜索音乐" />
+            <button type="submit" aria-label="打开搜索"><ArrowRight size={16} /></button>
+          </form>
+        </div>
+      )}
+
       {showWindowControls && (
         <div className={`yz-window-controls${titlebarRevealed ? ' is-revealed' : ''}`} role="toolbar" aria-label="窗口控制">
           {onMinimize && <button title="最小化" aria-label="最小化" onClick={onMinimize}><Minus size={14} /></button>}
@@ -137,7 +148,7 @@ export default function ZenixShell(props: ZenixShellProps) {
       <AnimatePresence mode="wait" initial={false}>
         {view === 'home' ? (
           <motion.div key="home" className="yz-page yz-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.32 }}>
-            <PersonalHome personal={personal} tracks={tracks} currentTrack={currentTrack} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenPlayer={enterPlayer} onOpenSearch={openSearch} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
+            <PersonalHome personal={personal} tracks={tracks} currentTrack={currentTrack} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenPlayer={enterPlayer} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
             {currentTrack && <PlaybackBar track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} surface="home" onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenPlayer={enterPlayer} onOpenQueue={openQueue} />}
           </motion.div>
         ) : (

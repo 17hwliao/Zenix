@@ -22,19 +22,7 @@
 .zenix-profile-aside > span { color: rgba(255,255,255,.45); font-size: 9px; font-weight: 700; letter-spacing: .22em; white-space: nowrap; }
 .zenix-profile-orbit { position: absolute; top: -128px; right: 6%; width: 410px; height: 410px; border: 1px solid rgba(229,241,255,.13); border-radius: 50%; box-shadow: 0 0 0 46px rgba(255,255,255,.025),0 0 0 118px rgba(255,255,255,.012),inset 0 0 85px rgba(172,198,236,.12); }
 .zenix-profile-orbit span { position: absolute; top: 55px; right: 56px; width: 10px; height: 10px; border-radius: 50%; background: #d6e6ff; box-shadow: 0 0 25px 9px rgba(151,198,255,.35); }
-.zenix-home-search-section { display: flex; align-items: center; justify-content: space-between; gap: 28px; margin-top: 39px; }
-.zenix-home-search-section h2, .zenix-home-section-head h2 { margin: 6px 0 0; font-size: 22px; letter-spacing: -.04em; }
-.zenix-home-search-section form { display: flex; align-items: center; gap: 12px; width: min(470px,50%); height: 50px; padding: 0 8px 0 18px; border: 1px solid rgba(255,255,255,.21); border-radius: 100px; background: rgba(14,19,30,.61); backdrop-filter: blur(24px); box-shadow: inset 0 1px rgba(255,255,255,.11); }
-.zenix-home-search-section form > svg { color: rgba(255,255,255,.6); }
-.zenix-home-search-section input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: #fff; font: inherit; font-size: 12px; }
-.zenix-home-search-section input::placeholder { color: rgba(255,255,255,.39); }
-.zenix-home-search-section form button { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #f5f8ff; color: #17202d; cursor: pointer; }
-.zenix-home-suggestions { position: relative; z-index: 4; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; width: min(470px,100%); margin: 8px 0 0 auto; }
-.zenix-home-suggestions button { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 9px; background: rgba(16,20,30,.83); color: #fff; text-align: left; cursor: pointer; }
-.zenix-home-suggestions .yz-cover { flex: 0 0 29px; width: 29px; height: 29px; }
-.zenix-home-suggestions span { flex: 1; min-width: 0; }
-.zenix-home-suggestions strong, .zenix-home-suggestions small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.zenix-home-suggestions strong { font-size: 10px; }.zenix-home-suggestions small { color: #aab3c3; font-size: 9px; }
+.zenix-home-section-head h2 { margin: 6px 0 0; font-size: 22px; letter-spacing: -.04em; }
 .zenix-home-section { margin-top: 40px; }
 .zenix-home-section-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 17px; }
 .zenix-home-section-head button { background: transparent; border: 0; color: rgba(255,255,255,.64); }
@@ -54,7 +42,7 @@
 .zenix-home-empty { display: flex; align-items: center; gap: 13px; min-height: 100px; padding: 20px; border: 1px solid rgba(255,255,255,.11); border-radius: 16px; background: rgba(12,17,25,.5); color: rgba(255,255,255,.53); font-size: 12px; }.zenix-home-empty button { margin-left: auto; border: 0; background: transparent; color: #fff; cursor: pointer; }
 .zenix-home-foot { display: flex; align-items: center; justify-content: space-between; margin: 37px 0 0; color: rgba(255,255,255,.29); font-size: 9px; letter-spacing: .15em; }
 .zenix-home-foot > div { display:flex; flex-wrap:wrap; gap:8px; }
-@media (max-width:950px) { .zenix-profile-aside { display:none; }.zenix-collection-cards { grid-template-columns:repeat(2,1fr); }.zenix-home-search-section { align-items:stretch; flex-direction:column; }.zenix-home-search-section form { width:100%; }.zenix-home-suggestions { width:100%; } }
+@media (max-width:950px) { .zenix-profile-aside { display:none; }.zenix-collection-cards { grid-template-columns:repeat(2,1fr); } }
 @media (max-width:600px) { .zenix-home-top { padding:34px 20px 0; }.zenix-home-top button { font-size:0; gap:0; }.zenix-home-top button svg { font-size:initial; }.zenix-home-scroll { padding:0 18px 120px; }.zenix-profile-card { min-height:265px; padding:24px; }.zenix-profile-name,.zenix-profile-tagline { min-width:0; max-width:calc(100vw - 90px); }.zenix-profile-name { font-size:32px; }.zenix-profile-stats { gap:13px; }.zenix-collection-cards { gap:8px; }.zenix-collection-card { min-height:118px; padding:13px; } }
 
 /* The personal-space prototype's orbit and gold identity card, wired to the real library. */
@@ -118,7 +106,6 @@
 .zenix-card-shadow { width:170px; height:15px; margin-top:11px; border-radius:50%; background:radial-gradient(ellipse,rgba(0,0,0,.66),transparent 72%); filter:blur(5px); }
 .zenix-card-edit { display:flex; align-items:center; gap:7px; margin-top:7px; padding:8px 12px; border:1px solid rgba(232,192,106,.37); border-radius:99px; background:rgba(16,15,14,.72); color:#e9d2a1; font-size:11px; cursor:pointer; backdrop-filter:blur(12px); }
 .zenix-card-edit:hover { background:rgba(232,192,106,.15); }
-.zenix-home-search-section { margin-top:27px; }
 
 .zenix-profile-editor-mask { position:fixed; z-index:120; inset:0; display:grid; place-items:center; padding:24px; background:rgba(3,4,7,.72); backdrop-filter:blur(18px); }
 .zenix-profile-editor,.zenix-profile-editor * { box-sizing:border-box; }

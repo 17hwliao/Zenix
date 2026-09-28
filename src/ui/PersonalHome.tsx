@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, Disc3, FolderOpen, Heart, History, ImagePlus, ListMusic, Music2, Pencil, Plus, RotateCcw, Search, Settings2, Star, Trash2, Upload, X } from 'lucide-react';
+import { ArrowRight, Check, Disc3, FolderOpen, Heart, History, ImagePlus, ListMusic, Music2, Pencil, Plus, RotateCcw, Settings2, Star, Trash2, Upload, X } from 'lucide-react';
 import { version as appVersion } from '../../package.json';
 import type { AppearanceBackground, PersonalState } from '../core/types';
 import type { TrackView } from './types';
@@ -11,7 +11,7 @@ type Props = {
   personal: PersonalState; tracks: TrackView[]; currentTrack: TrackView | null;
   appearanceBackground?: AppearanceBackground | null; appearanceBusy?: boolean;
   onPlayTrack: (track: TrackView, queue?: TrackView[]) => void; onOpenPlayer: () => void;
-  onOpenSearch: (query: string) => void; onOpenManager: (id: string) => void; onOpenSettings: () => void;
+  onOpenManager: (id: string) => void; onOpenSettings: () => void;
   onChooseBackground?: () => void | Promise<void>; onClearBackground?: () => void | Promise<void>;
   onReplayIntro?: () => void; onImportFolder: () => void | Promise<void>;
   onAddFiles?: () => void | Promise<void>; onOpenLocalLibrary?: () => void;
@@ -48,12 +48,11 @@ function imageToDataUrl(file: File, maxEdge: number, transparent: boolean): Prom
 }
 type OrbitCard = { id: OrbitCoverKey | 'settings'; label: string; caption: string; icon: typeof Heart; image?: string; action: () => void };
 
-export default function PersonalHome({ personal, tracks, currentTrack, appearanceBackground, appearanceBusy, onPlayTrack, onOpenPlayer, onOpenSearch, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist }: Props) {
+export default function PersonalHome({ personal, tracks, currentTrack, appearanceBackground, appearanceBusy, onPlayTrack, onOpenPlayer, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist }: Props) {
   const [profile, setProfile] = useState<Profile>(readProfile);
   const [draft, setDraft] = useState<Profile>(profile);
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [query, setQuery] = useState('');
   const [goldBehind, setGoldBehind] = useState(() => { try { return localStorage.getItem(GOLD_LAYER_KEY) === 'behind'; } catch { return false; } });
   const [goldDragging, setGoldDragging] = useState(false);
   const [goldDragY, setGoldDragY] = useState(0);
@@ -76,10 +75,6 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     const verticalOffset = y - (bounds.top + bounds.height * .46);
     return Math.abs(x - (bounds.left + bounds.width / 2)) <= horizontalReach && verticalOffset >= -verticalReach && verticalOffset <= verticalReach * (2 / 3);
   };
-  const suggested = useMemo(() => {
-    const word = query.trim().toLocaleLowerCase();
-    return word ? tracks.filter(track => `${track.title} ${track.artist}`.toLocaleLowerCase().includes(word)).slice(0, 4) : [];
-  }, [query, tracks]);
   const historyTracks = personal.history.slice(0, 24).map(entry => entry.track);
   const defaultCovers: Record<OrbitCoverKey, string | undefined> = {
     liked: personal.liked[0]?.coverUrl,
@@ -244,7 +239,6 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     if (!cancelled && drag.dy < -72 && Math.abs(drag.dy) > Math.abs(drag.dx) * 1.2) tossGold(Math.max(-130, drag.dy));
     else setGoldDragY(0);
   };
-  const playQuick = (event: FormEvent) => { event.preventDefault(); if (suggested[0]) { onPlayTrack(suggested[0], suggested); onOpenPlayer(); } else onOpenSearch(query); };
   const handleOrbitClick = (action: () => void) => { if (suppressClick.current) { suppressClick.current = false; return; } action(); };
 
   return <div className="zenix-home-space">
@@ -262,8 +256,6 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
           {profile.background && <img className="zenix-holo-background" src={profile.background} alt="" />}<span className="zenix-holo-grid" aria-hidden="true" /><span className="zenix-holo-head"><span>ZENIX / v{appVersion}</span><span>{profile.cardNumber}</span></span><span className="zenix-holo-subject">{profile.subject ? <img src={profile.subject} alt="个人名片主体图" /> : <span className="zenix-holo-monogram">{profile.name.slice(0, 1).toUpperCase() || 'Z'}</span>}</span><span className="zenix-holo-info"><small>{profile.cardLine}</small><strong>{profile.name}</strong><span>{profile.tagline}</span>{profile.about && <p>{profile.about}</p>}{profile.tags && <em>{profile.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 3).join(' · ')}</em>}{profile.contact && <i>{profile.contact}</i>}</span><span className="zenix-holo-foil" aria-hidden="true" /><span className="zenix-holo-glare" aria-hidden="true" /><span className="zenix-holo-edge" aria-hidden="true" />
         </button><div className="zenix-card-shadow" aria-hidden="true" /><button type="button" className="zenix-card-edit" onClick={openEditor}><Pencil size={13} />编辑个人名片</button></div>
       </section>
-      <section className="zenix-home-search-section"><div><h2>下一首，想听什么？</h2></div><form onSubmit={playQuick}><Search size={19} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索歌曲" aria-label="快速搜索歌曲" /><button type="submit" aria-label="搜索"><ArrowRight size={18} /></button></form></section>
-      {suggested.length > 0 && <div className="zenix-home-suggestions">{suggested.map(track => <button key={track.id} onClick={() => { onPlayTrack(track, suggested); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={track.coverUrl} /><span><strong>{track.title}</strong><small>{track.artist}</small></span><ArrowRight size={15} /></button>)}</div>}
       <section className="zenix-home-section"><div className="zenix-home-section-head"><div><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
         {historyTracks.length ? <div className="zenix-recent-strip">{historyTracks.slice(0, 8).map((track, index) => <button key={`${track.id}-${index}`} onClick={() => { onPlayTrack(track, historyTracks); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={track.coverUrl} /><strong>{track.title}</strong><small>{track.artist}</small></button>)}</div> : <div className="zenix-home-empty"><Music2 size={25} /><span>听过的歌曲会出现在这里</span>{currentTrack && <button onClick={onOpenPlayer}>继续播放</button>}</div>}
       </section>
