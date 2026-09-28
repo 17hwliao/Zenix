@@ -111,11 +111,6 @@ export interface DesktopBridge {
     clear(): Promise<AppearanceState>;
     onChanged(callback: (state: AppearanceState) => void): () => void;
   };
-  online: {
-    search(query: string, offset: number, limit: number): Promise<{ tracks: Track[]; total: number; nextOffset: number; hasMore: boolean }>;
-    resolve(remoteId: string): Promise<{ audioUrl: string | null; previewSeconds?: number; unavailableReason?: string }>;
-    lyrics(remoteId: string): Promise<{ text: string; translationText?: string; wordByWordText?: string; romanizationText?: string }>;
-  };
   library: {
     load(): Promise<LibrarySnapshot>;
     importFolder(): Promise<LibrarySnapshot | null>;

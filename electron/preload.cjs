@@ -32,11 +32,6 @@ contextBridge.exposeInMainWorld('yzqxy', {
     clear: () => ipcRenderer.invoke('appearance:clear'),
     onChanged: (callback) => subscribe('appearance:changed', callback),
   },
-  online: {
-    search: (query, offset, limit) => ipcRenderer.invoke('online:search', query, offset, limit),
-    resolve: (remoteId) => ipcRenderer.invoke('online:resolve', remoteId),
-    lyrics: (remoteId) => ipcRenderer.invoke('online:lyrics', remoteId),
-  },
   library: {
     load: () => ipcRenderer.invoke('library:load'),
     importFolder: () => ipcRenderer.invoke('library:import-folder'),

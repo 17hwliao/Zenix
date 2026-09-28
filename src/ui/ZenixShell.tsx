@@ -18,9 +18,9 @@ export default function ZenixShell(props: ZenixShellProps) {
   const {
     appearanceBackground = null, interactionLocked = false, appearanceBusy = false, onChooseBackground, onClearBackground,
     tracks, playlists = [], currentTrack = null, playing, position, duration, volume, muted = false,
-    shuffle = false, repeat = 'off', queue = [], queueIndex = -1, recentTracks = [], lyrics = [], onlineResults = [], onlineSearching = false, onlineHasMore = false, playerViewRequestKey, libraryBusy = false,
+    shuffle = false, repeat = 'off', queue = [], queueIndex = -1, recentTracks = [], lyrics = [], playerViewRequestKey, libraryBusy = false,
     onPlayTrack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
-    onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onOpenPlaylists, onRefreshLibrary, onSearchOnline, onLoadMore,
+    onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onOpenPlaylists, onRefreshLibrary,
     onMinimize, onMaximize, onClose, onReplayIntro,
     personal = { liked: [], favorites: [], history: [], playlists: [] }, onToggleSaved, onCreatePersonalPlaylist, onAddToPersonalPlaylist, onRemovePersonalTrack, onRemoveSaved, onRenamePersonalPlaylist, onDeletePersonalPlaylist, onRemoveFromQueue,
     desktopLyricsVisible = false, onToggleDesktopLyrics,
@@ -28,7 +28,6 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [view, setView] = useState<'home' | 'player'>('home');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchInitialSource, setSearchInitialSource] = useState<'netease' | 'local'>('local');
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [managerSection, setManagerSection] = useState<string | null>(null);
@@ -77,7 +76,6 @@ export default function ZenixShell(props: ZenixShellProps) {
       if (event.altKey || event.ctrlKey || event.metaKey) {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !settingsOpen && !managerSection && !queueOpen) {
           event.preventDefault();
-          setSearchInitialSource('netease');
           setSearchOpen(true);
         }
         return;
@@ -98,14 +96,12 @@ export default function ZenixShell(props: ZenixShellProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [currentTrack, duration, interactionLocked, onSeek, onTogglePlay, position, queueOpen, searchOpen, settingsOpen, managerSection, view]);
 
-  const openSearch = (source: 'netease' | 'local', text = query) => {
+  const openSearch = (text = query) => {
     playUiSound('enter');
     setQueueOpen(false);
     setManagerSection(null);
     setQuery(text);
-    setSearchInitialSource(source);
     setSearchOpen(true);
-    if (source === 'netease' && text.trim()) void onSearchOnline?.(text.trim());
   };
   const openQueue = () => { playUiSound('enter'); setSearchOpen(false); setSettingsOpen(false); setQueueOpen(true); };
   const togglePlayback = () => { playUiSound(playing ? 'cancel' : 'enter'); onTogglePlay(); };
@@ -141,20 +137,20 @@ export default function ZenixShell(props: ZenixShellProps) {
       <AnimatePresence mode="wait" initial={false}>
         {view === 'home' ? (
           <motion.div key="home" className="yz-page yz-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.32 }}>
-            <PersonalHome personal={personal} tracks={tracks} currentTrack={currentTrack} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenPlayer={enterPlayer} onOpenSearch={text => openSearch('netease', text)} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
+            <PersonalHome personal={personal} tracks={tracks} currentTrack={currentTrack} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenPlayer={enterPlayer} onOpenSearch={openSearch} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
             {currentTrack && <PlaybackBar track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} surface="home" onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenPlayer={enterPlayer} onOpenQueue={openQueue} />}
           </motion.div>
         ) : (
           <motion.div key="player" className="yz-page yz-player" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.34 }}>
             {currentTrack ? (
-              <LatticePlayer track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} recentTracks={recentTracks} onPlayTrack={track => { playUiSound('enter'); onPlayTrack(track); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch('netease')} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
-            ) : <><button className="yz-player-back yz-player-back--empty" onClick={() => { playUiSound('cancel'); setView('home'); }} title="个人主页" aria-label="个人主页"><Home size={19} /></button><div className="yz-lattice-search-zone"><button onClick={() => openSearch('netease')} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div><div className="yz-empty-player-dots" aria-hidden="true" /></>}
+              <LatticePlayer track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} recentTracks={recentTracks} onPlayTrack={track => { playUiSound('enter'); onPlayTrack(track); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch()} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
+            ) : <><button className="yz-player-back yz-player-back--empty" onClick={() => { playUiSound('cancel'); setView('home'); }} title="个人主页" aria-label="个人主页"><Home size={19} /></button><div className="yz-lattice-search-zone"><button onClick={() => openSearch()} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div><div className="yz-empty-player-dots" aria-hidden="true" /></>}
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {searchOpen && <motion.div key="search" className={`yz-search-layer yz-search-layer--${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : .18 }}><SearchOverlay key={searchInitialSource} initialSource={searchInitialSource} query={query} onQueryChange={setQuery} localTracks={tracks} onlineResults={onlineResults} onlineSearching={onlineSearching} onlineHasMore={onlineHasMore} onSearchOnline={onSearchOnline} onLoadMore={onLoadMore} onPlayTrack={(track, queue) => { onPlayTrack(track, queue); enterPlayer(); }} onClose={() => setSearchOpen(false)} background={appearanceBackground} /></motion.div>}
+        {searchOpen && <motion.div key="search" className={`yz-search-layer yz-search-layer--${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : .18 }}><SearchOverlay query={query} onQueryChange={setQuery} localTracks={tracks} onPlayTrack={(track, queue) => { onPlayTrack(track, queue); enterPlayer(); }} onClose={() => setSearchOpen(false)} background={appearanceBackground} /></motion.div>}
         {queueOpen && <motion.div className="yz-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setQueueOpen(false)}><QueuePanel personal={personal} tracks={tracks} playlists={playlists} queue={queue} currentTrack={currentTrack} onPlayTrack={onPlayTrack} onRemove={index => onRemoveFromQueue?.(index)} onToggleSaved={(kind, track) => onToggleSaved?.(kind, track)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} onCreatePlaylist={(name, track) => onCreatePersonalPlaylist?.(name, track)} onOpenManager={() => { setQueueOpen(false); setManagerSection('playlists'); }} onClose={() => setQueueOpen(false)} /></motion.div>}
         {managerSection && <PersonalLibraryManager key={managerSection} initialSection={managerSection} personal={personal} tracks={tracks} onClose={() => setManagerSection(null)} onPlayTrack={(track, list) => { onPlayTrack(track, list); setManagerSection(null); enterPlayer(); }} onCreatePlaylist={name => onCreatePersonalPlaylist?.(name)} onRenamePlaylist={(id, name) => onRenamePersonalPlaylist?.(id, name)} onDeletePlaylist={id => onDeletePersonalPlaylist?.(id)} onRemoveSaved={(kind, id) => onRemoveSaved?.(kind, id)} onRemovePersonalTrack={(id, trackId) => onRemovePersonalTrack?.(id, trackId)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} />}
         {settingsOpen && <motion.div className="yz-settings-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><SettingsModal reduceMotion={reduceMotion} libraryBusy={libraryBusy} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReduceMotionChange={setReduceMotion} onImportFolder={onImportFolder} onRefreshLibrary={onRefreshLibrary} onClose={() => setSettingsOpen(false)} /></motion.div>}

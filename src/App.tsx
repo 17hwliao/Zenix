@@ -4,8 +4,6 @@ import ZenixIntro from './ui/ZenixIntro';
 import AppearanceOnboarding from './ui/AppearanceOnboarding';
 import { library, loadLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
-import { isOnlineTrack, loadOnlineLyrics, resolveOnlineTrack, searchOnlineTracks } from './online';
-import type { OnlineTrack } from './online';
 import { PlaylistManager } from './playlists';
 
 export default function App() {
@@ -35,12 +33,6 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [playerViewRequestKey, setPlayerViewRequestKey] = useState(0);
-  const [onlineResults, setOnlineResults] = useState<OnlineTrack[]>([]);
-  const [onlineSearching, setOnlineSearching] = useState(false);
-  const [onlineHasMore, setOnlineHasMore] = useState(false);
-  const onlineQuery = useRef('');
-  const onlineOffset = useRef(0);
-  const searchRequest = useRef(0);
   const lastHistoryEvent = useRef('');
 
   useEffect(() => {
@@ -131,7 +123,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    player.setTrackResolver(resolveOnlineTrack);
+    player.setTrackResolver(async track => {
+      if (track.source === 'online') throw new Error('旧在线来源已移除；请等待自定义源接入');
+      return track;
+    });
     const unsubscribeLibrary = library.subscribe(setCollection);
     const unsubscribePlayer = player.subscribe(setPlayback);
     const unsubscribeProgress = library.subscribeProgress(progress => setLibraryBusy(Boolean(progress)));
@@ -156,7 +151,7 @@ export default function App() {
     if (playback.track) {
       const visited = playback.track;
       setRecentTracks(previous => [visited, ...previous.filter(item => item.id !== visited.id)].slice(0, 50));
-      const request = isOnlineTrack(playback.track) ? loadOnlineLyrics(playback.track) : loadLyrics(playback.track);
+      const request = playback.track.source === 'online' ? Promise.resolve([]) : loadLyrics(playback.track);
       void request.then(lines => {
         if (active) setLyrics(lines);
       }).catch(() => {
@@ -168,7 +163,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('zenix.recentTracks', JSON.stringify(recentTracks.map(item => isOnlineTrack(item) ? { ...item, audioUrl: undefined } : item)));
+      localStorage.setItem('zenix.recentTracks', JSON.stringify(recentTracks.map(item => item.source === 'online' ? { ...item, audioUrl: undefined } : item)));
     } catch { /* Browsing history is optional when storage is unavailable. */ }
   }, [recentTracks]);
 
@@ -200,50 +195,9 @@ export default function App() {
     finally { setLibraryBusy(false); }
   };
 
-  const searchOnline = async (query: string) => {
-    const normalized = query.trim();
-    const requestId = ++searchRequest.current;
-    onlineQuery.current = normalized;
-    onlineOffset.current = 0;
-    setOnlineHasMore(false);
-    setOnlineResults([]);
-    if (!normalized) return;
-    setOnlineSearching(true);
-    try {
-      const page = await searchOnlineTracks(normalized);
-      if (requestId !== searchRequest.current) return;
-      setOnlineResults(page.tracks);
-      onlineOffset.current = page.nextOffset;
-      setOnlineHasMore(page.hasMore);
-    } catch (error) {
-      if (requestId === searchRequest.current) setNotice(error instanceof Error ? error.message : '在线搜索失败');
-    } finally {
-      if (requestId === searchRequest.current) setOnlineSearching(false);
-    }
-  };
-
-  const loadMoreOnline = async () => {
-    if (onlineSearching || !onlineHasMore || !onlineQuery.current) return;
-    const requestId = searchRequest.current;
-    setOnlineSearching(true);
-    try {
-      const page = await searchOnlineTracks(onlineQuery.current, onlineOffset.current);
-      if (requestId !== searchRequest.current) return;
-      setOnlineResults(existing => [...existing, ...page.tracks.filter(track => !existing.some(item => item.id === track.id))]);
-      onlineOffset.current = page.nextOffset;
-      setOnlineHasMore(page.hasMore);
-    } catch (error) {
-      if (requestId === searchRequest.current) setNotice(error instanceof Error ? error.message : '加载更多失败');
-    } finally {
-      if (requestId === searchRequest.current) setOnlineSearching(false);
-    }
-  };
-
   const playTrack = async (track: Track, queue?: Track[]) => {
     try {
-      const ready = isOnlineTrack(track) ? await resolveOnlineTrack(track) : track;
-      const readyQueue = queue?.map(item => item.id === ready.id ? ready : item);
-      await player.playTrack(ready, readyQueue);
+      await player.playTrack(track, queue);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '无法播放这首歌');
     }
@@ -322,11 +276,6 @@ export default function App() {
       recentTracks={recentTracks}
       lyrics={lyrics}
       libraryBusy={libraryBusy}
-      onlineResults={onlineResults}
-      onlineSearching={onlineSearching}
-      onlineHasMore={onlineHasMore}
-      onSearchOnline={searchOnline}
-      onLoadMore={loadMoreOnline}
       onPlayTrack={(track, queue) => { void playTrack(track as Track, queue as Track[] | undefined); }}
       onTogglePlay={() => player.toggle()}
       onPrevious={() => { void player.previous(); }}

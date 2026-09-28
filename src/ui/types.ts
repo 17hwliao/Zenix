@@ -61,9 +61,6 @@ export interface ZenixShellProps {
   queueIndex?: number;
   recentTracks?: TrackView[];
   lyrics?: LyricLineView[];
-  onlineResults?: TrackView[];
-  onlineSearching?: boolean;
-  onlineHasMore?: boolean;
   playerViewRequestKey?: number | string;
   libraryBusy?: boolean;
   onPlayTrack: (track: TrackView, queue?: TrackView[]) => void;
@@ -80,8 +77,6 @@ export interface ZenixShellProps {
   onImportPlaylist?: () => void | Promise<void>;
   onOpenPlaylists?: () => void;
   onRefreshLibrary?: () => void | Promise<void>;
-  onSearchOnline?: (query: string) => void | Promise<void>;
-  onLoadMore?: () => void | Promise<void>;
   onMinimize?: () => void;
   onMaximize?: () => void;
   onClose?: () => void;

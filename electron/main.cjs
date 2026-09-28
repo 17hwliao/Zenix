@@ -6,7 +6,6 @@ const { Readable } = require('node:stream');
 const { LocalLibrary, AUDIO_EXTENSIONS } = require('./library.cjs');
 const { AppearanceStore } = require('./appearance.cjs');
 const { PersonalStore } = require('./personal.cjs');
-const { createOnlineService } = require('./online-service.cjs');
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'yzqxy',
@@ -29,7 +28,6 @@ let lyricsLockTimer = null;
 let library = null;
 let appearance = null;
 let personal = null;
-const onlineService = createOnlineService();
 
 function broadcast(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
@@ -387,9 +385,6 @@ function registerHandlers() {
     broadcast('appearance:changed', state);
     return state;
   });
-  ipcMain.handle('online:search', (_event, query, offset, limit) => onlineService.search(query, offset, limit));
-  ipcMain.handle('online:resolve', (_event, remoteId) => onlineService.resolve(remoteId));
-  ipcMain.handle('online:lyrics', (_event, remoteId) => onlineService.lyrics(remoteId));
   ipcMain.handle('library:load', () => library.load());
   ipcMain.handle('library:import-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'], title: '选择音乐文件夹' });

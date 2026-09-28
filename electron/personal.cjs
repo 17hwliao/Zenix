@@ -21,7 +21,7 @@ function cleanTrack(value) {
 
 function historyKey(track) {
   if (track.source === 'online' && track.remoteId) {
-    const provider = track.providerId || (track.id.includes(':') ? track.id.split(':')[0] : 'netease');
+    const provider = track.providerId || (track.id.includes(':') ? track.id.split(':')[0] : 'legacy');
     return `online:${provider}:${track.remoteId}`;
   }
   if (track.source !== 'online' && track.path) return `local:${path.normalize(track.path).toLocaleLowerCase()}`;

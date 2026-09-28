@@ -11,7 +11,6 @@
     "start": "electron ."
   },
   "dependencies": {
-    "@neteasecloudmusicapienhanced/api": "^4.40.1",
     "@paper-design/shaders-react": "^0.0.80",
     "framer-motion": "^13.0.0",
     "lottie-web": "^5.13.0",
