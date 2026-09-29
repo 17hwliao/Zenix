@@ -35,7 +35,6 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'options' | 'sources'>('options');
   const [managerSection, setManagerSection] = useState<string | null>(null);
-  const [enteringPlayer, setEnteringPlayer] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [titlebarRevealed, setTitlebarRevealed] = useState(false);
@@ -46,7 +45,6 @@ export default function ZenixShell(props: ZenixShellProps) {
     playUiSound('enter');
     setPlayerWallMode(mode);
     if (mode === 'recent' && !currentTrack && personal.history.length) onSetQueue?.(personal.history.map(entry => entry.track), 0);
-    setEnteringPlayer(Boolean(appearanceBackground));
     setView('player');
   };
   useEffect(() => { shellRef.current?.scrollTo({ top: 0, left: 0 }); }, [view]);
@@ -62,11 +60,6 @@ export default function ZenixShell(props: ZenixShellProps) {
     void bridge.isMaximized().then(setMaximized);
     return bridge.onMaximizedChanged(setMaximized);
   }, []);
-  useEffect(() => {
-    if (view !== 'player' || !appearanceBackground) { setEnteringPlayer(false); return; }
-    const timer = window.setTimeout(() => setEnteringPlayer(false), reduceMotion ? 0 : 550);
-    return () => window.clearTimeout(timer);
-  }, [view, appearanceBackground, reduceMotion]);
 
   // Keyboard commands mirror the visible player controls while leaving text inputs alone.
   useEffect(() => {
@@ -121,8 +114,8 @@ export default function ZenixShell(props: ZenixShellProps) {
   const toggleDesktopLyrics = () => { playUiSound(desktopLyricsVisible ? 'cancel' : 'enter'); onToggleDesktopLyrics?.(); };
 
   const showWindowControls = Boolean(onMinimize || onMaximize || onClose);
-  const personalScene: PersonalScene = settingsOpen ? 'settings' : searchOpen ? 'search' : managerSection ? 'collection' : queueOpen ? 'queue' : 'home';
-  const showPersonalBackground = (view === 'home' || enteringPlayer) && Boolean(appearanceBackground);
+  const personalScene: PersonalScene = settingsOpen ? 'settings' : searchOpen ? 'search' : managerSection ? 'collection' : queueOpen ? 'queue' : view === 'player' ? 'player' : 'home';
+  const showPersonalBackground = Boolean(appearanceBackground);
   const recentTracks = personal.history.map(entry => entry.track);
   const playerAnchor = currentTrack || (playerWallMode === 'recent' ? recentTracks[0] : null);
 

@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 
 import type { AppearanceBackground } from '../core/types';
 import './PersonalBackdrop.css';
 
-export type PersonalScene = 'home' | 'search' | 'collection' | 'settings' | 'queue' | 'intro';
+export type PersonalScene = 'home' | 'player' | 'search' | 'collection' | 'settings' | 'queue' | 'intro';
 type PersonalBackdropProps = { background: AppearanceBackground | null; scene: PersonalScene };
 
 const sceneStrength: Record<PersonalScene, number> = {
   home: .82,
+  player: .59,
   search: .69,
   collection: .57,
   settings: .48,
@@ -15,6 +16,7 @@ const sceneStrength: Record<PersonalScene, number> = {
 };
 const sceneShade: Record<PersonalScene, number> = {
   home: .16,
+  player: .3,
   search: .28,
   collection: .33,
   settings: .41,

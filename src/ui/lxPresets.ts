@@ -5,8 +5,8 @@ export type LxPreset = {
   url?: string;
 };
 
-// Keep only upstream HTTPS script URLs here. Proxy and short links may stop
-// resolving independently of the LX script they point to.
+// Keep canonical upstream URLs here. The installer retries the proxy documented
+// by pdone when a direct download is unavailable on the user's network.
 export const LX_PRESETS: LxPreset[] = [
   { key: 'xinghai', name: '星海聚合', description: '原 source.js 已失效；已改用仓库脚本，当前环境验证可播放。', url: 'https://raw.githubusercontent.com/cdyUuu/lx-music-xinghai-source/main/xinghai-music-source.js' },
   { key: 'changqing', name: '长青', description: '当前环境已验证可播放，可先用它开始。', url: 'https://raw.githubusercontent.com/pdone/lx-music-source/main/changqing/latest.js' },

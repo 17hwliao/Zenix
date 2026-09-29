@@ -27,7 +27,8 @@ class PlayerController {
   private shufflePool = new Set<number>();
   private unlistenMedia?: () => void;
   private unlistenMediaSeek?: () => void;
-  private trackResolver?: (track: Track) => Promise<Track>;
+  private trackResolver?: (track: Track, failedProviders: readonly string[]) => Promise<Track>;
+  private failedProviders = new Set<string>();
   private selectionToken = 0;
   private playbackToken = 0;
   private resolvingSource?: { token: number; pending: Promise<boolean> };
@@ -68,6 +69,8 @@ class PlayerController {
     });
     this.audio.addEventListener('ended', () => void this.onEnded());
     this.audio.addEventListener('error', () => {
+      if (this.state.track?.source === 'custom' && !this.state.track.audioUrl) return;
+      if (this.retryMediaSource()) return;
       const error = this.audio.error;
       const message = this.state.track?.source === 'custom'
         ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
@@ -94,8 +97,8 @@ class PlayerController {
     return () => this.listeners.delete(listener);
   }
 
-  setTrackResolver<T extends Track>(resolver: ((track: T) => Promise<T>) | undefined): void {
-    this.trackResolver = resolver ? (track) => resolver(track as T) : undefined;
+  setTrackResolver<T extends Track>(resolver: ((track: T, failedProviders: readonly string[]) => Promise<T>) | undefined): void {
+    this.trackResolver = resolver ? (track, failedProviders) => resolver(track as T, failedProviders) : undefined;
   }
 
   private update(patch: Partial<PlayerState>): void {
@@ -120,7 +123,7 @@ class PlayerController {
       index: this.state.queueIndex,
       online: this.state.queue
         .filter((track) => track.source === 'online' || track.source === 'custom')
-        .map((track) => ({ ...track, audioUrl: '' })),
+        .map((track) => ({ ...track, audioUrl: '', playbackProviderId: undefined })),
     });
   }
 
@@ -131,7 +134,7 @@ class PlayerController {
     for (const online of Array.isArray(saved.online) ? saved.online : []) {
       if ((online?.source === 'online' || online?.source === 'custom') && typeof online.id === 'string'
         && typeof online.title === 'string' && typeof online.artist === 'string') {
-        byId.set(online.id, { ...online, audioUrl: '' });
+        byId.set(online.id, { ...online, audioUrl: '', playbackProviderId: undefined });
       }
     }
     const queue = saved.ids.map((id) => byId.get(id)).filter((track): track is Track => Boolean(track));
@@ -140,6 +143,7 @@ class PlayerController {
     const track = queue[queueIndex];
     this.playbackToken += 1;
     this.selectionToken += 1;
+    this.failedProviders.clear();
     this.pendingSeek = undefined;
     this.setAudioSource(track.audioUrl);
     this.update({ queue, queueIndex, track, position: 0, duration: track.duration, playing: false, error: undefined });
@@ -147,11 +151,12 @@ class PlayerController {
   }
 
   setQueue(queue: Track[], startIndex = 0): void {
-    const entries = queue.map(track => track.source === 'custom' ? { ...track, audioUrl: '' } : track);
+    const entries = queue.map(track => track.source === 'custom' ? { ...track, audioUrl: '', playbackProviderId: undefined } : track);
     this.history = [];
     this.shufflePool.clear();
     this.playbackToken += 1;
     this.selectionToken += 1;
+    this.failedProviders.clear();
     this.pendingSeek = undefined;
     if (entries.length === 0) {
       this.audio.pause();
@@ -189,19 +194,27 @@ class PlayerController {
 
   private select(index: number): void {
     const selected = this.state.queue[index];
-    const track = selected?.source === 'custom' ? { ...selected, audioUrl: '' } : selected;
+    const track = selected?.source === 'custom' ? { ...selected, audioUrl: '', playbackProviderId: undefined } : selected;
     if (!track) return;
     this.playbackToken += 1;
     this.audio.pause();
     this.selectionToken += 1;
+    this.failedProviders.clear();
     this.setAudioSource(track.audioUrl);
     this.update({ track, queueIndex: index, position: 0, duration: track.duration, playing: false, error: undefined });
     this.persistQueue();
     this.updateMediaMetadata();
   }
 
-  async play(): Promise<void> {
+  async play(isRetry = false): Promise<void> {
     if (!this.state.track) return;
+    if (!isRetry && this.state.error && this.state.track.source === 'custom') {
+      this.failedProviders.clear();
+      this.selectionToken += 1;
+      const track = { ...this.state.track, audioUrl: '', playbackProviderId: undefined };
+      this.setAudioSource('');
+      this.update({ track });
+    }
     const request = ++this.playbackToken;
     this.update({ error: undefined });
     try {
@@ -210,11 +223,27 @@ class PlayerController {
       await this.audio.play();
     } catch (error) {
       if (request !== this.playbackToken) return;
+      if (this.retryMediaSource()) return;
       const message = this.state.track?.source === 'custom' && error instanceof DOMException && error.name === 'NotSupportedError'
         ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
         : error instanceof Error ? error.message : '无法开始播放';
       this.update({ playing: false, error: message });
     }
+  }
+
+  private retryMediaSource(): boolean {
+    const track = this.state.track;
+    const provider = track?.playbackProviderId;
+    if (track?.source !== 'custom' || !provider || this.failedProviders.has(provider)) return false;
+    this.failedProviders.add(provider);
+    this.playbackToken += 1;
+    this.selectionToken += 1;
+    const position = this.state.position;
+    this.pendingSeek = position > 0 ? { token: this.selectionToken, seconds: position } : undefined;
+    this.setAudioSource('');
+    this.update({ track: { ...track, audioUrl: '', playbackProviderId: undefined }, playing: false, error: undefined });
+    void this.play(true);
+    return true;
   }
 
   private setAudioSource(audioUrl: string): void {
@@ -235,7 +264,7 @@ class PlayerController {
     if (this.resolvingSource?.token === token) return this.resolvingSource.pending;
     const index = this.state.queueIndex;
     const pending = (async () => {
-      const resolved = await this.trackResolver!(selected);
+      const resolved = await this.trackResolver!(selected, [...this.failedProviders]);
       if (token !== this.selectionToken || this.state.track?.id !== selected.id) return false;
       if (!resolved.audioUrl) {
         this.update({ error: '这首歌暂时无法播放' });

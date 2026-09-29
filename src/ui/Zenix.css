@@ -38,6 +38,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .yz-shader-veil { position: absolute; inset: 0; background: rgba(0,0,0,.35); }
 .yz-shader-background--home .yz-shader-veil { background: rgba(0,0,0,.2); backdrop-filter: blur(2px); }
 .yz-cover-backdrop { position: absolute; inset: -12%; z-index: -2; pointer-events: none; background-position: center; background-size: cover; filter: blur(95px) brightness(.4) saturate(.55); opacity: .54; transform: scale(1.2); }
+.yz-shell--player.has-personal-background .yz-cover-backdrop { opacity: .13; }
 .yz-grain { position: absolute; inset: -12%; z-index: -1; pointer-events: none; opacity: .035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 
 .yz-page { position: absolute; inset: 0; }
@@ -209,6 +210,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .yz-reduce-motion *, .yz-reduce-motion *::before, .yz-reduce-motion *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 
 .yz-lattice { position: absolute; inset: 0; overflow: hidden; background: #050506; }
+.yz-shell--player.has-personal-background .yz-lattice { background: transparent; }
 .yz-lattice-grid { position: absolute; inset: -2px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); grid-template-rows: 12.5% repeat(3,25%) 12.5%; gap: 5px; background: #050506; }
 .yz-lattice-tile, .yz-lattice-focus { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(242,242,242,.83); background: #151518; }
 .yz-lattice-tile .yz-cover, .yz-lattice-focus > .yz-cover { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; }

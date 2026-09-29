@@ -417,7 +417,8 @@ function registerHandlers() {
   ipcMain.handle('sources:move', (_event, id, direction) => sourceManager.move(String(id || ''), Number(direction) || 0));
   ipcMain.handle('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
   ipcMain.handle('sources:search', (_event, id, keyword, cursor, pageSize) => sourceManager.search(String(id || ''), keyword, cursor, pageSize));
-  ipcMain.handle('sources:resolve', (_event, track, quality, cacheAsId) => sourceManager.resolve(track, quality, cacheAsId));
+  ipcMain.handle('sources:cached', (_event, track, quality) => sourceManager.cached(track, quality));
+  ipcMain.handle('sources:resolve', (_event, track, quality, cacheAsId, skipCache) => sourceManager.resolve(track, quality, cacheAsId, skipCache));
   ipcMain.handle('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   ipcMain.handle('sources:download', (_event, track, quality) => downloadManager.enqueue(track, quality));
   ipcMain.handle('sources:downloads', () => downloadManager.list());

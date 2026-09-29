@@ -6,19 +6,13 @@ import { library, loadLyrics, parseLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
 import { PlaylistManager } from './playlists';
 
-function sourcePlaybackMessage(reason: unknown, sourceName: string): string {
-  const detail = reason instanceof Error ? reason.message : String(reason);
-  const httpStatus = detail.match(/LX 脚本服务 \S+ 返回 HTTP (\d{3})/);
-  if (httpStatus) return `${sourceName}的播放服务返回 HTTP ${httpStatus[1]}，这首歌暂时无法播放。请更换可用音乐源，或播放本地歌曲。`;
-  if (/timeout|timed out|超时/i.test(detail)) return `${sourceName}的播放服务响应超时。请稍后重试，或更换音乐源。`;
-  const clean = detail.replace(/^Error invoking remote method '[^']+': Error:\s*/, '').trim();
-  return `${sourceName}无法提供这首歌的播放地址：${clean || '未知错误'}`;
-}
-
 function sameSong(original: Track, candidate: Track): boolean {
   const key = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  const artist = key(original.artist);
+  const otherArtist = key(candidate.artist);
+  const sameArtist = artist === otherArtist || Math.min(artist.length, otherArtist.length) >= 2 && (artist.includes(otherArtist) || otherArtist.includes(artist));
   return key(original.title) === key(candidate.title)
-    && key(original.artist) === key(candidate.artist)
+    && sameArtist
     && (!original.duration || !candidate.duration || Math.abs(original.duration - candidate.duration) <= 8);
 }
 
@@ -36,6 +30,65 @@ async function hasPlayableAudio(url: string): Promise<boolean> {
         || (value[0] === 0xff && (value[1] & 0xe0) === 0xe0);
     } finally { void reader.cancel().catch(() => {}); }
   } catch { return false; }
+}
+
+async function resolveCustomTrack(track: Track, failedProviders: readonly string[]): Promise<Track> {
+  const bridge = window.yzqxy?.sources;
+  if (!bridge) throw new Error('音乐源只在桌面版中可用');
+  const quality = localStorage.getItem('zenix.onlineQuality') || 'high';
+  const failures: string[] = [];
+  if (!failedProviders.length) {
+    const local = await bridge.cached(track, quality).catch(() => null);
+    if (local && await hasPlayableAudio(local.audioUrl)) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
+  }
+  const sources = (await bridge.list()).filter(source => source.enabled && source.manifest.capabilities.includes('resolvePlayback'));
+  if (!sources.length) throw new Error('没有启用可播放的音乐源；请在音乐源设置中启用至少一个源。');
+  let lxPlatform = '';
+  try { lxPlatform = JSON.parse(atob((track.remoteId || '').replace(/-/g, '+').replace(/_/g, '/'))).source || ''; } catch {}
+  const attempted: string[] = [];
+  for (const source of sources) {
+    if (failedProviders.includes(source.id)) continue;
+    attempted.push(source.manifest.name);
+    const direct = source.id === track.providerId
+      ? track
+      : source.kind === 'lx' && lxPlatform && source.manifest.lxPlatforms?.[lxPlatform]
+        ? { ...track, id: `source:${encodeURIComponent(source.id)}:${encodeURIComponent(track.remoteId || '')}`, providerId: source.id, audioUrl: '' }
+        : null;
+    const seen = new Set<string>();
+    const tryCandidate = async (candidate: Track): Promise<Track | null> => {
+      if (!candidate.remoteId || seen.has(candidate.remoteId)) return null;
+      seen.add(candidate.remoteId);
+      try {
+        const resolved = await bridge.resolve(candidate, quality, track.id, true);
+        if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) {
+          return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id };
+        }
+        failures.push(`${source.manifest.name}返回了无法播放的音频`);
+      } catch (reason) {
+        failures.push(`${source.manifest.name}：${reason instanceof Error ? reason.message : String(reason)}`);
+      }
+      return null;
+    };
+    if (direct) {
+      const playable = await tryCandidate(direct);
+      if (playable) return playable;
+    }
+    if (!source.manifest.capabilities.includes('search')) continue;
+    try {
+      const page = await bridge.search(source.id, track.title, null, 50);
+      const matches = page.items.filter(candidate => sameSong(track, candidate))
+        .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
+      for (const candidate of matches.slice(0, 2)) {
+        const playable = await tryCandidate(candidate);
+        if (playable) return playable;
+      }
+      if (!matches.length && !direct) failures.push(`${source.manifest.name}没有匹配的歌曲`);
+    } catch (reason) {
+      failures.push(`${source.manifest.name}搜索失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  }
+  const last = failures.at(-1)?.replace(/^Error invoking remote method '[^']+': Error:\s*/, '') || '没有匹配资源';
+  throw new Error(`已按顺序尝试 ${attempted.join(' → ') || '全部可用音乐源'}，仍未找到可播放音频。${last}`);
 }
 
 export default function App() {
@@ -143,33 +196,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    player.setTrackResolver(async track => {
+    player.setTrackResolver(async (track, failedProviders) => {
       if (track.source === 'online') throw new Error('旧在线来源已移除；请等待自定义源接入');
-      if (track.source === 'custom') {
-        if (!window.yzqxy?.sources) throw new Error('音乐源只在桌面版中可用');
-        try {
-          const resolved = await window.yzqxy.sources.resolve(track, localStorage.getItem('zenix.onlineQuality') || 'high');
-          return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: resolved.coverUrl || track.coverUrl };
-        } catch (reason) {
-          const sources = await window.yzqxy.sources.list().catch(() => []);
-          for (const source of sources) {
-            if (!source.enabled || source.id === track.providerId || !source.manifest.capabilities.includes('resolvePlayback')) continue;
-            try {
-              const page = await window.yzqxy.sources.search(source.id, track.title, null, 50);
-              const matches = page.items.filter(candidate => sameSong(track, candidate))
-                .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
-              for (const candidate of matches.slice(0, 2)) {
-                try {
-                  const resolved = await window.yzqxy.sources.resolve(candidate, localStorage.getItem('zenix.onlineQuality') || 'high', track.id);
-                  if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: track.coverUrl || resolved.coverUrl };
-                } catch { /* Try another exact recording or enabled source. */ }
-              }
-            } catch { /* An unavailable fallback source must not hide the original error. */ }
-          }
-          const sourceName = sources.find(source => source.id === track.providerId)?.manifest.name || '当前音乐源';
-          throw new Error(sourcePlaybackMessage(reason, sourceName));
-        }
-      }
+      if (track.source === 'custom') return resolveCustomTrack(track, failedProviders);
       return track;
     });
     const unsubscribeLibrary = library.subscribe(setCollection);

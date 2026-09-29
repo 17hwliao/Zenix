@@ -64,15 +64,24 @@ export default function SourceSettings() {
   const installPreset = async (preset: LxPreset) => {
     if (!preset.url || !window.yzqxy?.sources) return;
     setBusy(true); setError('');
-    let token = '';
-    try {
-      const next = await window.yzqxy.sources.importUrl(preset.url);
-      token = next.token;
-      setSources(await window.yzqxy.sources.confirmImport(token));
-    } catch (reason) {
-      if (token) void window.yzqxy.sources.cancelImport(token);
-      setError(`${preset.name}添加失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    } finally { setBusy(false); }
+    const urls = [presetInstalled(preset)?.origin.label || preset.url, preset.url];
+    if (preset.url.startsWith('https://raw.githubusercontent.com/pdone/lx-music-source/')) urls.push(preset.url.replace('https://raw.githubusercontent.com/', 'https://ghproxy.net/raw.githubusercontent.com/'));
+    let lastError = '';
+    for (const address of [...new Set(urls)]) {
+      let token = '';
+      try {
+        const next = await window.yzqxy.sources.importUrl(address);
+        token = next.token;
+        setSources(await window.yzqxy.sources.confirmImport(token));
+        setBusy(false);
+        return;
+      } catch (reason) {
+        if (token) void window.yzqxy.sources.cancelImport(token);
+        lastError = reason instanceof Error ? reason.message : String(reason);
+      }
+    }
+    setError(`${preset.name}添加失败：${lastError}`);
+    setBusy(false);
   };
   const presetInstalled = (preset: LxPreset) => sources.find(source => source.origin.label === preset.url || source.origin.label.includes(`/lx-music-source/main/${preset.key}/latest.js`));
   const openSettings = async (source: InstalledSource) => {
@@ -87,7 +96,7 @@ export default function SourceSettings() {
     finally { setBusy(false); }
   };
   return <div className="zenix-source-settings">
-    <div className="yz-settings-intro"><h2>音乐源</h2><p>添加你信任的源，在线音乐会出现在搜索中。本地曲库始终可用。</p></div>
+    <div className="yz-settings-intro"><h2>音乐源</h2><p>播放时按下方顺序逐个尝试；解析或音频无效时自动换下一个源。用上下箭头调整优先级，本地曲库始终可用。</p></div>
     <label className="zenix-source-quality">首选音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="standard">标准</option><option value="high">高音质</option><option value="lossless">无损</option></select></label>
     {cache && <section className="zenix-audio-cache" aria-label="自动缓存">
       <div><strong>自动缓存</strong><small>播放过的在线歌曲会缓存在本机，再次播放优先读取缓存。近期播放记录和主动下载独立保存。</small></div>
@@ -114,7 +123,7 @@ export default function SourceSettings() {
     <div className="zenix-source-list">
       {sources.length === 0 && <div className="zenix-source-empty">还没有音乐源。添加后即可搜索在线歌曲。</div>}
       {sources.map((source, index) => <section key={source.id} className={`zenix-source-card${source.enabled ? '' : ' is-disabled'}`}>
-        <div className="zenix-source-card-head"><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? 'LX 脚本' : 'Zenix 源'} · v{source.manifest.version}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
+        <div className="zenix-source-card-head"><span className="zenix-source-rank">{String(index + 1).padStart(2, '0')}</span><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? 'LX 脚本' : 'Zenix 源'} · v{source.manifest.version}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
         <p>{source.manifest.capabilities.map(capability => ({ search: '搜索', resolvePlayback: '播放', lyrics: '歌词', artwork: '封面', resolveDownload: '下载' })[capability as 'search' | 'resolvePlayback' | 'lyrics' | 'artwork' | 'resolveDownload'] || capability).join(' · ')}</p>
         <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · LX 脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
