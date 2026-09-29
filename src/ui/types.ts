@@ -12,6 +12,10 @@ export interface TrackView {
   duration: number;
   coverUrl?: string;
   audioUrl?: string;
+  source?: 'local' | 'online' | 'custom';
+  providerId?: string;
+  remoteId?: string;
+  actualQuality?: string;
 }
 
 export interface LyricLineView {

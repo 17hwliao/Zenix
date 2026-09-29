@@ -1,6 +1,6 @@
 # Zenix 自定义音乐源接入设计
 
-状态：设计稿，尚未实现。2026-09-29 已确认第一版采用 **Zenix 完整源协议**，LX Music 脚本兼容放到后续。
+状态：2026-09-29 已接入 Zenix v1 的源导入预览、管理、分源搜索、播放代理、歌词、封面与可暂停下载；LX Music 脚本兼容放到后续。本文件保留长期设计目标；作者可执行的当前格式见 [协议说明](zenix-source-protocol.md)。
 
 ## 目标与参考边界
 
@@ -20,7 +20,7 @@
 
 ## Zenix 源包与协议 v1
 
-源包包含 `manifest.json` 与 `index.js`。清单声明不可变的 ID、版本、能力、音质、网络域名和可编辑选项：
+源文件夹包含 `manifest.json` 与 `index.js`；单文件 `.zenixsource` 将两者放入 `{ manifest, script }` JSON 对象。清单声明稳定的 ID、版本、能力、音质、网络域名和可编辑选项：
 
 ```json
 {

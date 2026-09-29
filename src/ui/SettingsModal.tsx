@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { FolderOpen, ImagePlus, RefreshCw, Sparkles, Trash2, Volume2, X } from 'lucide-react';
 import type { AppearanceBackground } from '../core/types';
 import { getSoundSettings, playUiSound, setSoundSettings, type SoundKind } from '../core/sounds';
+import SourceSettings from './SourceSettings';
 
 type SettingsModalProps = {
+  initialTab?: 'options' | 'appearance' | 'sources';
   reduceMotion: boolean;
   libraryBusy: boolean;
   appearanceBackground?: AppearanceBackground | null;
@@ -18,8 +20,8 @@ type SettingsModalProps = {
   onClose: () => void;
 };
 
-export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBackground, appearanceBusy, desktopLyricsVisible, onToggleDesktopLyrics, onChooseBackground, onClearBackground, onReduceMotionChange, onImportFolder, onRefreshLibrary, onClose }: SettingsModalProps) {
-  const [tab, setTab] = useState<'options' | 'appearance'>('options');
+export default function SettingsModal({ initialTab = 'options', reduceMotion, libraryBusy, appearanceBackground, appearanceBusy, desktopLyricsVisible, onToggleDesktopLyrics, onChooseBackground, onClearBackground, onReduceMotionChange, onImportFolder, onRefreshLibrary, onClose }: SettingsModalProps) {
+  const [tab, setTab] = useState<'options' | 'appearance' | 'sources'>(initialTab);
   const [previewError, setPreviewError] = useState(false);
   const [sounds, setSounds] = useState(getSoundSettings);
   const updateSounds = (change: Partial<typeof sounds>) => { const next = { ...sounds, ...change }; setSounds(next); setSoundSettings(next); };
@@ -31,6 +33,7 @@ export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBac
         <div className="yz-settings-tabs" role="tablist" aria-label="选项分类">
           <button role="tab" aria-selected={tab === 'options'} className={tab === 'options' ? 'is-active' : ''} onClick={() => setTab('options')}>选项</button>
           <button role="tab" aria-selected={tab === 'appearance'} className={tab === 'appearance' ? 'is-active' : ''} onClick={() => setTab('appearance')}>外观</button>
+          <button role="tab" aria-selected={tab === 'sources'} className={tab === 'sources' ? 'is-active' : ''} onClick={() => setTab('sources')}>音乐源</button>
         </div>
         <button className="yz-settings-close" onClick={onClose} aria-label="关闭"><X size={17} /></button>
       </div>
@@ -58,6 +61,7 @@ export default function SettingsModal({ reduceMotion, libraryBusy, appearanceBac
           {appearanceBackground && <button className="yz-appearance-remove" onClick={() => void onClearBackground?.()} disabled={appearanceBusy || !onClearBackground}><Trash2 size={15} />移除背景</button>}
         </div>
       </div>}
+      {tab === 'sources' && <div className="yz-settings-body yz-source-body"><SourceSettings /></div>}
     </div>
   </div>;
 }

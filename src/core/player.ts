@@ -116,7 +116,7 @@ class PlayerController {
       ids: this.state.queue.map((track) => track.id),
       index: this.state.queueIndex,
       online: this.state.queue
-        .filter((track) => track.source === 'online')
+        .filter((track) => track.source === 'online' || track.source === 'custom')
         .map((track) => ({ ...track, audioUrl: '' })),
     });
   }
@@ -126,7 +126,7 @@ class PlayerController {
     if (!saved || !Array.isArray(saved.ids)) return;
     const byId = new Map(tracks.map((track) => [track.id, track]));
     for (const online of Array.isArray(saved.online) ? saved.online : []) {
-      if (online?.source === 'online' && typeof online.id === 'string'
+      if ((online?.source === 'online' || online?.source === 'custom') && typeof online.id === 'string'
         && typeof online.title === 'string' && typeof online.artist === 'string') {
         byId.set(online.id, { ...online, audioUrl: '' });
       }
@@ -144,7 +144,7 @@ class PlayerController {
   }
 
   setQueue(queue: Track[], startIndex = 0): void {
-    const entries = [...queue];
+    const entries = queue.map(track => track.source === 'custom' ? { ...track, audioUrl: '' } : track);
     this.history = [];
     this.shufflePool.clear();
     this.playbackToken += 1;
@@ -185,7 +185,8 @@ class PlayerController {
   }
 
   private select(index: number): void {
-    const track = this.state.queue[index];
+    const selected = this.state.queue[index];
+    const track = selected?.source === 'custom' ? { ...selected, audioUrl: '' } : selected;
     if (!track) return;
     this.playbackToken += 1;
     this.audio.pause();

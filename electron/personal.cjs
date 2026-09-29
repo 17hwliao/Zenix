@@ -11,15 +11,16 @@ function cleanTrack(value) {
     artist: String(value.artist || ''),
     album: String(value.album || ''),
     duration: Number(value.duration) || 0,
-    audioUrl: value.source === 'online' ? '' : String(value.audioUrl || ''),
+    audioUrl: value.source === 'online' || value.source === 'custom' ? '' : String(value.audioUrl || ''),
     coverUrl: typeof value.coverUrl === 'string' ? value.coverUrl : undefined,
-    source: value.source === 'online' ? 'online' : 'local',
+    source: value.source === 'online' || value.source === 'custom' ? value.source : 'local',
     providerId: typeof value.providerId === 'string' ? value.providerId : undefined,
     remoteId: typeof value.remoteId === 'string' ? value.remoteId : undefined,
   };
 }
 
 function historyKey(track) {
+  if (track.source === 'custom' && track.providerId && track.remoteId) return `custom:${track.providerId}:${track.remoteId}`;
   if (track.source === 'online' && track.remoteId) {
     const provider = track.providerId || (track.id.includes(':') ? track.id.split(':')[0] : 'legacy');
     return `online:${provider}:${track.remoteId}`;

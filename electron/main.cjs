@@ -6,6 +6,8 @@ const { Readable } = require('node:stream');
 const { LocalLibrary, AUDIO_EXTENSIONS } = require('./library.cjs');
 const { AppearanceStore } = require('./appearance.cjs');
 const { PersonalStore } = require('./personal.cjs');
+const { SourceManager } = require('./sources.cjs');
+const { DownloadManager } = require('./downloads.cjs');
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'yzqxy',
@@ -28,6 +30,8 @@ let lyricsLockTimer = null;
 let library = null;
 let appearance = null;
 let personal = null;
+let sourceManager = null;
+let downloadManager = null;
 
 function broadcast(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
@@ -119,6 +123,16 @@ async function serveFile(filePath, request) {
 function registerMediaProtocol() {
   protocol.handle('yzqxy', async (request) => {
     const url = new URL(request.url);
+    if (url.hostname === 'stream') return sourceManager.stream(request, url.pathname.slice(1));
+    if (url.hostname === 'offline') {
+      const filePath = await downloadManager.offlinePath(decodeURIComponent(url.pathname.slice(1)));
+      return filePath ? serveFile(filePath, request) : new Response('Not found', { status: 404 });
+    }
+    if (url.hostname === 'source-cover') {
+      const parts = url.pathname.split('/').slice(1);
+      if (parts.length !== 2) return new Response('Not found', { status: 404 });
+      return sourceManager.cover(request, decodeURIComponent(parts[0]), decodeURIComponent(parts[1]));
+    }
     let filePath = null;
     if (url.hostname === 'audio') filePath = library.getAudioPath(url.pathname.slice(1));
     else if (url.hostname === 'cover') filePath = library.getCoverPath(url.pathname.slice(1));
@@ -385,6 +399,29 @@ function registerHandlers() {
     broadcast('appearance:changed', state);
     return state;
   });
+  ipcMain.handle('sources:list', () => sourceManager.list());
+  ipcMain.handle('sources:import-file', () => sourceManager.choosePackage(mainWindow));
+  ipcMain.handle('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
+  ipcMain.handle('sources:import-url', (_event, url) => sourceManager.importUrl(String(url || '')));
+  ipcMain.handle('sources:confirm-import', (_event, token) => sourceManager.confirmImport(String(token || '')));
+  ipcMain.handle('sources:cancel-import', (_event, token) => sourceManager.cancelImport(String(token || '')));
+  ipcMain.handle('sources:set-enabled', (_event, id, enabled) => sourceManager.setEnabled(String(id || ''), enabled));
+  ipcMain.handle('sources:configure', (_event, id, values) => sourceManager.configure(String(id || ''), values));
+  ipcMain.handle('sources:get-settings', (_event, id) => sourceManager.getSettings(String(id || '')));
+  ipcMain.handle('sources:move', (_event, id, direction) => sourceManager.move(String(id || ''), Number(direction) || 0));
+  ipcMain.handle('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
+  ipcMain.handle('sources:search', (_event, id, keyword, cursor, pageSize) => sourceManager.search(String(id || ''), keyword, cursor, pageSize));
+  ipcMain.handle('sources:resolve', (_event, track, quality) => sourceManager.resolve(track, quality));
+  ipcMain.handle('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
+  ipcMain.handle('sources:download', (_event, track, quality) => downloadManager.enqueue(track, quality));
+  ipcMain.handle('sources:downloads', () => downloadManager.list());
+  ipcMain.handle('sources:pause-download', (_event, id) => downloadManager.pause(String(id || '')));
+  ipcMain.handle('sources:resume-download', (_event, id) => downloadManager.resume(String(id || '')));
+  ipcMain.handle('sources:show-download', async (_event, id) => {
+    const task = downloadManager.tasks.find(item => item.id === id && item.status === 'completed');
+    if (task && await downloadManager.offlinePath(task.track.id)) shell.showItemInFolder(task.file);
+  });
+  ipcMain.handle('sources:open-folder', () => shell.openPath(sourceManager.folder));
   ipcMain.handle('library:load', () => library.load());
   ipcMain.handle('library:import-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'], title: '选择音乐文件夹' });
@@ -464,9 +501,14 @@ app.whenReady().then(async () => {
   library = new LocalLibrary(app.getPath('userData'), broadcast);
   appearance = new AppearanceStore(app.getPath('userData'));
   personal = new PersonalStore(app.getPath('userData'));
+  sourceManager = new SourceManager(app.getPath('userData'), broadcast);
+  downloadManager = new DownloadManager(sourceManager, app.getPath('userData'), broadcast);
+  sourceManager.downloads = downloadManager;
   await library.load();
   await appearance.load();
   await personal.load();
+  await sourceManager.load();
+  await downloadManager.load();
   registerMediaProtocol();
   registerHandlers();
   createWindow();

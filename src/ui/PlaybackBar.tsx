@@ -4,6 +4,7 @@ import TrackQuickActions from './TrackQuickActions';
 import { formatTime } from './library';
 import type { TrackView, RepeatMode } from './types';
 import type { PersonalState } from '../core/types';
+const QUALITY_LABELS: Record<string, string> = { standard: '标准', high: '高音质', lossless: '无损', offline: '离线' };
 
 // A glass playback capsule shared by the library and lyric surfaces.
 interface PlaybackBarProps {
@@ -46,7 +47,7 @@ export default function PlaybackBar(props: PlaybackBarProps) {
       <div className="yz-playerbar-main">
         <button className="yz-playerbar-track" onClick={onOpenPlayer} title="打开播放页">
           <CoverArt title={track.title} coverUrl={track.coverUrl} className="yz-playerbar-art" />
-          <span className="yz-playerbar-tracktext"><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}</small></span>
+          <span className="yz-playerbar-tracktext"><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}{track.actualQuality ? ` · ${QUALITY_LABELS[track.actualQuality] || track.actualQuality}` : ''}</small></span>
         </button>
         <div className="yz-playerbar-center">
           <button className="yz-icon-button yz-playerbar-secondary" onClick={onPrevious} title="上一首" aria-label="上一首"><SkipBack size={17} fill="currentColor" /></button>

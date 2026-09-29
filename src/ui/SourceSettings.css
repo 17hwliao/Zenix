@@ -1,0 +1,53 @@
+.yz-source-body { max-height: min(72vh, 680px); overflow-y: auto; }
+.zenix-source-settings { color: #f5f5f6; }
+.zenix-source-quality { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; color: #ffffffb9; font-size: 12px; }
+.zenix-source-quality select { padding: 6px 9px; border: 1px solid #ffffff3a; border-radius: 14px; background: #252a34; color: #fff; font-size: 11px; }
+.zenix-source-import { display: flex; gap: 9px; margin: 20px 0 8px; }
+.zenix-source-import > button, .zenix-source-import form, .zenix-source-actions button, .zenix-source-options button { border: 1px solid #ffffff36; border-radius: 20px; background: #ffffff16; color: #fff; }
+.zenix-source-import > button { display: flex; align-items: center; gap: 8px; flex: none; padding: 0 15px; font-size: 12px; }
+.zenix-source-folder-link { margin-left: 5px; padding: 0; border: 0; background: transparent; color: #ead6ad; font-size: inherit; text-decoration: underline; }
+.zenix-source-import form { display: flex; flex: 1; align-items: center; min-width: 0; gap: 7px; padding: 5px 6px 5px 13px; }
+.zenix-source-import form input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: #fff; font-size: 12px; }
+.zenix-source-import form button { padding: 7px 13px; border: 0; border-radius: 15px; background: #f5f5f6; color: #11141a; font-size: 11px; }
+.zenix-source-hint, .zenix-source-domains { color: #ffffff86; font-size: 11px; line-height: 1.5; }
+.zenix-source-preview { margin-top: 12px; padding: 14px; border: 1px solid #eacb825c; border-radius: 16px; background: #dbb97613; }
+.zenix-source-preview > strong, .zenix-source-preview > small { display: block; }
+.zenix-source-preview strong { font-size: 13px; }
+.zenix-source-preview small, .zenix-source-preview p { margin: 6px 0; color: #ffffffae; font-size: 11px; overflow-wrap: anywhere; }
+.zenix-source-preview > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.zenix-source-preview button { padding: 7px 12px; border: 1px solid #ffffff38; border-radius: 16px; background: #ffffff1a; color: #fff; font-size: 11px; }
+.zenix-source-preview button:last-child { background: #e6e4df; color: #16171a; }
+.zenix-source-error { color: #ffb4b4; font-size: 12px; }
+.zenix-source-list { display: grid; gap: 10px; margin-top: 16px; }
+.zenix-source-empty { padding: 25px 16px; border: 1px solid #ffffff20; border-radius: 17px; color: #ffffff9a; text-align: center; font-size: 12px; }
+.zenix-source-card { padding: 14px; border: 1px solid #ffffff2e; border-radius: 18px; background: #ffffff0d; box-shadow: inset 0 1px #ffffff18; }
+.zenix-source-card.is-disabled { opacity: .62; }
+.zenix-source-card-head { display: flex; align-items: center; gap: 10px; }
+.zenix-source-card-head > div { flex: 1; min-width: 0; }
+.zenix-source-card-head strong, .zenix-source-card-head small { display: block; }
+.zenix-source-card-head strong { font-size: 13px; }
+.zenix-source-card-head small { margin-top: 3px; color: #ffffff81; font-size: 10px; }
+.zenix-source-card-head button { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid #ffffff2b; border-radius: 50%; background: #ffffff18; color: #fff; }
+.zenix-source-dot { width: 8px; height: 8px; border-radius: 50%; background: #b1e4bd; box-shadow: 0 0 12px #b1e4bd88; }
+.is-disabled .zenix-source-dot { background: #999; box-shadow: none; }
+.zenix-source-card p { margin: 12px 0 4px; color: #ffffffc6; font-size: 11px; }
+.zenix-source-domains { display: block; overflow-wrap: anywhere; }
+.zenix-source-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 10px; }
+.zenix-source-actions button { display: grid; place-items: center; min-width: 27px; height: 26px; padding: 0 9px; font-size: 11px; }
+.zenix-source-options { display: grid; gap: 9px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ffffff24; }
+.zenix-source-options label { display: grid; gap: 5px; color: #ffffffb5; font-size: 11px; }
+.zenix-source-options input, .zenix-source-options select { width: 100%; padding: 8px 10px; border: 1px solid #ffffff30; border-radius: 9px; outline: none; background: #121722; color: #fff; }
+.zenix-source-options button { justify-self: end; padding: 8px 14px; font-size: 11px; }
+.zenix-source-import button:hover, .zenix-source-actions button:hover, .zenix-source-options button:hover { background: #ffffff32; }
+.zenix-source-settings button:disabled { cursor: default; opacity: .45; }
+.zenix-downloads { margin-top: 23px; padding-top: 13px; border-top: 1px solid #ffffff2a; }
+.zenix-downloads h3 { margin: 0 0 9px; font-size: 13px; }
+.zenix-downloads > p { color: #ffffff80; font-size: 11px; }
+.zenix-download-row { position: relative; display: flex; align-items: center; gap: 10px; overflow: hidden; min-height: 49px; padding: 8px 4px; border-bottom: 1px solid #ffffff19; }
+.zenix-download-row > div { flex: 1; min-width: 0; }
+.zenix-download-row strong, .zenix-download-row small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.zenix-download-row strong { font-size: 11px; }
+.zenix-download-row small { margin-top: 4px; color: #ffffff81; font-size: 10px; }
+.zenix-download-row button { z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #ffffff2a; border-radius: 50%; background: #ffffff18; color: #fff; }
+.zenix-download-progress { position: absolute; bottom: 0; left: 0; height: 2px; background: #f3dfa5; }
+@media (max-width: 560px) { .zenix-source-import { flex-direction: column; } .zenix-source-import > button { justify-content: center; min-height: 36px; } }

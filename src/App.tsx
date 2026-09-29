@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ZenixShell } from './ui';
 import ZenixIntro from './ui/ZenixIntro';
 import AppearanceOnboarding from './ui/AppearanceOnboarding';
-import { library, loadLyrics, player } from './core';
+import { library, loadLyrics, parseLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
 import { PlaylistManager } from './playlists';
 
@@ -125,6 +125,11 @@ export default function App() {
   useEffect(() => {
     player.setTrackResolver(async track => {
       if (track.source === 'online') throw new Error('旧在线来源已移除；请等待自定义源接入');
+      if (track.source === 'custom') {
+        if (!window.yzqxy?.sources) throw new Error('音乐源只在桌面版中可用');
+        const resolved = await window.yzqxy.sources.resolve(track, localStorage.getItem('zenix.onlineQuality') || 'high');
+        return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality };
+      }
       return track;
     });
     const unsubscribeLibrary = library.subscribe(setCollection);
@@ -151,7 +156,10 @@ export default function App() {
     if (playback.track) {
       const visited = playback.track;
       setRecentTracks(previous => [visited, ...previous.filter(item => item.id !== visited.id)].slice(0, 50));
-      const request = playback.track.source === 'online' ? Promise.resolve([]) : loadLyrics(playback.track);
+      const request = playback.track.source === 'online' ? Promise.resolve([])
+        : playback.track.source === 'custom'
+          ? window.yzqxy?.sources.lyrics(playback.track).then(raw => raw ? parseLyrics(raw) : []) ?? Promise.resolve([])
+          : loadLyrics(playback.track);
       void request.then(lines => {
         if (active) setLyrics(lines);
       }).catch(() => {
@@ -163,7 +171,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('zenix.recentTracks', JSON.stringify(recentTracks.map(item => item.source === 'online' ? { ...item, audioUrl: undefined } : item)));
+      localStorage.setItem('zenix.recentTracks', JSON.stringify(recentTracks.map(item => item.source === 'online' || item.source === 'custom' ? { ...item, audioUrl: undefined } : item)));
     } catch { /* Browsing history is optional when storage is unavailable. */ }
   }, [recentTracks]);
 

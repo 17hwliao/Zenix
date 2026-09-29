@@ -13,9 +13,10 @@ export interface Track {
   addedAt?: number;
   modifiedAt?: number;
   size?: number;
-  source?: 'local' | 'online';
+  source?: 'local' | 'online' | 'custom';
   providerId?: string;
   remoteId?: string;
+  actualQuality?: string;
   availability?: 'playable' | 'unavailable';
 }
 
@@ -50,7 +51,7 @@ export interface LibraryProgress {
 export interface RawLyrics {
   text: string;
   format: string;
-  source: 'sidecar' | 'embedded';
+  source: 'sidecar' | 'embedded' | 'custom';
   translationText?: string;
 }
 
@@ -85,6 +86,16 @@ export type PersonalPlaylist = { id: string; name: string; tracks: Track[] };
 export type HistoryEntry = { id: string; track: Track; playedAt: number };
 export type PersonalState = { liked: Track[]; favorites: Track[]; history: HistoryEntry[]; playlists: PersonalPlaylist[] };
 
+export type SourceManifest = {
+  id: string; name: string; version: string; capabilities: string[]; qualities: string[];
+  network: { apiHosts: string[]; mediaHosts: string[]; artworkHosts: string[] };
+  settings: { key: string; label: string; type: 'text' | 'select'; options: string[]; default: string }[];
+};
+export type InstalledSource = { id: string; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; status: string; lastError: string };
+export type SourcePreview = { token: string; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
+export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
+export type DownloadTask = { id: string; track: Track; quality: string; status: 'queued' | 'resolving' | 'downloading' | 'paused' | 'completed' | 'failed'; received: number; total: number; error: string };
+
 export interface DesktopBridge {
   desktopLyrics: {
     toggle(): Promise<boolean>;
@@ -110,6 +121,30 @@ export interface DesktopBridge {
     complete(): Promise<AppearanceState>;
     clear(): Promise<AppearanceState>;
     onChanged(callback: (state: AppearanceState) => void): () => void;
+  };
+  sources: {
+    list(): Promise<InstalledSource[]>;
+    importFile(): Promise<SourcePreview | null>;
+    importFolder(): Promise<SourcePreview | null>;
+    importUrl(url: string): Promise<SourcePreview>;
+    confirmImport(token: string): Promise<InstalledSource[]>;
+    cancelImport(token: string): Promise<void>;
+    setEnabled(id: string, enabled: boolean): Promise<InstalledSource[]>;
+    configure(id: string, values: Record<string, string>): Promise<Record<string, string>>;
+    getSettings(id: string): Promise<Record<string, string>>;
+    move(id: string, direction: number): Promise<InstalledSource[]>;
+    remove(id: string): Promise<InstalledSource[]>;
+    search(id: string, keyword: string, cursor?: string | null, pageSize?: number): Promise<SourceSearchPage>;
+    resolve(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string }>;
+    lyrics(track: Track): Promise<RawLyrics | null>;
+    download(track: Track, quality?: string): Promise<DownloadTask[]>;
+    downloads(): Promise<DownloadTask[]>;
+    pauseDownload(id: string): Promise<DownloadTask[]>;
+    resumeDownload(id: string): Promise<DownloadTask[]>;
+    showDownload(id: string): Promise<void>;
+    onDownloadsChanged(callback: (tasks: DownloadTask[]) => void): () => void;
+    openFolder(): Promise<string>;
+    onChanged(callback: (sources: InstalledSource[]) => void): () => void;
   };
   library: {
     load(): Promise<LibrarySnapshot>;
