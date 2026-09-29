@@ -483,7 +483,8 @@ class SourceManager {
         try { if (record.kind === 'lx') new URL(hint); else checkUrl(hint, record.manifest.network.artworkHosts); this.coverHints.set(coverKey, hint); } catch {}
       }
       if (this.coverHints.size > 500) this.coverHints.delete(this.coverHints.keys().next().value);
-      const coverUrl = (record.kind === 'lx' || record.manifest.network.artworkHosts.length) && (this.coverHints.has(coverKey) || record.manifest.capabilities.includes('artwork')) ? this.makeCoverUrl(id, remoteId) : undefined;
+      const canLoadArtwork = record.kind === 'lx' || (record.manifest.network.artworkHosts.length && (this.coverHints.has(coverKey) || record.manifest.capabilities.includes('artwork')));
+      const coverUrl = canLoadArtwork ? this.makeCoverUrl(id, remoteId) : undefined;
       return { id: `source:${encodeURIComponent(id)}:${encodeURIComponent(remoteId)}`, source: 'custom', providerId: id, remoteId, path: '', audioUrl: '', title, artist: boundedText(item.artist, 150), album: boundedText(item.album, 150), duration: Math.max(0, Number(item.duration) || 0), coverUrl };
     }).filter(Boolean);
     return { items, nextCursor: result.nextCursor == null ? null : boundedText(result.nextCursor, 300) };
@@ -491,7 +492,8 @@ class SourceManager {
   async resolve(track, quality = 'high') {
     const id = track?.providerId, remoteId = track?.remoteId;
     if (!id || !remoteId) throw new Error('歌曲缺少来源 ID');
-    if (await this.downloads?.offlinePath(track.id)) return { audioUrl: `yzqxy://offline/${encodeURIComponent(track.id)}`, actualQuality: 'offline' };
+    const coverUrl = id.startsWith('lx.') ? this.makeCoverUrl(id, remoteId) : track.coverUrl;
+    if (await this.downloads?.offlinePath(track.id)) return { audioUrl: `yzqxy://offline/${encodeURIComponent(track.id)}`, actualQuality: 'offline', coverUrl };
     const record = this.record(id);
     quality = record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
     const result = record.kind === 'lx' ? await this.lxPlayback(id, remoteId, quality) : await this.call(id, 'resolvePlayback', { remoteId, quality });
@@ -501,7 +503,7 @@ class SourceManager {
     const headers = this.mediaHeaders(result.headers);
     this.sessions.set(token, { id, remoteId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
     setTimeout(() => this.sessions.delete(token), 6 * 60 * 60 * 1000).unref();
-    return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30) };
+    return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl };
   }
   async lxPlayback(id, remoteId, quality) {
     const record = this.record(id);
@@ -589,7 +591,7 @@ class SourceManager {
         if (data.length && data.length <= 5 * 1024 * 1024 && type.startsWith('image/')) return new Response(data, { headers: { 'Content-Type': type, 'Access-Control-Allow-Origin': '*' } });
       } catch {}
       const record = this.record(id);
-      const url = this.coverHints.get(key) || (await this.call(id, 'artwork', { remoteId }))?.url;
+      const url = this.coverHints.get(key) || (record.kind === 'lx' ? await lxCatalog.artwork(lxCatalog.readInfo(remoteId)) : (await this.call(id, 'artwork', { remoteId }))?.url);
       if (record.kind === 'lx') await checkLxUrl(url); else checkUrl(url, record.manifest.network.artworkHosts);
       const response = await fetchAllowed(url, record.kind === 'lx' ? null : record.manifest.network.artworkHosts, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) return new Response(null, { status: response.status });

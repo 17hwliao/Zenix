@@ -5,6 +5,7 @@ import { version as appVersion } from '../../package.json';
 import type { AppearanceBackground, PersonalState } from '../core/types';
 import type { TrackView } from './types';
 import CoverArt from './CoverArt';
+import { trackCoverUrl } from '../core/trackCover';
 import './PersonalHome.css';
 
 type Props = {
@@ -77,11 +78,11 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   };
   const historyTracks = personal.history.slice(0, 24).map(entry => entry.track);
   const defaultCovers: Record<OrbitCoverKey, string | undefined> = {
-    liked: personal.liked[0]?.coverUrl,
-    favorites: personal.favorites[0]?.coverUrl,
-    history: personal.history[0]?.track.coverUrl,
-    playlists: personal.playlists[0]?.tracks[0]?.coverUrl,
-    library: tracks[0]?.coverUrl,
+    liked: trackCoverUrl(personal.liked[0]),
+    favorites: trackCoverUrl(personal.favorites[0]),
+    history: trackCoverUrl(personal.history[0]?.track),
+    playlists: trackCoverUrl(personal.playlists[0]?.tracks[0]),
+    library: trackCoverUrl(tracks[0]),
   };
   const cards: OrbitCard[] = [
     { id: 'liked', label: '我的喜欢', caption: `${personal.liked.length} 首歌曲`, icon: Heart, image: profile.orbitCovers.liked || defaultCovers.liked, action: () => onOpenManager('liked') },
@@ -257,7 +258,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
         </button><div className="zenix-card-shadow" aria-hidden="true" /><button type="button" className="zenix-card-edit" onClick={openEditor}><Pencil size={13} />编辑个人名片</button></div>
       </section>
       <section className="zenix-home-section"><div className="zenix-home-section-head"><div><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
-        {historyTracks.length ? <div className="zenix-recent-strip">{historyTracks.slice(0, 8).map((track, index) => <button key={`${track.id}-${index}`} onClick={() => { onPlayTrack(track, historyTracks); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={track.coverUrl} /><strong>{track.title}</strong><small>{track.artist}</small></button>)}</div> : <div className="zenix-home-empty"><Music2 size={25} /><span>听过的歌曲会出现在这里</span>{currentTrack && <button onClick={onOpenPlayer}>继续播放</button>}</div>}
+        {historyTracks.length ? <div className="zenix-recent-strip">{historyTracks.slice(0, 8).map((track, index) => <button key={`${track.id}-${index}`} onClick={() => { onPlayTrack(track, historyTracks); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><strong>{track.title}</strong><small>{track.artist}</small></button>)}</div> : <div className="zenix-home-empty"><Music2 size={25} /><span>听过的歌曲会出现在这里</span>{currentTrack && <button onClick={onOpenPlayer}>继续播放</button>}</div>}
       </section>
       <div className="zenix-home-foot"><div><button onClick={() => void onImportFolder()}><Upload size={13} />导入文件夹</button>{onAddFiles && <button onClick={() => void onAddFiles()}><Plus size={13} />添加音乐文件</button>}{onImportPlaylist && <button onClick={() => void onImportPlaylist()}>导入 M3U 歌单</button>}</div></div>
     </div>

@@ -11,6 +11,7 @@ import PersonalHome from './PersonalHome';
 import PersonalLibraryManager from './PersonalLibraryManager';
 import QueuePanel from './QueuePanel';
 import { playUiSound } from '../core/sounds';
+import { trackCoverUrl } from '../core/trackCover';
 import type { ZenixShellProps } from './types';
 import './Zenix.css';
 
@@ -124,7 +125,7 @@ export default function ZenixShell(props: ZenixShellProps) {
     }} onMouseLeave={() => setTitlebarRevealed(false)}>
       <ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion} />
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
-      {currentTrack?.coverUrl && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${currentTrack.coverUrl.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
+      {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
       <div className="yz-grain" aria-hidden="true" />
       <div className="yz-titlebar-drag" aria-hidden="true" />
 

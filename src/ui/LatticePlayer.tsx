@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { Captions, Home, ListMusic, Maximize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { playUiSound } from '../core/sounds';
+import { trackCoverUrl } from '../core/trackCover';
 import CoverArt from './CoverArt';
 import TrackQuickActions from './TrackQuickActions';
 import { formatTime } from './library';
@@ -243,7 +244,7 @@ export default function LatticePlayer({
             if (!expanded) focusSlot(slot);
             else if (event.key === 'Enter') playFocused();
           }} role={expanded ? 'group' : 'button'} tabIndex={expanded ? -1 : 0} title={expanded ? undefined : `展开 ${item.title} · ${item.artist}`} aria-label={`${item.title} · ${item.artist}`}>
-            <CoverArt title={item.title} coverUrl={item.coverUrl} />
+            <CoverArt title={item.title} coverUrl={trackCoverUrl(item)} />
             <span className="yz-sticker-shade" />
             {expanded ? <>
               <div className="yz-sticker-focus-shade" />
@@ -266,7 +267,7 @@ export default function LatticePlayer({
     <button className="yz-lattice-back" onClick={onBack} aria-label="个人主页" title="个人主页"><Home size={19} /></button>
     {searchAvailable && <div className="yz-lattice-search-zone"><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}
     <div className="yz-lattice-mini">
-      <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={track.coverUrl} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
+      <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
       <button className={`yz-lattice-mini-lyrics${desktopLyricsVisible ? ' is-active' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} title={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-label={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-pressed={desktopLyricsVisible}><Captions size={18} /></button>
       <TrackQuickActions track={track} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPlaylist} onCreatePlaylist={onCreatePlaylist} compact />
       <input className="yz-lattice-mini-progress" type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(shownPosition, Math.max(total, 1))} disabled={total <= 0} onPointerDown={() => { seekDraggingRef.current = true; seekDraftRef.current = position; setSeekDraft(position); }} onChange={event => { const seconds = Number(event.target.value); if (seekDraggingRef.current) { seekDraftRef.current = seconds; setSeekDraft(seconds); } else onSeek(seconds); }} onPointerUp={commitMiniSeek} onPointerCancel={() => { seekDraggingRef.current = false; seekDraftRef.current = null; setSeekDraft(null); }} aria-label="拖动歌曲进度" style={{ '--range-fill': `${total ? Math.min(100, shownPosition / total * 100) : 0}%` } as CSSProperties} /><small className="yz-lattice-mini-time">{formatTime(shownPosition)} / {formatTime(total)}</small>

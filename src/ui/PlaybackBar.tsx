@@ -1,5 +1,6 @@
 import { ListMusic, Pause, Play, Repeat2, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import CoverArt from './CoverArt';
+import { trackCoverUrl } from '../core/trackCover';
 import TrackQuickActions from './TrackQuickActions';
 import { formatTime } from './library';
 import type { TrackView, RepeatMode } from './types';
@@ -46,7 +47,7 @@ export default function PlaybackBar(props: PlaybackBarProps) {
     <div className={`yz-playerbar yz-playerbar--${surface}`}>
       <div className="yz-playerbar-main">
         <button className="yz-playerbar-track" onClick={onOpenPlayer} title="打开播放页">
-          <CoverArt title={track.title} coverUrl={track.coverUrl} className="yz-playerbar-art" />
+          <CoverArt title={track.title} coverUrl={trackCoverUrl(track)} className="yz-playerbar-art" />
           <span className="yz-playerbar-tracktext"><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}{track.actualQuality ? ` · ${QUALITY_LABELS[track.actualQuality] || track.actualQuality}` : ''}</small></span>
         </button>
         <div className="yz-playerbar-center">

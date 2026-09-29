@@ -128,7 +128,7 @@ export default function App() {
       if (track.source === 'custom') {
         if (!window.yzqxy?.sources) throw new Error('音乐源只在桌面版中可用');
         const resolved = await window.yzqxy.sources.resolve(track, localStorage.getItem('zenix.onlineQuality') || 'high');
-        return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality };
+        return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: resolved.coverUrl || track.coverUrl };
       }
       return track;
     });

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Music2 } from 'lucide-react';
 
 // A local cover is shown when available; otherwise an original color field is generated from its title.
@@ -22,9 +22,12 @@ function coverStyle(seed: string): CSSProperties {
 }
 
 export default function CoverArt({ title, coverUrl, className = '' }: { title: string; coverUrl?: string; className?: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  useEffect(() => { setFailedUrl(null); }, [coverUrl]);
+  const showImage = Boolean(coverUrl && failedUrl !== coverUrl);
   return (
     <div className={`yz-cover ${className}`} style={coverStyle(title)} aria-hidden="true">
-      {coverUrl ? <img src={coverUrl} alt="" draggable={false} /> : <><span className="yz-cover-light" /><Music2 className="yz-cover-note" strokeWidth={1.1} /></>}
+      {showImage ? <img src={coverUrl} alt="" draggable={false} onError={() => setFailedUrl(coverUrl || null)} /> : <><span className="yz-cover-light" /><Music2 className="yz-cover-note" strokeWidth={1.1} /></>}
     </div>
   );
 }

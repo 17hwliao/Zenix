@@ -136,7 +136,7 @@ export interface DesktopBridge {
     move(id: string, direction: number): Promise<InstalledSource[]>;
     remove(id: string): Promise<InstalledSource[]>;
     search(id: string, keyword: string, cursor?: string | null, pageSize?: number): Promise<SourceSearchPage>;
-    resolve(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string }>;
+    resolve(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     download(track: Track, quality?: string): Promise<DownloadTask[]>;
     downloads(): Promise<DownloadTask[]>;
