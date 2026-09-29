@@ -10,6 +10,16 @@ const VERSION = /^[a-z0-9][a-z0-9._-]{0,39}$/i;
 const MAX_PACKAGE = 512 * 1024;
 
 function boundedText(value, max = 200) { return String(value ?? '').trim().slice(0, max); }
+function parseSourcePackage(text) {
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch {
+    if (text.includes('EVENT_NAMES') && text.includes('globalThis')) throw new Error('这是 LX Music 的 JavaScript 源脚本。Zenix 当前需要 .zenixsource JSON 包；LX 脚本还依赖 LX 的歌曲目录，暂不能直接搜索或播放。');
+    throw new Error('音乐源包必须是包含 manifest 和 script 的 .zenixsource JSON 文件');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('音乐源包必须包含 manifest 和 script');
+  return parsed;
+}
 function matchesHost(host, pattern) { return pattern.startsWith('*.') ? host.endsWith(pattern.slice(1)) && host !== pattern.slice(2) : host === pattern; }
 
 function validateManifest(raw) {
@@ -164,8 +174,7 @@ class SourceManager {
   }
   async installPackage(packageText, origin) {
     if (Buffer.byteLength(packageText, 'utf8') > MAX_PACKAGE) throw new Error('音乐源包过大');
-    let sourcePackage;
-    try { sourcePackage = JSON.parse(packageText); } catch { throw new Error('音乐源包必须是 JSON 格式'); }
+    const sourcePackage = parseSourcePackage(packageText);
     const manifest = validateManifest(sourcePackage.manifest);
     const script = sourcePackage.script;
     if (typeof script !== 'string' || !script.includes('zenix.register') || Buffer.byteLength(script, 'utf8') > MAX_PACKAGE) throw new Error('音乐源脚本无效');
@@ -186,8 +195,7 @@ class SourceManager {
   }
   previewPackage(packageText, origin) {
     if (Buffer.byteLength(packageText, 'utf8') > MAX_PACKAGE) throw new Error('音乐源包过大');
-    let sourcePackage;
-    try { sourcePackage = JSON.parse(packageText); } catch { throw new Error('音乐源包必须是 JSON 格式'); }
+    const sourcePackage = parseSourcePackage(packageText);
     const manifest = validateManifest(sourcePackage.manifest);
     if (typeof sourcePackage.script !== 'string' || !sourcePackage.script.includes('zenix.register') || Buffer.byteLength(sourcePackage.script, 'utf8') > MAX_PACKAGE) throw new Error('音乐源脚本无效');
     const token = randomUUID();
@@ -209,6 +217,7 @@ class SourceManager {
   async importUrl(raw) {
     const url = new URL(raw);
     if (url.protocol !== 'https:') throw new Error('网络导入只接受 HTTPS 地址');
+    if (/\.js$/i.test(url.pathname)) throw new Error('这个地址指向 .js 脚本。Zenix 当前只支持 .zenixsource JSON 包，LX Music 源脚本尚未兼容，不能直接作为可搜索音乐源使用。');
     const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok || new URL(response.url).protocol !== 'https:') throw new Error('无法下载音乐源包');
     return this.previewPackage((await readLimited(response, MAX_PACKAGE)).toString('utf8'), { kind: 'url', label: url.origin });
