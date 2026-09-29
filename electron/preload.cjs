@@ -42,7 +42,6 @@ contextBridge.exposeInMainWorld('yzqxy', {
     setEnabled: (id, enabled) => ipcRenderer.invoke('sources:set-enabled', id, enabled),
     configure: (id, values) => ipcRenderer.invoke('sources:configure', id, values),
     getSettings: (id) => ipcRenderer.invoke('sources:get-settings', id),
-    move: (id, direction) => ipcRenderer.invoke('sources:move', id, direction),
     remove: (id) => ipcRenderer.invoke('sources:remove', id),
     search: (id, keyword, cursor, pageSize) => ipcRenderer.invoke('sources:search', id, keyword, cursor, pageSize),
     cached: (track, quality) => ipcRenderer.invoke('sources:cached', track, quality),

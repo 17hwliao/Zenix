@@ -4,6 +4,7 @@ import ZenixIntro from './ui/ZenixIntro';
 import AppearanceOnboarding from './ui/AppearanceOnboarding';
 import { library, loadLyrics, parseLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
+import type { InstalledSource } from './core/types';
 import { PlaylistManager } from './playlists';
 
 function sameSong(original: Track, candidate: Track): boolean {
@@ -32,14 +33,39 @@ async function hasPlayableAudio(url: string): Promise<boolean> {
   } catch { return false; }
 }
 
-async function resolveCustomTrack(track: Track, failedProviders: readonly string[]): Promise<Track> {
+type QualityTier = 'lossless24' | 'lossless' | 'high' | 'standard';
+
+function qualityOrder(preference: string): QualityTier[] {
+  return preference === 'standard' ? ['standard'] : preference === 'high' ? ['high', 'standard'] : ['lossless24', 'lossless', 'high', 'standard'];
+}
+
+function availableQualities(source: InstalledSource, track: Track, preference: string): QualityTier[] {
+  const desired = qualityOrder(preference);
+  if (source.kind === 'lx') {
+    let platform = '';
+    try { platform = JSON.parse(atob((track.remoteId || '').replace(/-/g, '+').replace(/_/g, '/'))).source || ''; } catch {}
+    const formats = source.manifest.lxPlatforms?.[platform]?.qualitys || [];
+    return desired.filter(tier => tier === 'lossless24' ? formats.includes('flac24bit')
+      : tier === 'lossless' ? formats.includes('flac') : tier === 'high' ? formats.includes('320k') : formats.includes('128k'));
+  }
+  const supported = source.manifest.qualities;
+  return desired.filter(tier => tier !== 'lossless24' && (!supported.length || supported.includes(tier)));
+}
+
+async function resolveCustomTrack(track: Track, failedAttempts: readonly string[]): Promise<Track> {
   const bridge = window.yzqxy?.sources;
   if (!bridge) throw new Error('音乐源只在桌面版中可用');
-  const quality = localStorage.getItem('zenix.onlineQuality') || 'high';
+  const preference = localStorage.getItem('zenix.onlineQuality') || 'auto';
   const failures: string[] = [];
-  if (!failedProviders.length) {
-    const local = await bridge.cached(track, quality).catch(() => null);
-    if (local && await hasPlayableAudio(local.audioUrl)) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
+  if (!failedAttempts.length) {
+    const checkedLocal = new Set<string>();
+    for (const tier of qualityOrder(preference)) {
+      const local = await bridge.cached(track, tier).catch(() => null);
+      if (local && !checkedLocal.has(local.audioUrl)) {
+        checkedLocal.add(local.audioUrl);
+        if (await hasPlayableAudio(local.audioUrl)) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
+      }
+    }
   }
   const sources = (await bridge.list()).filter(source => source.enabled && source.manifest.capabilities.includes('resolvePlayback'));
   if (!sources.length) throw new Error('没有启用可播放的音乐源；请在音乐源设置中启用至少一个源。');
@@ -47,7 +73,6 @@ async function resolveCustomTrack(track: Track, failedProviders: readonly string
   try { lxPlatform = JSON.parse(atob((track.remoteId || '').replace(/-/g, '+').replace(/_/g, '/'))).source || ''; } catch {}
   const attempted: string[] = [];
   for (const source of sources) {
-    if (failedProviders.includes(source.id)) continue;
     attempted.push(source.manifest.name);
     const direct = source.id === track.providerId
       ? track
@@ -58,14 +83,17 @@ async function resolveCustomTrack(track: Track, failedProviders: readonly string
     const tryCandidate = async (candidate: Track): Promise<Track | null> => {
       if (!candidate.remoteId || seen.has(candidate.remoteId)) return null;
       seen.add(candidate.remoteId);
-      try {
-        const resolved = await bridge.resolve(candidate, quality, track.id, true);
-        if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) {
-          return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id };
+      for (const tier of availableQualities(source, candidate, preference)) {
+        if (failedAttempts.includes(`${source.id}:${tier}`)) continue;
+        try {
+          const resolved = await bridge.resolve(candidate, tier, track.id, true);
+          if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) {
+            return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id, playbackQuality: tier };
+          }
+          failures.push(`${source.manifest.name}的${tier}音质无法播放`);
+        } catch (reason) {
+          failures.push(`${source.manifest.name}的${tier}音质：${reason instanceof Error ? reason.message : String(reason)}`);
         }
-        failures.push(`${source.manifest.name}返回了无法播放的音频`);
-      } catch (reason) {
-        failures.push(`${source.manifest.name}：${reason instanceof Error ? reason.message : String(reason)}`);
       }
       return null;
     };
@@ -196,9 +224,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    player.setTrackResolver(async (track, failedProviders) => {
+    player.setTrackResolver(async (track, failedAttempts) => {
       if (track.source === 'online') throw new Error('旧在线来源已移除；请等待自定义源接入');
-      if (track.source === 'custom') return resolveCustomTrack(track, failedProviders);
+      if (track.source === 'custom') return resolveCustomTrack(track, failedAttempts);
       return track;
     });
     const unsubscribeLibrary = library.subscribe(setCollection);

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, FilePlus2, FolderOpen, Globe2, Pause, Play, Power, Trash2 } from 'lucide-react';
+import { FilePlus2, FolderOpen, Globe2, Pause, Play, Power, Trash2 } from 'lucide-react';
 import type { AudioCacheStats, DownloadTask, InstalledSource, SourcePreview } from '../core/types';
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
@@ -8,7 +8,7 @@ export default function SourceSettings() {
   const [sources, setSources] = useState<InstalledSource[]>([]);
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [cache, setCache] = useState<AudioCacheStats | null>(null);
-  const [quality, setQuality] = useState(() => localStorage.getItem('zenix.onlineQuality') || 'high');
+  const [quality, setQuality] = useState(() => localStorage.getItem('zenix.onlineQuality') || 'auto');
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -96,8 +96,8 @@ export default function SourceSettings() {
     finally { setBusy(false); }
   };
   return <div className="zenix-source-settings">
-    <div className="yz-settings-intro"><h2>音乐源</h2><p>播放时按下方顺序逐个尝试；解析或音频无效时自动换下一个源。用上下箭头调整优先级，本地曲库始终可用。</p></div>
-    <label className="zenix-source-quality">首选音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="standard">标准</option><option value="high">高音质</option><option value="lossless">无损</option></select></label>
+    <div className="yz-settings-intro"><h2>音乐源</h2><p>按首次接入时间依次尝试。每个源先获取所选音质，再逐级降低；该源仍不可播放时才切换到下一个。更新脚本不会改变顺序。</p></div>
+    <label className="zenix-source-quality">播放音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="auto">自动 · 优先最高可用</option><option value="standard">标准</option><option value="high">最高高音质</option><option value="lossless">最高无损</option></select></label>
     {cache && <section className="zenix-audio-cache" aria-label="自动缓存">
       <div><strong>自动缓存</strong><small>播放过的在线歌曲会缓存在本机，再次播放优先读取缓存。近期播放记录和主动下载独立保存。</small></div>
       <label>启用<input type="checkbox" checked={cache.enabled} onChange={event => void configureCache({ enabled: event.target.checked })} /></label>
@@ -123,14 +123,12 @@ export default function SourceSettings() {
     <div className="zenix-source-list">
       {sources.length === 0 && <div className="zenix-source-empty">还没有音乐源。添加后即可搜索在线歌曲。</div>}
       {sources.map((source, index) => <section key={source.id} className={`zenix-source-card${source.enabled ? '' : ' is-disabled'}`}>
-        <div className="zenix-source-card-head"><span className="zenix-source-rank">{String(index + 1).padStart(2, '0')}</span><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? 'LX 脚本' : 'Zenix 源'} · v{source.manifest.version}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
+        <div className="zenix-source-card-head"><span className="zenix-source-rank">{String(index + 1).padStart(2, '0')}</span><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? 'LX 脚本' : 'Zenix 源'} · {source.manifest.version.startsWith('v') ? source.manifest.version : `v${source.manifest.version}`} · 接入于 {new Date(source.installedAt).toLocaleString()}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
         <p>{source.manifest.capabilities.map(capability => ({ search: '搜索', resolvePlayback: '播放', lyrics: '歌词', artwork: '封面', resolveDownload: '下载' })[capability as 'search' | 'resolvePlayback' | 'lyrics' | 'artwork' | 'resolveDownload'] || capability).join(' · ')}</p>
         <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · LX 脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
         <div className="zenix-source-actions">
           {source.manifest.settings.length > 0 && <button onClick={() => void openSettings(source)} disabled={busy}>{editing === source.id ? '收起选项' : '源选项'}</button>}
-          <button title="上移" aria-label={`上移 ${source.manifest.name}`} onClick={() => void run(() => window.yzqxy!.sources.move(source.id, -1))} disabled={busy || index === 0}><ArrowUp size={14} /></button>
-          <button title="下移" aria-label={`下移 ${source.manifest.name}`} onClick={() => void run(() => window.yzqxy!.sources.move(source.id, 1))} disabled={busy || index === sources.length - 1}><ArrowDown size={14} /></button>
           <button title="移除" aria-label={`移除 ${source.manifest.name}`} onClick={() => { if (window.confirm(`移除音乐源“${source.manifest.name}”？已收藏的歌曲记录会保留。`)) void run(() => window.yzqxy!.sources.remove(source.id)); }} disabled={busy}><Trash2 size={14} /></button>
         </div>
         {editing === source.id && <form className="zenix-source-options" onSubmit={event => void saveSettings(event, source.id)}>

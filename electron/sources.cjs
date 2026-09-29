@@ -212,10 +212,19 @@ class SourceManager {
         try { return { ...record, manifest: record.kind === 'lx' ? validateLxManifest(record.manifest) : validateManifest(record.manifest), enabled: record.enabled === true }; } catch { return null; }
       }).filter(Boolean);
       this.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+      let migrated = false;
+      this.records = await Promise.all(this.records.map(async (record, index) => {
+        if (Number.isFinite(record.installedAt) && record.installedAt > 0) return record;
+        const stat = await fs.stat(path.join(this.folder, record.id)).catch(() => null);
+        migrated = true;
+        return { ...record, installedAt: stat?.birthtimeMs || Date.now() + index };
+      }));
+      this.records.sort((left, right) => left.installedAt - right.installedAt);
+      if (migrated) await this.save();
     } catch { this.records = []; }
     return this.list();
   }
-  list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256 }) => ({ id, kind: kind || 'zenix', manifest, enabled, origin, sha256, status: this.errors.has(id) ? 'error' : this.runners.has(id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
+  list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256, installedAt }) => ({ id, kind: kind || 'zenix', manifest, enabled, origin, sha256, installedAt, status: this.errors.has(id) ? 'error' : this.runners.has(id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
   async save() {
     const temp = `${this.indexFile}.${randomUUID()}.tmp`;
     await fs.writeFile(temp, JSON.stringify({ records: this.records, settings: this.settings }), 'utf8');
@@ -235,7 +244,8 @@ class SourceManager {
     const script = sourcePackage.script;
     if (typeof script !== 'string' || !script.includes('zenix.register') || Buffer.byteLength(script, 'utf8') > MAX_PACKAGE) throw new Error('音乐源脚本无效');
     const sha256 = createHash('sha256').update(packageText).digest('hex');
-    const next = { id: manifest.id, manifest, enabled: true, origin, sha256 };
+    const index = this.records.findIndex(item => item.id === manifest.id);
+    const next = { id: manifest.id, manifest, enabled: true, origin, sha256, installedAt: this.records[index]?.installedAt || Date.now() };
     const runner = new SourceRunner(this, next);
     await runner.start(script);
     runner.destroy();
@@ -244,7 +254,6 @@ class SourceManager {
     await fs.writeFile(path.join(target, 'manifest.json'), JSON.stringify(manifest), 'utf8');
     await fs.writeFile(path.join(target, 'index.js'), script, 'utf8');
     const old = this.runners.get(manifest.id); old?.destroy(); this.runners.delete(manifest.id);
-    const index = this.records.findIndex(item => item.id === manifest.id);
     if (index >= 0) this.records[index] = next; else this.records.push(next);
     await this.save();
     return this.list();
@@ -281,13 +290,13 @@ class SourceManager {
     let manifest;
     try { await runner.start(script); manifest = lxManifest(origin, script, runner.lxInfo); }
     finally { runner.destroy(); }
-    const next = { kind: 'lx', id, manifest, enabled: true, origin, sha256: createHash('sha256').update(script).digest('hex') };
+    const index = this.records.findIndex(item => item.id === id);
+    const next = { kind: 'lx', id, manifest, enabled: true, origin, sha256: createHash('sha256').update(script).digest('hex'), installedAt: this.records[index]?.installedAt || Date.now() };
     const target = path.join(this.folder, id, manifest.version);
     await fs.mkdir(target, { recursive: true });
     await fs.writeFile(path.join(target, 'manifest.json'), JSON.stringify(manifest), 'utf8');
     await fs.writeFile(path.join(target, 'index.js'), script, 'utf8');
     this.runners.get(id)?.destroy(); this.runners.delete(id);
-    const index = this.records.findIndex(item => item.id === id);
     if (index >= 0) this.records[index] = next; else this.records.push(next);
     if (!manifest.lxPlatforms[this.settings[id]?.lxCatalog]) delete this.settings[id];
     await this.save();
@@ -328,13 +337,6 @@ class SourceManager {
   getSettings(id) {
     const record = this.records.find(item => item.id === id); if (!record) throw new Error('音乐源不存在');
     return Object.fromEntries(record.manifest.settings.map(field => [field.key, this.settings[id]?.[field.key] ?? field.default]));
-  }
-  async move(id, direction) {
-    const index = this.records.findIndex(item => item.id === id);
-    const target = index + (direction < 0 ? -1 : 1);
-    if (index < 0 || target < 0 || target >= this.records.length) return this.list();
-    [this.records[index], this.records[target]] = [this.records[target], this.records[index]];
-    await this.save(); return this.list();
   }
   async remove(id) {
     const index = this.records.findIndex(item => item.id === id); if (index < 0) return this.list();
@@ -510,7 +512,7 @@ class SourceManager {
     }
     const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     const record = this.record(id);
-    quality = record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
+    quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
     const result = record.kind === 'lx' ? await this.lxPlayback(id, remoteId, quality) : await this.call(id, 'resolvePlayback', { remoteId, quality });
     if (!result || typeof result.url !== 'string') throw new Error('音乐源没有返回播放地址');
     if (record.kind === 'lx') await checkLxUrl(result.url); else checkUrl(result.url, record.manifest.network.mediaHosts);
@@ -520,17 +522,23 @@ class SourceManager {
     setTimeout(() => this.sessions.delete(token), 6 * 60 * 60 * 1000).unref();
     return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id };
   }
-  async lxPlayback(id, remoteId, quality) {
+  async lxPlayback(id, remoteId, quality, allowLower = false) {
     const record = this.record(id);
     const musicInfo = lxCatalog.readInfo(remoteId);
     const supported = record.manifest.lxPlatforms[musicInfo.source]?.qualitys || [];
     if (!supported.length) throw new Error(`LX 源不支持 ${musicInfo.source} 平台`);
-    const order = quality === 'lossless' ? ['flac', 'flac24bit', '320k', '128k'] : quality === 'standard' ? ['128k', '320k', 'flac'] : ['320k', '128k', 'flac'];
-    const type = order.find(item => supported.includes(item)) || supported[0];
-    const answer = await this.call(id, 'resolvePlayback', { source: musicInfo.source, action: 'musicUrl', info: { type, musicInfo } });
-    const url = typeof answer === 'string' ? answer : answer?.url;
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('LX 源未返回可播放地址');
-    return { url, actualQuality: type, headers: answer?.headers };
+    const order = quality === 'lossless24' ? ['flac24bit'] : quality === 'lossless' ? ['flac'] : quality === 'standard' ? ['128k'] : ['320k'];
+    if (allowLower) order.push(...(quality === 'lossless24' ? ['flac', '320k', '128k'] : quality === 'lossless' ? ['320k', '128k'] : quality === 'high' ? ['128k'] : []));
+    let lastError;
+    for (const type of order.filter(item => supported.includes(item))) {
+      try {
+        const answer = await this.call(id, 'resolvePlayback', { source: musicInfo.source, action: 'musicUrl', info: { type, musicInfo } });
+        const url = typeof answer === 'string' ? answer : answer?.url;
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('LX 源未返回可播放地址');
+        return { url, actualQuality: type, headers: answer?.headers };
+      } catch (error) { lastError = error; }
+    }
+    throw lastError || new Error(`LX 源不支持所选 ${quality} 音质`);
   }
   mediaHeaders(raw) {
     const headers = {};
@@ -543,8 +551,10 @@ class SourceManager {
   async downloadInfo(track, quality = 'high') {
     if (!track?.providerId || !track?.remoteId) throw new Error('歌曲缺少来源 ID');
     const record = this.record(track.providerId);
-    quality = record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
-    const result = record.kind === 'lx' ? await this.lxPlayback(track.providerId, track.remoteId, quality) : await this.call(track.providerId, 'resolveDownload', { remoteId: track.remoteId, quality });
+    if (quality === 'auto') quality = record.kind === 'lx' ? 'lossless24' : ['lossless', 'high', 'standard'].find(tier => record.manifest.qualities.includes(tier)) || record.manifest.qualities[0] || 'high';
+    if (record.kind === 'lx' && quality === 'lossless') quality = 'lossless24';
+    quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
+    const result = record.kind === 'lx' ? await this.lxPlayback(track.providerId, track.remoteId, quality, true) : await this.call(track.providerId, 'resolveDownload', { remoteId: track.remoteId, quality });
     if (record.kind === 'lx') await checkLxUrl(result?.url); else checkUrl(result?.url, record.manifest.network.mediaHosts);
     return { url: result.url, patterns: record.kind === 'lx' ? null : record.manifest.network.mediaHosts, headers: this.mediaHeaders(result.headers), format: boundedText(result.format, 10), size: Number(result.size) || 0 };
   }

@@ -18,6 +18,7 @@ export interface Track {
   remoteId?: string;
   actualQuality?: string;
   playbackProviderId?: string;
+  playbackQuality?: string;
   availability?: 'playable' | 'unavailable';
 }
 
@@ -93,7 +94,7 @@ export type SourceManifest = {
   settings: { key: string; label: string; type: 'text' | 'select'; options: string[]; default: string }[];
   lxPlatforms?: Record<string, { name: string; qualitys: string[] }>;
 };
-export type InstalledSource = { id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; status: string; lastError: string };
+export type InstalledSource = { id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; installedAt: number; status: string; lastError: string };
 export type SourcePreview = { token: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
 export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type DownloadTask = { id: string; track: Track; quality: string; status: 'queued' | 'resolving' | 'downloading' | 'paused' | 'completed' | 'failed'; received: number; total: number; error: string };
@@ -140,7 +141,6 @@ export interface DesktopBridge {
     setEnabled(id: string, enabled: boolean): Promise<InstalledSource[]>;
     configure(id: string, values: Record<string, string>): Promise<Record<string, string>>;
     getSettings(id: string): Promise<Record<string, string>>;
-    move(id: string, direction: number): Promise<InstalledSource[]>;
     remove(id: string): Promise<InstalledSource[]>;
     search(id: string, keyword: string, cursor?: string | null, pageSize?: number): Promise<SourceSearchPage>;
     cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string } | null>;
