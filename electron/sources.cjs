@@ -302,7 +302,7 @@ class SourceManager {
   async importUrl(raw) {
     const url = new URL(raw);
     if (url.protocol !== 'https:') throw new Error('网络导入只接受 HTTPS 地址');
-    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(25000) });
     if (!response.ok || new URL(response.url).protocol !== 'https:') throw new Error('无法下载音乐源包');
     const body = (await readLimited(response, MAX_PACKAGE)).toString('utf8');
     return this.previewPackage(body, { kind: 'url', label: /\.js$/i.test(url.pathname) ? url.href : url.origin });

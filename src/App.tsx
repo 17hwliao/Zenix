@@ -15,6 +15,29 @@ function sourcePlaybackMessage(reason: unknown, sourceName: string): string {
   return `${sourceName}无法提供这首歌的播放地址：${clean || '未知错误'}`;
 }
 
+function sameSong(original: Track, candidate: Track): boolean {
+  const key = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  return key(original.title) === key(candidate.title)
+    && key(original.artist) === key(candidate.artist)
+    && (!original.duration || !candidate.duration || Math.abs(original.duration - candidate.duration) <= 8);
+}
+
+async function hasPlayableAudio(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { headers: { Range: 'bytes=0-1023' }, signal: AbortSignal.timeout(5000) });
+    if (!response.ok || /(?:text\/html|application\/json)/i.test(response.headers.get('content-type') || '') || !response.body) return false;
+    const reader = response.body.getReader();
+    try {
+      const { value } = await reader.read();
+      if (!value || value.length < 4) return false;
+      const head = String.fromCharCode(...value.slice(0, 4));
+      return head.startsWith('ID3') || head === 'fLaC' || head === 'OggS' || head === 'RIFF'
+        || head === 'ftyp' || String.fromCharCode(...value.slice(4, 8)) === 'ftyp'
+        || (value[0] === 0xff && (value[1] & 0xe0) === 0xe0);
+    } finally { void reader.cancel().catch(() => {}); }
+  } catch { return false; }
+}
+
 export default function App() {
   const [introVisible, setIntroVisible] = useState(true);
   const [appearance, setAppearance] = useState<AppearanceState>({ completed: true, background: null });
@@ -129,6 +152,20 @@ export default function App() {
           return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: resolved.coverUrl || track.coverUrl };
         } catch (reason) {
           const sources = await window.yzqxy.sources.list().catch(() => []);
+          for (const source of sources) {
+            if (!source.enabled || source.id === track.providerId || !source.manifest.capabilities.includes('resolvePlayback')) continue;
+            try {
+              const page = await window.yzqxy.sources.search(source.id, track.title, null, 50);
+              const matches = page.items.filter(candidate => sameSong(track, candidate))
+                .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
+              for (const candidate of matches.slice(0, 2)) {
+                try {
+                  const resolved = await window.yzqxy.sources.resolve(candidate, localStorage.getItem('zenix.onlineQuality') || 'high');
+                  if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: track.coverUrl || resolved.coverUrl };
+                } catch { /* Try another exact recording or enabled source. */ }
+              }
+            } catch { /* An unavailable fallback source must not hide the original error. */ }
+          }
           const sourceName = sources.find(source => source.id === track.providerId)?.manifest.name || '当前音乐源';
           throw new Error(sourcePlaybackMessage(reason, sourceName));
         }

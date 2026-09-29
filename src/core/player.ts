@@ -69,7 +69,10 @@ class PlayerController {
     this.audio.addEventListener('ended', () => void this.onEnded());
     this.audio.addEventListener('error', () => {
       const error = this.audio.error;
-      this.update({ playing: false, error: error ? `无法播放此音频（错误 ${error.code}）` : '无法播放此音频' });
+      const message = this.state.track?.source === 'custom'
+        ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
+        : error ? `无法播放此音频（错误 ${error.code}）` : '无法播放此音频';
+      this.update({ playing: false, error: message });
     });
 
     if (typeof window !== 'undefined') {
@@ -207,7 +210,10 @@ class PlayerController {
       await this.audio.play();
     } catch (error) {
       if (request !== this.playbackToken) return;
-      this.update({ playing: false, error: error instanceof Error ? error.message : '无法开始播放' });
+      const message = this.state.track?.source === 'custom' && error instanceof DOMException && error.name === 'NotSupportedError'
+        ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
+        : error instanceof Error ? error.message : '无法开始播放';
+      this.update({ playing: false, error: message });
     }
   }
 

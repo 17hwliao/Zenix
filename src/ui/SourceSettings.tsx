@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowDown, ArrowUp, FilePlus2, FolderOpen, Globe2, Pause, Play, Power, Trash2 } from 'lucide-react';
 import type { DownloadTask, InstalledSource, SourcePreview } from '../core/types';
+import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
 
 export default function SourceSettings() {
@@ -49,6 +50,20 @@ export default function SourceSettings() {
     const token = preview.token;
     void run(async () => { const next = await window.yzqxy!.sources.confirmImport(token); setPreview(null); setUrl(''); return next; });
   };
+  const installPreset = async (preset: LxPreset) => {
+    if (!preset.url || !window.yzqxy?.sources) return;
+    setBusy(true); setError('');
+    let token = '';
+    try {
+      const next = await window.yzqxy.sources.importUrl(preset.url);
+      token = next.token;
+      setSources(await window.yzqxy.sources.confirmImport(token));
+    } catch (reason) {
+      if (token) void window.yzqxy.sources.cancelImport(token);
+      setError(`${preset.name}添加失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally { setBusy(false); }
+  };
+  const presetInstalled = (preset: LxPreset) => sources.find(source => source.origin.label === preset.url || source.origin.label.includes(`/lx-music-source/main/${preset.key}/latest.js`));
   const openSettings = async (source: InstalledSource) => {
     if (editing === source.id) { setEditing(null); return; }
     try { setValues(await window.yzqxy!.sources.getSettings(source.id)); setEditing(source.id); }
@@ -63,6 +78,13 @@ export default function SourceSettings() {
   return <div className="zenix-source-settings">
     <div className="yz-settings-intro"><h2>音乐源</h2><p>添加你信任的源，在线音乐会出现在搜索中。本地曲库始终可用。</p></div>
     <label className="zenix-source-quality">首选音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="standard">标准</option><option value="high">高音质</option><option value="lossless">无损</option></select></label>
+    <section className="zenix-source-presets" aria-label="LX 音乐源快捷添加">
+      <div className="zenix-source-presets-head"><strong>快捷添加 LX 源</strong><small>直接从上游下载最新脚本；播放效果以实际服务为准。</small></div>
+      <div className="zenix-source-preset-list">{LX_PRESETS.map(preset => {
+        const installed = presetInstalled(preset);
+        return <div className="zenix-source-preset" key={preset.key}><div><strong>{preset.name}</strong><small>{preset.description}</small></div><button type="button" disabled={busy || !preset.url} onClick={() => void installPreset(preset)}>{!preset.url ? '链接失效' : installed ? '重新获取' : '一键添加'}</button></div>;
+      })}</div>
+    </section>
     <div className="zenix-source-import">
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFile())} disabled={busy || !window.yzqxy?.sources}><FilePlus2 size={16} />导入源包 / LX 脚本</button>
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFolder())} disabled={busy || !window.yzqxy?.sources}><FolderOpen size={16} />源文件夹</button>
