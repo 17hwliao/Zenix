@@ -383,7 +383,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 
 .yz-settings-layer { position: absolute; z-index: 70; inset: 0; }
 .yz-settings-backdrop { position: absolute; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(0,0,0,.62); backdrop-filter: blur(15px); }
-.yz-settings-modal { width: min(510px,100%); max-height: min(720px,calc(100dvh - 44px)); overflow-y: auto; padding: 22px 25px 16px; border: 1px solid rgba(255,255,255,.11); border-radius: 27px; background: #141416; box-shadow: 0 24px 90px rgba(0,0,0,.65); scrollbar-width: thin; }
+.yz-settings-modal { width: min(510px,100%); max-height: min(720px,calc(100dvh - 44px)); overflow-y: auto; padding: 22px 25px 16px; border: 1px solid rgba(255,255,255,.11); border-radius: 27px; background: #141416; box-shadow: 0 24px 90px rgba(0,0,0,.65); scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.26) transparent; }
 .yz-settings-top { position: relative; display: flex; justify-content: flex-start; align-items: center; margin-bottom: 23px; }
 .yz-settings-tabs { display: flex; gap: 2px; height: 36px; padding: 3px; border-radius: 100px; background: rgba(255,255,255,.08); }
 .yz-settings-tabs button { min-width: 72px; padding: 0 16px; border: 0; border-radius: 100px; background: none; color: rgba(255,255,255,.6); font-size: 12px; font-weight: 660; }
