@@ -90,9 +90,10 @@ export type SourceManifest = {
   id: string; name: string; version: string; capabilities: string[]; qualities: string[];
   network: { apiHosts: string[]; mediaHosts: string[]; artworkHosts: string[] };
   settings: { key: string; label: string; type: 'text' | 'select'; options: string[]; default: string }[];
+  lxPlatforms?: Record<string, { name: string; qualitys: string[] }>;
 };
-export type InstalledSource = { id: string; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; status: string; lastError: string };
-export type SourcePreview = { token: string; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
+export type InstalledSource = { id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; status: string; lastError: string };
+export type SourcePreview = { token: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
 export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type DownloadTask = { id: string; track: Track; quality: string; status: 'queued' | 'resolving' | 'downloading' | 'paused' | 'completed' | 'failed'; received: number; total: number; error: string };
 
