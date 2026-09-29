@@ -489,11 +489,15 @@ class SourceManager {
     }).filter(Boolean);
     return { items, nextCursor: result.nextCursor == null ? null : boundedText(result.nextCursor, 300) };
   }
-  async resolve(track, quality = 'high') {
+  async resolve(track, quality = 'high', cacheAsId = '') {
     const id = track?.providerId, remoteId = track?.remoteId;
     if (!id || !remoteId) throw new Error('歌曲缺少来源 ID');
     const coverUrl = id.startsWith('lx.') ? this.makeCoverUrl(id, remoteId) : track.coverUrl;
     if (await this.downloads?.offlinePath(track.id)) return { audioUrl: `yzqxy://offline/${encodeURIComponent(track.id)}`, actualQuality: 'offline', coverUrl };
+    const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
+    const cached = await this.audioCache?.find(cacheId, quality) || await this.audioCache?.find(track.id, quality);
+    if (cached && cacheId !== track.id) await this.audioCache?.link(cacheId, quality, cached.key);
+    if (cached) return { audioUrl: `yzqxy://cached-audio/${cached.key}`, actualQuality: '本地缓存', coverUrl };
     const record = this.record(id);
     quality = record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
     const result = record.kind === 'lx' ? await this.lxPlayback(id, remoteId, quality) : await this.call(id, 'resolvePlayback', { remoteId, quality });
@@ -501,7 +505,7 @@ class SourceManager {
     if (record.kind === 'lx') await checkLxUrl(result.url); else checkUrl(result.url, record.manifest.network.mediaHosts);
     const token = randomUUID();
     const headers = this.mediaHeaders(result.headers);
-    this.sessions.set(token, { id, remoteId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
+    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
     setTimeout(() => this.sessions.delete(token), 6 * 60 * 60 * 1000).unref();
     return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl };
   }
@@ -554,6 +558,10 @@ class SourceManager {
       const value = response.headers.get(key); if (value) outgoing.set(key, value);
     }
     outgoing.set('Access-Control-Allow-Origin', '*');
+    const range = request.headers.get('range') || '';
+    if (request.method !== 'HEAD' && [200, 206].includes(response.status) && (!range || /^bytes=\d+-$/.test(range))) {
+      this.audioCache?.schedule(session.trackId, session.quality, signal => fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { headers: session.headers, signal }));
+    }
     return new Response(request.method === 'HEAD' ? null : response.body, { status: response.status, headers: outgoing });
   }
   async refresh(session) {

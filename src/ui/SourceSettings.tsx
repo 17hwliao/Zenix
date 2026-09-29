@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowDown, ArrowUp, FilePlus2, FolderOpen, Globe2, Pause, Play, Power, Trash2 } from 'lucide-react';
-import type { DownloadTask, InstalledSource, SourcePreview } from '../core/types';
+import type { AudioCacheStats, DownloadTask, InstalledSource, SourcePreview } from '../core/types';
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
 
 export default function SourceSettings() {
   const [sources, setSources] = useState<InstalledSource[]>([]);
   const [downloads, setDownloads] = useState<DownloadTask[]>([]);
+  const [cache, setCache] = useState<AudioCacheStats | null>(null);
   const [quality, setQuality] = useState(() => localStorage.getItem('zenix.onlineQuality') || 'high');
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
@@ -20,6 +21,16 @@ export default function SourceSettings() {
     void bridge.list().then(setSources).catch(reason => setError(String(reason)));
     return bridge.onChanged(setSources);
   }, []);
+  useEffect(() => { void window.yzqxy?.cache.stats().then(setCache).catch(() => {}); }, []);
+  const configureCache = async (options: { enabled?: boolean; limitMiB?: number }) => {
+    try { setCache(await window.yzqxy!.cache.configure(options)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+  };
+  const clearCache = async () => {
+    if (!window.confirm('清除自动缓存的音频？近期播放记录、收藏、歌单和主动下载的文件都会保留。')) return;
+    try { setCache(await window.yzqxy!.cache.clear()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+  };
   useEffect(() => {
     const bridge = window.yzqxy?.sources;
     if (!bridge) return;
@@ -78,6 +89,13 @@ export default function SourceSettings() {
   return <div className="zenix-source-settings">
     <div className="yz-settings-intro"><h2>音乐源</h2><p>添加你信任的源，在线音乐会出现在搜索中。本地曲库始终可用。</p></div>
     <label className="zenix-source-quality">首选音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="standard">标准</option><option value="high">高音质</option><option value="lossless">无损</option></select></label>
+    {cache && <section className="zenix-audio-cache" aria-label="自动缓存">
+      <div><strong>自动缓存</strong><small>播放过的在线歌曲会缓存在本机，再次播放优先读取缓存。近期播放记录和主动下载独立保存。</small></div>
+      <label>启用<input type="checkbox" checked={cache.enabled} onChange={event => void configureCache({ enabled: event.target.checked })} /></label>
+      <label>容量上限<select value={cache.limitMiB} onChange={event => void configureCache({ limitMiB: Number(event.target.value) })}><option value={512}>512 MB</option><option value={1024}>1 GB</option><option value={2048}>2 GB</option><option value={5120}>5 GB</option></select></label>
+      <small>已缓存 {cache.trackCount} 首 · {(cache.usedBytes / 1024 / 1024).toFixed(1)} MB；超过容量时先清理最久未使用的歌曲，30 天未使用的缓存会过期。</small>
+      <button type="button" onClick={() => void clearCache()}>清除自动缓存</button>
+    </section>}
     <section className="zenix-source-presets" aria-label="LX 音乐源快捷添加">
       <div className="zenix-source-presets-head"><strong>快捷添加 LX 源</strong><small>直接从上游下载最新脚本；播放效果以实际服务为准。</small></div>
       <div className="zenix-source-preset-list">{LX_PRESETS.map(preset => {

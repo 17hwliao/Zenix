@@ -71,6 +71,7 @@ export default function LatticePlayer({
   const slots = useMemo(() => stickerSlotsForCount(wallTracks.length), [wallTracks.length]);
   const activeIndex = wallTracks.findIndex(item => item.id === track.id);
   const queueSignature = queue.map(item => item.id).join('|');
+  const displaySignature = displayTracks?.map(item => item.id).join('|') ?? '';
   const focusedTrack = wallTracks[selectedSlot] ?? track;
   const focusedIsCurrent = focusedTrack.id === track.id;
   const cellPitch = Math.max(72, Math.min(112, viewport.width / 14.5, viewport.height / 8.8));
@@ -119,7 +120,7 @@ export default function LatticePlayer({
   }, []);
   useEffect(() => { focusSlot(selectedSlot); }, [focusSlot]);
   useEffect(() => { if (displayTracks === undefined) focusSlot(Math.max(0, queueIndex >= 0 ? queueIndex : activeIndex)); }, [queueSignature, displayTracks === undefined]);
-  useEffect(() => { if (displayTracks !== undefined && slots.length) focusSlot(0); }, [displayTracks === undefined, slots.length]);
+  useEffect(() => { if (displayTracks !== undefined && slots.length) focusSlot(0); }, [displayTracks === undefined, displaySignature, slots.length]);
 
   // Following playback does not interrupt a poster selected for browsing.
   useEffect(() => {

@@ -160,7 +160,7 @@ export default function App() {
                 .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
               for (const candidate of matches.slice(0, 2)) {
                 try {
-                  const resolved = await window.yzqxy.sources.resolve(candidate, localStorage.getItem('zenix.onlineQuality') || 'high');
+                  const resolved = await window.yzqxy.sources.resolve(candidate, localStorage.getItem('zenix.onlineQuality') || 'high', track.id);
                   if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: track.coverUrl || resolved.coverUrl };
                 } catch { /* Try another exact recording or enabled source. */ }
               }

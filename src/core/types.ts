@@ -96,8 +96,14 @@ export type InstalledSource = { id: string; kind?: 'zenix' | 'lx'; manifest: Sou
 export type SourcePreview = { token: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
 export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type DownloadTask = { id: string; track: Track; quality: string; status: 'queued' | 'resolving' | 'downloading' | 'paused' | 'completed' | 'failed'; received: number; total: number; error: string };
+export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number };
 
 export interface DesktopBridge {
+  cache: {
+    stats(): Promise<AudioCacheStats>;
+    configure(options: { enabled?: boolean; limitMiB?: number }): Promise<AudioCacheStats>;
+    clear(): Promise<AudioCacheStats>;
+  };
   desktopLyrics: {
     toggle(): Promise<boolean>;
     isVisible(): Promise<boolean>;
@@ -136,7 +142,7 @@ export interface DesktopBridge {
     move(id: string, direction: number): Promise<InstalledSource[]>;
     remove(id: string): Promise<InstalledSource[]>;
     search(id: string, keyword: string, cursor?: string | null, pageSize?: number): Promise<SourceSearchPage>;
-    resolve(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string }>;
+    resolve(track: Track, quality?: string, cacheAsId?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     download(track: Track, quality?: string): Promise<DownloadTask[]>;
     downloads(): Promise<DownloadTask[]>;

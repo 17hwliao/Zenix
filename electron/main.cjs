@@ -8,6 +8,7 @@ const { AppearanceStore } = require('./appearance.cjs');
 const { PersonalStore } = require('./personal.cjs');
 const { SourceManager } = require('./sources.cjs');
 const { DownloadManager } = require('./downloads.cjs');
+const { AudioCache } = require('./audio-cache.cjs');
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'yzqxy',
@@ -32,6 +33,7 @@ let appearance = null;
 let personal = null;
 let sourceManager = null;
 let downloadManager = null;
+let audioCache = null;
 
 function broadcast(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
@@ -72,7 +74,7 @@ function mimeType(filePath) {
   }[extension] || 'application/octet-stream';
 }
 
-async function serveFile(filePath, request) {
+async function serveFile(filePath, request, contentType) {
   let stat;
   try {
     stat = await fsp.stat(filePath);
@@ -82,10 +84,10 @@ async function serveFile(filePath, request) {
   }
 
   const headers = new Headers({
-    'Content-Type': mimeType(filePath),
+    'Content-Type': contentType || mimeType(filePath),
     'Accept-Ranges': 'bytes',
     'Access-Control-Allow-Origin': '*',
-    'Cache-Control': AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+    'Cache-Control': contentType || AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())
       ? 'no-store'
       : 'private, max-age=31536000, immutable',
   });
@@ -127,6 +129,10 @@ function registerMediaProtocol() {
     if (url.hostname === 'offline') {
       const filePath = await downloadManager.offlinePath(decodeURIComponent(url.pathname.slice(1)));
       return filePath ? serveFile(filePath, request) : new Response('Not found', { status: 404 });
+    }
+    if (url.hostname === 'cached-audio') {
+      const cached = await audioCache.byKey(url.pathname.slice(1));
+      return cached ? serveFile(cached.path, request, cached.contentType) : new Response('Not found', { status: 404 });
     }
     if (url.hostname === 'source-cover') {
       const parts = url.pathname.split('/').slice(1);
@@ -411,10 +417,13 @@ function registerHandlers() {
   ipcMain.handle('sources:move', (_event, id, direction) => sourceManager.move(String(id || ''), Number(direction) || 0));
   ipcMain.handle('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
   ipcMain.handle('sources:search', (_event, id, keyword, cursor, pageSize) => sourceManager.search(String(id || ''), keyword, cursor, pageSize));
-  ipcMain.handle('sources:resolve', (_event, track, quality) => sourceManager.resolve(track, quality));
+  ipcMain.handle('sources:resolve', (_event, track, quality, cacheAsId) => sourceManager.resolve(track, quality, cacheAsId));
   ipcMain.handle('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   ipcMain.handle('sources:download', (_event, track, quality) => downloadManager.enqueue(track, quality));
   ipcMain.handle('sources:downloads', () => downloadManager.list());
+  ipcMain.handle('cache:stats', () => audioCache.stats());
+  ipcMain.handle('cache:configure', (_event, options) => audioCache.configure(options));
+  ipcMain.handle('cache:clear', () => audioCache.clear());
   ipcMain.handle('sources:pause-download', (_event, id) => downloadManager.pause(String(id || '')));
   ipcMain.handle('sources:resume-download', (_event, id) => downloadManager.resume(String(id || '')));
   ipcMain.handle('sources:show-download', async (_event, id) => {
@@ -503,12 +512,15 @@ app.whenReady().then(async () => {
   personal = new PersonalStore(app.getPath('userData'));
   sourceManager = new SourceManager(app.getPath('userData'), broadcast);
   downloadManager = new DownloadManager(sourceManager, app.getPath('userData'), broadcast);
+  audioCache = new AudioCache(app.getPath('userData'));
   sourceManager.downloads = downloadManager;
+  sourceManager.audioCache = audioCache;
   await library.load();
   await appearance.load();
   await personal.load();
   await sourceManager.load();
   await downloadManager.load();
+  await audioCache.load();
   registerMediaProtocol();
   registerHandlers();
   createWindow();

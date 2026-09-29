@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld('yzqxy', {
     move: (id, direction) => ipcRenderer.invoke('sources:move', id, direction),
     remove: (id) => ipcRenderer.invoke('sources:remove', id),
     search: (id, keyword, cursor, pageSize) => ipcRenderer.invoke('sources:search', id, keyword, cursor, pageSize),
-    resolve: (track, quality) => ipcRenderer.invoke('sources:resolve', track, quality),
+    resolve: (track, quality, cacheAsId) => ipcRenderer.invoke('sources:resolve', track, quality, cacheAsId),
       lyrics: (track) => ipcRenderer.invoke('sources:lyrics', track),
       download: (track, quality) => ipcRenderer.invoke('sources:download', track, quality),
       downloads: () => ipcRenderer.invoke('sources:downloads'),
@@ -55,6 +55,11 @@ contextBridge.exposeInMainWorld('yzqxy', {
       onDownloadsChanged: (callback) => subscribe('downloads:changed', callback),
       openFolder: () => ipcRenderer.invoke('sources:open-folder'),
     onChanged: (callback) => subscribe('sources:changed', callback),
+  },
+  cache: {
+    stats: () => ipcRenderer.invoke('cache:stats'),
+    configure: (options) => ipcRenderer.invoke('cache:configure', options),
+    clear: () => ipcRenderer.invoke('cache:clear'),
   },
   library: {
     load: () => ipcRenderer.invoke('library:load'),
