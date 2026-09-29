@@ -63,7 +63,6 @@ export interface ZenixShellProps {
   repeat?: RepeatMode;
   queue?: TrackView[];
   queueIndex?: number;
-  recentTracks?: TrackView[];
   lyrics?: LyricLineView[];
   playerViewRequestKey?: number | string;
   libraryBusy?: boolean;

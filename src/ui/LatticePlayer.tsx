@@ -6,7 +6,7 @@ import CoverArt from './CoverArt';
 import TrackQuickActions from './TrackQuickActions';
 import { formatTime } from './library';
 import type { PersonalState } from '../core/types';
-import { CENTER_STICKER_SLOT, STICKER_GAP, STICKER_SLOTS, WALL_COLUMNS, WALL_ROWS, expandedStickerLayout } from './stickerMosaic';
+import { STICKER_GAP, expandedStickerLayout, stickerSlotsForCount, type StickerRect } from './stickerMosaic';
 import type { LyricLineView, RepeatMode, TrackView } from './types';
 
 type LatticePlayerProps = {
@@ -17,7 +17,7 @@ type LatticePlayerProps = {
   onCreatePlaylist?: (name: string, track: TrackView) => void;
   queue: TrackView[];
   queueIndex: number;
-  recentTracks: TrackView[];
+  displayTracks?: TrackView[];
   onPlayTrack: (track: TrackView) => void;
   lyrics: LyricLineView[];
   playing: boolean;
@@ -44,10 +44,8 @@ type LatticePlayerProps = {
   onToggleDesktopLyrics?: () => void;
 };
 
-const wrap = (value: number, length: number) => ((value % length) + length) % length;
-
 export default function LatticePlayer({
-  track, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, recentTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
+  track, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
   onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
@@ -56,66 +54,59 @@ export default function LatticePlayer({
   const lyricRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const dragRef = useRef<{ id: number; x: number; y: number; cameraX: number; cameraY: number; dragged: boolean } | null>(null);
   const didDragRef = useRef(false);
-  const offsetRef = useRef<number | null>(null);
-  const queueSignatureRef = useRef<string | null>(null);
   const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lyricResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lyricPreviewRef = useRef<number | null>(null);
   const [lyricPreview, setLyricPreview] = useState<number | null>(null);
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [camera, setCamera] = useState({ x: 0, y: 0 });
-  const [selectedSlot, setSelectedSlot] = useState(CENTER_STICKER_SLOT);
+  const [selectedSlot, setSelectedSlot] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [panning, setPanning] = useState(false);
   const [seekDraft, setSeekDraft] = useState<number | null>(null);
   const seekDraftRef = useRef<number | null>(null);
   const seekDraggingRef = useRef(false);
-  const [, setFocusRevision] = useState(0);
-
-  // The playback queue determines the posters. Songs played from earlier queues remain available.
-  const wallTracks = useMemo(() => {
-    const entries = queue.length ? queue : [track];
-    const ids = new Set(entries.map(item => item.id));
-    const earlier = [...recentTracks].reverse().filter(item => !ids.has(item.id));
-    return [...earlier, ...entries];
-  }, [queue, recentTracks, track]);
+  // Each poster belongs to the visible search result or the current playback queue exactly once.
+  const wallTracks = displayTracks ?? (queue.length ? queue : [track]);
+  const slots = useMemo(() => stickerSlotsForCount(wallTracks.length), [wallTracks.length]);
   const activeIndex = wallTracks.findIndex(item => item.id === track.id);
   const queueSignature = queue.map(item => item.id).join('|');
-  if (queueSignatureRef.current !== queueSignature) {
-    queueSignatureRef.current = queueSignature;
-    offsetRef.current = Math.max(0, queueIndex >= 0 ? wallTracks.length - queue.length + queueIndex : activeIndex) - CENTER_STICKER_SLOT;
-  }
-  const offset = offsetRef.current ?? 0;
-  const slotIndex = (slot: number) => wrap(offset + slot, wallTracks.length);
-  const focusedTrack = wallTracks[slotIndex(selectedSlot)] ?? track;
+  const focusedTrack = wallTracks[selectedSlot] ?? track;
   const focusedIsCurrent = focusedTrack.id === track.id;
   const cellPitch = Math.max(72, Math.min(112, viewport.width / 14.5, viewport.height / 8.8));
-  const wallWidth = WALL_COLUMNS * cellPitch - STICKER_GAP;
-  const wallHeight = WALL_ROWS * cellPitch - STICKER_GAP;
   const total = duration || track.duration || 0;
   const shownPosition = seekDraft ?? position;
   const activeLyric = lyrics.reduce((found, line, index) => position >= line.time ? index : found, -1);
-  const expandedRects = useMemo(() => expandedStickerLayout(selectedSlot), [selectedSlot]);
-
-  const clampCamera = useCallback((x: number, y: number) => ({
-    x: Math.max(Math.min(0, viewport.width - wallWidth), Math.min(0, x)),
-    y: Math.max(Math.min(0, viewport.height - wallHeight), Math.min(0, y)),
-  }), [viewport.width, viewport.height, wallWidth, wallHeight]);
+  const expandedRects = useMemo(() => expandedStickerLayout(selectedSlot, slots), [selectedSlot, slots]);
+  const layoutBounds = useCallback((layout: Map<number, StickerRect>) => {
+    const rects = slots.map((slot, index) => layout.get(index) ?? slot);
+    if (!rects.length) return { left: 0, top: 0, right: 0, bottom: 0 };
+    return {
+      left: Math.min(...rects.map(rect => rect.x)), top: Math.min(...rects.map(rect => rect.y)),
+      right: Math.max(...rects.map(rect => rect.x + rect.columns)), bottom: Math.max(...rects.map(rect => rect.y + rect.rows)),
+    };
+  }, [slots]);
+  const bounds = layoutBounds(expandedRects);
+  const wallWidth = bounds.right * cellPitch;
+  const wallHeight = bounds.bottom * cellPitch;
+  const clampCamera = useCallback((x: number, y: number, target = bounds) => ({
+    x: Math.max(viewport.width / 2 - target.right * cellPitch, Math.min(viewport.width / 2 - target.left * cellPitch, x)),
+    y: Math.max(viewport.height / 2 - target.bottom * cellPitch, Math.min(viewport.height / 2 - target.top * cellPitch, y)),
+  }), [bounds.left, bounds.top, bounds.right, bounds.bottom, cellPitch, viewport.width, viewport.height]);
 
   const focusSlot = useCallback((slot: number) => {
-    const focus = expandedStickerLayout(slot).get(slot);
+    const layout = expandedStickerLayout(slot, slots);
+    const focus = layout.get(slot);
     if (!focus) return;
     setSelectedSlot(slot);
     setPanning(false);
-    setCamera(clampCamera(viewport.width / 2 - (focus.x + focus.columns / 2) * cellPitch + STICKER_GAP / 2, viewport.height / 2 - (focus.y + focus.rows / 2) * cellPitch + STICKER_GAP / 2));
-  }, [cellPitch, clampCamera, viewport.height, viewport.width]);
+    setCamera(clampCamera(viewport.width / 2 - (focus.x + focus.columns / 2) * cellPitch + STICKER_GAP / 2, viewport.height / 2 - (focus.y + focus.rows / 2) * cellPitch + STICKER_GAP / 2, layoutBounds(layout)));
+  }, [cellPitch, clampCamera, layoutBounds, slots, viewport.height, viewport.width]);
 
   const focusCurrent = () => {
     const index = wallTracks.findIndex(item => item.id === track.id);
     if (index < 0) return;
-    offsetRef.current = index - CENTER_STICKER_SLOT;
-    setFocusRevision(value => value + 1);
-    focusSlot(CENTER_STICKER_SLOT);
+    focusSlot(index);
     playUiSound('enter');
   };
 
@@ -127,14 +118,13 @@ export default function LatticePlayer({
     return () => observer.disconnect();
   }, []);
   useEffect(() => { focusSlot(selectedSlot); }, [focusSlot]);
-  useEffect(() => { focusSlot(CENTER_STICKER_SLOT); }, [queueSignature]);
+  useEffect(() => { if (displayTracks === undefined) focusSlot(Math.max(0, queueIndex >= 0 ? queueIndex : activeIndex)); }, [queueSignature, displayTracks === undefined]);
+  useEffect(() => { if (displayTracks !== undefined && slots.length) focusSlot(0); }, [displayTracks === undefined, slots.length]);
 
   // Following playback does not interrupt a poster selected for browsing.
   useEffect(() => {
-    const candidates = STICKER_SLOTS.map((_, slot) => slot).filter(slot => wallTracks[slotIndex(slot)]?.id === track.id);
-    if (!candidates.length) return;
-    const nearest = candidates.reduce((best, slot) => Math.abs(slot - selectedSlot) < Math.abs(best - selectedSlot) ? slot : best);
-    focusSlot(nearest);
+    if (displayTracks !== undefined || activeIndex < 0) return;
+    focusSlot(activeIndex);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track.id]);
 
@@ -232,8 +222,8 @@ export default function LatticePlayer({
   return <div className="yz-lattice">
     <div className="yz-sticker-viewport" ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
       <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: wallWidth, height: wallHeight, transform: `translate3d(${camera.x}px,${camera.y}px,0)` }}>
-        {STICKER_SLOTS.map((tile, slot) => {
-          const itemIndex = slotIndex(slot);
+        {slots.map((tile, slot) => {
+          const itemIndex = slot;
           const item = wallTracks[itemIndex];
           const rect = expandedRects.get(slot) ?? tile;
           const expanded = slot === selectedSlot;

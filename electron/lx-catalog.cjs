@@ -1,4 +1,5 @@
 const { createHash } = require('node:crypto');
+const { inflateSync } = require('node:zlib');
 
 const PLATFORMS = { kw: '酷我', kg: '酷狗', tx: 'QQ 音乐', wy: '网易云', mg: '咪咕' };
 const MAX_INFO = 4096;
@@ -154,4 +155,57 @@ async function artwork(info) {
   return null;
 }
 
-module.exports = { PLATFORMS, readInfo, search, artwork };
+function lyricResult(text, translationText = '') {
+  if (typeof text !== 'string' || !text.trim()) return null;
+  return { text: text.slice(0, 200000), translationText: typeof translationText === 'string' ? translationText.slice(0, 100000) : '', format: 'lrc', source: 'lx' };
+}
+
+async function lyrics(info) {
+  if (info.source === 'kw') {
+    const query = new URLSearchParams({ f: 'web', type: 'lyric', lrcx: '1', rid: String(info.songmid), encode: 'utf8' });
+    const response = await fetch(`https://mlyric.kuwo.cn/mobi.s?${query}`, { signal: AbortSignal.timeout(11000) });
+    if (!response.ok || Number(response.headers.get('content-length')) > 1024 * 1024) return null;
+    const encoded = Buffer.from(await response.arrayBuffer());
+    if (encoded.length > 1024 * 1024 || !encoded.subarray(0, 10).toString('utf8').toLowerCase().startsWith('tp=content')) return null;
+    const start = encoded.indexOf('\r\n\r\n');
+    if (start < 0) return null;
+    const inflated = inflateSync(encoded.subarray(start + 4), { maxOutputLength: 1024 * 1024 });
+    const decoded = Buffer.from(inflated.toString('utf8'), 'base64');
+    const key = Buffer.from('yeelion');
+    for (let index = 0; index < decoded.length; index += 1) decoded[index] ^= key[index % key.length];
+    return lyricResult(decoded.toString('utf8').replace(/<[-\d,]+>/g, ''));
+  }
+  if (info.source === 'wy') {
+    const query = new URLSearchParams({ os: 'pc', id: String(info.songmid), lv: '-1', kv: '-1', tv: '-1' });
+    const data = await json(`https://music.163.com/api/song/lyric?${query}`);
+    return lyricResult(data.lrc?.lyric, data.tlyric?.lyric);
+  }
+  if (info.source === 'kg') {
+    if (!info.hash) return null;
+    const length = String(info.interval || '00:00').split(':').reduce((seconds, part) => seconds * 60 + (Number(part) || 0), 0);
+    const search = new URLSearchParams({ ver: '1', man: 'yes', client: 'pc', keyword: String(info.name || ''), hash: String(info.hash), timelength: String(length), lrctxt: '1' });
+    const found = await json(`https://lyrics.kugou.com/search?${search}`);
+    const candidate = found.candidates?.[0];
+    if (!candidate?.id || !candidate.accesskey) return null;
+    const download = new URLSearchParams({ ver: '1', client: 'pc', id: String(candidate.id), accesskey: String(candidate.accesskey), fmt: 'lrc', charset: 'utf8' });
+    const data = await json(`https://lyrics.kugou.com/download?${download}`);
+    return data.fmt === 'lrc' && typeof data.content === 'string' ? lyricResult(Buffer.from(data.content, 'base64').toString('utf8')) : null;
+  }
+  if (info.source === 'tx') {
+    const query = new URLSearchParams({ songmid: String(info.songmid), g_tk: '5381', loginUin: '0', hostUin: '0', format: 'json', inCharset: 'utf8', outCharset: 'utf-8', platform: 'yqq' });
+    const data = await json(`https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?${query}`, { headers: { Referer: 'https://y.qq.com/portal/player.html' } });
+    const decode = value => typeof value === 'string' ? Buffer.from(value, 'base64').toString('utf8').replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&') : '';
+    return data.code === 0 ? lyricResult(decode(data.lyric), decode(data.trans)) : null;
+  }
+  if (info.source === 'mg' && info.lrcUrl) {
+    const url = new URL(info.lrcUrl);
+    if (url.protocol !== 'https:' || !(url.hostname === 'migu.cn' || url.hostname.endsWith('.migu.cn'))) return null;
+    const response = await fetch(url, { signal: AbortSignal.timeout(11000), headers: { Referer: 'https://app.c.nf.migu.cn/' } });
+    if (!response.ok || Number(response.headers.get('content-length')) > 200000) return null;
+    const data = Buffer.from(await response.arrayBuffer());
+    return data.length <= 200000 ? lyricResult(data.toString('utf8').replace(/^@migu music@\s*/i, '')) : null;
+  }
+  return null;
+}
+
+module.exports = { PLATFORMS, readInfo, search, artwork, lyrics };

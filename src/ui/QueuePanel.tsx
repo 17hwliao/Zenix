@@ -10,12 +10,13 @@ type Props = {
   personal: PersonalState; tracks: TrackView[]; playlists: PlaylistView[];
   queue: TrackView[]; currentTrack: TrackView | null;
   onPlayTrack: (track: TrackView, queue?: TrackView[]) => void;
+  onSetQueue?: (tracks: TrackView[], index: number) => void;
   onRemove: (index: number) => void; onToggleSaved: (kind: 'liked' | 'favorites', track: TrackView) => void;
   onAddToPlaylist: (id: string, track: TrackView) => void; onCreatePlaylist: (name: string, track?: TrackView) => void;
   onOpenManager: () => void; onClose: () => void;
 };
 
-export default function QueuePanel({ personal, tracks, playlists, queue, currentTrack, onPlayTrack, onRemove, onToggleSaved, onAddToPlaylist, onCreatePlaylist, onOpenManager, onClose }: Props) {
+export default function QueuePanel({ personal, tracks, playlists, queue, currentTrack, onPlayTrack, onSetQueue, onRemove, onToggleSaved, onAddToPlaylist, onCreatePlaylist, onOpenManager, onClose }: Props) {
   const [sourceOpen, setSourceOpen] = useState(false);
   const [source, setSource] = useState('queue');
   const [adding, setAdding] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export default function QueuePanel({ personal, tracks, playlists, queue, current
     setSource(id); setSourceOpen(false);
     const list = choices.find(item => item.id === id)?.tracks ?? [];
     if (id !== 'queue' && list[0]) onPlayTrack(list[0], list);
+    else if (id !== 'queue') onSetQueue?.([], 0);
   };
   const makePlaylist = (track?: TrackView) => {
     const name = window.prompt('新歌单名称');

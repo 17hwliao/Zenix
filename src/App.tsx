@@ -16,18 +16,6 @@ export default function App() {
   const [playback, setPlayback] = useState<PlayerState>(player.snapshot);
   const [personal, setPersonal] = useState<PersonalState>({ liked: [], favorites: [], history: [], playlists: [] });
   const [desktopLyricsVisible, setDesktopLyricsVisible] = useState(false);
-  const [recentTracks, setRecentTracks] = useState<Track[]>(() => {
-    try {
-      const saved: unknown = JSON.parse(localStorage.getItem('zenix.recentTracks') || localStorage.getItem('yzqxy.recentTracks') || '[]');
-      if (!Array.isArray(saved)) return [];
-      const seen = new Set<string>();
-      return saved.filter((item): item is Track => {
-        if (typeof item?.id !== 'string' || typeof item?.title !== 'string' || seen.has(item.id)) return false;
-        seen.add(item.id);
-        return true;
-      }).slice(0, 50);
-    } catch { return []; }
-  });
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -154,8 +142,6 @@ export default function App() {
     let active = true;
     setLyrics([]);
     if (playback.track) {
-      const visited = playback.track;
-      setRecentTracks(previous => [visited, ...previous.filter(item => item.id !== visited.id)].slice(0, 50));
       const request = playback.track.source === 'online' ? Promise.resolve([])
         : playback.track.source === 'custom'
           ? window.yzqxy?.sources.lyrics(playback.track).then(raw => raw ? parseLyrics(raw) : []) ?? Promise.resolve([])
@@ -168,12 +154,6 @@ export default function App() {
     }
     return () => { active = false; };
   }, [playback.track?.id]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('zenix.recentTracks', JSON.stringify(recentTracks.map(item => item.source === 'online' || item.source === 'custom' ? { ...item, audioUrl: undefined } : item)));
-    } catch { /* Browsing history is optional when storage is unavailable. */ }
-  }, [recentTracks]);
 
   const importFolder = async () => {
     setLibraryBusy(true);
@@ -281,7 +261,6 @@ export default function App() {
       repeat={playback.repeat}
       queue={playback.queue}
       queueIndex={playback.queueIndex}
-      recentTracks={recentTracks}
       lyrics={lyrics}
       libraryBusy={libraryBusy}
       onPlayTrack={(track, queue) => { void playTrack(track as Track, queue as Track[] | undefined); }}

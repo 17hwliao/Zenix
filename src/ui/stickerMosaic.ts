@@ -74,6 +74,21 @@ function makeSlots(): StickerSlot[] {
 export const STICKER_SLOTS = makeSlots();
 export const CENTER_STICKER_SLOT = STICKER_SLOTS.findIndex(slot => slot.blockX === 1 && slot.blockY === 1);
 
+const centeredSlots = [...STICKER_SLOTS].sort((a, b) => {
+  if (a === STICKER_SLOTS[CENTER_STICKER_SLOT]) return -1;
+  if (b === STICKER_SLOTS[CENTER_STICKER_SLOT]) return 1;
+  const distance = (slot: StickerSlot) => (slot.x + slot.columns / 2 - WALL_COLUMNS / 2) ** 2 + (slot.y + slot.rows / 2 - WALL_ROWS / 2) ** 2;
+  return distance(a) - distance(b) || a.block - b.block || a.y - b.y || a.x - b.x;
+});
+
+export function stickerSlotsForCount(count: number): StickerSlot[] {
+  return Array.from({ length: count }, (_, index) => {
+    const group = Math.floor(index / centeredSlots.length);
+    const slot = centeredSlots[index % centeredSlots.length];
+    return group ? { ...slot, x: slot.x + group * WALL_COLUMNS, blockX: slot.blockX + group * WALL_BLOCK_COLUMNS, block: slot.block + group * WALL_BLOCK_COLUMNS * WALL_BLOCK_ROWS } : slot;
+  });
+}
+
 function focusRectFor(slot: StickerSlot): StickerRect {
   const centerX = slot.x - slot.blockX * BLOCK_COLUMNS + slot.columns / 2;
   const centerY = slot.y - slot.blockY * BLOCK_ROWS + slot.rows / 2;
@@ -119,23 +134,27 @@ function assignNearest(base: StickerSlot[], targets: StickerRect[]): number[] {
   return assignment;
 }
 
-export function expandedStickerLayout(selectedIndex: number): Map<number, StickerRect> {
-  const selected = STICKER_SLOTS[selectedIndex];
-  const blockSlots = STICKER_SLOTS.map((slot, index) => ({ slot, index })).filter(entry => entry.slot.block === selected.block);
+export function expandedStickerLayout(selectedIndex: number, slots: StickerSlot[] = STICKER_SLOTS): Map<number, StickerRect> {
+  const selected = slots[selectedIndex];
+  if (!selected) return new Map();
+  const blockSlots = slots.map((slot, index) => ({ slot, index })).filter(entry => entry.slot.block === selected.block);
   const focus = focusRectFor(selected);
+  const result = new Map<number, StickerRect>();
+  const toWorld = (rect: StickerRect): StickerRect => ({ ...rect, x: selected.blockX * BLOCK_COLUMNS + rect.x, y: selected.blockY * BLOCK_ROWS + rect.y });
+  result.set(selectedIndex, toWorld(focus));
+  if (blockSlots.length === 1) return result;
   const remainder: StickerRect[] = [];
   if (focus.y > 0) remainder.push({ x: 0, y: 0, columns: BLOCK_COLUMNS, rows: focus.y });
   if (focus.y + focus.rows < BLOCK_ROWS) remainder.push({ x: 0, y: focus.y + focus.rows, columns: BLOCK_COLUMNS, rows: BLOCK_ROWS - focus.y - focus.rows });
   if (focus.x > 0) remainder.push({ x: 0, y: focus.y, columns: focus.x, rows: focus.rows });
   if (focus.x + focus.columns < BLOCK_COLUMNS) remainder.push({ x: focus.x + focus.columns, y: focus.y, columns: BLOCK_COLUMNS - focus.x - focus.columns, rows: focus.rows });
   const random = randomFor(Math.imul(selectedIndex + 1, 0x9e3779b1));
-  const targets = divideToCount(remainder, blockSlots.length - 1, random);
+  const targets = blockSlots.length - 1 < remainder.length
+    ? [...remainder].sort((a, b) => b.columns * b.rows - a.columns * a.rows).slice(0, blockSlots.length - 1)
+    : divideToCount(remainder, blockSlots.length - 1, random);
   const others = blockSlots.filter(entry => entry.index !== selectedIndex);
   const localBase = others.map(entry => ({ ...entry.slot, x: entry.slot.x - entry.slot.blockX * BLOCK_COLUMNS, y: entry.slot.y - entry.slot.blockY * BLOCK_ROWS }));
   const assignment = assignNearest(localBase, targets);
-  const result = new Map<number, StickerRect>();
-  const toWorld = (rect: StickerRect): StickerRect => ({ ...rect, x: selected.blockX * BLOCK_COLUMNS + rect.x, y: selected.blockY * BLOCK_ROWS + rect.y });
-  result.set(selectedIndex, toWorld(focus));
   others.forEach((entry, index) => result.set(entry.index, toWorld(targets[assignment[index]])));
   return result;
 }

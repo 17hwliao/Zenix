@@ -27,13 +27,13 @@ function lxManifest(origin, script, initialized) {
   const platforms = Object.fromEntries(Object.entries(initialized?.sources || {}).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && value?.type === 'music' && Array.isArray(value.actions) && value.actions.includes('musicUrl')).map(([key, value]) => [key, { name: boundedText(value.name, 40) || lxCatalog.PLATFORMS[key], qualitys: (value.qualitys || []).filter(type => ['128k', '320k', 'flac', 'flac24bit'].includes(type)) }]));
   if (!Object.keys(platforms).length) throw new Error('LX 脚本没有声明 Zenix 可搜索的音乐平台');
   const id = `lx.${createHash('sha256').update(origin.label.toLowerCase()).digest('hex').slice(0, 24)}`;
-  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'resolveDownload'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: 'LX 搜索目录', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
+  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'resolveDownload', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: 'LX 搜索目录', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
 }
 function validateLxManifest(raw) {
   if (!raw || !SOURCE_ID.test(raw.id) || !raw.id.startsWith('lx.') || !VERSION.test(raw.version) || !raw.lxPlatforms || typeof raw.lxPlatforms !== 'object') throw new Error('LX 源记录无效');
   const platforms = Object.fromEntries(Object.entries(raw.lxPlatforms).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && Array.isArray(value?.qualitys)));
   if (!Object.keys(platforms).length) throw new Error('LX 源缺少可用搜索目录');
-  return { ...raw, lxPlatforms: platforms };
+  return { ...raw, capabilities: [...new Set([...(Array.isArray(raw.capabilities) ? raw.capabilities : []), 'lyrics'])], lxPlatforms: platforms };
 }
 
 function boundedText(value, max = 200) { return String(value ?? '').trim().slice(0, max); }
@@ -568,11 +568,14 @@ class SourceManager {
     if (!track?.providerId || !track?.remoteId) return null;
     const file = path.join(this.lyricFolder, `${createHash('sha256').update(`${track.providerId}:${track.remoteId}`).digest('hex')}.json`);
     const record = this.records.find(item => item.id === track.providerId);
-    if (!record?.enabled || !record.manifest.capabilities.includes('lyrics')) {
+    if (record?.kind === 'lx') {
+      try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch {}
+    }
+    if (!record?.enabled || (record.kind !== 'lx' && !record.manifest.capabilities.includes('lyrics'))) {
       try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { return null; }
     }
     try {
-      const result = await this.call(track.providerId, 'lyrics', { remoteId: track.remoteId });
+      const result = record.kind === 'lx' ? await lxCatalog.lyrics(lxCatalog.readInfo(track.remoteId)) : await this.call(track.providerId, 'lyrics', { remoteId: track.remoteId });
       const lyrics = typeof result === 'string' ? { text: result.slice(0, 200000), format: 'lrc', source: 'custom' }
         : result && typeof result.text === 'string' ? { text: result.text.slice(0, 200000), translationText: typeof result.translationText === 'string' ? result.translationText.slice(0, 100000) : undefined, format: boundedText(result.format || 'lrc', 15), source: 'custom' } : null;
       if (lyrics) await fs.writeFile(file, JSON.stringify(lyrics), 'utf8').catch(() => {});
