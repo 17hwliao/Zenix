@@ -54,6 +54,7 @@ export interface ZenixShellProps {
   tracks: TrackView[];
   playlists?: PlaylistView[];
   currentTrack?: TrackView | null;
+  playbackError?: string;
   playing: boolean;
   position: number;
   duration: number;

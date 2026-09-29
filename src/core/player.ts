@@ -139,7 +139,7 @@ class PlayerController {
     this.selectionToken += 1;
     this.pendingSeek = undefined;
     this.setAudioSource(track.audioUrl);
-    this.update({ queue, queueIndex, track, position: 0, duration: track.duration, playing: false });
+    this.update({ queue, queueIndex, track, position: 0, duration: track.duration, playing: false, error: undefined });
     this.updateMediaMetadata();
   }
 
@@ -153,13 +153,13 @@ class PlayerController {
     if (entries.length === 0) {
       this.audio.pause();
       this.setAudioSource('');
-      this.update({ queue: [], queueIndex: -1, track: undefined, position: 0, duration: 0 });
+      this.update({ queue: [], queueIndex: -1, track: undefined, position: 0, duration: 0, error: undefined });
     } else {
       const queueIndex = Math.max(0, Math.min(entries.length - 1, startIndex));
       const track = entries[queueIndex];
       this.audio.pause();
       this.setAudioSource(track.audioUrl);
-      this.update({ queue: entries, queueIndex, track, position: 0, duration: track.duration, playing: false });
+      this.update({ queue: entries, queueIndex, track, position: 0, duration: track.duration, playing: false, error: undefined });
       this.updateMediaMetadata();
     }
     this.persistQueue();
@@ -200,6 +200,7 @@ class PlayerController {
   async play(): Promise<void> {
     if (!this.state.track) return;
     const request = ++this.playbackToken;
+    this.update({ error: undefined });
     try {
       if (!(await this.ensureAudioSource())) return;
       if (request !== this.playbackToken) return;

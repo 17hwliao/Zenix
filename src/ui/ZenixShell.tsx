@@ -18,7 +18,7 @@ import './Zenix.css';
 export default function ZenixShell(props: ZenixShellProps) {
   const {
     appearanceBackground = null, interactionLocked = false, appearanceBusy = false, onChooseBackground, onClearBackground,
-    tracks, playlists = [], currentTrack = null, playing, position, duration, volume, muted = false,
+    tracks, playlists = [], currentTrack = null, playbackError, playing, position, duration, volume, muted = false,
     shuffle = false, repeat = 'off', queue = [], queueIndex = -1, lyrics = [], playerViewRequestKey, libraryBusy = false,
     onPlayTrack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
     onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onOpenPlaylists, onRefreshLibrary,
@@ -162,6 +162,11 @@ export default function ZenixShell(props: ZenixShellProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {playbackError && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
+        <div><strong>播放失败</strong><span>{playbackError}</span></div>
+        <div className="yz-playback-error-actions"><button onClick={onTogglePlay}>重试</button>{currentTrack.source === 'custom' && <button onClick={() => { setSettingsInitialTab('sources'); setSettingsOpen(true); }}>管理音乐源</button>}</div>
+      </div>}
 
       <AnimatePresence>
         {searchOpen && <motion.div key="search" className={`yz-search-layer yz-search-layer--${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : .18 }}><SearchOverlay query={query} onQueryChange={setQuery} localTracks={tracks} onPlayTrack={(track, queue) => { onPlayTrack(track, queue); enterPlayer(); }} onResultsChange={setSearchPreview} onClose={() => setSearchOpen(false)} onOpenSources={() => { setSearchOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} background={appearanceBackground} /></motion.div>}

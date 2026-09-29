@@ -6,6 +6,15 @@ import { library, loadLyrics, parseLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
 import { PlaylistManager } from './playlists';
 
+function sourcePlaybackMessage(reason: unknown, sourceName: string): string {
+  const detail = reason instanceof Error ? reason.message : String(reason);
+  const httpStatus = detail.match(/LX 脚本服务 \S+ 返回 HTTP (\d{3})/);
+  if (httpStatus) return `${sourceName}的播放服务返回 HTTP ${httpStatus[1]}，这首歌暂时无法播放。请更换可用音乐源，或播放本地歌曲。`;
+  if (/timeout|timed out|超时/i.test(detail)) return `${sourceName}的播放服务响应超时。请稍后重试，或更换音乐源。`;
+  const clean = detail.replace(/^Error invoking remote method '[^']+': Error:\s*/, '').trim();
+  return `${sourceName}无法提供这首歌的播放地址：${clean || '未知错误'}`;
+}
+
 export default function App() {
   const [introVisible, setIntroVisible] = useState(true);
   const [appearance, setAppearance] = useState<AppearanceState>({ completed: true, background: null });
@@ -115,8 +124,14 @@ export default function App() {
       if (track.source === 'online') throw new Error('旧在线来源已移除；请等待自定义源接入');
       if (track.source === 'custom') {
         if (!window.yzqxy?.sources) throw new Error('音乐源只在桌面版中可用');
-        const resolved = await window.yzqxy.sources.resolve(track, localStorage.getItem('zenix.onlineQuality') || 'high');
-        return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: resolved.coverUrl || track.coverUrl };
+        try {
+          const resolved = await window.yzqxy.sources.resolve(track, localStorage.getItem('zenix.onlineQuality') || 'high');
+          return { ...track, audioUrl: resolved.audioUrl, actualQuality: resolved.actualQuality, coverUrl: resolved.coverUrl || track.coverUrl };
+        } catch (reason) {
+          const sources = await window.yzqxy.sources.list().catch(() => []);
+          const sourceName = sources.find(source => source.id === track.providerId)?.manifest.name || '当前音乐源';
+          throw new Error(sourcePlaybackMessage(reason, sourceName));
+        }
       }
       return track;
     });
@@ -252,6 +267,7 @@ export default function App() {
       playlists={collection.playlists}
       playerViewRequestKey={playerViewRequestKey}
       currentTrack={playback.track}
+      playbackError={playback.error}
       playing={playback.playing}
       position={playback.position}
       duration={playback.duration}
@@ -287,7 +303,7 @@ export default function App() {
       setPlaylistsOpen(false);
       setPlayerViewRequestKey(value => value + 1);
     }} />}
-    {(notice || playback.error) && <div className="yz-runtime-notice" role="alert" onClick={() => setNotice('')}>{notice || playback.error}</div>}
+    {notice && <div className="yz-runtime-notice" role="alert" onClick={() => setNotice('')}>{notice}</div>}
     {appearanceLoaded && !introVisible && !appearance.completed && <AppearanceOnboarding busy={appearanceBusy} onChoose={chooseBackground} onSkip={completeAppearance} />}
     {introVisible && <ZenixIntro background={appearance.background} onFinish={finishIntro} />}
   </>;
