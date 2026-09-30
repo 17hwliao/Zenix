@@ -97,18 +97,22 @@ class PersonalStore {
     return this.save();
   }
 
-  async createPlaylist(name) {
-    const trimmed = String(name || '').trim().slice(0, 100);
+  async createPlaylist(name, firstTrack) {
+    const trimmed = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 100);
     if (!trimmed) throw new Error('请输入歌单名称');
-    this.data.playlists.push({ id: randomUUID(), name: trimmed, tracks: [] });
+    if (this.data.playlists.some(item => item.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) throw new Error('已有同名歌单');
+    const track = firstTrack == null ? null : cleanTrack(firstTrack);
+    if (firstTrack != null && !track) throw new Error('歌曲信息无效');
+    this.data.playlists.push({ id: randomUUID(), name: trimmed, tracks: track ? [track] : [] });
     return this.save();
   }
 
   async renamePlaylist(id, name) {
     const playlist = this.data.playlists.find(item => item.id === id);
     if (!playlist) throw new Error('歌单不存在');
-    const trimmed = String(name || '').trim().slice(0, 100);
+    const trimmed = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 100);
     if (!trimmed) throw new Error('请输入歌单名称');
+    if (this.data.playlists.some(item => item.id !== id && item.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) throw new Error('已有同名歌单');
     playlist.name = trimmed;
     return this.save();
   }

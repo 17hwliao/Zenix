@@ -1,3 +1,48 @@
 .zenix-manager{position:absolute;z-index:65;inset:0;display:grid;grid-template-columns:230px minmax(0,1fr);color:#fff;background:rgba(10,12,19,.95);backdrop-filter:blur(40px);-webkit-app-region:no-drag}.zenix-manager aside{padding:42px 19px;border-right:1px solid #ffffff20;background:#ffffff08;overflow:auto}.zenix-manager-brand{display:flex;align-items:center;gap:9px;color:#bbb;font-size:11px}.zenix-manager-brand button,.zenix-manager header>button{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:50%;background:#ffffff17}.zenix-manager aside h2{margin:37px 0 3px;font-size:24px}.zenix-manager aside>small{font-size:10px;color:#888}.zenix-manager nav{margin-top:25px;display:flex;flex-direction:column;gap:3px}.zenix-manager nav button{display:flex;align-items:center;gap:12px;text-align:left;width:100%;padding:12px;border:0;border-radius:11px;background:none;font-size:12px;color:#aaa}.zenix-manager nav button:hover,.zenix-manager nav button.is-active{color:#fff;background:#ffffff1d}.zenix-manager nav button small{margin-left:auto}.zenix-manager-list-head{display:flex;justify-content:space-between;align-items:center;margin:35px 10px -15px;font-size:10px;color:#aaa}.zenix-manager-list-head button{border:0;background:none;color:#ddd}.zenix-manager main{min-width:0;display:flex;flex-direction:column;padding:54px 5vw 30px}.zenix-manager header{display:flex;justify-content:space-between}.zenix-manager header small{letter-spacing:.18em;color:#aaa}.zenix-manager header h1{margin:8px 0;font-size:clamp(28px,3vw,45px)}.zenix-manager header p{font-size:12px;color:#aaa}.zenix-manager-toolbar{display:flex;gap:9px;margin:30px 0 11px}.zenix-manager-toolbar input{flex:1;min-width:0;background:#ffffff12;border:1px solid #ffffff25;border-radius:12px;padding:11px 14px;color:#fff}.zenix-manager-toolbar button,.zenix-manager-empty button{display:flex;align-items:center;gap:6px;padding:0 13px;border:1px solid #ffffff30;border-radius:10px;background:#ffffff15;font-size:11px}.zenix-manager-add select{width:100%;padding:9px;background:#282b33;color:#fff;border:1px solid #ffffff25;border-radius:9px}.zenix-manager-tracks{flex:1;overflow:auto;scrollbar-width:thin}.zenix-manager-track{display:flex;align-items:center;gap:8px;min-height:65px;border-bottom:1px solid #ffffff16}.zenix-manager-track>button:first-child{display:flex;align-items:center;gap:13px;flex:1;min-width:0;text-align:left;border:0;background:none}.zenix-manager-track>button:first-child>span:first-child{color:#888;font-size:10px}.zenix-manager-track .yz-cover{width:43px;height:43px;border-radius:5px}.zenix-manager-track>button:first-child>span:last-child{min-width:0}.zenix-manager-track strong,.zenix-manager-track small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zenix-manager-track strong{font-size:12px}.zenix-manager-track small{font-size:10px;color:#999;margin-top:5px}.zenix-manager-delete{padding:9px;border:0;background:none;color:#aaa}.zenix-manager-delete:hover{color:#ff7889}.zenix-manager-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:260px;color:#aaa;font-size:13px}.zenix-manager-empty h3{color:#fff;margin:0}.zenix-manager-empty p{margin:0}.zenix-manager-empty button{height:35px;color:#fff}
 
 .zenix-manager{z-index:95}
+
+.zenix-manager main{min-height:0;overflow:hidden}
+.zenix-manager header>div{min-width:0}
+.zenix-manager header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zenix-manager aside nav button{min-width:0}
+.zenix-manager-nav-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zenix-manager-editor{display:grid;gap:10px;margin:18px 0 4px;padding:17px;border:1px solid #ffffff30;border-radius:17px;background:#ffffff13;box-shadow:0 16px 38px #0004}
+.zenix-manager-editor label{font-size:12px;font-weight:700}
+.zenix-manager-editor>div{display:flex;gap:8px}
+.zenix-manager-editor input{flex:1;min-width:0;padding:11px 13px;border:1px solid #ffffff42;border-radius:10px;background:#080a11aa;color:#fff;outline:none}
+.zenix-manager-editor button,.zenix-manager-overview-head button,.zenix-manager-confirm button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 13px;border:1px solid #ffffff36;border-radius:10px;background:#ffffff16;color:#fff;font-size:12px;white-space:nowrap}
+.zenix-manager-editor button[type=submit]{background:#f4f5f6;color:#171a20}
+.zenix-manager-editor button:disabled{opacity:.45}
+.zenix-manager-message{margin:12px 0 0;color:#d2e9d6;font-size:11px}
+.zenix-manager-overview{min-height:0;overflow:auto;margin-top:26px;padding-right:4px;scrollbar-width:thin}
+.zenix-manager-overview-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}
+.zenix-manager-overview-head h3{margin:0 0 5px;font-size:17px}
+.zenix-manager-overview-head p{margin:0;color:#ffffff91;font-size:11px}
+.zenix-manager-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:14px}
+.zenix-manager-playlist-card{display:flex;flex-direction:column;gap:7px;min-width:0;padding:11px;border:1px solid #ffffff2b;border-radius:16px;background:#ffffff10;text-align:left;transition:background .2s,border-color .2s,transform .2s}
+.zenix-manager-playlist-card:hover{background:#ffffff1f;border-color:#ffffff6b;transform:translateY(-3px)}
+.zenix-manager-playlist-art{display:grid;place-items:center;width:100%;aspect-ratio:1;border-radius:11px;overflow:hidden;background:#ffffff14;color:#ffffff7a}
+.zenix-manager-playlist-art .yz-cover{width:100%;height:100%;border-radius:0}
+.zenix-manager-playlist-card strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px}
+.zenix-manager-playlist-card small{color:#ffffff92;font-size:10px}
+.zenix-manager-toolbar{flex-wrap:wrap;align-items:center}
+.zenix-manager-toolbar button{min-height:38px;white-space:nowrap}
+.zenix-manager-search{display:flex;align-items:center;gap:8px;flex:1;min-width:170px;padding:0 11px;border:1px solid #ffffff2a;border-radius:11px;background:#ffffff12;color:#ffffff9b}
+.zenix-manager-search input{width:100%;min-width:0;padding:10px 0;border:0;outline:none;background:transparent;color:#fff}
+.zenix-manager-confirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px;border:1px solid #e89b9b59;border-radius:12px;background:#6d253034;font-size:11px}
+.zenix-manager-confirm span{flex:1;min-width:190px}
+.zenix-manager-confirm button:nth-of-type(1){background:#a8424f6b}
+.zenix-manager-picker{display:grid;gap:10px;max-height:min(38vh,340px);margin:0 0 12px;padding:13px;border:1px solid #ffffff2d;border-radius:14px;background:#ffffff10;overflow:hidden}
+.zenix-manager-picker>div:first-child{display:flex;align-items:center;justify-content:space-between;font-size:12px}
+.zenix-manager-picker>div:first-child button{display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:50%;background:#ffffff15}
+.zenix-manager-picker-list{min-height:0;overflow:auto;scrollbar-width:thin}
+.zenix-manager-picker-list>button{display:flex;align-items:center;gap:10px;width:100%;min-height:49px;padding:5px;border:0;border-bottom:1px solid #ffffff19;background:transparent;text-align:left}
+.zenix-manager-picker-list>button:hover{background:#ffffff13}
+.zenix-manager-picker-list .yz-cover{flex:none;width:36px;height:36px;border-radius:5px}
+.zenix-manager-picker-list>button span{flex:1;min-width:0}
+.zenix-manager-picker-list strong,.zenix-manager-picker-list small{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.zenix-manager-picker-list strong{font-size:11px}
+.zenix-manager-picker-list small{margin-top:3px;color:#ffffff94;font-size:10px}
+.zenix-manager-picker-list>p{color:#ffffff9a;font-size:11px}
+@media(max-width:760px){.zenix-manager{grid-template-columns:170px minmax(0,1fr)}.zenix-manager aside{padding:32px 10px}.zenix-manager main{padding:36px 20px 20px}.zenix-manager-toolbar{margin-top:16px}.zenix-manager-toolbar button{flex:1}}

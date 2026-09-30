@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('yzqxy', {
     load: () => ipcRenderer.invoke('personal:load'),
     toggle: (kind, track) => ipcRenderer.invoke('personal:toggle', kind, track),
     record: (track) => ipcRenderer.invoke('personal:record', track),
-    createPlaylist: (name) => ipcRenderer.invoke('personal:create-playlist', name),
+    createPlaylist: (name, firstTrack) => ipcRenderer.invoke('personal:create-playlist', name, firstTrack),
     renamePlaylist: (id, name) => ipcRenderer.invoke('personal:rename-playlist', id, name),
     deletePlaylist: (id) => ipcRenderer.invoke('personal:delete-playlist', id),
     addToPlaylist: (id, track) => ipcRenderer.invoke('personal:add-to-playlist', id, track),

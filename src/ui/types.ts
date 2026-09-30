@@ -38,12 +38,12 @@ export interface ZenixShellProps {
   onToggleDesktopLyrics?: () => void;
   personal?: PersonalState;
   onToggleSaved?: (kind: 'liked' | 'favorites', track: TrackView) => void;
-  onCreatePersonalPlaylist?: (name: string, firstTrack?: TrackView) => void;
+  onCreatePersonalPlaylist?: (name: string, firstTrack?: TrackView) => Promise<string | null>;
   onAddToPersonalPlaylist?: (id: string, track: TrackView) => void;
   onRemovePersonalTrack?: (id: string, trackId: string) => void;
   onRemoveSaved?: (kind: 'liked' | 'favorites' | 'history', id: string) => void;
-  onRenamePersonalPlaylist?: (id: string, name: string) => void;
-  onDeletePersonalPlaylist?: (id: string) => void;
+  onRenamePersonalPlaylist?: (id: string, name: string) => Promise<boolean>;
+  onDeletePersonalPlaylist?: (id: string) => Promise<boolean>;
   onSetQueue?: (tracks: TrackView[], index: number) => void;
   onRemoveFromQueue?: (index: number) => void;
   appearanceBackground?: AppearanceBackground | null;

@@ -308,14 +308,19 @@ export default function App() {
     const bridge = window.yzqxy?.personal;
     if (bridge) void personalAction(() => bridge.toggle(kind, track));
   };
-  const createPersonalPlaylist = (name: string, firstTrack?: Track) => {
+  const createPersonalPlaylist = async (name: string, firstTrack?: Track): Promise<string | null> => {
     const bridge = window.yzqxy?.personal;
-    if (bridge) void personalAction(async () => {
+    if (!bridge) return null;
+    try {
       const before = await bridge.load();
-      const created = await bridge.createPlaylist(name);
+      const created = await bridge.createPlaylist(name, firstTrack);
       const playlist = created.playlists.find(item => !before.playlists.some(old => old.id === item.id));
-      return firstTrack && playlist ? bridge.addToPlaylist(playlist.id, firstTrack) : created;
-    });
+      setPersonal(created);
+      return playlist?.id || null;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '创建歌单失败');
+      return null;
+    }
   };
   const addToPersonalPlaylist = (id: string, track: Track) => {
     const bridge = window.yzqxy?.personal;
@@ -329,13 +334,17 @@ export default function App() {
     const bridge = window.yzqxy?.personal;
     if (bridge) void personalAction(() => bridge.removeSaved(kind, id));
   };
-  const renamePersonalPlaylist = (id: string, name: string) => {
+  const renamePersonalPlaylist = async (id: string, name: string): Promise<boolean> => {
     const bridge = window.yzqxy?.personal;
-    if (bridge) void personalAction(() => bridge.renamePlaylist(id, name));
+    if (!bridge) return false;
+    try { setPersonal(await bridge.renamePlaylist(id, name)); return true; }
+    catch (error) { setNotice(error instanceof Error ? error.message : '重命名失败'); return false; }
   };
-  const deletePersonalPlaylist = (id: string) => {
+  const deletePersonalPlaylist = async (id: string): Promise<boolean> => {
     const bridge = window.yzqxy?.personal;
-    if (bridge) void personalAction(() => bridge.deletePlaylist(id));
+    if (!bridge) return false;
+    try { setPersonal(await bridge.deletePlaylist(id)); return true; }
+    catch (error) { setNotice(error instanceof Error ? error.message : '删除歌单失败'); return false; }
   };
 
   return <>

@@ -383,7 +383,7 @@ function registerHandlers() {
   ipcMain.handle('personal:load', () => personal.snapshot());
   personalAction('personal:toggle', (kind, track) => personal.toggle(kind, track));
   personalAction('personal:record', track => personal.record(track));
-  personalAction('personal:create-playlist', name => personal.createPlaylist(name));
+  personalAction('personal:create-playlist', (name, firstTrack) => personal.createPlaylist(name, firstTrack));
   personalAction('personal:rename-playlist', (id, name) => personal.renamePlaylist(id, name));
   personalAction('personal:delete-playlist', id => personal.deletePlaylist(id));
   personalAction('personal:add-to-playlist', (id, track) => personal.addToPlaylist(id, track));

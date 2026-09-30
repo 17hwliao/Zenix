@@ -116,7 +116,7 @@ export interface DesktopBridge {
     load(): Promise<PersonalState>;
     toggle(kind: 'liked' | 'favorites', track: Track): Promise<PersonalState>;
     record(track: Track): Promise<PersonalState>;
-    createPlaylist(name: string): Promise<PersonalState>;
+    createPlaylist(name: string, firstTrack?: Track): Promise<PersonalState>;
     renamePlaylist(id: string, name: string): Promise<PersonalState>;
     deletePlaylist(id: string): Promise<PersonalState>;
     addToPlaylist(id: string, track: Track): Promise<PersonalState>;
