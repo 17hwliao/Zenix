@@ -1,14 +1,15 @@
 html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
+#root { position: fixed; inset: 0; }
 
 .yz-shell {
   --yz-white: rgba(255, 255, 255, .94);
   --yz-muted: rgba(255, 255, 255, .52);
   --yz-faint: rgba(255, 255, 255, .31);
-  position: relative;
+  position: fixed;
+  inset: 0;
   width: 100%;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 500px;
+  height: 100%;
+  min-height: 0;
   overflow: clip;
   color: var(--yz-white);
   background: #303033;
