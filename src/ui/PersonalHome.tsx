@@ -60,7 +60,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const [goldTossFrom, setGoldTossFrom] = useState(0);
   const [goldTossing, setGoldTossing] = useState(false);
   const goldBehindRef = useRef(goldBehind);
-  const stageRef = useRef<HTMLElement>(null), songSectionRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLElement>(null), songSectionRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
   const subjectInputRef = useRef<HTMLInputElement>(null), backgroundInputRef = useRef<HTMLInputElement>(null);
   const rotation = useRef(0), velocity = useRef(0);
   const pointer = useRef<{ id: number; x: number; distance: number; target: HTMLElement } | null>(null);
@@ -76,6 +76,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     const verticalOffset = y - (bounds.top + bounds.height * .46);
     return Math.abs(x - (bounds.left + bounds.width / 2)) <= horizontalReach && verticalOffset >= -verticalReach && verticalOffset <= verticalReach * (2 / 3);
   };
+  const canRotateOrbit = (x: number, y: number) => (scrollRef.current?.scrollTop ?? 0) <= 1 && inOrbitInteraction(x, y);
   const historyTracks = personal.history.slice(0, 24).map(entry => entry.track);
   const defaultCovers: Record<OrbitCoverKey, string | undefined> = {
     liked: trackCoverUrl(personal.liked[0]),
@@ -97,7 +98,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     const stage = stageRef.current;
     if (!stage) return;
     const rotateOnWheel = (event: WheelEvent) => {
-      if (!inOrbitInteraction(event.clientX, event.clientY)) return;
+      if (!canRotateOrbit(event.clientX, event.clientY)) return;
       event.preventDefault();
       event.stopPropagation();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
@@ -167,14 +168,14 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     } catch { setSaveError('无法读取这张图片，请更换文件。'); }
   };
   const onStageDown = (event: PointerEvent<HTMLDivElement>) => {
-    if ((event.target as Element).closest('.zenix-card-center') || !inOrbitInteraction(event.clientX, event.clientY)) return;
+    if ((event.target as Element).closest('.zenix-card-center') || !canRotateOrbit(event.clientX, event.clientY)) return;
     const target = ((event.target as Element).closest('.zenix-orbit-card') as HTMLElement | null) || event.currentTarget;
     suppressClick.current = false;
     pointer.current = { id: event.pointerId, x: event.clientX, distance: 0, target };
     velocity.current = 0; target.setPointerCapture(event.pointerId);
   };
   const onStageMove = (event: PointerEvent<HTMLDivElement>) => {
-    event.currentTarget.classList.toggle('is-orbit-hot', inOrbitInteraction(event.clientX, event.clientY) && !(event.target as Element).closest('.zenix-card-center'));
+    event.currentTarget.classList.toggle('is-orbit-hot', canRotateOrbit(event.clientX, event.clientY) && !(event.target as Element).closest('.zenix-card-center'));
     const p = pointer.current;
     if (p && p.id === event.pointerId) {
       const dx = event.clientX - p.x; p.x = event.clientX; p.distance += Math.abs(dx);
@@ -245,7 +246,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
 
   return <div className="zenix-home-space">
     <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div><button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
-    <div className="zenix-home-scroll">
+    <div ref={scrollRef} className="zenix-home-scroll">
       <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp} onPointerLeave={event => event.currentTarget.classList.remove('is-orbit-hot')}>
         <div className="zenix-stage-aura" aria-hidden="true" />
         <div className="zenix-stage-heading"><strong>你的音乐，自成宇宙。</strong></div>
