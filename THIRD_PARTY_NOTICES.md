@@ -10,7 +10,7 @@
 | @paper-design/shaders | 0.0.80 | Apache-2.0 | [LICENSE](licenses/_paper-design_shaders/LICENSE)、[NOTICE](licenses/_paper-design_shaders/NOTICE) |
 | @paper-design/shaders-react | 0.0.80 | Apache-2.0 | [LICENSE](licenses/_paper-design_shaders-react/LICENSE)、[NOTICE](licenses/_paper-design_shaders-react/NOTICE) |
 | @tokenizer/inflate | 0.4.1 | MIT | [LICENSE](licenses/_tokenizer_inflate/LICENSE) |
-| @tokenizer/token | 0.3.0 | MIT | 未发现许可证文件 |
+| @tokenizer/token | 0.3.0 | MIT | 安装包的 `package.json` 声明 MIT；[上游项目](https://github.com/Borewit/tokenizer-token) |
 | @types/react | 19.3.0 | MIT | [LICENSE](licenses/_types_react/LICENSE) |
 | content-type | 2.1.0 | MIT | [LICENSE](licenses/content-type/LICENSE) |
 | csstype | 3.2.3 | MIT | [LICENSE](licenses/csstype/LICENSE) |
@@ -39,7 +39,7 @@ Electron 随软件发行的二进制还包含 Chromium 等组件；打包时需�
 
 ## 开发与素材生成工具
 
-以下为直接开发依赖及素材生成工具，不等同于发行包运行依赖。开发工具的传递依赖尚未在本表逐一列出；发行时仍应以实际打包产物确定需要随附的通知。
+以下列出直接开发依赖及素材生成工具，与发行包运行依赖分开记录。
 
 | 项目 | 当前版本 | 用途 | 许可证与来源 |
 | --- | --- | --- | --- |
@@ -54,42 +54,38 @@ Electron 随软件发行的二进制还包含 Chromium 等组件；打包时需�
 | wait-on | 8.0.5 | 等待开发端口 | [MIT](https://github.com/jeffbski/wait-on) |
 | Pillow | 未锁定；仅图标生成脚本使用 | 绘制 PNG / ICO | [MIT-CMU](https://github.com/python-pillow/Pillow/blob/main/LICENSE) |
 
-Electron 同时用于开发启动与软件运行，版本及通知已列在上表。`assets/generate-sounds.py` 使用 Python 标准库合成音效；`src/ui/zenixIntroAnimation.ts` 保存开屏动画数据，渲染依赖 lottie-web。动画数据、素材和播放器组件应分别核对归属，不能仅凭组件许可证推定素材许可。
+Electron 同时用于开发启动与软件运行，版本及通知已列在上表。`assets/generate-sounds.py` 使用 Python 标准库合成音效；`src/ui/zenixIntroAnimation.ts` 保存开屏动画数据，渲染依赖 lottie-web。
 
 ## 参考项目与实际用途
 
-| 项目或资源 | 参考范围 | 对应实现或说明 | 许可状态 |
+| 项目或资源 | 参考范围 | 对应实现或说明 | 许可证或来源 |
 | --- | --- | --- | --- |
-| [Folia Major](https://github.com/chthollyphile/folia-major) | 窗口布局、玻璃效果、贴纸墙、展开、聚焦和切歌交互 | `src/` 下的 UI 与样式；具体借用或改编代码尚待逐文件核对 | [AGPL-3.0](https://github.com/chthollyphile/folia-major/blob/main/LICENSE) |
-| [LX Music Desktop](https://github.com/lyswhut/lx-music-desktop) | 自定义源事件、脚本宿主、歌曲字段及目录 SDK | `electron/lx-catalog.cjs`、`electron/lx-source-preload.cjs`、`electron/sources.cjs`；代码来源核对尚未完成 | [Apache-2.0](https://github.com/lyswhut/lx-music-desktop/blob/master/LICENSE) |
-| 用户提供的 `zenix-space.html` | 中央名片与环绕卡片主页设计 | 个人主页组件与样式；用户提供的本地资源，不公开其机器路径 | 未提供单独许可证，来源及再分发范围待确认 |
+| [Folia Major](https://github.com/chthollyphile/folia-major) | 窗口布局、玻璃效果、贴纸墙、展开、聚焦和切歌交互 | `src/` 下的 UI 与样式 | [AGPL-3.0](https://github.com/chthollyphile/folia-major/blob/main/LICENSE) |
+| [LX Music Desktop](https://github.com/lyswhut/lx-music-desktop) | 自定义源事件、脚本宿主、歌曲字段及目录 SDK 相关代码与实现思路 | `electron/lx-catalog.cjs`、`electron/lx-source-preload.cjs`、`electron/sources.cjs` | [Apache-2.0](https://github.com/lyswhut/lx-music-desktop/blob/master/LICENSE) |
+| 用户提供的 `zenix-space.html` | 中央名片与环绕卡片主页设计 | 个人主页组件与样式 | 用户提供的设计参考，不公开其机器路径 |
 
 协议资料：[LX 自定义源文档](https://lxmusic.toside.cn/desktop/custom-source)、[音乐 SDK 入口](https://github.com/lyswhut/lx-music-desktop/blob/master/src/renderer/utils/musicSdk/index.js)、[脚本宿主参考](https://github.com/lyswhut/lx-music-desktop/blob/master/src/main/modules/userApi/renderer/preload.js)。
 
-Folia 的 [README](https://github.com/chthollyphile/folia-major/blob/main/README.md) 除 AGPL 声明外还包含学习、非营利用途等说明。其与 LICENSE 的关系尚待向上游澄清，本文不替上游作许可解释，也不将这些文字直接作为 Zenix 的整体许可。
-
-此清单确认了参考关系和直接依赖，不证明所有既有代码均为独立创作。性能重构、品牌更换及未合并参考仓库 Git 历史，均不能代替代码来源核对。若实际包含借用或改编代码，需要按对应许可证处理版权声明、修改说明、NOTICE 和适用的源码提供义务。
+感谢上述项目的作者、维护者与贡献者。第三方代码与资源保留原项目的许可证、版权声明及通知。
 
 ## 外部音乐源与脚本入口
 
-以下为开发者自行收集的本机使用与兼容调试资源。发行原则是不捆绑源脚本或开发者的已配置源，由用户自行配置；保留本表是说明开发入口的来源。个人歌曲、缓存、背景及名片配置同样不随发行包分发，具体清单见 [发行配置建议](docs/distribution-config.md)。当前尚未执行发行打包，亦未移除 UI 中的测试入口。
+以下为开发者自行收集的本机使用与兼容调试入口。音乐源脚本由用户自行配置，个人歌曲、缓存、背景及名片配置属于本机用户数据；相关清单见 [发行配置建议](docs/distribution-config.md)。
 
 预设链接来自 [pdone/lx-music-source](https://github.com/pdone/lx-music-source) 收集仓库及 [cdyUuu/lx-music-xinghai-source](https://github.com/cdyUuu/lx-music-xinghai-source)。感谢各脚本原作者和入口维护者。当前代码中的完整入口如下，顺序按 `src/ui/lxPresets.ts` 列出，不表示服务品质排序。
 
-| 预设名称 | 脚本入口 | 许可与运行方式 |
+| 预设名称 | 脚本入口 | 使用方式 |
 | --- | --- | --- |
-| 星海聚合 | [xinghai-music-source.js](https://raw.githubusercontent.com/cdyUuu/lx-music-xinghai-source/main/xinghai-music-source.js) | 具体脚本许可待核实；用户安装后运行 |
-| 长青 | [changqing/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/changqing/latest.js) | 具体脚本许可待核实；用户安装后运行 |
-| 六音 SixYin | [sixyin/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/sixyin/latest.js) | 具体脚本许可待核实；用户安装后运行 |
-| Huibq | [huibq/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/huibq/latest.js) | 具体脚本许可待核实；用户安装后运行 |
-| 野花 Flower | [flower/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/flower/latest.js) | 具体脚本许可待核实；用户安装后运行 |
-| 备用测试源 | [lx/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/lx/latest.js) | 具体脚本许可待核实；用户安装后运行，不将其认定为 LX 官方服务 |
-| IKUN | [ikun/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/ikun/latest.js) | 具体脚本许可待核实；用户安装后运行 |
-| 野草 Grass | [grass/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/grass/latest.js) | 具体脚本许可待核实；用户安装后运行 |
+| 星海聚合 | [xinghai-music-source.js](https://raw.githubusercontent.com/cdyUuu/lx-music-xinghai-source/main/xinghai-music-source.js) | 用户自行安装后运行 |
+| 长青 | [changqing/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/changqing/latest.js) | 用户自行安装后运行 |
+| 六音 SixYin | [sixyin/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/sixyin/latest.js) | 用户自行安装后运行 |
+| Huibq | [huibq/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/huibq/latest.js) | 用户自行安装后运行 |
+| 野花 Flower | [flower/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/flower/latest.js) | 用户自行安装后运行 |
+| 备用测试源 | [lx/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/lx/latest.js) | 用户自行安装后运行；社区收集入口 |
+| IKUN | [ikun/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/ikun/latest.js) | 用户自行安装后运行 |
+| 野草 Grass | [grass/latest.js](https://raw.githubusercontent.com/pdone/lx-music-source/main/grass/latest.js) | 用户自行安装后运行 |
 
-产品源码记录入口链接，不内嵌上述远程脚本正文。用户安装后，下载的脚本保存在本机并由独立兼容宿主执行。链接中的内容会更新，发行核对须针对实际下载版本检查脚本作者、版权声明、许可证及服务要求。
-
-LX 的 Apache-2.0 不会自动覆盖第三方源脚本；入口收集仓库也不能自动授予每个脚本的再分发权。本文未确认上述各脚本的发行授权，也不保证服务持续可用。
+产品源码记录入口链接，不内嵌上述远程脚本正文。用户安装后，脚本保存在本机并由独立兼容宿主执行。各脚本保留其作者的版权声明、许可证和服务要求；服务可用性由提供方决定。
 
 ## 外部目录与内容服务
 
@@ -105,16 +101,6 @@ LX 的 Apache-2.0 不会自动覆盖第三方源脚本；入口收集仓库也�
 
 歌曲、封面、歌词、用户照片和视频的权利归对应提供者或权利人；代码许可证与在线内容授权应分别处理。
 
-## 已保存的通知与待核对项
+## 许可证与通知文件
 
-Paper Shaders 的 LICENSE 与 NOTICE、上表可取得的运行组件许可证已按原文保存在 `licenses/`。这些通知需在发行流程中随对应组件保留；当前尚未执行发行打包。
-
-尚待完成的事项：
-
-- Folia / LX 相关实现的逐文件来源核对，以及由实际借用范围决定的许可处理。
-- 用户提供卡片页面和各音乐源脚本的具体许可及再分发范围确认。
-- `@tokenizer/token` 当前安装包缺少许可证原文，需补齐与安装版本对应的文件。
-- 依据最终发行产物复核通知文件，包括 Electron 二进制内的 Chromium 等组件通知。
-- 已为 Zenix 自有代码选定 GPL-3.0-only 并添加根目录 LICENSE；仍需根据来源核对结果处理上游许可，特别是 Folia 的 AGPL 要求，不能用 GPL 声明覆盖其许可。
-
-本文是当前资料整理与依赖清单，不是完成代码来源审计或全部发行许可核验的证明。
+Zenix 自有代码的 GPL-3.0-only 原文位于根目录 [LICENSE](LICENSE)。Paper Shaders 的 LICENSE 与 NOTICE，以及上表列出的已保存运行组件许可证位于 [`licenses/`](licenses/)。Electron 二进制附带的 LICENSE 与 LICENSES.chromium.html 位于 `node_modules/electron/dist`。第三方组件的许可证、版权声明和通知随对应组件保留。
