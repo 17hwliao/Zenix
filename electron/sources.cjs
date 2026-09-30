@@ -25,13 +25,13 @@ function lxManifest(origin, script, initialized) {
   const platforms = Object.fromEntries(Object.entries(initialized?.sources || {}).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && value?.type === 'music' && Array.isArray(value.actions) && value.actions.includes('musicUrl')).map(([key, value]) => [key, { name: boundedText(value.name, 40) || lxCatalog.PLATFORMS[key], qualitys: (value.qualitys || []).filter(type => ['128k', '320k', 'flac', 'flac24bit'].includes(type)) }]));
   if (!Object.keys(platforms).length) throw new Error('音乐源脚本没有声明 Zenix 可搜索的音乐平台');
   const id = `lx.${createHash('sha256').update(origin.label.toLowerCase()).digest('hex').slice(0, 24)}`;
-  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'resolveDownload', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: '搜索平台', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
+  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: '搜索平台', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
 }
 function validateLxManifest(raw) {
   if (!raw || !SOURCE_ID.test(raw.id) || !raw.id.startsWith('lx.') || !VERSION.test(raw.version) || !raw.lxPlatforms || typeof raw.lxPlatforms !== 'object') throw new Error('音乐源记录无效');
   const platforms = Object.fromEntries(Object.entries(raw.lxPlatforms).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && Array.isArray(value?.qualitys)));
   if (!Object.keys(platforms).length) throw new Error('音乐源缺少可用搜索目录');
-  return { ...raw, capabilities: [...new Set([...(Array.isArray(raw.capabilities) ? raw.capabilities : []), 'lyrics'])], lxPlatforms: platforms };
+  return { ...raw, capabilities: [...new Set([...(Array.isArray(raw.capabilities) ? raw.capabilities : []).filter(value => value !== 'resolveDownload'), 'lyrics'])], lxPlatforms: platforms };
 }
 
 function boundedText(value, max = 200) { return String(value ?? '').trim().slice(0, max); }
@@ -48,7 +48,10 @@ function matchesHost(host, pattern) { return pattern.startsWith('*.') ? host.end
 
 function validateManifest(raw) {
   if (!raw || raw.schemaVersion !== 1 || !SOURCE_ID.test(raw.id) || !VERSION.test(raw.version)) throw new Error('音乐源清单的 ID、版本或协议版本无效');
-  const capabilities = [...new Set(Array.isArray(raw.capabilities) ? raw.capabilities : [])];
+  const declared = [...new Set(Array.isArray(raw.capabilities) ? raw.capabilities : [])];
+  if (declared.some(item => !CAPABILITIES.has(item))) throw new Error('音乐源能力声明无效');
+  // Older packages may declare download support; playback/cache is the only media flow now.
+  const capabilities = declared.filter(item => item !== 'resolveDownload');
   if (!capabilities.length || capabilities.some(item => !CAPABILITIES.has(item))) throw new Error('音乐源能力声明无效');
   const network = {};
   for (const key of ['apiHosts', 'mediaHosts', 'artworkHosts']) {
@@ -57,7 +60,7 @@ function validateManifest(raw) {
     network[key] = [...new Set(hosts.map(host => host.toLowerCase()))];
   }
   if (capabilities.includes('search') && !network.apiHosts.length) throw new Error('可搜索的音乐源必须声明 API 域名');
-  if ((capabilities.includes('resolvePlayback') || capabilities.includes('resolveDownload')) && !network.mediaHosts.length) throw new Error('可播放或下载的音乐源必须声明媒体域名');
+  if (capabilities.includes('resolvePlayback') && !network.mediaHosts.length) throw new Error('可播放的音乐源必须声明媒体域名');
   return {
     schemaVersion: 1, id: raw.id, name: boundedText(raw.name, 60) || raw.id,
     version: raw.version, entry: 'index.js', capabilities,
@@ -169,7 +172,7 @@ class SourceManager {
   previewLx(script, origin) {
     const info = lxScriptInfo(script);
     const id = `lx.${createHash('sha256').update(origin.label.toLowerCase()).digest('hex').slice(0, 24)}`;
-    const manifest = { id, name: info.name, version: info.version, capabilities: ['search', 'resolvePlayback', 'resolveDownload'], qualities: [], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [], lxPlatforms: {} };
+    const manifest = { id, name: info.name, version: info.version, capabilities: ['search', 'resolvePlayback'], qualities: [], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [], lxPlatforms: {} };
     const token = randomUUID();
     this.pendingImports.set(token, { packageText: script, origin, expiresAt: Date.now() + 10 * 60 * 1000 });
     return { token, kind: 'lx', manifest, origin, sha256: createHash('sha256').update(script).digest('hex'), previousVersion: this.records.find(item => item.id === id)?.manifest.version || null };
@@ -410,21 +413,19 @@ class SourceManager {
     }).filter(Boolean);
     return { items, nextCursor: result.nextCursor == null ? null : boundedText(result.nextCursor, 300) };
   }
-  async cached(track, quality = 'high', cacheAsId = '', skipOffline = false) {
+  async cached(track, quality = 'high', cacheAsId = '') {
     const id = track?.providerId, remoteId = track?.remoteId;
     if (!id || !remoteId) throw new Error('歌曲缺少来源 ID');
     const coverUrl = id.startsWith('lx.') ? this.makeCoverUrl(id, remoteId) : track.coverUrl;
     const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
-    if (!skipOffline && await this.downloads?.offlinePath(cacheId)) return { audioUrl: `yzqxy://offline/${encodeURIComponent(cacheId)}`, actualQuality: 'offline', coverUrl, playbackProviderId: 'download' };
-    if (!skipOffline && cacheId !== track.id && await this.downloads?.offlinePath(track.id)) return { audioUrl: `yzqxy://offline/${encodeURIComponent(track.id)}`, actualQuality: 'offline', coverUrl, playbackProviderId: 'download' };
     const cached = await this.audioCache?.find(cacheId, quality) || (cacheId !== track.id ? await this.audioCache?.find(track.id, quality) : null);
     if (cached && cacheId !== track.id) await this.audioCache?.link(cacheId, quality, cached.key);
     return cached ? { audioUrl: `yzqxy://cached-audio/${cached.key}`, actualQuality: '本地缓存', coverUrl, playbackProviderId: 'cache' } : null;
   }
   async cachedBest(track, qualities) {
-    // One IPC, one offline lookup; preserve the caller's quality preference.
+    // One IPC; preserve the caller's quality preference while looking up disk cache.
     const tiers = [...new Set(Array.isArray(qualities) ? qualities : ['high'])].filter(tier => ['lossless24', 'lossless', 'high', 'standard'].includes(tier));
-    for (let index = 0; index < tiers.length; index += 1) { const result = await this.cached(track, tiers[index], '', index > 0); if (result) return { ...result, playbackQuality: tiers[index] }; }
+    for (let index = 0; index < tiers.length; index += 1) { const result = await this.cached(track, tiers[index]); if (result) return { ...result, playbackQuality: tiers[index] }; }
     return null;
   }
   async resolve(track, quality = 'high', cacheAsId = '', skipCache = false) {
@@ -446,13 +447,12 @@ class SourceManager {
     this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
     return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id };
   }
-  async lxPlayback(id, remoteId, quality, allowLower = false) {
+  async lxPlayback(id, remoteId, quality) {
     const record = this.record(id);
     const musicInfo = lxCatalog.readInfo(remoteId);
     const supported = record.manifest.lxPlatforms[musicInfo.source]?.qualitys || [];
     if (!supported.length) throw new Error(`音乐源不支持 ${musicInfo.source} 平台`);
     const order = quality === 'lossless24' ? ['flac24bit'] : quality === 'lossless' ? ['flac'] : quality === 'standard' ? ['128k'] : ['320k'];
-    if (allowLower) order.push(...(quality === 'lossless24' ? ['flac', '320k', '128k'] : quality === 'lossless' ? ['320k', '128k'] : quality === 'high' ? ['128k'] : []));
     let lastError;
     for (const type of order.filter(item => supported.includes(item))) {
       try {
@@ -471,21 +471,6 @@ class SourceManager {
       headers[key] = String(value);
     }
     return headers;
-  }
-  async downloadInfo(track, quality = 'high') {
-    if (!track?.providerId || !track?.remoteId) throw new Error('歌曲缺少来源 ID');
-    const record = this.record(track.providerId);
-    if (quality === 'auto') quality = record.kind === 'lx' ? 'lossless24' : ['lossless', 'high', 'standard'].find(tier => record.manifest.qualities.includes(tier)) || record.manifest.qualities[0] || 'high';
-    if (record.kind === 'lx' && quality === 'lossless') quality = 'lossless24';
-    quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
-    const result = record.kind === 'lx' ? await this.lxPlayback(track.providerId, track.remoteId, quality, true) : await this.call(track.providerId, 'resolveDownload', { remoteId: track.remoteId, quality });
-    if (record.kind === 'lx') await checkLxUrl(result?.url); else checkUrl(result?.url, record.manifest.network.mediaHosts);
-    return { url: result.url, patterns: record.kind === 'lx' ? null : record.manifest.network.mediaHosts, headers: this.mediaHeaders(result.headers), format: boundedText(result.format, 10), size: Number(result.size) || 0 };
-  }
-  fetchDownload(info, range, signal) {
-    const headers = { ...info.headers };
-    if (range) headers.Range = range;
-    return fetchAllowed(info.url, info.patterns, { headers, signal });
   }
   async stream(request, token) {
     const session = this.sessions.get(token); if (!session) return new Response('音频会话已过期', { status: 404 });

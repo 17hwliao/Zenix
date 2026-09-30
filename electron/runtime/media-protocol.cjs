@@ -74,14 +74,10 @@ async function serveFile(filePath, request, contentType) {
   return new Response(Readable.toWeb(stream), { status, headers });
 }
 
-function registerMediaProtocol({ protocol, sourceManager, downloadManager, audioCache, library, appearance }) {
+function registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance }) {
   protocol.handle('yzqxy', async (request) => {
     const url = new URL(request.url);
     if (url.hostname === 'stream') return sourceManager.stream(request, url.pathname.slice(1));
-    if (url.hostname === 'offline') {
-      const filePath = await downloadManager.offlinePath(decodeURIComponent(url.pathname.slice(1)));
-      return filePath ? serveFile(filePath, request) : new Response('Not found', { status: 404 });
-    }
     if (url.hostname === 'cached-audio') {
       const cached = await audioCache.byKey(url.pathname.slice(1));
       return cached ? serveFile(cached.path, request, cached.contentType) : new Response('Not found', { status: 404 });

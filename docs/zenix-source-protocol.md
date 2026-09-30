@@ -13,7 +13,7 @@
     "id": "org.example.music",
     "name": "示例音乐源",
     "version": "1.0.0",
-    "capabilities": ["search", "resolvePlayback", "lyrics", "artwork", "resolveDownload"],
+    "capabilities": ["search", "resolvePlayback", "lyrics", "artwork"],
     "qualities": ["standard", "high", "lossless"],
     "network": {
       "apiHosts": ["api.example.org"],
@@ -40,8 +40,10 @@
 | `resolvePlayback` | `{ remoteId, quality }` | `{ url, actualQuality?, expiresAt?, headers? }` |
 | `lyrics` | `{ remoteId }` | LRC 字符串，或 `{ text, translationText?, format? }` |
 | `artwork` | `{ remoteId }` | `{ url }`；若搜索结果有 `coverUrl`，优先使用它 |
-| `resolveDownload` | `{ remoteId, quality }` | `{ url, format?, size?, headers? }`；`format` 建议给出 `mp3/flac/m4a/wav/ogg/opus/aac` |
 
-每个方法必须在 `manifest.capabilities` 中声明才会被调用。`search` 返回的 `remoteId` 必须对同一首歌稳定，歌单、收藏、历史与离线文件都以源 ID 和该 ID 关联。播放和下载 URL 必须位于 `mediaHosts`；封面 URL 必须位于 `artworkHosts`。远程请求默认要求 HTTPS；本机 `localhost/127.0.0.1` 可使用 HTTP，便于源作者在本机调试。重定向的目标域名同样会校验。
+每个方法必须在 `manifest.capabilities` 中声明才会被调用。`search` 返回的 `remoteId` 必须对同一首歌稳定，歌单、收藏、历史与音频缓存都以源 ID 和该 ID 关联。播放 URL 必须位于 `mediaHosts`；封面 URL 必须位于 `artworkHosts`。远程请求默认要求 HTTPS；本机 `localhost/127.0.0.1` 可使用 HTTP，便于源作者在本机调试。重定向的目标域名同样会校验。
 
-Zenix 不存储临时播放 URL 到收藏、历史或队列。源停用或删除后保留这些歌曲的引用；同 ID 已下载的副本仍可离线播放。源的搜索、播放和歌词故障不会阻止本地曲库工作。
+Zenix 不存储临时播放 URL 到收藏、历史或队列。源停用或删除后保留这些歌曲的引用；同 ID 的完整缓存可用时优先读取本机；缓存淘汰后需要重新获取。源的搜索、播放和歌词故障不会阻止本地曲库工作。
+
+
+当前版本不提供主动歌曲下载。旧源包中声明的 `resolveDownload` 为兼容导入而接受，但会从可用能力中移除，其方法不会被应用调用。

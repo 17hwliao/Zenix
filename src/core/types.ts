@@ -105,7 +105,6 @@ export type SourceManifest = {
 export type InstalledSource = { id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; installedAt: number; status: string; lastError: string };
 export type SourcePreview = { token: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
 export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
-export type DownloadTask = { id: string; track: Track; quality: string; status: 'queued' | 'resolving' | 'downloading' | 'paused' | 'completed' | 'failed'; received: number; total: number; error: string };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number };
 
 export interface DesktopBridge {
@@ -155,12 +154,6 @@ export interface DesktopBridge {
     cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string } | null>;
     resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
-    download(track: Track, quality?: string): Promise<DownloadTask[]>;
-    downloads(): Promise<DownloadTask[]>;
-    pauseDownload(id: string): Promise<DownloadTask[]>;
-    resumeDownload(id: string): Promise<DownloadTask[]>;
-    showDownload(id: string): Promise<void>;
-    onDownloadsChanged(callback: (tasks: DownloadTask[]) => void): () => void;
     openFolder(): Promise<string>;
     onChanged(callback: (sources: InstalledSource[]) => void): () => void;
   };

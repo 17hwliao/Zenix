@@ -1,12 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { FilePlus2, FolderOpen, Globe2, Pause, Play, Power, Trash2 } from 'lucide-react';
-import type { AudioCacheStats, DownloadTask, InstalledSource, SourcePreview } from '../core/types';
+import { FilePlus2, FolderOpen, Globe2, Power, Trash2 } from 'lucide-react';
+import type { AudioCacheStats, InstalledSource, SourcePreview } from '../core/types';
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
 
 export default function SourceSettings() {
   const [sources, setSources] = useState<InstalledSource[]>([]);
-  const [downloads, setDownloads] = useState<DownloadTask[]>([]);
   const [cache, setCache] = useState<AudioCacheStats | null>(null);
   const [quality, setQuality] = useState(() => localStorage.getItem('zenix.onlineQuality') || 'auto');
   const [url, setUrl] = useState('');
@@ -27,16 +26,10 @@ export default function SourceSettings() {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
   const clearCache = async () => {
-    if (!window.confirm('清除自动缓存的音频？近期播放记录、收藏、歌单和主动下载的文件都会保留。')) return;
+    if (!window.confirm('清除自动缓存的音频？近期播放记录、收藏、歌单和本地音乐文件都会保留。')) return;
     try { setCache(await window.yzqxy!.cache.clear()); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
-  useEffect(() => {
-    const bridge = window.yzqxy?.sources;
-    if (!bridge) return;
-    void bridge.downloads().then(setDownloads).catch(() => {});
-    return bridge.onDownloadsChanged(setDownloads);
-  }, []);
   useEffect(() => () => { if (preview) void window.yzqxy?.sources.cancelImport(preview.token); }, [preview]);
   const run = async (action: () => Promise<InstalledSource[] | null>) => {
     setBusy(true); setError('');
@@ -99,7 +92,7 @@ export default function SourceSettings() {
     <div className="yz-settings-intro"><h2>音乐源</h2><p>按首次接入时间依次尝试。每个源先获取所选音质，再逐级降低；该源仍不可播放时才切换到下一个。更新脚本不会改变顺序。</p></div>
     <label className="zenix-source-quality">播放音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="auto">自动 · 优先最高可用</option><option value="standard">标准</option><option value="high">最高高音质</option><option value="lossless">最高无损</option></select></label>
     {cache && <section className="zenix-audio-cache" aria-label="自动缓存">
-      <div><strong>自动缓存</strong><small>播放过的在线歌曲会缓存在本机，再次播放优先读取缓存。近期播放记录和主动下载独立保存。</small></div>
+      <div><strong>自动缓存</strong><small>播放过的在线歌曲会缓存在本机，再次播放优先读取缓存。近期播放记录、收藏与歌单独立保存。</small></div>
       <label>启用<input type="checkbox" checked={cache.enabled} onChange={event => void configureCache({ enabled: event.target.checked })} /></label>
       <label>容量上限<select value={cache.limitMiB} onChange={event => void configureCache({ limitMiB: Number(event.target.value) })}><option value={512}>512 MB</option><option value={1024}>1 GB</option><option value={2048}>2 GB</option><option value={5120}>5 GB</option></select></label>
       <small>已缓存 {cache.trackCount} 首 · {(cache.usedBytes / 1024 / 1024).toFixed(1)} MB；超过容量时先清理最久未使用的歌曲，30 天未使用的缓存会过期。</small>
@@ -117,14 +110,14 @@ export default function SourceSettings() {
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFolder())} disabled={busy || !window.yzqxy?.sources}><FolderOpen size={16} />源文件夹</button>
       <form onSubmit={importUrl}><Globe2 size={16} /><input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="粘贴 HTTPS 源包或 .js 脚本地址" aria-label="音乐源地址" /><button type="submit" disabled={busy || !url.trim()}>导入</button></form>
     </div>
-    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
+    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.filter(capability => capability !== 'resolveDownload').join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
     <p className="zenix-source-hint">支持 .zenixsource JSON、自定义 .js 脚本及其 HTTPS 地址。搜索平台可在安装后的“源选项”中切换。<button className="zenix-source-folder-link" onClick={() => void window.yzqxy?.sources.openFolder()}>打开已安装源目录</button></p>
     {error && <p className="zenix-source-error" role="alert">{error}</p>}
     <div className="zenix-source-list">
       {sources.length === 0 && <div className="zenix-source-empty">还没有音乐源。添加后即可搜索在线歌曲。</div>}
       {sources.map((source, index) => <section key={source.id} className={`zenix-source-card${source.enabled ? '' : ' is-disabled'}`}>
         <div className="zenix-source-card-head"><span className="zenix-source-rank">{String(index + 1).padStart(2, '0')}</span><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? '音乐源脚本' : 'Zenix 源'} · {source.manifest.version.startsWith('v') ? source.manifest.version : `v${source.manifest.version}`} · 接入于 {new Date(source.installedAt).toLocaleString()}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
-        <p>{source.manifest.capabilities.map(capability => ({ search: '搜索', resolvePlayback: '播放', lyrics: '歌词', artwork: '封面', resolveDownload: '下载' })[capability as 'search' | 'resolvePlayback' | 'lyrics' | 'artwork' | 'resolveDownload'] || capability).join(' · ')}</p>
+        <p>{source.manifest.capabilities.filter(capability => capability !== 'resolveDownload').map(capability => ({ search: '搜索', resolvePlayback: '播放', lyrics: '歌词', artwork: '封面' })[capability as 'search' | 'resolvePlayback' | 'lyrics' | 'artwork'] || capability).join(' · ')}</p>
         <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · 音乐源脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
         <div className="zenix-source-actions">
@@ -139,6 +132,5 @@ export default function SourceSettings() {
         </form>}
       </section>)}
     </div>
-    <section className="zenix-downloads"><h3>下载任务</h3>{downloads.length === 0 && <p>还没有下载歌曲。可在搜索结果中点击下载图标。</p>}{downloads.map(task => <div className="zenix-download-row" key={task.id}><div><strong>{task.track.title}</strong><small>{task.track.artist} · {task.status === 'completed' ? '已下载' : task.status === 'failed' ? `失败：${task.error}` : task.status === 'paused' ? '已暂停' : task.status === 'queued' ? '排队中' : task.status === 'resolving' ? '正在解析' : task.total ? `${Math.round(task.received / task.total * 100)}%` : `${Math.round(task.received / 1024)} KB`}</small></div>{task.status === 'completed' ? <button title="查看文件" aria-label={`查看 ${task.track.title} 文件`} onClick={() => void window.yzqxy!.sources.showDownload(task.id)}><FolderOpen size={15} /></button> : ['downloading', 'resolving', 'queued'].includes(task.status) ? <button title="暂停下载" aria-label={`暂停 ${task.track.title}`} onClick={() => void window.yzqxy!.sources.pauseDownload(task.id)}><Pause size={15} /></button> : <button title="继续下载" aria-label={`继续 ${task.track.title}`} onClick={() => void window.yzqxy!.sources.resumeDownload(task.id)}><Play size={15} /></button>}{task.total > 0 && <span className="zenix-download-progress" style={{ width: `${Math.min(100, task.received / task.total * 100)}%` }} />}</div>)}</section>
   </div>;
 }

@@ -7,7 +7,6 @@ const { LocalLibrary, AUDIO_EXTENSIONS } = require('./library.cjs');
 const { AppearanceStore } = require('./appearance.cjs');
 const { PersonalStore } = require('./personal.cjs');
 const { SourceManager } = require('./sources.cjs');
-const { DownloadManager } = require('./downloads.cjs');
 const { AudioCache } = require('./audio-cache.cjs');
 const { LyricsHoverTracker } = require('./runtime/lyrics-hover.cjs');
 
@@ -39,16 +38,16 @@ let library = null;
 let appearance = null;
 let personal = null;
 let sourceManager = null;
-let downloadManager = null;
 let audioCache = null;
 let lyricsDelivery = { contentsId: 0, lines: null, saved: '' };
+let lastLyricsRaise = 0;
 const lyricsHover = new LyricsHoverTracker({
   getBounds: () => lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible() ? lyricsWindow.getBounds() : null,
   getCursor: () => screen.getCursorScreenPoint(),
   onChange: hovered => {
     if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:hovered', hovered);
   },
-  onSample: (bounds, hovered) => updateLyricsLockBadge(bounds, hovered),
+  onSample: (bounds, hovered) => { updateLyricsLockBadge(bounds, hovered); maintainLyricsZOrder(); },
   onStop: hideLyricsLockWindow,
 });
 
@@ -103,6 +102,7 @@ function createWindow() {
   });
   mainWindow.on('maximize', () => broadcast('window:maximized-changed', true));
   mainWindow.on('unmaximize', () => broadcast('window:maximized-changed', false));
+  mainWindow.on('focus', () => maintainLyricsZOrder(true));
   mainWindow.on('closed', () => {
     mainWindow = null;
     if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close();
@@ -141,6 +141,20 @@ function showMainWindow() {
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
+  maintainLyricsZOrder(true);
+}
+
+function maintainLyricsZOrder(force = false) {
+  const win = lyricsWindow;
+  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  const now = performance.now();
+  if (!force && now - lastLyricsRaise < 2000) return;
+  lastLyricsRaise = now;
+  if (!win.isAlwaysOnTop()) win.setAlwaysOnTop(true, 'screen-saver');
+  // Raise without taking keyboard focus, including above other topmost windows.
+  // Reuse the visible-overlay sampler; no separate idle timer or style toggling.
+  win.moveTop();
+  if (lyricsLockWindow && !lyricsLockWindow.isDestroyed() && lyricsLockWindow.isVisible()) lyricsLockWindow.moveTop();
 }
 
 function createLyricsLockWindow() {
@@ -150,7 +164,7 @@ function createLyricsLockWindow() {
     alwaysOnTop: true, skipTaskbar: true, resizable: false, show: false,
     webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  lyricsLockWindow.setAlwaysOnTop(true, 'floating');
+  lyricsLockWindow.setAlwaysOnTop(true, 'screen-saver');
   lyricsLockReady = false;
   lyricsLockWindow.once('ready-to-show', () => { lyricsLockReady = true; lyricsHover.sample(); });
   void lyricsLockWindow.loadFile(path.join(__dirname, 'lyrics-lock.html'));
@@ -170,7 +184,7 @@ function updateLyricsLockBadge(bounds, hovered) {
   const y = bounds.y + (lyricsOrientation === 'vertical' ? 86 : 35);
   const current = badge.getBounds();
   if (current.x !== x || current.y !== y) badge.setPosition(x, y);
-  if (lyricsLockReady && !badge.isVisible()) badge.showInactive();
+  if (lyricsLockReady && !badge.isVisible()) { badge.showInactive(); badge.moveTop(); }
 }
 
 function trackLyricsInteraction() {
@@ -251,7 +265,7 @@ function createLyricsWindow() {
     webPreferences: { preload: path.join(__dirname, 'lyrics-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
   const win = lyricsWindow;
-  win.setAlwaysOnTop(true, 'floating');
+  win.setAlwaysOnTop(true, 'screen-saver');
   win.setIgnoreMouseEvents(lyricsLocked, { forward: true });
   const area = screen.getDisplayMatching(mainWindow?.getBounds() || screen.getPrimaryDisplay().workArea).workArea;
   const preferredX = lyricsBounds?.x ?? Math.round(area.x + (area.width - win.getBounds().width) / 2);
@@ -269,6 +283,8 @@ function createLyricsWindow() {
   win.on('move', saveBounds);
   win.on('resize', saveBounds);
   win.on('show', trackLyricsInteraction);
+  win.on('show', () => maintainLyricsZOrder(true));
+  win.on('blur', () => maintainLyricsZOrder(true));
   win.on('hide', trackLyricsInteraction);
   lyricsWindow.webContents.on('did-fail-load', (_event, code, description) => console.error('Desktop lyrics load failed:', code, description));
   lyricsReady = win.loadFile(path.join(__dirname, 'desktop-lyrics.html')).then(() => {
@@ -289,7 +305,7 @@ function registerHandlers() {
     await lyricsReady;
     if (win.isDestroyed()) return false;
     win.showInactive();
-    win.setAlwaysOnTop(true, 'floating');
+    maintainLyricsZOrder(true);
     broadcast('lyrics:visible', true);
     return true;
   });
@@ -389,17 +405,9 @@ function registerHandlers() {
   ipcMain.handle('sources:cached-best', (_event, track, qualities) => sourceManager.cachedBest(track, qualities));
   ipcMain.handle('sources:resolve', (_event, track, quality, cacheAsId, skipCache) => sourceManager.resolve(track, quality, cacheAsId, skipCache));
   ipcMain.handle('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
-  ipcMain.handle('sources:download', (_event, track, quality) => downloadManager.enqueue(track, quality));
-  ipcMain.handle('sources:downloads', () => downloadManager.list());
   ipcMain.handle('cache:stats', () => audioCache.stats());
   ipcMain.handle('cache:configure', (_event, options) => audioCache.configure(options));
   ipcMain.handle('cache:clear', () => audioCache.clear());
-  ipcMain.handle('sources:pause-download', (_event, id) => downloadManager.pause(String(id || '')));
-  ipcMain.handle('sources:resume-download', (_event, id) => downloadManager.resume(String(id || '')));
-  ipcMain.handle('sources:show-download', async (_event, id) => {
-    const task = downloadManager.tasks.find(item => item.id === id && item.status === 'completed');
-    if (task && await downloadManager.offlinePath(task.track.id)) shell.showItemInFolder(task.file);
-  });
   ipcMain.handle('sources:open-folder', () => shell.openPath(sourceManager.folder));
   ipcMain.handle('library:load', () => library.load());
   ipcMain.handle('library:import-folder', async () => {
@@ -481,14 +489,10 @@ if (primaryInstance) app.whenReady().then(async () => {
   appearance = new AppearanceStore(app.getPath('userData'));
   personal = new PersonalStore(app.getPath('userData'));
   sourceManager = new SourceManager(app.getPath('userData'), broadcast);
-  downloadManager = new DownloadManager(sourceManager, app.getPath('userData'), broadcast);
   audioCache = new AudioCache(app.getPath('userData'));
-  sourceManager.downloads = downloadManager;
   sourceManager.audioCache = audioCache;
   await Promise.all([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
-  // Download recovery can resolve sources, so start it after source/cache storage is ready.
-  await downloadManager.load();
-  registerMediaProtocol({ protocol, sourceManager, downloadManager, audioCache, library, appearance });
+  registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance });
   registerHandlers();
   createWindow();
   app.on('activate', () => {

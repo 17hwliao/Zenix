@@ -11,6 +11,7 @@ import type { LyricLineView, RepeatMode, TrackView } from './types';
 
 type LatticePlayerProps = {
   track: TrackView;
+  hasPlayback?: boolean;
   personal: PersonalState;
   onToggleSaved?: (kind: 'liked' | 'favorites', track: TrackView) => void;
   onAddToPlaylist?: (id: string, track: TrackView) => void;
@@ -46,7 +47,7 @@ type LatticePlayerProps = {
 };
 
 export default function LatticePlayer({
-  track, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
+  track, hasPlayback = true, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
   onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, searchRevealed = false, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
@@ -70,12 +71,15 @@ export default function LatticePlayer({
   const seekDraggingRef = useRef(false);
   // Each poster belongs to the visible search result or the current playback queue exactly once.
   const wallTracks = displayTracks ?? (queue.length ? queue : [track]);
+  const wallTracksRef = useRef(wallTracks);
+  wallTracksRef.current = wallTracks;
+  const focusedTrackIdRef = useRef<string | null>(null);
   const slots = useMemo(() => stickerSlotsForCount(wallTracks.length), [wallTracks.length]);
-  const activeIndex = wallTracks.findIndex(item => item.id === track.id);
+  const activeIndex = hasPlayback ? wallTracks.findIndex(item => item.id === track.id) : -1;
   const queueSignature = queue.map(item => item.id).join('|');
   const displaySignature = displayTracks?.map(item => item.id).join('|') ?? '';
   const focusedTrack = wallTracks[selectedSlot] ?? track;
-  const focusedIsCurrent = focusedTrack.id === track.id;
+  const focusedIsCurrent = hasPlayback && focusedTrack.id === track.id;
   const cellPitch = Math.max(72, Math.min(112, viewport.width / 14.5, viewport.height / 8.8));
   const total = duration || track.duration || 0;
   const shownPosition = seekDraft ?? position;
@@ -97,10 +101,11 @@ export default function LatticePlayer({
     y: Math.max(viewport.height / 2 - target.bottom * cellPitch, Math.min(viewport.height / 2 - target.top * cellPitch, y)),
   }), [bounds.left, bounds.top, bounds.right, bounds.bottom, cellPitch, viewport.width, viewport.height]);
 
-  const focusSlot = useCallback((slot: number) => {
+  const focusSlot = useCallback((slot: number, remember = true) => {
     const layout = expandedStickerLayout(slot, slots);
     const focus = layout.get(slot);
     if (!focus) return;
+    if (remember) focusedTrackIdRef.current = wallTracksRef.current[slot]?.id ?? null;
     setSelectedSlot(slot);
     setPanning(false);
     setCamera(clampCamera(viewport.width / 2 - (focus.x + focus.columns / 2) * cellPitch + STICKER_GAP / 2, viewport.height / 2 - (focus.y + focus.rows / 2) * cellPitch + STICKER_GAP / 2, layoutBounds(layout)));
@@ -120,9 +125,16 @@ export default function LatticePlayer({
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => { focusSlot(selectedSlot); }, [focusSlot]);
+  useEffect(() => { focusSlot(selectedSlot, false); }, [focusSlot]);
   useEffect(() => { if (displayTracks === undefined) focusSlot(Math.max(0, queueIndex >= 0 ? queueIndex : activeIndex)); }, [queueSignature, displayTracks === undefined]);
-  useEffect(() => { if (displayTracks !== undefined && slots.length) focusSlot(0); }, [displayTracks === undefined, displaySignature, slots.length]);
+  useEffect(() => {
+    if (displayTracks === undefined || !slots.length) return;
+    const previous = wallTracks.findIndex(item => item.id === focusedTrackIdRef.current);
+    focusSlot(previous >= 0 ? previous : 0);
+  }, [displayTracks === undefined, displaySignature, slots.length]);
+  useEffect(() => {
+    if (hasPlayback && displayTracks !== undefined && activeIndex >= 0) focusSlot(activeIndex);
+  }, [track.id, hasPlayback]);
 
   // Following playback does not interrupt a poster selected for browsing.
   useEffect(() => {
@@ -243,7 +255,7 @@ export default function LatticePlayer({
           const item = wallTracks[itemIndex];
           const rect = expandedRects.get(slot) ?? tile;
           const expanded = slot === selectedSlot;
-          const current = item.id === track.id;
+          const current = hasPlayback && item.id === track.id;
           // Keep only the camera's visible posters and a small overscan mounted.
           const overscan = cellPitch * 1.5;
           if (!expanded && (immersive || rect.x * cellPitch + camera.x > viewport.width + overscan || rect.y * cellPitch + camera.y > viewport.height + overscan || (rect.x + rect.columns) * cellPitch + camera.x < -overscan || (rect.y + rect.rows) * cellPitch + camera.y < -overscan)) return null;
@@ -279,7 +291,7 @@ export default function LatticePlayer({
       <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
       <button className={`yz-lattice-mini-lyrics${desktopLyricsVisible ? ' is-active' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} title={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-label={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-pressed={desktopLyricsVisible}><Captions size={18} /></button>
       <TrackQuickActions track={track} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPlaylist} onCreatePlaylist={onCreatePlaylist} compact />
-      <input className="yz-lattice-mini-progress" type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(shownPosition, Math.max(total, 1))} disabled={total <= 0} onPointerDown={() => { seekDraggingRef.current = true; seekDraftRef.current = position; setSeekDraft(position); }} onChange={event => { const seconds = Number(event.target.value); if (seekDraggingRef.current) { seekDraftRef.current = seconds; setSeekDraft(seconds); } else onSeek(seconds); }} onPointerUp={commitMiniSeek} onPointerCancel={() => { seekDraggingRef.current = false; seekDraftRef.current = null; setSeekDraft(null); }} aria-label="拖动歌曲进度" style={{ '--range-fill': `${total ? Math.min(100, shownPosition / total * 100) : 0}%` } as CSSProperties} /><small className="yz-lattice-mini-time">{formatTime(shownPosition)} / {formatTime(total)}</small>
+      <input className="yz-lattice-mini-progress" type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(shownPosition, Math.max(total, 1))} disabled={!hasPlayback || total <= 0} onPointerDown={() => { seekDraggingRef.current = true; seekDraftRef.current = position; setSeekDraft(position); }} onChange={event => { const seconds = Number(event.target.value); if (seekDraggingRef.current) { seekDraftRef.current = seconds; setSeekDraft(seconds); } else onSeek(seconds); }} onPointerUp={commitMiniSeek} onPointerCancel={() => { seekDraggingRef.current = false; seekDraftRef.current = null; setSeekDraft(null); }} aria-label="拖动歌曲进度" style={{ '--range-fill': `${total ? Math.min(100, shownPosition / total * 100) : 0}%` } as CSSProperties} /><small className="yz-lattice-mini-time">{formatTime(shownPosition)} / {formatTime(total)}</small>
       <div className="yz-lattice-mini-controls">
         <button onClick={onPrevious} title="上一首" aria-label="上一首"><SkipBack size={16} fill="currentColor" /></button>
         <button onClick={onTogglePlay} title={playing ? '暂停' : '播放'} aria-label={playing ? '暂停' : '播放'}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>

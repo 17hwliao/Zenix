@@ -62,15 +62,5 @@
 .zenix-source-options button { justify-self: end; padding: 8px 14px; font-size: 11px; }
 .zenix-source-import button:hover, .zenix-source-actions button:hover, .zenix-source-options button:hover { background: #ffffff32; }
 .zenix-source-settings button:disabled { cursor: default; opacity: .45; }
-.zenix-downloads { margin-top: 23px; padding-top: 13px; border-top: 1px solid #ffffff2a; }
-.zenix-downloads h3 { margin: 0 0 9px; font-size: 13px; }
-.zenix-downloads > p { color: #ffffff80; font-size: 11px; }
-.zenix-download-row { position: relative; display: flex; align-items: center; gap: 10px; overflow: hidden; min-height: 49px; padding: 8px 4px; border-bottom: 1px solid #ffffff19; }
-.zenix-download-row > div { flex: 1; min-width: 0; }
-.zenix-download-row strong, .zenix-download-row small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.zenix-download-row strong { font-size: 11px; }
-.zenix-download-row small { margin-top: 4px; color: #ffffff81; font-size: 10px; }
-.zenix-download-row button { z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #ffffff2a; border-radius: 50%; background: #ffffff18; color: #fff; }
-.zenix-download-progress { position: absolute; bottom: 0; left: 0; height: 2px; background: #f3dfa5; }
 @media (max-width: 560px) { .zenix-source-import { flex-direction: column; } .zenix-source-import > button { justify-content: center; min-height: 36px; } }
 @media (max-width: 660px) { .zenix-source-preset-list { grid-template-columns: 1fr; } .zenix-source-presets-head { flex-direction: column; gap: 4px; } .zenix-source-presets-head small { text-align: left; } }
