@@ -76,6 +76,8 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 桌面歌词以独立透明窗口显示三句歌词，支持横竖布局、字体与颜色调整、顶部拖动、歌词预览及定位播放。鼠标离开时收起操作区，锁定后减少对办公点击的干扰；房子按钮可以召回主窗口。
 
+悬停操作层采用边缘缓冲与延迟收起，拖动时保持展开；调整歌词窗口大小使用右下角的小拖动柄。
+
 个人主页的卡片区域用于转动环绕卡片，卡片区域外可上下滚动页面；下滑按钮进入歌曲管理区域。中央名片支持编辑和向上拖动切换前后层，其他卡片悬停时恢复色彩。背景、卡面封面和三类交互音效可按个人喜好调整。
 
 ### 数据保存与缓存
@@ -114,6 +116,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Create-DesktopShortcut.ps1
 
 界面使用 React、TypeScript 与 Vite，桌面端使用 Electron；主进程负责文件、曲库、窗口、源请求、缓存及下载，界面通过预加载接口调用。源脚本使用独立宿主运行，播放请求由应用代理。
 
+| 技术类别 | 当前技术 |
+| --- | --- |
+| 桌面与界面 | Electron 43.7.5、React / React DOM 19.3.0 |
+| 语言与构建 | TypeScript 5.9.3、JavaScript、HTML/CSS、Vite 7.3.6 |
+| 动画与背景 | Framer Motion 13.4.4、lottie-web 5.13.0、Paper Shaders 0.0.80、CSS 3D / Web Animations API / WebGL |
+| 图标与音频 | Lucide 1.48.0、music-metadata 11.16.1、HTMLAudioElement、Media Session API |
+| 通信与存储 | Electron IPC、Fetch、Range 媒体代理、JSON、Local Storage 和本机磁盘缓存 |
+
+版本按当前锁定依赖记录，完整职责划分与开发工具见 [技术栈](docs/technical-stack.md)。
+
 ```text
 src/              界面、播放器状态、歌词与交互
 electron/         桌面主进程、预加载接口、曲库与音乐源
@@ -125,6 +137,7 @@ licenses/         第三方许可证与通知原文
 ```
 
 - [音乐源接入设计](docs/custom-source-design.md)
+- [完整技术栈与桌面歌词交互实现](docs/technical-stack.md)
 - [Zenix 自定义源协议](docs/zenix-source-protocol.md)
 - [性能优化、模块划分与内存采样](docs/performance-architecture.md)
 - [发行配置与用户首次配置建议](docs/distribution-config.md)

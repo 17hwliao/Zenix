@@ -17,17 +17,19 @@
     body { padding:6px; }
     button,select,input { font:inherit; }
     .glass {
-      position:relative; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid transparent; border-radius:30px;
+      position:relative; isolation:isolate; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid transparent; border-radius:30px;
       background:rgba(0,0,0,.005); box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
       -webkit-app-region:no-drag;
     }
-    body:not(.is-locked).is-hovered .glass,body.is-editor-open .glass {
-      border-color:rgba(255,255,255,.2);
+    .glass::before {
+      content:''; position:absolute; z-index:0; inset:0; border:1px solid rgba(255,255,255,.2); border-radius:inherit; pointer-events:none;
       background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(30,36,44,var(--glass-opacity)) 30%,rgba(13,17,23,var(--glass-opacity)));
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 7px 22px rgba(0,0,0,.13);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.13);
       backdrop-filter:blur(16px) saturate(108%); -webkit-backdrop-filter:blur(16px) saturate(108%);
+      opacity:0; transition:opacity .18s ease; will-change:opacity;
     }
-    .glass::before,.glass::after { display:none; }
+    body:not(.is-locked).is-hovered .glass::before,body.is-editor-open .glass::before { opacity:1; }
+    .glass::after { display:none; }
     .top { position:relative; z-index:1; display:flex; align-items:center; gap:10px; height:35px; padding:5px 16px 0; opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s; -webkit-app-region:drag; }
     .bottom { opacity:0; visibility:hidden; transition:opacity .18s; }
     body:not(.is-locked).is-hovered .top,body:not(.is-locked).is-hovered .bottom,body.is-editor-open .top,body.is-editor-open .bottom { opacity:1; visibility:visible; pointer-events:auto; }
@@ -48,6 +50,9 @@
     .icon-button.lock { position:absolute; z-index:4; top:34px; left:50%; width:29px; height:29px; transform:translateX(-50%); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s,background .18s; }
     body:not(.is-locked).is-hovered .icon-button.lock { opacity:1; visibility:visible; pointer-events:auto; }
     .icon-button.close { font-size:19px; line-height:1; }
+    .size-grip { position:absolute; z-index:3; right:3px; bottom:3px; display:grid; place-items:center; width:16px; height:16px; padding:0; border:0; background:transparent; color:rgba(255,255,255,.45); cursor:nwse-resize; touch-action:none; opacity:0; visibility:hidden; pointer-events:none; -webkit-app-region:no-drag; }
+    .size-grip svg { width:11px; height:11px; fill:none; stroke:currentColor; stroke-width:1.4; pointer-events:none; }
+    body:not(.is-locked).is-hovered .size-grip { opacity:1; visibility:visible; pointer-events:auto; }
     .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 68px); min-height:99px; padding:0 28px; text-align:center; touch-action:none; cursor:grab; --drag-offset:0px; }
     .lines:active { cursor:grabbing; }
     .lines.is-browsing { padding-left:100px; padding-right:100px; }
@@ -131,7 +136,7 @@
     body.is-turning .glass { animation:lrc-clockwise-turn .48s cubic-bezier(.2,.8,.2,1) both; transform-origin:center; }
     @keyframes lrc-clockwise-turn { from { opacity:.35; transform:rotate(-90deg) scale(.72); } 65% { opacity:.93; } to { opacity:1; transform:rotate(0) scale(1); } }
     @media (max-width:680px) { .editor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 10px; }.editor { padding:9px 14px; }.editor-colors { margin-top:6px; } }
-    @media (prefers-reduced-motion:reduce) { .icon-button,.lines .line { transition:none; }.lines.is-browsing::after,.lines.is-browsing .jump,body.is-turning .glass { animation:none; } }
+    @media (prefers-reduced-motion:reduce) { .icon-button,.lines .line,.glass::before,.top,.bottom { transition:none; }.lines.is-browsing::after,.lines.is-browsing .jump,body.is-turning .glass { animation:none; } }
   </style>
 </head>
 <body class="is-paused">
@@ -157,6 +162,7 @@
     </div>
     <div class="bottom"><time id="elapsed">0:00</time><input class="song-progress" id="song-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="歌曲播放进度"><time id="total">0:00</time><div class="saved-actions"><button id="like" title="喜欢" aria-label="喜欢"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></svg></button><button id="favorite" title="收藏" aria-label="收藏"><svg viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 7 .9-5.1 5 .9 7-5.9-3.3-5.9 3.3.9-7-5.1-5 7-.9L12 2Z"/></svg></button><button id="playlist-toggle" title="加入歌单" aria-label="加入歌单"><svg viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M19 15v7M15.5 18.5h7"/></svg></button></div></div>
     <div class="playlist-menu" id="playlist-menu"><div id="playlist-choices"></div><form id="playlist-create"><input id="playlist-name" aria-label="新歌单名称" placeholder="新歌单名称"><button type="submit">新建</button></form></div>
+    <button class="size-grip" id="size-grip" title="拖动调整歌词窗口大小" aria-label="拖动调整歌词窗口大小"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3 10 7-7M7 10l3-3"/></svg></button>
     <div class="editor" id="editor" role="dialog" aria-label="桌面歌词外观" aria-hidden="true">
       <div class="editor-head"><div><strong>歌词外观</strong></div><button class="editor-close" id="editor-close" title="返回歌词" aria-label="返回歌词">×</button></div>
       <div class="editor-grid">
@@ -185,11 +191,61 @@
     let settings = defaults;
     try { settings = { ...defaults, ...JSON.parse(localStorage.getItem(storageKey) || '{}') }; } catch {}
     const byId = id => document.getElementById(id);
-    let hoverExitTimer = null;
-    const reveal = () => { if (hoverExitTimer) clearTimeout(hoverExitTimer); hoverExitTimer = null; document.body.classList.add('is-hovered'); };
-    document.body.addEventListener('pointerenter',reveal);
-    document.body.addEventListener('pointermove',reveal);
-    document.body.addEventListener('pointerleave',() => { if (hoverExitTimer) clearTimeout(hoverExitTimer); hoverExitTimer = setTimeout(() => { document.body.classList.remove('is-hovered'); byId('playlist-menu').classList.remove('is-open'); },180); });
+    function applyHover(hovered) {
+      document.body.classList.toggle('is-hovered',Boolean(hovered));
+      if (!hovered) byId('playlist-menu').classList.remove('is-open');
+    }
+    window.desktopLyrics?.onHoveredChanged(applyHover);
+    window.desktopLyrics?.hoverState().then(applyHover).catch(() => {});
+    const pressedPointers = new Set();
+    document.addEventListener('pointerdown',event => {
+      pressedPointers.add(event.pointerId);
+      window.desktopLyrics?.pointerGesture(true);
+    },true);
+    function releasePointer(event) {
+      pressedPointers.delete(event.pointerId);
+      if (!pressedPointers.size) window.desktopLyrics?.pointerGesture(false);
+    }
+    window.addEventListener('pointerup',releasePointer,true);
+    window.addEventListener('pointercancel',releasePointer,true);
+    window.addEventListener('lostpointercapture',releasePointer,true);
+    window.addEventListener('blur',() => { pressedPointers.clear(); window.desktopLyrics?.pointerGesture(false); });
+    let sizeDrag = null;
+    let requestedSize = null;
+    let sizeFrame = null;
+    const sizeGrip = byId('size-grip');
+    const flushSize = () => {
+      if (sizeFrame !== null) cancelAnimationFrame(sizeFrame);
+      sizeFrame = null;
+      if (requestedSize) window.desktopLyrics?.resize(requestedSize);
+      requestedSize = null;
+    };
+    sizeGrip.addEventListener('pointerdown',async event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      sizeDrag = { pointerId:event.pointerId, x:event.screenX, y:event.screenY, bounds:null };
+      sizeGrip.setPointerCapture(event.pointerId);
+      const gesture = sizeDrag;
+      try {
+        const bounds = await window.desktopLyrics?.bounds();
+        if (sizeDrag === gesture) gesture.bounds = bounds;
+      } catch { sizeDrag = null; }
+    });
+    sizeGrip.addEventListener('pointermove',event => {
+      if (sizeDrag?.pointerId !== event.pointerId || !sizeDrag.bounds) return;
+      requestedSize = { width:sizeDrag.bounds.width + event.screenX - sizeDrag.x, height:sizeDrag.bounds.height + event.screenY - sizeDrag.y };
+      if (sizeFrame === null) sizeFrame = requestAnimationFrame(flushSize);
+    });
+    const finishSize = event => {
+      if (sizeDrag?.pointerId !== event.pointerId) return;
+      flushSize();
+      sizeDrag = null;
+      if (sizeGrip.hasPointerCapture(event.pointerId)) sizeGrip.releasePointerCapture(event.pointerId);
+    };
+    sizeGrip.addEventListener('pointerup',finishSize);
+    sizeGrip.addEventListener('pointercancel',finishSize);
+    sizeGrip.addEventListener('lostpointercapture',finishSize);
+    window.addEventListener('blur',() => { flushSize(); sizeDrag = null; });
     function applySettings() {
       settings.font = fonts[settings.font] ? settings.font : 'system';
       settings.weight = [500,700,850].includes(Number(settings.weight)) ? Number(settings.weight) : 700;
