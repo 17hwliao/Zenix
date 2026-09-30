@@ -29,6 +29,7 @@ files:
   - '!node_modules/motion-utils/**/*'
   - '!node_modules/react/**/*'
   - '!node_modules/react-dom/**/*'
+  - '!node_modules/@capacitor/**/*'
   - '!node_modules/scheduler/**/*'
 extraResources:
   - from: licenses

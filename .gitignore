@@ -3,3 +3,16 @@ dist/
 release/
 folia-major/
 *.log
+dist-android/
+android/.gradle/
+android/.idea/
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/zenix/catalog.js
+android/app/src/main/assets/zenix/legal/
+android/local.properties
+android/**/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+*.keystore
+*.jks

@@ -39,6 +39,17 @@ Electron 随软件发行的二进制还包含 Chromium 等组件；打包时需�
 
 ## 开发与素材生成工具
 
+### Android 分支新增组件
+
+| 组件 | 版本 | 用途 | 许可证 |
+| --- | --- | --- | --- |
+| Capacitor Core / Android / CLI | 8.5.2 | React 与 Android 平台桥、Android 工程生成 | [MIT 原文](licenses/capacitor/LICENSE) |
+| AndroidX Media3 | 1.11.1 | ExoPlayer、MediaSessionService、流式数据与缓存 | [Apache-2.0 原文](licenses/androidx-media/LICENSE) |
+| AndroidX | 由 Android 工程固定声明 | Activity、权限、窗口及数据库支持 | Apache-2.0，组件通知随 Android 依赖保留 |
+| desugar_jdk_libs | 2.1.5 | Android 旧版本上的 Java API 支持 | [Apache-2.0](https://github.com/google/desugar_jdk_libs/blob/master/LICENSE) |
+
+Android 目录适配沿用本项目已有的 `electron/lx-catalog.cjs`，生成文件为 `android/app/src/main/assets/zenix/catalog.js`；LX Music 的目录字段、事件及加密协议参考关系与下方说明一致。Android 音频服务、私有存储、窗口和平台桥由本项目实现。AndroidX Media3 与 Capacitor 是实际运行依赖，未引入 Go。
+
 以下列出直接开发依赖及素材生成工具，与发行包运行依赖分开记录。
 
 | 项目 | 当前版本 | 用途 | 许可证与来源 |
