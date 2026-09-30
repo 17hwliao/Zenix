@@ -4,7 +4,7 @@ export type SoundSettings = { enabled: boolean; volume: number; enter: number; c
 const KEY = 'zenix.ui-sounds.v1';
 const defaults: SoundSettings = { enabled: true, volume: .85, enter: 1, cancel: 1, slide: 1 };
 const files = import.meta.glob('../../assets/sounds/*.wav', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-const channels = new Map<string, HTMLAudioElement[]>();
+const channels = new Map<SoundKind, { key: string; pool: HTMLAudioElement[] }>();
 let lastSlide = 0;
 
 const variantNumber = (value: unknown) => Number.isFinite(Number(value)) ? Math.max(1, Math.min(5, Math.round(Number(value)))) : 1;
@@ -24,6 +24,7 @@ export function getSoundSettings(): SoundSettings {
 }
 
 export function setSoundSettings(next: SoundSettings) {
+  if (!next.enabled) { for (const slot of channels.values()) slot.pool.forEach(audio => { audio.pause(); audio.removeAttribute('src'); audio.load(); }); channels.clear(); }
   localStorage.setItem(KEY, JSON.stringify(next));
   window.dispatchEvent(new Event('zenix:sounds-changed'));
 }
@@ -37,11 +38,13 @@ export function playUiSound(kind: SoundKind) {
   const url = files[`../../assets/sounds/${key}.wav`];
   if (!url) return;
   try {
-    let pool = channels.get(key);
-    if (!pool) {
-      pool = Array.from({ length: 3 }, () => { const audio = new Audio(url); audio.preload = 'auto'; return audio; });
-      channels.set(key, pool);
+    let slot = channels.get(kind);
+    if (!slot || slot.key !== key) {
+      slot?.pool.forEach(audio => { audio.pause(); audio.removeAttribute('src'); audio.load(); });
+      slot = { key, pool: Array.from({ length: 2 }, () => { const audio = new Audio(url); audio.preload = 'auto'; return audio; }) };
+      channels.set(kind, slot);
     }
+    const pool = slot.pool;
     const audio = pool.find(channel => channel.paused || channel.ended) || pool[0];
     audio.pause();
     audio.currentTime = 0;

@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
+const { captureBody } = require('./runtime/audio-capture.cjs');
 
 const DAY = 24 * 60 * 60 * 1000;
 const MIB = 1024 * 1024;
@@ -62,8 +63,12 @@ class AudioCache {
     try {
       const stat = await fs.stat(this.file(key));
       if (stat.isFile() && stat.size === entry.size) {
-        entry.lastAccess = Date.now();
-        void this.save().catch(() => {});
+        if (Date.now() - (entry.lastAccess || 0) > 30000) {
+          entry.lastAccess = Date.now();
+          clearTimeout(this.touchTimer);
+          this.touchTimer = setTimeout(() => { void this.save().catch(() => {}); }, 1000);
+          this.touchTimer.unref();
+        }
         return { key, path: this.file(key), contentType: entry.contentType };
       }
     } catch {}
@@ -85,6 +90,7 @@ class AudioCache {
   async configure(options) {
     if (typeof options?.enabled === 'boolean') this.enabled = options.enabled;
     if (LIMITS.includes(options?.limitMiB)) this.limitMiB = options.limitMiB;
+    if (!this.enabled) for (const controller of this.jobs.values()) controller.abort();
     await this.prune();
     await this.save();
     return this.stats();
@@ -116,27 +122,62 @@ class AudioCache {
     }
     await this.save();
   }
-  schedule(trackId, quality, fetchAudio) {
+  captureResponse(trackId, quality, response, fetchAudio) {
+    if (!this.enabled || !response.body || !trackId) return response.body;
+    const key = this.key(trackId, quality);
+    if (this.entries.has(this.aliases.get(key) || key) || this.jobs.has(key)) return response.body;
+    const range = (response.headers.get('content-range') || '').match(/^bytes 0-(\d+)\/(\d+)$/);
+    const expected = response.status === 200 ? Number(response.headers.get('content-length')) : range && Number(range[1]) + 1 === Number(range[2]) ? Number(range[2]) : 0;
+    const contentType = (response.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+    if (!expected || expected > MAX_TRACK_BYTES || !/^audio\/|^application\/(octet-stream|binary)$/.test(contentType)) return response.body;
+    const temporary = path.join(this.folder, `${key}.${randomUUID()}.part`);
+    const controller = new AbortController(); this.jobs.set(key, controller);
+    let interrupted = false;
+    return captureBody(response.body, {
+      temporary, expected, signal: controller.signal,
+      commit: async size => {
+        if (!this.enabled || controller.signal.aborted) return;
+        await fs.rename(temporary, this.file(key));
+        if (controller.signal.aborted || !this.enabled) { await fs.rm(this.file(key), { force: true }).catch(() => {}); return; }
+        const now = Date.now(); this.entries.set(key, { key, quality, size, contentType, cachedAt: now, lastAccess: now });
+        await this.prune();
+      },
+      partial: () => { interrupted = true; },
+      finished: () => {
+        if (this.jobs.get(key) === controller) this.jobs.delete(key);
+        // Metadata-only ranges can be cancelled by Chromium; complete the cache later,
+        // after startup, so a second download does not compete with the first audio.
+        if (interrupted && this.enabled && !controller.signal.aborted) this.schedule(trackId, quality, fetchAudio, 6000);
+      },
+    });
+  }
+  schedule(trackId, quality, fetchAudio, delay = 0) {
     if (!this.enabled || !trackId) return;
     const key = this.key(trackId, quality);
-    if (this.entries.has(key) || this.jobs.has(key)) return;
+    if (this.entries.has(key) || this.jobs.has(key) || this.jobs.size >= 2) return;
     const controller = new AbortController();
     this.jobs.set(key, controller);
-    const job = this.captureQueue.catch(() => {}).then(() => controller.signal.aborted ? undefined : this.capture(key, quality, fetchAudio, controller)).catch(() => {}).finally(() => this.jobs.delete(key));
+    const job = this.captureQueue.catch(() => {}).then(async () => {
+      if (delay && !controller.signal.aborted) await new Promise(resolve => {
+        const finish = () => { clearTimeout(timer); controller.signal.removeEventListener('abort', finish); resolve(); };
+        const timer = setTimeout(finish, delay); timer.unref(); controller.signal.addEventListener('abort', finish, { once: true });
+      });
+      if (!controller.signal.aborted) await this.capture(key, quality, fetchAudio, controller);
+    }).catch(() => {}).finally(() => { if (this.jobs.get(key) === controller) this.jobs.delete(key); });
     this.captureQueue = job;
   }
   async capture(key, quality, fetchAudio, controller) {
     const temporary = path.join(this.folder, `${key}.${randomUUID()}.part`);
-    let handle;
+    let handle, reader, response;
     try {
-      const response = await fetchAudio(controller.signal);
+      response = await fetchAudio(controller.signal);
       if (response.status !== 200 || !response.body) return;
       const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
       if (/text\/(html|plain)|json|mpegurl|dash\+xml/i.test(contentType)) return;
       if (contentType && !/^audio\/|^application\/(octet-stream|binary)$/.test(contentType)) return;
       const declared = Number(response.headers.get('content-length')) || 0;
       if (declared > MAX_TRACK_BYTES) return;
-      const reader = response.body.getReader();
+      reader = response.body.getReader();
       handle = await fs.open(temporary, 'w');
       let size = 0;
       let firstBytes;
@@ -147,15 +188,23 @@ class AudioCache {
         if (!firstBytes) firstBytes = value.subarray(0, 64);
         size += value.byteLength;
         if (size > MAX_TRACK_BYTES) return;
-        await handle.write(value);
+        let offset = 0;
+        while (offset < value.byteLength) {
+          const written = await handle.write(value, offset, value.byteLength - offset);
+          if (!written.bytesWritten) throw new Error('缓存写入未完成');
+          offset += written.bytesWritten;
+        }
       }
       if (size < 1024 || (declared && size !== declared) || controller.signal.aborted || /^[\s\u0000]*[<{[]/.test(Buffer.from(firstBytes || []).toString('utf8'))) return;
       await handle.close(); handle = null;
       await fs.rename(temporary, this.file(key));
+      if (controller.signal.aborted || !this.enabled) { await fs.rm(this.file(key), { force: true }).catch(() => {}); return; }
       const now = Date.now();
       this.entries.set(key, { key, quality, size, contentType: contentType || 'application/octet-stream', cachedAt: now, lastAccess: now });
       await this.prune();
     } finally {
+      await reader?.cancel().catch(() => {});
+      if (!reader) await response?.body?.cancel().catch(() => {});
       await handle?.close().catch(() => {});
       await fs.rm(temporary, { force: true }).catch(() => {});
     }

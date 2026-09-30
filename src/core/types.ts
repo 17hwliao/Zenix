@@ -117,7 +117,7 @@ export interface DesktopBridge {
   desktopLyrics: {
     toggle(): Promise<boolean>;
     isVisible(): Promise<boolean>;
-    update(payload: { previous: string; line: string; next: string; title: string; trackId: string; track: Track | null; playing: boolean; position: number; duration: number; lines: { time: number; text: string }[] }): Promise<void>;
+    update(payload: { previous: string; line: string; next: string; title: string; trackId: string; track?: Track | null; playing: boolean; position: number; duration: number; lines?: { time: number; text: string }[] }): Promise<void>;
     onVisibleChanged(callback: (visible: boolean) => void): () => void;
   };
   personal: {
@@ -152,6 +152,7 @@ export interface DesktopBridge {
     remove(id: string): Promise<InstalledSource[]>;
     search(id: string, keyword: string, cursor?: string | null, pageSize?: number): Promise<SourceSearchPage>;
     cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string } | null>;
+    cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string } | null>;
     resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     download(track: Track, quality?: string): Promise<DownloadTask[]>;

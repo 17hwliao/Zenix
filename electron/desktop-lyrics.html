@@ -460,11 +460,13 @@
     slider.addEventListener('pointercancel',() => { scrubbing = false; renderProgress(); });
     document.addEventListener('keydown',event => { if (event.key === 'Escape' && previewIndex !== null) clearPreview(); });
     window.desktopLyrics?.onData(data => {
+      const lyricChanged = data.trackId !== latestData.trackId || data.previous !== latestData.previous || data.line !== latestData.line || data.next !== latestData.next || data.title !== latestData.title || Boolean(data.lines);
       if (data.trackId !== latestData.trackId) { cancelPreviewReturn(); previewIndex = null; drag = null; scrubbing = false; byId('lines').style.setProperty('--drag-offset','0px'); }
-      latestData = data;
-      byId('song').textContent = data.title || 'ZENIX · 桌面歌词';
-      renderSaved();
-      renderLines();
+      latestData = { ...latestData, ...data };
+      const title = data.title || 'ZENIX · 桌面歌词';
+      if (byId('song').textContent !== title) byId('song').textContent = title;
+      if (data.saved) renderSaved();
+      if (lyricChanged) renderLines();
       if (!scrubbing) renderProgress();
       document.body.classList.toggle('is-paused',!data.playing);
       byId('play').textContent = data.playing ? 'Ⅱ' : '▶';

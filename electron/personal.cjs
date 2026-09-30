@@ -68,6 +68,9 @@ class PersonalStore {
   }
 
   snapshot() { return structuredClone(this.data); }
+  lyricsSaved(trackId) {
+    return { liked: this.data.liked.some(track => track.id === trackId), favorite: this.data.favorites.some(track => track.id === trackId), playlists: this.data.playlists.map(list => ({ id: list.id, name: list.name, count: list.tracks.length })) };
+  }
 
   async save() {
     this.pendingSave = this.pendingSave.catch(() => {}).then(async () => {

@@ -14,6 +14,8 @@ npm start
 
 开发时运行 `npm run dev`，同时启动 Vite 与 Electron。
 
+性能改造与内存采样说明见 [性能与架构](docs/performance-architecture.md)，开源组件和参考项目的使用边界见 [第三方许可证](THIRD_PARTY_NOTICES.md)。
+
 ## 已实现
 
 - 导入音乐文件夹或单个文件，读取标题、艺人、专辑、时长及封面，并保存在本机曲库。

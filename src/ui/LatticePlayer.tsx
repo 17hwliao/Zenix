@@ -244,6 +244,9 @@ export default function LatticePlayer({
           const rect = expandedRects.get(slot) ?? tile;
           const expanded = slot === selectedSlot;
           const current = item.id === track.id;
+          // Keep only the camera's visible posters and a small overscan mounted.
+          const overscan = cellPitch * 1.5;
+          if (!expanded && (immersive || rect.x * cellPitch + camera.x > viewport.width + overscan || rect.y * cellPitch + camera.y > viewport.height + overscan || (rect.x + rect.columns) * cellPitch + camera.x < -overscan || (rect.y + rect.rows) * cellPitch + camera.y < -overscan)) return null;
           return <div key={slot} className={`yz-sticker${expanded ? ' is-expanded' : ''}${current ? ' is-current' : ''}${rect.columns * rect.rows <= 6 ? ' is-compact' : ''}`} style={{ left: immersive && expanded ? 0 : rect.x * cellPitch, top: immersive && expanded ? 0 : rect.y * cellPitch, width: immersive && expanded ? viewport.width : rect.columns * cellPitch - STICKER_GAP, height: immersive && expanded ? viewport.height : rect.rows * cellPitch - STICKER_GAP, visibility: immersive && !expanded ? 'hidden' : undefined }} onClick={() => { if (!expanded) { playUiSound('enter'); focusSlot(slot); } }} onKeyDown={event => {
             if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
             event.preventDefault();

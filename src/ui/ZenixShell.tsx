@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Home, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
-import ShaderBackdrop from './ShaderBackdrop';
 import PersonalBackdrop, { type PersonalScene } from './PersonalBackdrop';
 import LatticePlayer from './LatticePlayer';
 import PlaybackBar from './PlaybackBar';
@@ -12,9 +11,12 @@ import PersonalLibraryManager from './PersonalLibraryManager';
 import QueuePanel from './QueuePanel';
 import SourceCallout from './SourceCallout';
 import { playUiSound } from '../core/sounds';
+import { useDocumentVisible } from '../core/useDocumentVisible';
 import { trackCoverUrl } from '../core/trackCover';
 import type { TrackView, ZenixShellProps } from './types';
 import './Zenix.css';
+
+const ShaderBackdrop = lazy(() => import('./ShaderBackdrop'));
 
 export default function ZenixShell(props: ZenixShellProps) {
   const {
@@ -40,6 +42,7 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [titlebarRevealed, setTitlebarRevealed] = useState(false);
   const [homeSearchRevealed, setHomeSearchRevealed] = useState(false);
+  const documentVisible = useDocumentVisible();
   const previousViewRequestRef = useRef(playerViewRequestKey);
   const enterPlayer = (mode: 'recent' | 'queue' = 'recent') => {
     playUiSound('enter');
@@ -126,7 +129,7 @@ export default function ZenixShell(props: ZenixShellProps) {
       const overAction = Boolean(target.closest('button,a,input,select,textarea,[role="button"],.yz-window-controls-zone'));
       setHomeSearchRevealed(overSearch || (!overAction && event.clientY >= 32 && event.clientY <= 148));
     }} onPointerLeave={() => setHomeSearchRevealed(false)}>
-      <ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion} />
+      {documentVisible && !showPersonalBackground && view === 'home' && <Suspense fallback={null}><ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion} /></Suspense>}
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
       {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
       <div className="yz-grain" aria-hidden="true" />
@@ -183,5 +186,3 @@ export default function ZenixShell(props: ZenixShellProps) {
     </div>
   );
 }
-
-

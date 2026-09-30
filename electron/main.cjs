@@ -2,7 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain, protocol, screen, shell } = require
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { Readable } = require('node:stream');
+const { registerMediaProtocol } = require('./runtime/media-protocol.cjs');
 const { LocalLibrary, AUDIO_EXTENSIONS } = require('./library.cjs');
 const { AppearanceStore } = require('./appearance.cjs');
 const { PersonalStore } = require('./personal.cjs');
@@ -40,118 +40,25 @@ let personal = null;
 let sourceManager = null;
 let downloadManager = null;
 let audioCache = null;
+let lyricsDelivery = { contentsId: 0, lines: null, saved: '' };
 
 function broadcast(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
 }
 
 function lyricsData() {
-  const state = personal?.snapshot();
-  return { ...lyricsPayload, saved: {
-    liked: Boolean(state?.liked.some(track => track.id === lyricsPayload.trackId)),
-    favorite: Boolean(state?.favorites.some(track => track.id === lyricsPayload.trackId)),
-    playlists: (state?.playlists || []).map(list => ({ id: list.id, name: list.name, count: list.tracks.length })),
-  } };
+  return { ...lyricsPayload, saved: personal?.lyricsSaved(lyricsPayload.trackId) || { liked: false, favorite: false, playlists: [] } };
 }
 
 function publishLyrics() {
-  if (lyricsWindow && !lyricsWindow.isDestroyed() && !lyricsWindow.webContents.isLoading()) lyricsWindow.webContents.send('lyrics:data', lyricsData());
-}
-
-function mimeType(filePath) {
-  const extension = path.extname(filePath).toLowerCase();
-  return {
-    '.mp3': 'audio/mpeg',
-    '.flac': 'audio/flac',
-    '.m4a': 'audio/mp4',
-    '.wav': 'audio/wav',
-    '.ogg': 'audio/ogg',
-    '.opus': 'audio/opus',
-    '.aac': 'audio/aac',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
-    '.jpeg': 'image/jpeg',
-    '.mp4': 'video/mp4',
-    '.m4v': 'video/mp4',
-    '.webm': 'video/webm',
-    '.ogv': 'video/ogg',
-  }[extension] || 'application/octet-stream';
-}
-
-async function serveFile(filePath, request, contentType) {
-  let stat;
-  try {
-    stat = await fsp.stat(filePath);
-    if (!stat.isFile()) return new Response('Not found', { status: 404 });
-  } catch {
-    return new Response('Not found', { status: 404 });
-  }
-
-  const headers = new Headers({
-    'Content-Type': contentType || mimeType(filePath),
-    'Accept-Ranges': 'bytes',
-    'Access-Control-Allow-Origin': '*',
-    'Cache-Control': contentType || AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())
-      ? 'no-store'
-      : 'private, max-age=31536000, immutable',
-  });
-  if (stat.size === 0) {
-    headers.set('Content-Length', '0');
-    return request.headers.has('range')
-      ? new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */0' } })
-      : new Response(null, { status: 200, headers });
-  }
-  const range = request.headers.get('range');
-  let start = 0;
-  let end = stat.size - 1;
-  let status = 200;
-  if (range) {
-    const match = range.match(/^bytes=(\d*)-(\d*)$/);
-    if (!match) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${stat.size}` } });
-    if (match[1] === '' && match[2] !== '') {
-      start = Math.max(0, stat.size - Number(match[2]));
-    } else {
-      start = Number(match[1] || 0);
-      end = match[2] ? Math.min(end, Number(match[2])) : end;
-    }
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start > end || start >= stat.size) {
-      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${stat.size}` } });
-    }
-    status = 206;
-    headers.set('Content-Range', `bytes ${start}-${end}/${stat.size}`);
-  }
-  headers.set('Content-Length', String(Math.max(0, end - start + 1)));
-  if (request.method === 'HEAD') return new Response(null, { status, headers });
-  const stream = fs.createReadStream(filePath, { start, end });
-  return new Response(Readable.toWeb(stream), { status, headers });
-}
-
-function registerMediaProtocol() {
-  protocol.handle('yzqxy', async (request) => {
-    const url = new URL(request.url);
-    if (url.hostname === 'stream') return sourceManager.stream(request, url.pathname.slice(1));
-    if (url.hostname === 'offline') {
-      const filePath = await downloadManager.offlinePath(decodeURIComponent(url.pathname.slice(1)));
-      return filePath ? serveFile(filePath, request) : new Response('Not found', { status: 404 });
-    }
-    if (url.hostname === 'cached-audio') {
-      const cached = await audioCache.byKey(url.pathname.slice(1));
-      return cached ? serveFile(cached.path, request, cached.contentType) : new Response('Not found', { status: 404 });
-    }
-    if (url.hostname === 'source-cover') {
-      const parts = url.pathname.split('/').slice(1);
-      if (parts.length !== 2) return new Response('Not found', { status: 404 });
-      return sourceManager.cover(request, decodeURIComponent(parts[0]), decodeURIComponent(parts[1]));
-    }
-    let filePath = null;
-    if (url.hostname === 'audio') filePath = library.getAudioPath(url.pathname.slice(1));
-    else if (url.hostname === 'cover') filePath = library.getCoverPath(url.pathname.slice(1));
-    else if (url.hostname === 'background') filePath = appearance.backgroundPath(decodeURIComponent(url.pathname.slice(1)));
-    if (!filePath) return new Response('Not found', { status: 404 });
-    return serveFile(filePath, request);
-  });
+  if (!lyricsWindow || lyricsWindow.isDestroyed() || !lyricsWindow.isVisible() || lyricsWindow.webContents.isLoading()) return;
+  const data = lyricsData();
+  const fresh = lyricsDelivery.contentsId !== lyricsWindow.webContents.id;
+  const saved = JSON.stringify(data.saved);
+  if (!fresh && lyricsDelivery.lines === data.lines) delete data.lines;
+  if (!fresh && lyricsDelivery.saved === saved) delete data.saved;
+  lyricsDelivery = { contentsId: lyricsWindow.webContents.id, lines: lyricsPayload.lines, saved };
+  lyricsWindow.webContents.send('lyrics:data', data);
 }
 
 function createWindow() {
@@ -186,7 +93,12 @@ function createWindow() {
   });
   mainWindow.on('maximize', () => broadcast('window:maximized-changed', true));
   mainWindow.on('unmaximize', () => broadcast('window:maximized-changed', false));
-  mainWindow.on('closed', () => { mainWindow = null; if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close(); });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close();
+    // An invisible source sandbox must not keep a closed desktop application alive.
+    if (process.platform !== 'darwin') app.quit();
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
@@ -264,6 +176,7 @@ function trackLyricsLockBadge() {
 
 function setLyricsLocked(value) {
   lyricsLocked = Boolean(value);
+  if (!lyricsLocked && lyricsLockWindow && !lyricsLockWindow.isDestroyed()) lyricsLockWindow.close();
   if (lyricsWindow && !lyricsWindow.isDestroyed()) {
     lyricsWindow.setIgnoreMouseEvents(lyricsLocked, { forward: true });
     lyricsWindow.webContents.send('lyrics:locked', lyricsLocked);
@@ -339,13 +252,17 @@ function createLyricsWindow() {
   lyricsReady = win.loadFile(path.join(__dirname, 'desktop-lyrics.html')).then(() => {
     if (!win.isDestroyed()) win.webContents.send('lyrics:data', lyricsData());
   });
-  win.on('closed', () => { lyricsWindow = null; lyricsReady = null; trackLyricsLockBadge(); if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) lyricsLockWindow.close(); broadcast('lyrics:visible', false); });
+  win.on('close', () => {
+    lyricsBounds = win.getBounds(); lyricsLayouts[lyricsOrientation] = lyricsBounds;
+    saveLyricsLayout(); clearTimeout(lyricsSaveTimer);
+  });
+  win.on('closed', () => { lyricsWindow = null; lyricsReady = null; lyricsDelivery = { contentsId: 0, lines: null, saved: '' }; trackLyricsLockBadge(); if (lyricsLockWindow && !lyricsLockWindow.isDestroyed()) lyricsLockWindow.close(); broadcast('lyrics:visible', false); });
   return win;
 }
 
 function registerHandlers() {
   ipcMain.handle('lyrics:toggle', async () => {
-    if (lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()) { lyricsWindow.hide(); broadcast('lyrics:visible', false); return false; }
+    if (lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()) { lyricsWindow.close(); return false; }
     const win = createLyricsWindow();
     await lyricsReady;
     if (win.isDestroyed()) return false;
@@ -363,14 +280,15 @@ function registerHandlers() {
   ipcMain.handle('lyrics:update', (_event, payload) => {
     const duration = Number(payload?.duration);
     const position = Number(payload?.position);
+    const sameTrack = payload?.trackId === lyricsPayload.trackId;
     lyricsPayload = {
       previous: String(payload?.previous || ''), line: String(payload?.line || ''), next: String(payload?.next || ''),
       title: String(payload?.title || ''), trackId: String(payload?.trackId || ''), playing: Boolean(payload?.playing),
       duration: Number.isFinite(duration) ? Math.max(0, duration) : 0,
       position: Number.isFinite(position) ? Math.max(0, position) : 0,
-      lines: Array.isArray(payload?.lines) ? payload.lines.slice(0, 2000).filter(line => Number.isFinite(line?.time) && typeof line?.text === 'string').map(line => ({ time: Math.max(0, line.time), text: line.text.slice(0, 500) })) : [],
+      lines: Array.isArray(payload?.lines) ? payload.lines.slice(0, 2000).filter(line => Number.isFinite(line?.time) && typeof line?.text === 'string').map(line => ({ time: Math.max(0, line.time), text: line.text.slice(0, 500) })) : sameTrack ? lyricsPayload.lines : [],
     };
-    lyricsTrack = payload?.track?.id === lyricsPayload.trackId ? payload.track : null;
+    lyricsTrack = payload?.track?.id === lyricsPayload.trackId ? payload.track : sameTrack ? lyricsTrack : null;
     publishLyrics();
   });
   ipcMain.handle('lyrics:personal-action', async (_event, action, value) => {
@@ -388,7 +306,7 @@ function registerHandlers() {
     publishLyrics();
     return lyricsData().saved;
   });
-  ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
+  ipcMain.on('lyrics:hide', () => { lyricsWindow?.close(); });
   ipcMain.handle('lyrics:show-main', () => { showMainWindow(); return true; });
   ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'play', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
   ipcMain.on('lyrics:seek', (_event, request) => {
@@ -438,6 +356,7 @@ function registerHandlers() {
   ipcMain.handle('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
   ipcMain.handle('sources:search', (_event, id, keyword, cursor, pageSize) => sourceManager.search(String(id || ''), keyword, cursor, pageSize));
   ipcMain.handle('sources:cached', (_event, track, quality) => sourceManager.cached(track, quality));
+  ipcMain.handle('sources:cached-best', (_event, track, qualities) => sourceManager.cachedBest(track, qualities));
   ipcMain.handle('sources:resolve', (_event, track, quality, cacheAsId, skipCache) => sourceManager.resolve(track, quality, cacheAsId, skipCache));
   ipcMain.handle('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   ipcMain.handle('sources:download', (_event, track, quality) => downloadManager.enqueue(track, quality));
@@ -536,13 +455,10 @@ if (primaryInstance) app.whenReady().then(async () => {
   audioCache = new AudioCache(app.getPath('userData'));
   sourceManager.downloads = downloadManager;
   sourceManager.audioCache = audioCache;
-  await library.load();
-  await appearance.load();
-  await personal.load();
-  await sourceManager.load();
+  await Promise.all([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
+  // Download recovery can resolve sources, so start it after source/cache storage is ready.
   await downloadManager.load();
-  await audioCache.load();
-  registerMediaProtocol();
+  registerMediaProtocol({ protocol, sourceManager, downloadManager, audioCache, library, appearance });
   registerHandlers();
   createWindow();
   app.on('activate', () => {

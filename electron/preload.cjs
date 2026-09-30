@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('yzqxy', {
     remove: (id) => ipcRenderer.invoke('sources:remove', id),
     search: (id, keyword, cursor, pageSize) => ipcRenderer.invoke('sources:search', id, keyword, cursor, pageSize),
     cached: (track, quality) => ipcRenderer.invoke('sources:cached', track, quality),
+    cachedBest: (track, qualities) => ipcRenderer.invoke('sources:cached-best', track, qualities),
     resolve: (track, quality, cacheAsId, skipCache) => ipcRenderer.invoke('sources:resolve', track, quality, cacheAsId, skipCache),
       lyrics: (track) => ipcRenderer.invoke('sources:lyrics', track),
       download: (track, quality) => ipcRenderer.invoke('sources:download', track, quality),

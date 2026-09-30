@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useDocumentVisible } from '../core/useDocumentVisible';
 import type { AppearanceBackground } from '../core/types';
 import './PersonalBackdrop.css';
 
@@ -57,14 +58,15 @@ function sampleTone(media: HTMLImageElement | HTMLVideoElement): { brightness: n
   } catch { return null; }
 }
 
-export default function PersonalBackdrop({ background, scene }: PersonalBackdropProps) {
+function PersonalBackdrop({ background, scene }: PersonalBackdropProps) {
   const mediaRef = useRef<HTMLImageElement | HTMLVideoElement>(null);
   const [tone, setTone] = useState({ brightness: .48, contrast: .22 });
   const [failed, setFailed] = useState(false);
+  const visible = useDocumentVisible();
 
   useEffect(() => { setFailed(false); setTone({ brightness: .48, contrast: .22 }); }, [background?.url]);
   useEffect(() => {
-    if (background?.kind !== 'video') return;
+    if (!visible || background?.kind !== 'video') return;
     const timer = window.setInterval(() => {
       const media = mediaRef.current;
       if (!(media instanceof HTMLVideoElement) || media.readyState < 2) return;
@@ -72,9 +74,9 @@ export default function PersonalBackdrop({ background, scene }: PersonalBackdrop
       if (next) setTone(previous => ({ brightness: previous.brightness * .55 + next.brightness * .45, contrast: previous.contrast * .55 + next.contrast * .45 }));
     }, 2600);
     return () => window.clearInterval(timer);
-  }, [background?.kind, background?.url]);
+  }, [visible, background?.kind, background?.url]);
 
-  if (!background || failed) return null;
+  if (!visible || !background || failed) return null;
   const brightPenalty = Math.max(0, tone.brightness - .3) * .68;
   const contrastPenalty = Math.max(0, tone.contrast - .24) * .3;
   const strength = Math.max(.2, Math.min(.86, sceneStrength[scene] * (1 - brightPenalty - contrastPenalty) * (background.kind === 'video' ? .86 : 1)));
@@ -92,3 +94,4 @@ export default function PersonalBackdrop({ background, scene }: PersonalBackdrop
     <div className="zenix-personal-veil" />
   </div>;
 }
+export default memo(PersonalBackdrop);

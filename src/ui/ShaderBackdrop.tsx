@@ -16,8 +16,8 @@ function ShaderBackdrop({ surface, playing, reduceMotion }: ShaderBackdropProps)
   const ditherSpeed = surface === 'home' ? 0 : .1 * motionScale;
 
   return <div className={`yz-shader-background yz-shader-background--${surface}`} aria-hidden="true">
-    <MeshGradient className="yz-shader-mesh" colors={meshColors} distortion={.8} swirl={.1} speed={meshSpeed} maxPixelCount={921_600} />
-    <Dithering className="yz-shader-dither" colorBack="#09090b" colorFront="#71717a" shape="warp" type="4x4" size={2.5} speed={ditherSpeed} maxPixelCount={921_600} />
+    <MeshGradient className="yz-shader-mesh" colors={meshColors} distortion={.8} swirl={.1} speed={meshSpeed} maxPixelCount={409_600} />
+    <Dithering className="yz-shader-dither" colorBack="#09090b" colorFront="#71717a" shape="warp" type="4x4" size={2.5} speed={ditherSpeed} maxPixelCount={409_600} />
     <div className="yz-shader-veil" />
   </div>;
 }
