@@ -1,0 +1,16 @@
+.zenix-source-callout { position:fixed; z-index:95; bottom:144px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; width:max-content; max-width:min(620px,calc(100vw - 40px)); min-height:60px; padding:11px 14px 11px 18px; border:1px solid rgba(255,255,255,.23); border-radius:999px; background:linear-gradient(130deg,rgba(255,255,255,.12),rgba(31,37,46,.65)); box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 10px 35px rgba(0,0,0,.17); backdrop-filter:blur(28px) saturate(120%); color:#f8fbff; -webkit-app-region:no-drag; animation:zenix-callout-in .24s ease-out; }
+.yz-shell--player .zenix-source-callout { bottom:112px; }
+.zenix-source-callout-icon { flex:none; display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:#ffffff0d; color:#c9e8ff; }
+.zenix-source-callout:not(.is-failed) .zenix-source-callout-icon svg { animation:zenix-callout-spin 1.2s linear infinite; }
+.zenix-source-callout-copy { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.zenix-source-callout-copy strong { font-size:12px; font-weight:650; }
+.zenix-source-callout-copy small { max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:#ffffffac; }
+.zenix-source-callout time { flex:none; align-self:center; min-width:22px; color:#ffffff85; font-size:10px; font-variant-numeric:tabular-nums; }
+.zenix-source-callout-actions { display:flex; flex:none; gap:6px; }
+.zenix-source-callout-actions button { display:flex; align-items:center; justify-content:center; gap:5px; min-width:29px; min-height:29px; padding:6px 8px; border:1px solid #ffffff26; border-radius:999px; background:#ffffff0d; font-size:10px; }
+.zenix-source-callout-actions button:hover { background:#ffffff24; }
+.zenix-source-callout.is-failed .zenix-source-callout-icon { color:#ffc5b5; }
+@keyframes zenix-callout-spin { to { transform:rotate(360deg); } }
+@keyframes zenix-callout-in { from { opacity:0; translate:0 8px; } to { opacity:1; translate:0 0; } }
+@media(max-width:700px) { .zenix-source-callout { gap:8px; padding:10px 12px; }.zenix-source-callout-copy small { max-width:calc(100vw - 225px); } }
+@media(prefers-reduced-motion:reduce) { .zenix-source-callout,.zenix-source-callout-icon svg { animation:none!important; } }

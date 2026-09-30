@@ -10,6 +10,7 @@ import SettingsModal from './SettingsModal';
 import PersonalHome from './PersonalHome';
 import PersonalLibraryManager from './PersonalLibraryManager';
 import QueuePanel from './QueuePanel';
+import SourceCallout from './SourceCallout';
 import { playUiSound } from '../core/sounds';
 import { trackCoverUrl } from '../core/trackCover';
 import type { TrackView, ZenixShellProps } from './types';
@@ -18,7 +19,7 @@ import './Zenix.css';
 export default function ZenixShell(props: ZenixShellProps) {
   const {
     appearanceBackground = null, interactionLocked = false, appearanceBusy = false, onChooseBackground, onClearBackground,
-    tracks, playlists = [], currentTrack = null, playbackError, playing, position, duration, volume, muted = false,
+    tracks, playlists = [], currentTrack = null, playbackError, sourceActivity, onCancelSourceRequest, playing, position, duration, volume, muted = false,
     shuffle = false, repeat = 'off', queue = [], queueIndex = -1, lyrics = [], playerViewRequestKey, libraryBusy = false,
     onPlayTrack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
     onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onOpenPlaylists, onRefreshLibrary,
@@ -118,7 +119,13 @@ export default function ZenixShell(props: ZenixShellProps) {
   const playerAnchor = currentTrack || (playerWallMode === 'recent' ? recentTracks[0] : null);
 
   return (
-    <div className={`yz-shell yz-shell--${view}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`}>
+    <div className={`yz-shell yz-shell--${view}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`} onPointerMove={event => {
+      if (searchOpen || settingsOpen || managerSection || queueOpen || interactionLocked || event.buttons) return;
+      const target = event.target as Element;
+      const overSearch = Boolean(target.closest('.yz-home-search-dock,.yz-lattice-search-zone'));
+      const overAction = Boolean(target.closest('button,a,input,select,textarea,[role="button"],.yz-window-controls-zone'));
+      setHomeSearchRevealed(overSearch || (!overAction && event.clientY >= 32 && event.clientY <= 148));
+    }} onPointerLeave={() => setHomeSearchRevealed(false)}>
       <ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion} />
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
       {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
@@ -126,7 +133,7 @@ export default function ZenixShell(props: ZenixShellProps) {
       <div className="yz-titlebar-drag" aria-hidden="true" />
 
       {view === 'home' && !searchOpen && (
-        <div className={`yz-home-search-dock${homeSearchRevealed ? ' is-revealed' : ''}`} onMouseEnter={() => setHomeSearchRevealed(true)} onMouseLeave={() => setHomeSearchRevealed(false)}>
+        <div className={`yz-home-search-dock${homeSearchRevealed ? ' is-revealed' : ''}`} onMouseEnter={() => setHomeSearchRevealed(true)} >
           <form role="search" onSubmit={event => { event.preventDefault(); openSearch(query); setHomeSearchRevealed(false); }}>
             <Search size={17} aria-hidden="true" />
             <input value={query} onChange={event => setQuery(event.target.value)} onFocus={() => setHomeSearchRevealed(true)} placeholder="搜索音乐" aria-label="搜索音乐" />
@@ -154,13 +161,15 @@ export default function ZenixShell(props: ZenixShellProps) {
         ) : (
           <motion.div key="player" className="yz-page yz-player" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.34 }}>
             {playerAnchor ? (
-              <LatticePlayer track={playerAnchor} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} displayTracks={searchOpen ? searchPreview : playerWallMode === 'recent' ? recentTracks.length ? recentTracks : currentTrack ? [currentTrack] : [] : undefined} onPlayTrack={track => { playUiSound('enter'); onPlayTrack(track, playerWallMode === 'recent' ? recentTracks : undefined); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={currentTrack ? togglePlayback : () => onPlayTrack(playerAnchor, recentTracks)} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch()} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
-            ) : <><button className="yz-player-back yz-player-back--empty" onClick={() => { playUiSound('cancel'); setView('home'); }} title="个人主页" aria-label="个人主页"><Home size={19} /></button><div className="yz-lattice-search-zone"><button onClick={() => openSearch()} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div><div className="yz-empty-player-dots" aria-hidden="true" /></>}
+              <LatticePlayer track={playerAnchor} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} displayTracks={searchOpen ? searchPreview : playerWallMode === 'recent' ? recentTracks.length ? recentTracks : currentTrack ? [currentTrack] : [] : undefined} onPlayTrack={track => { playUiSound('enter'); onPlayTrack(track, playerWallMode === 'recent' ? recentTracks : undefined); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={currentTrack ? togglePlayback : () => onPlayTrack(playerAnchor, recentTracks)} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch()} searchRevealed={homeSearchRevealed} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
+            ) : <><button className="yz-player-back yz-player-back--empty" onClick={() => { playUiSound('cancel'); setView('home'); }} title="个人主页" aria-label="个人主页"><Home size={19} /></button><div className={`yz-lattice-search-zone${homeSearchRevealed ? ' is-revealed' : ''}`}><button onClick={() => openSearch()} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div><div className="yz-empty-player-dots" aria-hidden="true" /></>}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {playbackError && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
+      {sourceActivity && <SourceCallout activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
+
+      {playbackError && !sourceActivity && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
         <div><strong>播放失败</strong><span>{playbackError}</span></div>
         <div className="yz-playback-error-actions"><button onClick={onTogglePlay}>重试</button>{currentTrack.source === 'custom' && <button onClick={() => { setSettingsInitialTab('sources'); setSettingsOpen(true); }}>管理音乐源</button>}</div>
       </div>}

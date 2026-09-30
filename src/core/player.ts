@@ -1,4 +1,4 @@
-import type { MediaCommand, PlayerState, RepeatMode, Track } from './types';
+import type { MediaCommand, PlayerState, RepeatMode, SourceProgress, Track } from './types';
 
 type Listener = (state: PlayerState) => void;
 
@@ -27,10 +27,13 @@ class PlayerController {
   private shufflePool = new Set<number>();
   private unlistenMedia?: () => void;
   private unlistenMediaSeek?: () => void;
-  private trackResolver?: (track: Track, failedAttempts: readonly string[]) => Promise<Track>;
+  private trackResolver?: (track: Track, failedAttempts: readonly string[], report: (progress: SourceProgress) => void, signal: AbortSignal) => Promise<Track>;
+  private sourceAbort?: AbortController;
+  private mediaWaitTimer?: ReturnType<typeof setTimeout>;
   private failedAttempts = new Set<string>();
   private selectionToken = 0;
   private playbackToken = 0;
+  private playbackRequested = false;
   private resolvingSource?: { token: number; pending: Promise<boolean> };
   private pendingSeek?: { token: number; seconds: number };
 
@@ -56,6 +59,16 @@ class PlayerController {
     };
 
     this.audio.addEventListener('play', () => this.update({ playing: true, error: undefined }));
+    this.audio.addEventListener('playing', () => {
+      clearTimeout(this.mediaWaitTimer);
+      this.update({ sourceActivity: undefined });
+    });
+    this.audio.addEventListener('waiting', () => {
+      if (this.state.track?.source === 'custom' && this.state.playing && !this.resolvingSource) {
+        this.reportSource({ phase: 'buffering', message: '正在缓冲音频', detail: '连接仍在运行，请稍候' });
+        this.armMediaWait(this.playbackToken);
+      }
+    });
     this.audio.addEventListener('pause', () => this.update({ playing: false }));
     this.audio.addEventListener('timeupdate', () => this.updateClock());
     this.audio.addEventListener('durationchange', () => this.updateClock());
@@ -69,13 +82,14 @@ class PlayerController {
     });
     this.audio.addEventListener('ended', () => void this.onEnded());
     this.audio.addEventListener('error', () => {
+      if (this.state.track?.source === 'custom' && !this.playbackRequested) return;
       if (this.state.track?.source === 'custom' && !this.state.track.audioUrl) return;
       if (this.retryMediaSource()) return;
       const error = this.audio.error;
       const message = this.state.track?.source === 'custom'
         ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
         : error ? `无法播放此音频（错误 ${error.code}）` : '无法播放此音频';
-      this.update({ playing: false, error: message });
+      this.failSource(message);
     });
 
     if (typeof window !== 'undefined') {
@@ -97,8 +111,41 @@ class PlayerController {
     return () => this.listeners.delete(listener);
   }
 
-  setTrackResolver<T extends Track>(resolver: ((track: T, failedAttempts: readonly string[]) => Promise<T>) | undefined): void {
-    this.trackResolver = resolver ? (track, failedAttempts) => resolver(track as T, failedAttempts) : undefined;
+  setTrackResolver<T extends Track>(resolver: ((track: T, failedAttempts: readonly string[], report: (progress: SourceProgress) => void, signal: AbortSignal) => Promise<T>) | undefined): void {
+    this.trackResolver = resolver ? (track, failedAttempts, report, signal) => resolver(track as T, failedAttempts, report, signal) : undefined;
+  }
+
+  private reportSource(progress: SourceProgress): void {
+    this.update({ sourceActivity: { ...progress, startedAt: this.state.sourceActivity?.startedAt ?? Date.now() } });
+  }
+
+  private invalidateSelection(keepSourceActivity = false): void {
+    this.selectionToken += 1;
+    this.sourceAbort?.abort();
+    this.sourceAbort = undefined;
+    clearTimeout(this.mediaWaitTimer);
+    if (!keepSourceActivity) {
+      this.playbackRequested = false;
+      this.update({ sourceActivity: undefined });
+    }
+  }
+
+  private failSource(message: string): void {
+    this.playbackRequested = false;
+    clearTimeout(this.mediaWaitTimer);
+    if (this.state.track?.source === 'custom') this.reportSource({ phase: 'failed', message: /超时|timeout/i.test(message) ? '连接超时，暂时无法播放' : '暂时没有可播放的资源', detail: /没有启用/.test(message) ? '请先添加或启用音乐源，再重新播放' : '可用连接已尝试完毕，请重试或更换音乐源' });
+    this.update({ playing: false, error: message });
+  }
+
+  private armMediaWait(request: number): void {
+    clearTimeout(this.mediaWaitTimer);
+    this.mediaWaitTimer = setTimeout(() => {
+      if (request !== this.playbackToken || !this.state.sourceActivity) return;
+      if (this.retryMediaSource('刚才的音频加载超时，正在自动尝试备用方案')) return;
+      this.playbackToken += 1;
+      this.audio.pause();
+      this.failSource('音频加载超时，请重试或更换音乐源。');
+    }, 20000);
   }
 
   private update(patch: Partial<PlayerState>): void {
@@ -142,7 +189,7 @@ class PlayerController {
     const queueIndex = Math.max(0, Math.min(queue.length - 1, Number(saved.index) || 0));
     const track = queue[queueIndex];
     this.playbackToken += 1;
-    this.selectionToken += 1;
+    this.invalidateSelection();
     this.failedAttempts.clear();
     this.pendingSeek = undefined;
     this.setAudioSource(track.audioUrl);
@@ -155,7 +202,7 @@ class PlayerController {
     this.history = [];
     this.shufflePool.clear();
     this.playbackToken += 1;
-    this.selectionToken += 1;
+    this.invalidateSelection();
     this.failedAttempts.clear();
     this.pendingSeek = undefined;
     if (entries.length === 0) {
@@ -198,7 +245,7 @@ class PlayerController {
     if (!track) return;
     this.playbackToken += 1;
     this.audio.pause();
-    this.selectionToken += 1;
+    this.invalidateSelection();
     this.failedAttempts.clear();
     this.setAudioSource(track.audioUrl);
     this.update({ track, queueIndex: index, position: 0, duration: track.duration, playing: false, error: undefined });
@@ -210,35 +257,46 @@ class PlayerController {
     if (!this.state.track) return;
     if (!isRetry && this.state.error && this.state.track.source === 'custom') {
       this.failedAttempts.clear();
-      this.selectionToken += 1;
+      this.invalidateSelection();
       const track = { ...this.state.track, audioUrl: '', playbackProviderId: undefined, playbackQuality: undefined };
       this.setAudioSource('');
       this.update({ track });
     }
     const request = ++this.playbackToken;
+    this.playbackRequested = true;
     this.update({ error: undefined });
+    if (this.state.track.source === 'custom') this.reportSource({ phase: isRetry ? 'switching' : 'connecting', message: isRetry ? '正在尝试备用连接' : '正在准备播放', detail: isRetry ? this.state.sourceActivity?.detail : '优先读取缓存，再连接可用资源' });
     try {
       if (!(await this.ensureAudioSource())) return;
       if (request !== this.playbackToken) return;
+      if (this.state.track?.source === 'custom') {
+        this.reportSource({ phase: 'buffering', message: '资源已就绪，正在加载音频' });
+        this.armMediaWait(request);
+      }
       await this.audio.play();
+      if (request === this.playbackToken) {
+        clearTimeout(this.mediaWaitTimer);
+        this.update({ sourceActivity: undefined });
+      }
     } catch (error) {
       if (request !== this.playbackToken) return;
       if (this.retryMediaSource()) return;
       const message = this.state.track?.source === 'custom' && error instanceof DOMException && error.name === 'NotSupportedError'
         ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
         : error instanceof Error ? error.message : '无法开始播放';
-      this.update({ playing: false, error: message });
+      this.failSource(message);
     }
   }
 
-  private retryMediaSource(): boolean {
+  private retryMediaSource(detail = '刚才的音频未能加载，正在自动尝试备用方案'): boolean {
     const track = this.state.track;
     const provider = track?.playbackProviderId;
     const attempt = track?.playbackQuality ? `${provider}:${track.playbackQuality}` : provider;
     if (track?.source !== 'custom' || !attempt || this.failedAttempts.has(attempt)) return false;
     this.failedAttempts.add(attempt);
     this.playbackToken += 1;
-    this.selectionToken += 1;
+    this.invalidateSelection(true);
+    this.reportSource({ phase: 'switching', message: '正在尝试备用连接', detail });
     const position = this.state.position;
     this.pendingSeek = position > 0 ? { token: this.selectionToken, seconds: position } : undefined;
     this.setAudioSource('');
@@ -258,17 +316,21 @@ class PlayerController {
     if (!selected) return Promise.resolve(false);
     if (selected.audioUrl) return Promise.resolve(true);
     if (!this.trackResolver) {
-      this.update({ error: '无法取得这首歌的播放地址' });
+      this.failSource('无法取得这首歌的播放地址');
       return Promise.resolve(false);
     }
     const token = this.selectionToken;
     if (this.resolvingSource?.token === token) return this.resolvingSource.pending;
     const index = this.state.queueIndex;
+    const controller = new AbortController();
+    this.sourceAbort = controller;
     const pending = (async () => {
-      const resolved = await this.trackResolver!(selected, [...this.failedAttempts]);
+      const resolved = await this.trackResolver!(selected, [...this.failedAttempts], progress => {
+        if (token === this.selectionToken && this.state.track?.id === selected.id && !controller.signal.aborted) this.reportSource(progress);
+      }, controller.signal);
       if (token !== this.selectionToken || this.state.track?.id !== selected.id) return false;
       if (!resolved.audioUrl) {
-        this.update({ error: '这首歌暂时无法播放' });
+        this.failSource('这首歌暂时无法播放');
         return false;
       }
       const queue = [...this.state.queue];
@@ -281,14 +343,15 @@ class PlayerController {
     })();
     this.resolvingSource = { token, pending };
     void pending.then(
-      () => { if (this.resolvingSource?.pending === pending) this.resolvingSource = undefined; },
-      () => { if (this.resolvingSource?.pending === pending) this.resolvingSource = undefined; },
+      () => { if (this.resolvingSource?.pending === pending) { this.resolvingSource = undefined; this.sourceAbort = undefined; } },
+      () => { if (this.resolvingSource?.pending === pending) { this.resolvingSource = undefined; this.sourceAbort = undefined; } },
     );
     return pending;
   }
 
   pause(): void {
     this.playbackToken += 1;
+    this.invalidateSelection();
     this.audio.pause();
   }
 
@@ -506,6 +569,7 @@ class PlayerController {
 
   dispose(): void {
     this.playbackToken += 1;
+    this.invalidateSelection();
     this.unlistenMedia?.();
     this.unlistenMediaSeek?.();
     this.audio.pause();

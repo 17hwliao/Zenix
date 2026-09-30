@@ -4,7 +4,8 @@ import ZenixIntro from './ui/ZenixIntro';
 import AppearanceOnboarding from './ui/AppearanceOnboarding';
 import { library, loadLyrics, parseLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
-import type { InstalledSource } from './core/types';
+import type { InstalledSource, SourceProgress } from './core/types';
+import { sourceDeadline } from './core/sourceDeadline';
 import { PlaylistManager } from './playlists';
 
 function sameSong(original: Track, candidate: Track): boolean {
@@ -17,9 +18,9 @@ function sameSong(original: Track, candidate: Track): boolean {
     && (!original.duration || !candidate.duration || Math.abs(original.duration - candidate.duration) <= 8);
 }
 
-async function hasPlayableAudio(url: string): Promise<boolean> {
+async function hasPlayableAudio(url: string, signal?: AbortSignal, onFailure?: (reason: unknown) => void): Promise<boolean> {
   try {
-    const response = await fetch(url, { headers: { Range: 'bytes=0-1023' }, signal: AbortSignal.timeout(5000) });
+    const response = await fetch(url, { headers: { Range: 'bytes=0-1023' }, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : AbortSignal.timeout(5000) });
     if (!response.ok || /(?:text\/html|application\/json)/i.test(response.headers.get('content-type') || '') || !response.body) return false;
     const reader = response.body.getReader();
     try {
@@ -30,7 +31,7 @@ async function hasPlayableAudio(url: string): Promise<boolean> {
         || head === 'ftyp' || String.fromCharCode(...value.slice(4, 8)) === 'ftyp'
         || (value[0] === 0xff && (value[1] & 0xe0) === 0xe0);
     } finally { void reader.cancel().catch(() => {}); }
-  } catch { return false; }
+  } catch (reason) { signal?.throwIfAborted(); onFailure?.(reason); return false; }
 }
 
 type QualityTier = 'lossless24' | 'lossless' | 'high' | 'standard';
@@ -52,27 +53,43 @@ function availableQualities(source: InstalledSource, track: Track, preference: s
   return desired.filter(tier => tier !== 'lossless24' && (!supported.length || supported.includes(tier)));
 }
 
-async function resolveCustomTrack(track: Track, failedAttempts: readonly string[]): Promise<Track> {
+async function resolveCustomTrack(track: Track, failedAttempts: readonly string[], report: (progress: SourceProgress) => void, signal: AbortSignal): Promise<Track> {
   const bridge = window.yzqxy?.sources;
   if (!bridge) throw new Error('音乐源只在桌面版中可用');
   const preference = localStorage.getItem('zenix.onlineQuality') || 'auto';
   const failures: string[] = [];
+  let lastIssue = '';
+  const notify = (phase: SourceProgress['phase'], message: string, detail = lastIssue || undefined) => {
+    signal.throwIfAborted();
+    report({ phase, message, detail });
+  };
+  const failed = (reason: unknown) => {
+    signal.throwIfAborted();
+    lastIssue = /timeout|timed out|超时/i.test(reason instanceof Error ? `${reason.name} ${reason.message}` : String(reason))
+      ? '刚才的连接超时，正在自动尝试备用方案'
+      : '刚才的资源未能播放，正在自动尝试备用方案';
+    notify('retrying', '本次尝试未成功，正在继续');
+  };
   if (!failedAttempts.length) {
+    notify('cache', '正在查找本地缓存', '有缓存时直接播放，无需重新连接');
     const checkedLocal = new Set<string>();
     for (const tier of qualityOrder(preference)) {
-      const local = await bridge.cached(track, tier).catch(() => null);
+      const local = await sourceDeadline(() => bridge.cached(track, tier), signal, 4000).catch(() => { signal.throwIfAborted(); return null; });
       if (local && !checkedLocal.has(local.audioUrl)) {
         checkedLocal.add(local.audioUrl);
-        if (await hasPlayableAudio(local.audioUrl)) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
+        notify('checking', '正在检查缓存音频');
+        if (await hasPlayableAudio(local.audioUrl, signal)) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
       }
     }
   }
-  const sources = (await bridge.list()).filter(source => source.enabled && source.manifest.capabilities.includes('resolvePlayback'));
+  notify('connecting', '正在连接可用资源');
+  const sources = (await sourceDeadline(() => bridge.list(), signal, 5000)).filter(source => source.enabled && source.manifest.capabilities.includes('resolvePlayback'));
   if (!sources.length) throw new Error('没有启用可播放的音乐源；请在音乐源设置中启用至少一个源。');
   let lxPlatform = '';
   try { lxPlatform = JSON.parse(atob((track.remoteId || '').replace(/-/g, '+').replace(/_/g, '/'))).source || ''; } catch {}
   const attempted: string[] = [];
   for (const source of sources) {
+    notify(attempted.length ? 'switching' : 'connecting', attempted.length ? '正在换用备用连接' : '正在连接播放服务');
     attempted.push(source.manifest.name);
     const direct = source.id === track.providerId
       ? track
@@ -86,12 +103,18 @@ async function resolveCustomTrack(track: Track, failedAttempts: readonly string[
       for (const tier of availableQualities(source, candidate, preference)) {
         if (failedAttempts.includes(`${source.id}:${tier}`)) continue;
         try {
-          const resolved = await bridge.resolve(candidate, tier, track.id, true);
-          if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl)) {
+          const qualityName = { lossless24: '高解析无损', lossless: '无损', high: '高品质', standard: '标准' }[tier];
+          notify('resolving', `正在获取${qualityName}音频`);
+          const resolved = await sourceDeadline(() => bridge.resolve(candidate, tier, track.id, true), signal);
+          notify('checking', '正在确认音频能否播放');
+          let audioIssue: unknown;
+          if (resolved.audioUrl && await hasPlayableAudio(resolved.audioUrl, signal, reason => { audioIssue = reason; })) {
             return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id, playbackQuality: tier };
           }
           failures.push(`${source.manifest.name}的${tier}音质无法播放`);
+          failed(audioIssue || '音频不可播放');
         } catch (reason) {
+          failed(reason);
           failures.push(`${source.manifest.name}的${tier}音质：${reason instanceof Error ? reason.message : String(reason)}`);
         }
       }
@@ -103,7 +126,8 @@ async function resolveCustomTrack(track: Track, failedAttempts: readonly string[
     }
     if (!source.manifest.capabilities.includes('search')) continue;
     try {
-      const page = await bridge.search(source.id, track.title, null, 50);
+      notify('switching', '正在寻找同一首歌的备用资源');
+      const page = await sourceDeadline(() => bridge.search(source.id, track.title, null, 50), signal, 15000);
       const matches = page.items.filter(candidate => sameSong(track, candidate))
         .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
       for (const candidate of matches.slice(0, 2)) {
@@ -112,6 +136,7 @@ async function resolveCustomTrack(track: Track, failedAttempts: readonly string[
       }
       if (!matches.length && !direct) failures.push(`${source.manifest.name}没有匹配的歌曲`);
     } catch (reason) {
+      failed(reason);
       failures.push(`${source.manifest.name}搜索失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   }
@@ -224,9 +249,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    player.setTrackResolver(async (track, failedAttempts) => {
+    player.setTrackResolver(async (track, failedAttempts, report, signal) => {
       if (track.source === 'online') throw new Error('旧在线来源已移除；请等待自定义源接入');
-      if (track.source === 'custom') return resolveCustomTrack(track, failedAttempts);
+      if (track.source === 'custom') return resolveCustomTrack(track, failedAttempts, report, signal);
       return track;
     });
     const unsubscribeLibrary = library.subscribe(setCollection);
@@ -371,6 +396,8 @@ export default function App() {
       playerViewRequestKey={playerViewRequestKey}
       currentTrack={playback.track}
       playbackError={playback.error}
+      sourceActivity={playback.sourceActivity}
+      onCancelSourceRequest={() => player.pause()}
       playing={playback.playing}
       position={playback.position}
       duration={playback.duration}

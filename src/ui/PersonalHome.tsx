@@ -256,6 +256,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
       <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp} onPointerLeave={event => event.currentTarget.classList.remove('is-orbit-hot')}>
         <div className="zenix-stage-aura" aria-hidden="true" />
         <div className="zenix-stage-heading"><strong>你的音乐，自成宇宙。</strong></div>
+        <div className="zenix-stage-search-hint">鼠标移至上方任意空白处，即可唤出搜索框</div>
         <div className="zenix-orbit-scene"><div className="zenix-orbit-guide" aria-hidden="true" /><div className="zenix-orbit-ring" ref={ringRef}>
           {cards.map((card, index) => <button key={card.id} type="button" className={`zenix-orbit-card${card.image ? ' has-cover' : ''}`} style={{ '--orbit-angle': `${index * 60}deg`, '--card-delay': `${index * 1.2}s` } as CSSProperties} onClick={() => handleOrbitClick(card.action)}>
             {card.image && <img src={card.image} alt="" />}<span className="zenix-orbit-sheen" aria-hidden="true" /><span className="zenix-orbit-no">{String(index + 1).padStart(2, '0')}</span><card.icon className="zenix-orbit-icon" size={38} strokeWidth={1.25} /><span className="zenix-orbit-copy"><strong>{card.label}</strong><small>{card.caption}</small></span><ArrowRight className="zenix-orbit-arrow" size={16} />

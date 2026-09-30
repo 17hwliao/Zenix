@@ -40,6 +40,7 @@ type LatticePlayerProps = {
   onOpenSettings: () => void;
   onOpenSearch: () => void;
   searchAvailable?: boolean;
+  searchRevealed?: boolean;
   desktopLyricsVisible?: boolean;
   onToggleDesktopLyrics?: () => void;
 };
@@ -47,7 +48,7 @@ type LatticePlayerProps = {
 export default function LatticePlayer({
   track, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
-  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, desktopLyricsVisible = false, onToggleDesktopLyrics,
+  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, searchRevealed = false, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
@@ -256,7 +257,7 @@ export default function LatticePlayer({
       </div>
     </div>
     <button className="yz-lattice-back" onClick={onBack} aria-label="个人主页" title="个人主页"><Home size={19} /></button>
-    {searchAvailable && <div className="yz-lattice-search-zone"><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}
+    {searchAvailable && <div className={`yz-lattice-search-zone${searchRevealed ? ' is-revealed' : ''}`}><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}
     <div className="yz-lattice-mini">
       <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
       <button className={`yz-lattice-mini-lyrics${desktopLyricsVisible ? ' is-active' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} title={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-label={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-pressed={desktopLyricsVisible}><Captions size={18} /></button>

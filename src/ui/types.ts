@@ -1,5 +1,5 @@
 import type { AppearanceBackground } from '../core/types';
-import type { PersonalState } from '../core/types';
+import type { PersonalState, SourceActivity } from '../core/types';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -55,6 +55,8 @@ export interface ZenixShellProps {
   playlists?: PlaylistView[];
   currentTrack?: TrackView | null;
   playbackError?: string;
+  sourceActivity?: SourceActivity;
+  onCancelSourceRequest?: () => void;
   playing: boolean;
   position: number;
   duration: number;

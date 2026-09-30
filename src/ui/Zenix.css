@@ -274,7 +274,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
 .yz-lattice-search-zone button { min-width: 197px; height: 43px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 0 17px; border: 1px solid #ffffff61; border-radius: 999px; background: linear-gradient(160deg,#ffffff38,#a4b3c923 46%,#090d16b8); box-shadow: inset 0 1px #ffffff70,0 12px 35px #0009; color: #fff; backdrop-filter: blur(26px) saturate(155%); -webkit-backdrop-filter: blur(26px) saturate(155%); opacity: 0; transform: translateY(-17px) scale(.92); pointer-events: none; transition: opacity .2s, transform .37s cubic-bezier(.2,1.35,.4,1); }
 .yz-lattice-search-zone button span { font-size: 12px; font-weight: 720; letter-spacing: .06em; }
 .yz-lattice-search-zone button kbd { padding: 3px 5px; border: 1px solid #ffffff40; border-radius: 5px; color: #ffffffa8; font: inherit; font-size: 9px; }
-.yz-lattice-search-zone:hover button, .yz-lattice-search-zone:focus-within button { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.yz-lattice-search-zone:hover button, .yz-lattice-search-zone:focus-within button, .yz-lattice-search-zone.is-revealed button { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
 .yz-lattice-mini { padding-bottom: 16px; }
 .yz-lattice-mini-focus { display: flex; align-items: center; flex: 0 0 225px; min-width: 0; gap: 9px; padding: 0; border: 0; background: transparent; text-align: left; }
 .yz-lattice-mini-focus .yz-cover { flex: 0 0 43px; width: 43px; height: 43px; border-radius: 3px; }

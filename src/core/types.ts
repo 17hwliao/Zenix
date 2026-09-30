@@ -66,6 +66,13 @@ export interface LyricLine {
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
+export type SourceProgress = {
+  phase: 'cache' | 'connecting' | 'resolving' | 'checking' | 'buffering' | 'retrying' | 'switching' | 'failed';
+  message: string;
+  detail?: string;
+};
+export type SourceActivity = SourceProgress & { startedAt: number };
+
 export interface PlayerState {
   track?: Track;
   playing: boolean;
@@ -78,6 +85,7 @@ export interface PlayerState {
   queue: Track[];
   queueIndex: number;
   error?: string;
+  sourceActivity?: SourceActivity;
 }
 
 export type MediaCommand = 'play-pause' | 'play' | 'pause' | 'next' | 'previous';

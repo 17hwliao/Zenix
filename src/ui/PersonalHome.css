@@ -54,6 +54,8 @@
 .zenix-stage-aura { position:absolute; width:55%; aspect-ratio:1; left:50%; top:45%; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(circle,rgba(232,192,106,.13),rgba(232,192,106,.025) 45%,transparent 68%); pointer-events:none; animation:zenix-space-breathe 5s ease-in-out infinite; }
 @keyframes zenix-space-breathe { 50% { opacity:.55; transform:translate(-50%,-50%) scale(1.08); } }
 .zenix-stage-heading { position:absolute; z-index:5; top:28px; left:31px; display:flex; flex-direction:column; align-items:start; gap:7px; pointer-events:none; }
+.zenix-stage-search-hint { position:absolute; z-index:5; top:31px; left:50%; width:max-content; max-width:calc(100% - 460px); transform:translateX(-50%); color:rgba(255,255,255,.8); font-size:11px; line-height:1.5; text-align:center; text-shadow:0 1px 8px rgba(0,0,0,.45); pointer-events:none; }
+@media(max-width:800px) { .zenix-stage-search-hint { top:65px; max-width:calc(100% - 50px); } }
 .zenix-stage-heading strong { font-size:16px; font-weight:630; letter-spacing:.02em; }
 .zenix-stage-scroll-hint { position:absolute; z-index:5; left:50%; bottom:135px; display:flex; align-items:center; gap:7px; width:max-content; max-width:calc(100% - 24px); color:rgba(255,255,255,.9); font-size:12px; font-weight:630; letter-spacing:.04em; text-shadow:0 2px 12px rgba(0,0,0,.9); pointer-events:none; transform:translateX(-50%); }
 .zenix-stage-scroll-hint button { display:grid; place-items:center; flex:none; width:26px; height:26px; padding:0; border:1px solid rgba(255,255,255,.24); border-radius:50%; background:rgba(255,255,255,.08); color:#fff; pointer-events:auto; cursor:pointer; transition:background .18s,transform .18s,border-color .18s; }
