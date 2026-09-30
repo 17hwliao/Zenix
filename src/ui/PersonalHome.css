@@ -49,10 +49,9 @@
 .zenix-home-space { --space-gold:#e8c06a; --space-silver:#c9ced8; }
 .zenix-home-top { height:70px; padding-top:25px; }
 .zenix-home-scroll { height:calc(100% - 70px); }
-.zenix-space-stage { position:relative; height:clamp(760px,88vh,900px); min-height:760px; overflow:hidden; border:1px solid rgba(255,255,255,.12); border-radius:26px; background:radial-gradient(ellipse at 50% 46%,rgba(118,126,139,.17),transparent 48%),linear-gradient(145deg,rgba(8,9,12,.83),rgba(19,20,25,.82)); box-shadow:inset 0 1px rgba(255,255,255,.12),0 30px 80px rgba(0,0,0,.22); perspective:1400px; touch-action:pan-y; user-select:none; }
+.zenix-space-stage { position:relative; height:clamp(760px,88vh,900px); min-height:760px; overflow:hidden; border-radius:26px; background:transparent; perspective:1400px; touch-action:pan-y; user-select:none; }
 .zenix-space-stage.is-orbit-hot { cursor:grab; }
 .zenix-space-stage.is-orbit-hot:active { cursor:grabbing; }
-.zenix-space-stage::after { content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.4)),repeating-linear-gradient(90deg,transparent 0 3px,rgba(255,255,255,.007) 3px 4px); }
 .zenix-stage-aura { position:absolute; width:55%; aspect-ratio:1; left:50%; top:45%; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(circle,rgba(232,192,106,.13),rgba(232,192,106,.025) 45%,transparent 68%); pointer-events:none; animation:zenix-space-breathe 5s ease-in-out infinite; }
 @keyframes zenix-space-breathe { 50% { opacity:.55; transform:translate(-50%,-50%) scale(1.08); } }
 .zenix-stage-heading { position:absolute; z-index:5; top:28px; left:31px; display:flex; flex-direction:column; align-items:start; gap:7px; pointer-events:none; }
