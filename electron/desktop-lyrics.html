@@ -111,8 +111,12 @@
     body.is-vertical .lines { flex-direction:row-reverse; justify-content:center; align-items:stretch; gap:5px; width:100%; height:calc(100% - 156px); min-height:340px; padding:15px 12px 7px; }
     body.is-vertical .lines.is-browsing { padding:15px 12px 7px; }
     body.is-vertical .lines .line { flex:0 0 31%; width:31%; height:100%; writing-mode:vertical-rl; text-orientation:mixed; text-align:center; text-overflow:ellipsis; translate:var(--drag-offset) 0; }
+    body.is-vertical .lines .line.is-latin { writing-mode:horizontal-tb; text-orientation:mixed; text-overflow:clip; }
+    body.is-vertical .lines .line.is-latin .line-text { position:absolute; top:50%; left:50%; display:block; width:max-content; max-width:none; transform:translate(-50%,-50%) rotate(90deg); white-space:nowrap; }
     body.is-vertical .line.previous,body.is-vertical .line.next { font-size:calc(var(--lyric-size) * .66); }
     body.is-vertical .line.current { font-size:var(--lyric-size); }
+    body.is-vertical .line.previous.is-latin,body.is-vertical .line.next.is-latin { font-size:calc(var(--lyric-size) * .66 * var(--latin-fit,1)); }
+    body.is-vertical .line.current.is-latin { font-size:calc(var(--lyric-size) * var(--latin-fit,1)); }
     body.is-vertical .jump { top:auto; right:auto; bottom:3px; left:50%; transform:translateX(-50%); }
     body.is-vertical .bottom { left:13px; right:13px; bottom:10px; display:grid; grid-template-columns:34px minmax(0,1fr) 34px; grid-template-rows:20px 25px; gap:3px 5px; height:48px; }
     body.is-vertical .bottom time:first-child { grid-column:1; grid-row:1; }
@@ -144,9 +148,9 @@
     </div>
     <button class="icon-button lock" id="lock" title="锁定歌词，让鼠标点击穿透" aria-label="锁定歌词，让鼠标点击穿透"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/><path d="M12 14v3"/></svg></button>
     <div class="lines" id="lines" aria-label="上下拖动预览歌词" aria-live="off">
-      <span class="line previous is-placeholder" id="previous">上一句歌词</span>
-      <span class="line current" id="current">播放歌曲后显示歌词</span>
-      <span class="line next is-placeholder" id="next">下一句歌词</span>
+      <span class="line previous is-placeholder" id="previous"><span class="line-text">上一句歌词</span></span>
+      <span class="line current" id="current"><span class="line-text">播放歌曲后显示歌词</span></span>
+      <span class="line next is-placeholder" id="next"><span class="line-text">下一句歌词</span></span>
       <button class="jump" id="jump" title="播放预览的这一句" aria-label="跳转到预览歌词">▶ <span id="jump-time">0:00</span></button>
     </div>
     <div class="bottom"><time id="elapsed">0:00</time><input class="song-progress" id="song-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="歌曲播放进度"><time id="total">0:00</time><div class="saved-actions"><button id="like" title="喜欢" aria-label="喜欢"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></svg></button><button id="favorite" title="收藏" aria-label="收藏"><svg viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 7 .9-5.1 5 .9 7-5.9-3.3-5.9 3.3.9-7-5.1-5 7-.9L12 2Z"/></svg></button><button id="playlist-toggle" title="加入歌单" aria-label="加入歌单"><svg viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M19 15v7M15.5 18.5h7"/></svg></button></div></div>
@@ -204,6 +208,7 @@
       byId('size-value').textContent = settings.size + ' px';
       byId('opacity-value').textContent = settings.opacity + '%';
       try { localStorage.setItem(storageKey,JSON.stringify(settings)); } catch {}
+      requestAnimationFrame(fitVerticalLyrics);
     }
     applySettings();
     function change(key,value) { settings = { ...settings,[key]:value }; applySettings(); }
@@ -225,6 +230,7 @@
       const changed = orientation !== value;
       orientation = value;
       document.body.classList.toggle('is-vertical',value === 'vertical');
+      requestAnimationFrame(fitVerticalLyrics);
       const button = byId('orientation');
       button.textContent = value === 'vertical' ? '横' : '竖';
       button.title = value === 'vertical' ? '切换横版歌词' : '切换竖版歌词';
@@ -287,6 +293,25 @@
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
     const formatTime = value => { const seconds = Math.max(0,Math.floor(Number(value) || 0)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2,'0')}`; };
+    const lyricMeasure = document.createElement('canvas').getContext('2d');
+    function fitVerticalLyrics() {
+      for (const element of document.querySelectorAll('.lines .line')) {
+        const text = element.textContent || '';
+        const latinCount = (text.match(/[A-Za-z0-9]/g) || []).length;
+        const latin = latinCount >= 4;
+        element.classList.toggle('is-latin',latin);
+        if (!latin || !document.body.classList.contains('is-vertical') || !lyricMeasure) {
+          element.style.removeProperty('--latin-fit');
+          continue;
+        }
+        const baseSize = settings.size * (element.classList.contains('current') ? 1 : .66);
+        lyricMeasure.font = `${settings.weight} ${baseSize}px ${getComputedStyle(element).fontFamily}`;
+        const width = lyricMeasure.measureText(text).width;
+        const available = Math.max(1,element.clientHeight - 18);
+        element.style.setProperty('--latin-fit',String(Math.min(1,available / Math.max(1,width))));
+      }
+    }
+    new ResizeObserver(fitVerticalLyrics).observe(byId('lines'));
     const activeLineIndex = () => latestData.lines.reduce((index,line,i) => latestData.position >= line.time ? i : index,-1);
     function cancelPreviewReturn() { if (previewReturnTimer !== null) clearTimeout(previewReturnTimer); previewReturnTimer = null; }
     function schedulePreviewReturn() {
@@ -319,8 +344,9 @@
       const animate = !reducedMotion && (browsing || area.classList.contains('is-browsing'));
       const updateLine = (id,text,order) => {
         const element = byId(id);
-        if (element.textContent === text) return;
-        element.textContent = text;
+        const content = element.querySelector('.line-text');
+        if (content.textContent === text) return;
+        content.textContent = text;
         if (!animate) return;
         lineAnimations.get(element)?.cancel();
         const opacity = getComputedStyle(element).opacity;
@@ -336,6 +362,7 @@
       updateLine('current',current,1);
       byId('preview-line').textContent = current;
       updateLine('next',next || '下一句歌词',2);
+      fitVerticalLyrics();
       if (browsing) {
         const time = formatTime(lines[index].time);
         byId('jump-time').textContent = time;
