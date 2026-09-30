@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
-import { Captions, Home, ListMusic, Maximize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { Captions, Home, ListMusic, Maximize2, Minimize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { playUiSound } from '../core/sounds';
 import { trackCoverUrl } from '../core/trackCover';
 import CoverArt from './CoverArt';
@@ -64,6 +64,7 @@ export default function LatticePlayer({
   const [selectedSlot, setSelectedSlot] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [immersive, setImmersive] = useState(false);
   const [seekDraft, setSeekDraft] = useState<number | null>(null);
   const seekDraftRef = useRef<number | null>(null);
   const seekDraggingRef = useRef(false);
@@ -136,7 +137,20 @@ export default function LatticePlayer({
     if (!container || !line || !focusedIsCurrent) return;
     const lineTop = line.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
     container.scrollTo({ top: Math.max(0, lineTop - 22), behavior: 'smooth' });
-  }, [activeLyric, lyricPreview, focusedIsCurrent, track.id]);
+  }, [activeLyric, lyricPreview, focusedIsCurrent, track.id, immersive, viewport.height]);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const restoreSticker = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"],.zenix-queue')) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setImmersive(false);
+      playUiSound('cancel');
+    };
+    window.addEventListener('keydown', restoreSticker, true);
+    return () => window.removeEventListener('keydown', restoreSticker, true);
+  }, [immersive]);
 
   useEffect(() => {
     const container = lyricsContainerRef.current;
@@ -167,7 +181,7 @@ export default function LatticePlayer({
     const node = wallRef.current;
     if (!node) return;
     const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) return;
+      if (immersive || event.ctrlKey || event.metaKey) return;
       event.preventDefault();
       playUiSound('slide');
       const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX;
@@ -179,10 +193,10 @@ export default function LatticePlayer({
     };
     node.addEventListener('wheel', onWheel, { passive: false });
     return () => { node.removeEventListener('wheel', onWheel); if (wheelTimer.current) clearTimeout(wheelTimer.current); };
-  }, [clampCamera]);
+  }, [clampCamera, immersive]);
 
   const pointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || !event.isPrimary || (event.target as Element).closest('.yz-sticker.is-expanded button, .yz-sticker.is-expanded input')) return;
+    if (immersive || event.button !== 0 || !event.isPrimary || (event.target as Element).closest('.yz-sticker.is-expanded button, .yz-sticker.is-expanded input')) return;
     didDragRef.current = false;
     dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y, dragged: false };
   };
@@ -221,16 +235,16 @@ export default function LatticePlayer({
     if (seconds !== null) onSeek(seconds);
   };
 
-  return <div className="yz-lattice">
+  return <div className={`yz-lattice${immersive ? ' is-immersive' : ''}`}>
     <div className="yz-sticker-viewport" ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
-      <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: wallWidth, height: wallHeight, transform: `translate3d(${camera.x}px,${camera.y}px,0)` }}>
+      <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: immersive ? viewport.width : wallWidth, height: immersive ? viewport.height : wallHeight, transform: immersive ? 'translate3d(0,0,0)' : `translate3d(${camera.x}px,${camera.y}px,0)` }}>
         {slots.map((tile, slot) => {
           const itemIndex = slot;
           const item = wallTracks[itemIndex];
           const rect = expandedRects.get(slot) ?? tile;
           const expanded = slot === selectedSlot;
           const current = item.id === track.id;
-          return <div key={slot} className={`yz-sticker${expanded ? ' is-expanded' : ''}${current ? ' is-current' : ''}${rect.columns * rect.rows <= 6 ? ' is-compact' : ''}`} style={{ left: rect.x * cellPitch, top: rect.y * cellPitch, width: rect.columns * cellPitch - STICKER_GAP, height: rect.rows * cellPitch - STICKER_GAP }} onClick={() => { if (!expanded) { playUiSound('enter'); focusSlot(slot); } }} onKeyDown={event => {
+          return <div key={slot} className={`yz-sticker${expanded ? ' is-expanded' : ''}${current ? ' is-current' : ''}${rect.columns * rect.rows <= 6 ? ' is-compact' : ''}`} style={{ left: immersive && expanded ? 0 : rect.x * cellPitch, top: immersive && expanded ? 0 : rect.y * cellPitch, width: immersive && expanded ? viewport.width : rect.columns * cellPitch - STICKER_GAP, height: immersive && expanded ? viewport.height : rect.rows * cellPitch - STICKER_GAP, visibility: immersive && !expanded ? 'hidden' : undefined }} onClick={() => { if (!expanded) { playUiSound('enter'); focusSlot(slot); } }} onKeyDown={event => {
             if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
             event.preventDefault();
             if (!expanded) focusSlot(slot);
@@ -246,7 +260,7 @@ export default function LatticePlayer({
               </div>}
               <div className="yz-sticker-focus-controls">
                 <button onClick={playFocused} title={focusedIsCurrent && playing ? '暂停' : `播放 ${item.title}`} aria-label={focusedIsCurrent && playing ? '暂停' : `播放 ${item.title}`}>{focusedIsCurrent && playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
-                {focusedIsCurrent && <><button onClick={onOpenQueue} title="播放队列" aria-label="播放队列"><Maximize2 size={15} /></button><input type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(position, Math.max(total, 1))} onChange={event => onSeek(Number(event.target.value))} aria-label="播放进度" style={{ '--range-fill': `${total ? Math.min(100, position / total * 100) : 0}%` } as CSSProperties} /></>}
+                {focusedIsCurrent && <><button onClick={() => { setImmersive(value => !value); setPanning(false); playUiSound(immersive ? 'cancel' : 'enter'); }} title={immersive ? '还原歌曲贴纸' : '放大歌曲至窗口'} aria-label={immersive ? '还原歌曲贴纸' : '放大歌曲至窗口'} aria-pressed={immersive}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={15} />}</button><input type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(position, Math.max(total, 1))} onChange={event => onSeek(Number(event.target.value))} aria-label="播放进度" style={{ '--range-fill': `${total ? Math.min(100, position / total * 100) : 0}%` } as CSSProperties} /></>}
               </div>
             </> : <>
               <span className="yz-sticker-badge">{current ? '正在播放 · ' : itemIndex < activeIndex ? '此前播放 · ' : ''}{String(itemIndex + 1).padStart(2, '0')}</span>
