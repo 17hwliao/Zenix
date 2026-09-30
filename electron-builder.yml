@@ -1,0 +1,62 @@
+appId: com.zenix.musicplayer
+productName: Zenix
+copyright: Copyright © 2026 17hwliao
+electronDist: node_modules/electron/dist
+asar: true
+npmRebuild: false
+directories:
+  output: release
+  buildResources: assets
+files:
+  - package.json
+  - dist/**/*
+  - electron/**/*.cjs
+  - electron/desktop-lyrics.html
+  - electron/lyrics-lock.html
+  - assets/zenix-icon.ico
+  - assets/zenix-icon.png
+  - LICENSE
+  - THIRD_PARTY_NOTICES.md
+  - '!**/*.map'
+  - '!**/*.log'
+  # Renderer libraries are compiled into dist; only main-process dependencies
+  # need a second copy in node_modules.
+  - '!node_modules/@paper-design/**/*'
+  - '!node_modules/framer-motion/**/*'
+  - '!node_modules/lottie-web/**/*'
+  - '!node_modules/lucide-react/**/*'
+  - '!node_modules/motion-dom/**/*'
+  - '!node_modules/motion-utils/**/*'
+  - '!node_modules/react/**/*'
+  - '!node_modules/react-dom/**/*'
+  - '!node_modules/scheduler/**/*'
+extraResources:
+  - from: licenses
+    to: licenses
+  - from: LICENSE
+    to: LICENSE
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+win:
+  icon: assets/zenix-icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Zenix-Setup-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Zenix
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  installerLanguages:
+    - zh_CN
+    - en_US
+  displayLanguageSelector: false
+  language: '2052'
+  license: LICENSE

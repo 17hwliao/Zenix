@@ -45,6 +45,7 @@ Electron 随软件发行的二进制还包含 Chromium 等组件；打包时需�
 | --- | --- | --- | --- |
 | TypeScript | 5.9.3 | 类型检查 | [Apache-2.0](https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt) |
 | Vite | 7.3.6 | 开发服务和打包 | [MIT](https://github.com/vitejs/vite/blob/main/LICENSE) |
+| electron-builder | 26.15.3 | Windows NSIS 安装包制作 | [MIT](https://github.com/electron-userland/electron-builder/blob/master/LICENSE) |
 | @vitejs/plugin-react | 5.2.0 | React 构建插件 | [MIT](https://github.com/vitejs/vite-plugin-react/blob/main/LICENSE) |
 | @types/node | 24.19.0 | Node 类型声明 | [DefinitelyTyped / MIT](https://github.com/DefinitelyTyped/DefinitelyTyped) |
 | @types/react | 19.3.0 | React 类型声明 | [DefinitelyTyped / MIT](https://github.com/DefinitelyTyped/DefinitelyTyped) |
@@ -103,4 +104,4 @@ Electron 同时用于开发启动与软件运行，版本及通知已列在上�
 
 ## 许可证与通知文件
 
-Zenix 自有代码的 GPL-3.0-only 原文位于根目录 [LICENSE](LICENSE)。Paper Shaders 的 LICENSE 与 NOTICE，以及上表列出的已保存运行组件许可证位于 [`licenses/`](licenses/)。Electron 二进制附带的 LICENSE 与 LICENSES.chromium.html 位于 `node_modules/electron/dist`。第三方组件的许可证、版权声明和通知随对应组件保留。
+Zenix 自有代码的 GPL-3.0-only 原文位于根目录 [LICENSE](LICENSE)。Paper Shaders 的 LICENSE 与 NOTICE，以及上表列出的已保存运行组件许可证位于 [`licenses/`](licenses/)。安装包将这些文档放在安装目录的 `resources/`；Electron 的 `LICENSE.electron.txt` 与 `LICENSES.chromium.html` 位于安装根目录。第三方组件的许可证、版权声明和通知随对应组件保留。

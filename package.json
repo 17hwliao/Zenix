@@ -1,6 +1,8 @@
 {
   "name": "zenix-music-player",
   "productName": "Zenix Music Player",
+  "description": "Zenix 桌面音乐播放器，玻璃贴纸音乐空间与桌面歌词",
+  "author": "17hwliao",
   "version": "0.1.0",
   "license": "GPL-3.0-only",
   "private": true,
@@ -9,7 +11,9 @@
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1 --port 5174\" \"wait-on tcp:5174 && cross-env ZENIX_DEV_SERVER_URL=http://127.0.0.1:5174 electron .\"",
     "build": "tsc --noEmit && vite build",
-    "start": "electron ."
+    "start": "electron .",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "package:dir": "npm run build && electron-builder --win --x64 --dir --publish never"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.80",
@@ -28,6 +32,7 @@
     "concurrently": "^9.0.0",
     "cross-env": "^7.0.0",
     "electron": "^43.3.0",
+    "electron-builder": "26.15.3",
     "typescript": "^5.9.0",
     "vite": "^7.0.0",
     "wait-on": "^8.0.0"

@@ -27,6 +27,7 @@
 
 - npm 与 `package-lock.json` 管理依赖；TypeScript 在构建前检查类型。
 - concurrently 9.2.4、cross-env 7.0.3、wait-on 8.0.5 协调开发服务与 Electron 启动。
+- electron-builder 26.15.3 与 NSIS 生成 Windows x64 安装包，打包配置位于 `electron-builder.yml`。
 - `@types/node`、`@types/react`、`@types/react-dom` 提供类型声明。
 - PowerShell 脚本生成本机启动快捷方式并只读采样进程内存。
 - Python 标准库合成 WAV 音效，Pillow 绘制图标；它们用于素材生成，不是播放器运行时依赖。
@@ -71,4 +72,4 @@ README 已包含简介、能力范围、首次使用、源配置、本地音频�
 
 参考项目、使用范围和许可证统一记录在 [第三方说明](../THIRD_PARTY_NOTICES.md)。个人配置、音乐源脚本、歌曲和缓存属于用户本机数据；数据位置及发行清单见 [发行配置建议](distribution-config.md)。
 
-目前提供源码运行与本地生产预览，正式安装包、统一配置导出、自动化 CI 和功能测试套件尚未提供。截图、演示视频和 Issue 模板可后续补充。
+目前提供源码运行、本地生产预览与 Windows x64 本地安装包，尚未上传发布。统一配置导出、自动化 CI 和功能测试套件尚未提供。截图、演示视频和 Issue 模板可后续补充。
