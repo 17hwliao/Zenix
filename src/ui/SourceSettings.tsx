@@ -105,34 +105,34 @@ export default function SourceSettings() {
       <small>已缓存 {cache.trackCount} 首 · {(cache.usedBytes / 1024 / 1024).toFixed(1)} MB；超过容量时先清理最久未使用的歌曲，30 天未使用的缓存会过期。</small>
       <button type="button" onClick={() => void clearCache()}>清除自动缓存</button>
     </section>}
-    <section className="zenix-source-presets" aria-label="LX 音乐源快捷添加">
-      <div className="zenix-source-presets-head"><strong>快捷添加 LX 源</strong><small>直接从上游下载最新脚本；播放效果以实际服务为准。</small></div>
+    <section className="zenix-source-presets" aria-label="音乐源快捷添加">
+      <div className="zenix-source-presets-head"><strong>快捷添加音乐源</strong><small>直接从上游下载最新脚本；播放效果以实际服务为准。</small></div>
       <div className="zenix-source-preset-list">{LX_PRESETS.map(preset => {
         const installed = presetInstalled(preset);
         return <div className="zenix-source-preset" key={preset.key}><div><strong>{preset.name}</strong><small>{preset.description}</small></div><button type="button" disabled={busy || !preset.url} onClick={() => void installPreset(preset)}>{!preset.url ? '链接失效' : installed ? '重新获取' : '一键添加'}</button></div>;
       })}</div>
     </section>
     <div className="zenix-source-import">
-      <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFile())} disabled={busy || !window.yzqxy?.sources}><FilePlus2 size={16} />导入源包 / LX 脚本</button>
+      <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFile())} disabled={busy || !window.yzqxy?.sources}><FilePlus2 size={16} />导入源包 / 脚本</button>
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFolder())} disabled={busy || !window.yzqxy?.sources}><FolderOpen size={16} />源文件夹</button>
-      <form onSubmit={importUrl}><Globe2 size={16} /><input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="粘贴 HTTPS 源包或 LX .js 地址" aria-label="音乐源地址" /><button type="submit" disabled={busy || !url.trim()}>导入</button></form>
+      <form onSubmit={importUrl}><Globe2 size={16} /><input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="粘贴 HTTPS 源包或 .js 脚本地址" aria-label="音乐源地址" /><button type="submit" disabled={busy || !url.trim()}>导入</button></form>
     </div>
-    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 LX 搜索目录将在安装时检测。</p><p>LX 脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
-    <p className="zenix-source-hint">支持 .zenixsource JSON、LX Music .js 脚本及其 HTTPS 地址。LX 搜索目录可在安装后的“源选项”中切换。<button className="zenix-source-folder-link" onClick={() => void window.yzqxy?.sources.openFolder()}>打开已安装源目录</button></p>
+    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
+    <p className="zenix-source-hint">支持 .zenixsource JSON、自定义 .js 脚本及其 HTTPS 地址。搜索平台可在安装后的“源选项”中切换。<button className="zenix-source-folder-link" onClick={() => void window.yzqxy?.sources.openFolder()}>打开已安装源目录</button></p>
     {error && <p className="zenix-source-error" role="alert">{error}</p>}
     <div className="zenix-source-list">
       {sources.length === 0 && <div className="zenix-source-empty">还没有音乐源。添加后即可搜索在线歌曲。</div>}
       {sources.map((source, index) => <section key={source.id} className={`zenix-source-card${source.enabled ? '' : ' is-disabled'}`}>
-        <div className="zenix-source-card-head"><span className="zenix-source-rank">{String(index + 1).padStart(2, '0')}</span><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? 'LX 脚本' : 'Zenix 源'} · {source.manifest.version.startsWith('v') ? source.manifest.version : `v${source.manifest.version}`} · 接入于 {new Date(source.installedAt).toLocaleString()}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
+        <div className="zenix-source-card-head"><span className="zenix-source-rank">{String(index + 1).padStart(2, '0')}</span><span className="zenix-source-dot" /><div><strong>{source.manifest.name}</strong><small>{source.kind === 'lx' ? '音乐源脚本' : 'Zenix 源'} · {source.manifest.version.startsWith('v') ? source.manifest.version : `v${source.manifest.version}`} · 接入于 {new Date(source.installedAt).toLocaleString()}</small></div><button title={source.enabled ? '停用音乐源' : '启用音乐源'} aria-label={source.enabled ? '停用音乐源' : '启用音乐源'} onClick={() => void run(() => window.yzqxy!.sources.setEnabled(source.id, !source.enabled))} disabled={busy}><Power size={16} /></button></div>
         <p>{source.manifest.capabilities.map(capability => ({ search: '搜索', resolvePlayback: '播放', lyrics: '歌词', artwork: '封面', resolveDownload: '下载' })[capability as 'search' | 'resolvePlayback' | 'lyrics' | 'artwork' | 'resolveDownload'] || capability).join(' · ')}</p>
-        <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · LX 脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
+        <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · 音乐源脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
         <div className="zenix-source-actions">
           {source.manifest.settings.length > 0 && <button onClick={() => void openSettings(source)} disabled={busy}>{editing === source.id ? '收起选项' : '源选项'}</button>}
           <button title="移除" aria-label={`移除 ${source.manifest.name}`} onClick={() => { if (window.confirm(`移除音乐源“${source.manifest.name}”？已收藏的歌曲记录会保留。`)) void run(() => window.yzqxy!.sources.remove(source.id)); }} disabled={busy}><Trash2 size={14} /></button>
         </div>
         {editing === source.id && <form className="zenix-source-options" onSubmit={event => void saveSettings(event, source.id)}>
-          {source.manifest.settings.map(field => <label key={field.key}>{field.label}{field.type === 'select'
+          {source.manifest.settings.map(field => <label key={field.key}>{field.key === 'lxCatalog' ? '搜索平台' : field.label}{field.type === 'select'
             ? <select value={values[field.key] ?? field.default} onChange={event => setValues(previous => ({ ...previous, [field.key]: event.target.value }))}>{field.options.map(option => <option key={option} value={option}>{source.kind === 'lx' ? source.manifest.lxPlatforms?.[option]?.name || option : option}</option>)}</select>
             : <input value={values[field.key] ?? field.default} onChange={event => setValues(previous => ({ ...previous, [field.key]: event.target.value }))} />}</label>)}
           <button type="submit" disabled={busy}>保存源选项</button>

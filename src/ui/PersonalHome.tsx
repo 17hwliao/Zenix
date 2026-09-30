@@ -242,7 +242,13 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     else setGoldDragY(0);
   };
   const handleOrbitClick = (action: () => void) => { if (suppressClick.current) { suppressClick.current = false; return; } action(); };
-  const scrollToSongs = () => songSectionRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  const scrollToSongs = () => {
+    const scroll = scrollRef.current;
+    const section = songSectionRef.current;
+    if (!scroll || !section) return;
+    const top = scroll.scrollTop + section.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+    scroll.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  };
 
   return <div className="zenix-home-space">
     <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div><button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>

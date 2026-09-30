@@ -1,4 +1,4 @@
-html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
 
 .yz-shell {
   --yz-white: rgba(255, 255, 255, .94);
@@ -9,7 +9,7 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
   height: 100vh;
   height: 100dvh;
   min-height: 500px;
-  overflow: hidden;
+  overflow: clip;
   color: var(--yz-white);
   background: #303033;
   font-family: Inter, 'Segoe UI', 'Noto Sans SC', sans-serif;
@@ -42,12 +42,13 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .yz-grain { position: absolute; inset: -12%; z-index: -1; pointer-events: none; opacity: .035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 
 .yz-page { position: absolute; inset: 0; }
+.yz-window-controls-zone { position: fixed; z-index: 90; top: 0; right: 0; width: 178px; height: 36px; -webkit-app-region: no-drag; }
 .yz-window-controls { position: absolute; z-index: 90; top: 3px; right: 12px; display: flex; align-items: center; width: 150px; height: 29px; gap: 2px; padding: 2px 3px; overflow: hidden; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(35,39,47,.28); box-shadow: 0 3px 12px rgba(0,0,0,.12); backdrop-filter: blur(22px) saturate(120%); -webkit-backdrop-filter: blur(22px) saturate(120%); opacity: 0; pointer-events: none; transform: translateY(-5px); transition: opacity .2s ease, transform .24s ease; }
 .yz-window-controls.is-revealed, .yz-window-controls:focus-within { opacity: 1; pointer-events: auto; transform: translateY(0); }
 .yz-window-controls button { position: relative; flex: 1; height: 23px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,.9); display: grid; place-items: center; transition: background .18s ease, color .18s ease; }
 .yz-window-controls button:hover, .yz-window-controls button:focus-visible { background: rgba(255,255,255,.16); color: #fff; }
 .yz-window-controls button:last-child:hover, .yz-window-controls button:last-child:focus-visible { background: rgba(185,62,70,.32); }
-.yz-titlebar-drag { position: absolute; z-index: 80; top: 0; left: 0; right: 178px; height: 32px; -webkit-app-region: drag; }
+.yz-titlebar-drag { position: fixed; z-index: 80; top: 0; left: 0; right: 178px; height: 32px; -webkit-app-region: drag; }
 .yz-window-controls, .yz-window-controls button, .yz-header button, .yz-header input, .yz-lattice-back, .yz-lattice-settings { -webkit-app-region: no-drag; }
 .yz-home-search-dock { position: absolute; z-index: 85; top: 0; left: 50%; display: flex; align-items: center; width: min(440px, calc(100% - 360px)); height: 76px; transform: translateX(-50%); -webkit-app-region: no-drag; }
 .yz-home-search-dock form { display: flex; align-items: center; gap: 12px; width: 100%; height: 43px; padding: 0 7px 0 17px; border: 1px solid rgba(255,255,255,.27); border-radius: 999px; background: rgba(29,34,43,.48); box-shadow: inset 0 1px rgba(255,255,255,.19), 0 12px 34px rgba(0,0,0,.18); backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%); opacity: 0; pointer-events: none; transform: translateY(-10px); transition: opacity .22s ease, transform .28s cubic-bezier(.2,.8,.2,1); }

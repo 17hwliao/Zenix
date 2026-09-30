@@ -18,21 +18,21 @@ const LX_PLATFORM_KEYS = Object.keys(lxCatalog.PLATFORMS);
 function isLxScript(text) { return typeof text === 'string' && (/globalThis\s*(?:\.lx|\[\s*['"]lx['"]\s*\])|EVENT_NAMES\.inited/.test(text) || /^\s*\/\*\*[\s\S]{0,500}@name\s+/m.test(text)); }
 function lxScriptInfo(script) {
   const field = name => (script.match(new RegExp(`^\\s*\\*\\s*@${name}\\s+(.+)$`, 'mi'))?.[1] || '').trim().slice(0, 120);
-  return { name: field('name') || 'LX 自定义源', description: field('description'), version: field('version') || '1', author: field('author'), homepage: field('homepage'), rawScript: script };
+  return { name: field('name') || '自定义脚本源', description: field('description'), version: field('version') || '1', author: field('author'), homepage: field('homepage'), rawScript: script };
 }
 function lxManifest(origin, script, initialized) {
   const info = lxScriptInfo(script);
   const cleanedVersion = boundedText(info.version, 40).replace(/[^a-z0-9._-]/gi, '_').replace(/^[^a-z0-9]+/i, '');
   const version = VERSION.test(cleanedVersion) ? cleanedVersion : '1';
   const platforms = Object.fromEntries(Object.entries(initialized?.sources || {}).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && value?.type === 'music' && Array.isArray(value.actions) && value.actions.includes('musicUrl')).map(([key, value]) => [key, { name: boundedText(value.name, 40) || lxCatalog.PLATFORMS[key], qualitys: (value.qualitys || []).filter(type => ['128k', '320k', 'flac', 'flac24bit'].includes(type)) }]));
-  if (!Object.keys(platforms).length) throw new Error('LX 脚本没有声明 Zenix 可搜索的音乐平台');
+  if (!Object.keys(platforms).length) throw new Error('音乐源脚本没有声明 Zenix 可搜索的音乐平台');
   const id = `lx.${createHash('sha256').update(origin.label.toLowerCase()).digest('hex').slice(0, 24)}`;
-  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'resolveDownload', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: 'LX 搜索目录', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
+  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'resolveDownload', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: '搜索平台', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
 }
 function validateLxManifest(raw) {
-  if (!raw || !SOURCE_ID.test(raw.id) || !raw.id.startsWith('lx.') || !VERSION.test(raw.version) || !raw.lxPlatforms || typeof raw.lxPlatforms !== 'object') throw new Error('LX 源记录无效');
+  if (!raw || !SOURCE_ID.test(raw.id) || !raw.id.startsWith('lx.') || !VERSION.test(raw.version) || !raw.lxPlatforms || typeof raw.lxPlatforms !== 'object') throw new Error('音乐源记录无效');
   const platforms = Object.fromEntries(Object.entries(raw.lxPlatforms).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && Array.isArray(value?.qualitys)));
-  if (!Object.keys(platforms).length) throw new Error('LX 源缺少可用搜索目录');
+  if (!Object.keys(platforms).length) throw new Error('音乐源缺少可用搜索目录');
   return { ...raw, capabilities: [...new Set([...(Array.isArray(raw.capabilities) ? raw.capabilities : []), 'lyrics'])], lxPlatforms: platforms };
 }
 
@@ -41,7 +41,7 @@ function parseSourcePackage(text) {
   let parsed;
   try { parsed = JSON.parse(text); }
   catch {
-    throw new Error('无法识别音乐源：需要 .zenixsource JSON 包或 LX Music .js 脚本');
+    throw new Error('无法识别音乐源：需要 .zenixsource JSON 包或 自定义 .js 脚本');
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('音乐源包必须包含 manifest 和 script');
   return parsed;
@@ -101,11 +101,11 @@ function isPrivateAddress(address) {
 }
 async function checkLxUrl(raw) {
   let url;
-  try { url = new URL(raw); } catch { throw new Error('LX 脚本返回了无效 URL'); }
-  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || !url.hostname || /(?:^localhost$|\.localhost$|\.local$|\.internal$)/i.test(url.hostname)) throw new Error('LX 脚本请求了不允许的地址');
-  if (isIP(url.hostname) && isPrivateAddress(url.hostname)) throw new Error('LX 脚本不能访问本机或私有网络');
-  const addresses = await Promise.race([lookup(url.hostname, { all: true }), new Promise((_, reject) => setTimeout(() => reject(new Error('LX 域名查询超时')), 5000))]);
-  if (!addresses.length || addresses.some(item => isPrivateAddress(item.address))) throw new Error('LX 脚本不能访问本机或私有网络');
+  try { url = new URL(raw); } catch { throw new Error('音乐源脚本返回了无效 URL'); }
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || !url.hostname || /(?:^localhost$|\.localhost$|\.local$|\.internal$)/i.test(url.hostname)) throw new Error('音乐源脚本请求了不允许的地址');
+  if (isIP(url.hostname) && isPrivateAddress(url.hostname)) throw new Error('音乐源脚本不能访问本机或私有网络');
+  const addresses = await Promise.race([lookup(url.hostname, { all: true }), new Promise((_, reject) => setTimeout(() => reject(new Error('音乐源域名查询超时')), 5000))]);
+  if (!addresses.length || addresses.some(item => isPrivateAddress(item.address))) throw new Error('音乐源脚本不能访问本机或私有网络');
   return url;
 }
 
@@ -391,7 +391,7 @@ class SourceManager {
   }
   lxRunner(contentsId) {
     const runner = this.byContents.get(contentsId);
-    if (!runner || runner.record.kind !== 'lx') throw new Error('未授权的 LX 源请求');
+    if (!runner || runner.record.kind !== 'lx') throw new Error('未授权的 音乐源请求');
     return runner;
   }
   lxCrypto(contentsId, request) {
@@ -411,7 +411,7 @@ class SourceManager {
           const padded = Buffer.concat([Buffer.alloc(Math.max(0, 128 - input.length)), input]);
           return { bytes: [...publicEncrypt({ key: String(values.key).slice(0, 10000), padding: constants.RSA_NO_PADDING }, padded)] };
         }
-        default: throw new Error('不支持的 LX 加密操作');
+        default: throw new Error('不支持的 脚本加密操作');
       }
     } catch (error) { return { error: boundedText(error instanceof Error ? error.message : String(error), 180) }; }
   }
@@ -419,16 +419,16 @@ class SourceManager {
     this.lxRunner(contentsId);
     const input = Buffer.from(Array.isArray(request?.bytes) ? request.bytes.slice(0, 2 * 1024 * 1024) : []);
     const operation = request?.action === 'inflate' ? zlib.inflate : request?.action === 'deflate' ? zlib.deflate : null;
-    if (!operation) throw new Error('不支持的 LX 压缩操作');
+    if (!operation) throw new Error('不支持的 脚本压缩操作');
     const output = await promisify(operation)(input);
-    if (output.length > 4 * 1024 * 1024) throw new Error('LX 压缩结果过大');
+    if (output.length > 4 * 1024 * 1024) throw new Error('脚本压缩结果过大');
     return [...output];
   }
   async lxHttp(contentsId, request) {
     const runner = this.lxRunner(contentsId);
     const options = request?.options || {};
     const method = String(options.method || 'GET').toUpperCase();
-    if (!['GET', 'POST'].includes(method)) throw new Error('LX 源使用了不支持的 HTTP 方法');
+    if (!['GET', 'POST'].includes(method)) throw new Error('音乐源使用了不支持的 HTTP 方法');
     const headers = {};
     for (const [key, value] of Object.entries(options.headers || {})) {
       if (!/^[a-z0-9-]{1,50}$/i.test(key) || /^(host|proxy-|sec-)/i.test(key) || String(value).length > 2000) continue;
@@ -445,13 +445,13 @@ class SourceManager {
         headers['Content-Type'] ||= 'application/x-www-form-urlencoded';
       } else if (typeof options.body === 'string') body = options.body;
       else if (options.body && typeof options.body === 'object') body = JSON.stringify(options.body);
-      if (body instanceof FormData ? [...body].reduce((sum, [key, value]) => sum + key.length + String(value).length, 0) > 256 * 1024 : body?.length > 256 * 1024) throw new Error('LX 请求内容过大');
+      if (body instanceof FormData ? [...body].reduce((sum, [key, value]) => sum + key.length + String(value).length, 0) > 256 * 1024 : body?.length > 256 * 1024) throw new Error('音乐源请求内容过大');
     }
     const timeout = Math.max(1000, Math.min(15000, Number(options.timeout) || 10000));
     let response;
     try { response = await fetchAllowed(request?.url, null, { method, headers, body, signal: AbortSignal.timeout(timeout) }); }
-    catch (error) { runner.lastHttpError = `LX 脚本网络请求失败：${boundedText(error instanceof Error ? error.message : String(error), 100)}`; throw error; }
-    runner.lastHttpError = response.ok ? '' : `LX 脚本服务 ${new URL(request.url).hostname} 返回 HTTP ${response.status}`;
+    catch (error) { runner.lastHttpError = `音乐源脚本网络请求失败：${boundedText(error instanceof Error ? error.message : String(error), 100)}`; throw error; }
+    runner.lastHttpError = response.ok ? '' : `音乐源脚本服务 ${new URL(request.url).hostname} 返回 HTTP ${response.status}`;
     const data = await readLimited(response, 4 * 1024 * 1024);
     const contentType = response.headers.get('content-type') || '';
     const binary = /(?:image|audio|octet-stream|gzip|zip)/i.test(contentType) || options.responseType === 'arraybuffer';
@@ -526,7 +526,7 @@ class SourceManager {
     const record = this.record(id);
     const musicInfo = lxCatalog.readInfo(remoteId);
     const supported = record.manifest.lxPlatforms[musicInfo.source]?.qualitys || [];
-    if (!supported.length) throw new Error(`LX 源不支持 ${musicInfo.source} 平台`);
+    if (!supported.length) throw new Error(`音乐源不支持 ${musicInfo.source} 平台`);
     const order = quality === 'lossless24' ? ['flac24bit'] : quality === 'lossless' ? ['flac'] : quality === 'standard' ? ['128k'] : ['320k'];
     if (allowLower) order.push(...(quality === 'lossless24' ? ['flac', '320k', '128k'] : quality === 'lossless' ? ['320k', '128k'] : quality === 'high' ? ['128k'] : []));
     let lastError;
@@ -534,11 +534,11 @@ class SourceManager {
       try {
         const answer = await this.call(id, 'resolvePlayback', { source: musicInfo.source, action: 'musicUrl', info: { type, musicInfo } });
         const url = typeof answer === 'string' ? answer : answer?.url;
-        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('LX 源未返回可播放地址');
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('音乐源未返回可播放地址');
         return { url, actualQuality: type, headers: answer?.headers };
       } catch (error) { lastError = error; }
     }
-    throw lastError || new Error(`LX 源不支持所选 ${quality} 音质`);
+    throw lastError || new Error(`音乐源不支持所选 ${quality} 音质`);
   }
   mediaHeaders(raw) {
     const headers = {};
@@ -637,7 +637,7 @@ class SourceManager {
     } catch { return new Response(null, { status: 404 }); }
   }
   async choosePackage(window) {
-    const result = await dialog.showOpenDialog(window, { title: '导入音乐源', properties: ['openFile'], filters: [{ name: 'Zenix 或 LX 音乐源', extensions: ['zenixsource', 'json', 'js'] }] });
+    const result = await dialog.showOpenDialog(window, { title: '导入音乐源', properties: ['openFile'], filters: [{ name: '音乐源包或脚本', extensions: ['zenixsource', 'json', 'js'] }] });
     return result.canceled || !result.filePaths[0] ? null : this.importFile(result.filePaths[0]);
   }
   async chooseFolder(window) {

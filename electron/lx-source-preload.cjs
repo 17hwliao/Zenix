@@ -24,19 +24,19 @@ const lx = {
   EVENT_NAMES: EVENTS,
   currentScriptInfo: scriptInfo,
   on(event, handler) {
-    if (event !== EVENTS.request || typeof handler !== 'function') throw new Error('LX 事件无效');
+    if (event !== EVENTS.request || typeof handler !== 'function') throw new Error('音乐源事件无效');
     requestHandler = handler;
   },
   send(event, data) {
     if (event === EVENTS.inited) {
-      if (initialized || !requestHandler) throw new Error('LX 脚本初始化无效');
+      if (initialized || !requestHandler) throw new Error('音乐源脚本初始化无效');
       initialized = true;
       ipcRenderer.send('source:lx-inited', data);
-    } else if (event !== EVENTS.updateAlert) throw new Error('LX 事件无效');
+    } else if (event !== EVENTS.updateAlert) throw new Error('音乐源事件无效');
   },
   request(url, options, callback) {
     if (typeof options === 'function') { callback = options; options = {}; }
-    if (typeof callback !== 'function') throw new Error('LX 网络回调无效');
+    if (typeof callback !== 'function') throw new Error('音乐源网络回调无效');
     let cancelled = false;
     ipcRenderer.invoke('source:lx-http', { url, options: options || {} }).then(result => {
       if (!cancelled) {
@@ -80,7 +80,7 @@ const lx = {
 contextBridge.exposeInMainWorld('lx', lx);
 ipcRenderer.on('source:invoke', async (_event, request) => {
   try {
-    if (!initialized || !requestHandler) throw new Error('LX 脚本未初始化');
+    if (!initialized || !requestHandler) throw new Error('音乐源脚本未初始化');
     const { source, action, info } = request.payload || {};
     const result = await requestHandler({ source, action, info });
     ipcRenderer.send('source:result', { id: request.id, ok: true, result });

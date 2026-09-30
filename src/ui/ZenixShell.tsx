@@ -39,7 +39,6 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [titlebarRevealed, setTitlebarRevealed] = useState(false);
   const [homeSearchRevealed, setHomeSearchRevealed] = useState(false);
-  const shellRef = useRef<HTMLDivElement>(null);
   const previousViewRequestRef = useRef(playerViewRequestKey);
   const enterPlayer = (mode: 'recent' | 'queue' = 'recent') => {
     playUiSound('enter');
@@ -47,7 +46,6 @@ export default function ZenixShell(props: ZenixShellProps) {
     if (mode === 'recent' && !currentTrack && personal.history.length) onSetQueue?.(personal.history.map(entry => entry.track), 0);
     setView('player');
   };
-  useEffect(() => { shellRef.current?.scrollTo({ top: 0, left: 0 }); }, [view]);
   useEffect(() => {
     if (previousViewRequestRef.current !== playerViewRequestKey) {
       previousViewRequestRef.current = playerViewRequestKey;
@@ -120,12 +118,7 @@ export default function ZenixShell(props: ZenixShellProps) {
   const playerAnchor = currentTrack || (playerWallMode === 'recent' ? recentTracks[0] : null);
 
   return (
-    <div ref={shellRef} className={`yz-shell yz-shell--${view}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`} onMouseMove={event => {
-      const bounds = event.currentTarget.getBoundingClientRect();
-      const top = event.clientY - bounds.top;
-      const right = bounds.right - event.clientX;
-      setTitlebarRevealed(top >= 0 && top <= 33 && right >= 0 && right <= 178);
-    }} onMouseLeave={() => setTitlebarRevealed(false)}>
+    <div className={`yz-shell yz-shell--${view}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`}>
       <ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion} />
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
       {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
@@ -143,10 +136,12 @@ export default function ZenixShell(props: ZenixShellProps) {
       )}
 
       {showWindowControls && (
-        <div className={`yz-window-controls${titlebarRevealed ? ' is-revealed' : ''}`} role="toolbar" aria-label="窗口控制">
+        <div className="yz-window-controls-zone" onMouseEnter={() => setTitlebarRevealed(true)} onMouseLeave={() => setTitlebarRevealed(false)}>
+          <div className={`yz-window-controls${titlebarRevealed ? ' is-revealed' : ''}`} role="toolbar" aria-label="窗口控制">
           {onMinimize && <button title="最小化" aria-label="最小化" onClick={onMinimize}><Minus size={14} /></button>}
           {onMaximize && <button title={maximized ? '还原窗口' : '最大化'} aria-label={maximized ? '还原窗口' : '最大化'} onClick={onMaximize}>{maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button>}
           {onClose && <button title="关闭" aria-label="关闭" onClick={onClose}><X size={15} /></button>}
+          </div>
         </div>
       )}
 
