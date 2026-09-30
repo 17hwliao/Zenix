@@ -43,6 +43,7 @@
     .icon-button.play { width:30px; height:30px; background:rgba(255,255,255,.16); color:#f8fbff; }
     .icon-button.appearance { width:37px; border-radius:14px; color:var(--lyric-color); font-size:11px; font-weight:800; }
     .icon-button.lock svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+    .icon-button.home svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
     .icon-button.orientation { font-size:12px; font-weight:750; }
     .icon-button.lock { position:absolute; z-index:4; top:34px; left:50%; width:29px; height:29px; transform:translateX(-50%); opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s,background .18s; }
     body:not(.is-locked).is-hovered .icon-button.lock { opacity:1; visibility:visible; pointer-events:auto; }
@@ -138,6 +139,7 @@
     <div class="top">
       <div class="drag-handle" title="拖动歌词窗口"><span class="drag-grip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span><div class="mark" aria-hidden="true">Z</div><div class="song" id="song">ZENIX · 桌面歌词</div></div>
       <div class="controls">
+        <button class="icon-button home" id="home" title="唤起 Zenix 主窗口" aria-label="唤起 Zenix 主窗口"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-8h6v8"/></svg></button>
         <button class="icon-button" id="previous-track" title="上一首" aria-label="上一首">‹</button>
         <button class="icon-button play" id="play" title="播放或暂停" aria-label="播放或暂停">▶</button>
         <button class="icon-button" id="next-track" title="下一首" aria-label="下一首">›</button>
@@ -250,6 +252,7 @@
     byId('editor-close').addEventListener('click',() => setEditor(false));
     document.addEventListener('keydown',event => { if (event.key === 'Escape') setEditor(false); });
     byId('previous-track').addEventListener('click',() => window.desktopLyrics?.command('previous'));
+    byId('home').addEventListener('click',() => { void window.desktopLyrics?.showMainWindow().catch(error => console.error('无法唤起主窗口',error)); });
     byId('play').addEventListener('click',() => window.desktopLyrics?.command('play-pause'));
     byId('next-track').addEventListener('click',() => window.desktopLyrics?.command('next'));
     byId('close').addEventListener('click',() => window.desktopLyrics?.hide());

@@ -10,6 +10,12 @@ const { SourceManager } = require('./sources.cjs');
 const { DownloadManager } = require('./downloads.cjs');
 const { AudioCache } = require('./audio-cache.cjs');
 
+const primaryInstance = app.requestSingleInstanceLock();
+if (!primaryInstance) app.quit();
+else app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) showMainWindow();
+});
+
 protocol.registerSchemesAsPrivileged([{
   scheme: 'yzqxy',
   privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
@@ -149,6 +155,7 @@ function registerMediaProtocol() {
 }
 
 function createWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -171,7 +178,12 @@ function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  const win = mainWindow;
+  win.once('ready-to-show', () => {
+    if (win.isDestroyed()) return;
+    win.show();
+    win.focus();
+  });
   mainWindow.on('maximize', () => broadcast('window:maximized-changed', true));
   mainWindow.on('unmaximize', () => broadcast('window:maximized-changed', false));
   mainWindow.on('closed', () => { mainWindow = null; if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close(); });
@@ -199,6 +211,14 @@ function createWindow() {
   } else {
     void mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+  return win;
+}
+
+function showMainWindow() {
+  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
 }
 
 function createLyricsLockWindow() {
@@ -369,6 +389,7 @@ function registerHandlers() {
     return lyricsData().saved;
   });
   ipcMain.on('lyrics:hide', () => { lyricsWindow?.hide(); broadcast('lyrics:visible', false); });
+  ipcMain.handle('lyrics:show-main', () => { showMainWindow(); return true; });
   ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'play', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
   ipcMain.on('lyrics:seek', (_event, request) => {
     const seconds = Number(request?.seconds);
@@ -491,7 +512,7 @@ function registerHandlers() {
 const previousUserData = path.join(app.getPath('appData'), 'YzqxY Music Player');
 if (fs.existsSync(previousUserData)) app.setPath('userData', previousUserData);
 
-app.whenReady().then(async () => {
+if (primaryInstance) app.whenReady().then(async () => {
   try {
     const saved = JSON.parse(await fsp.readFile(path.join(app.getPath('userData'), 'desktop-lyrics-state.json'), 'utf8'));
     lyricsLocked = saved.locked === true;
@@ -525,7 +546,7 @@ app.whenReady().then(async () => {
   registerHandlers();
   createWindow();
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    showMainWindow();
   });
 });
 

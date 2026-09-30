@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktopLyrics', {
   onData: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('lyrics:data', listener); return () => ipcRenderer.removeListener('lyrics:data', listener); },
   hide: () => ipcRenderer.send('lyrics:hide'),
+  showMainWindow: () => ipcRenderer.invoke('lyrics:show-main'),
   command: command => ipcRenderer.send('lyrics:command', command),
   seek: (trackId, seconds) => ipcRenderer.send('lyrics:seek', { trackId, seconds }),
   personalAction: (action, value) => ipcRenderer.invoke('lyrics:personal-action', action, value),
