@@ -6,13 +6,15 @@
 
 <p align="center">你的音乐，自成宇宙。</p>
 <p align="center">Windows 桌面音乐播放器 · v0.1.0 · 本地开发与验收阶段</p>
+<p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
   <a href="#项目简介">项目简介</a> ·
   <a href="#核心能力">核心能力</a> ·
+  <a href="#获取与使用">获取与使用</a> ·
   <a href="#本地开发">本地开发</a> ·
   <a href="#致谢与参考项目">致谢与参考项目</a> ·
-  <a href="#许可证与来源说明">许可证与来源说明</a>
+  <a href="#许可证">许可证</a>
 </p>
 
 ## 项目简介
@@ -21,7 +23,7 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 界面布局、贴纸展开和切歌交互参考 [Folia Major](https://github.com/chthollyphile/folia-major)，音乐源接入参考 [LX Music Desktop](https://github.com/lyswhut/lx-music-desktop) 的自定义源协议与相关实现。个人主页结合用户提供的卡片页面设计，在 Zenix 中集成个人信息、歌单和外观管理。
 
-项目使用第三方框架和组件，并在 AI 辅助下开发。参考项目、实际依赖和外部源脚本的使用方式在下方分别列明；源码来源核对尚未全部完成，不将参考或兼容实现统一表述为完全原创。
+项目使用第三方框架和组件，并在 AI 辅助下开发。感谢为界面体验、音乐源兼容、动画渲染与音频处理提供参考和支持的开源项目，具体关系见下方致谢。
 
 ## 核心能力
 
@@ -40,6 +42,49 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 | 下载 | 音乐源提供下载能力时支持下载任务、暂停和续传；下载与解析是否成功取决于所安装源的服务。 |
 
 以上为当前代码已集成的功能范围，整体功能与长时间运行表现仍处于用户验收阶段。项目未接入账号或登录系统。
+
+## 获取与使用
+
+当前提供本地源码运行方式，尚未发布正式安装包；启动命令见 [本地开发](#本地开发)。目前以 Windows 桌面端为开发与验收平台，其他系统、移动端、网页部署及跨设备同步未作为当前发行能力提供。
+
+### 首次使用
+
+1. 启动后可选择图片或视频作为个人背景，也可以跳过，之后在个人空间中更换。
+2. 点击中央名片编辑个人资料和卡面，或通过环绕卡片进入播放器设置。
+3. 在“播放器设置 → 音乐源”导入自己的源并启用；也可从主页导入本地歌曲作为离线备用。
+4. 将鼠标移到窗口顶部的搜索触发区域，输入关键词；点击结果后进入对应歌曲的贴纸空间。
+5. 从喜欢、收藏、历史或自定义歌单进入音乐空间时，贴纸按该列表的实际歌曲数量展示。直接进入音乐空间时显示近期播放记录。
+
+### 音乐源与音质
+
+支持 Zenix 完整源协议及兼容的自定义 `.js` 脚本。可以导入文件、Zenix 源文件夹或 HTTPS 地址；导入后查看源选项，选择搜索平台、音质，管理启停、顺序和更新。
+
+播放时按配置顺序尝试音乐源，每个源根据音质偏好尝试可用资源，再回退到下一个源；全部尝试失败后提示错误。更新脚本不改变原接入顺序。搜索、播放、歌词和下载能力取决于所安装源的实现，搜到歌曲不保证对应播放地址一定可用。
+
+**软件不捆绑音乐源脚本、歌曲或开发者个人配置，用户自行配置音乐源。** 当前开发版仍提供测试入口按钮；这些是用户主动导入的入口，不是默认已安装的源。具体发行清单见 [发行配置建议](docs/distribution-config.md)。
+
+### 本地音乐、歌词与歌单
+
+- 本地音频支持 MP3、FLAC、M4A、WAV、OGG、Opus 和 AAC，实际播放还取决于运行环境的解码能力。
+- 可读取内嵌歌词及同目录同名 `.lrc`、`.vtt`、`.ttml`、`.qrc`、`.yrc`、`.krc` 文件；不同格式的基本时间轴与内容解析以当前实现为准。
+- 在线曲目可通过源或目录适配器补充封面和歌词；没有可用歌词时显示空状态。
+- 喜欢、收藏、历史与自定义歌单保存在本机；播放队列中的移除只影响当前队列，库存删除在歌曲管理界面进行。本地 M3U 歌单可导入、导出。
+
+### 贴纸、歌词与个人空间
+
+贴纸支持鼠标浏览、点击聚焦和窗口内全屏展开。歌词可滚动预览、点击跳转；停止操作后自动回到当前播放句。播放条提供进度、喜欢、收藏和添加歌单等操作。
+
+桌面歌词以独立透明窗口显示三句歌词，支持横竖布局、字体与颜色调整、顶部拖动、歌词预览及定位播放。鼠标离开时收起操作区，锁定后减少对办公点击的干扰；房子按钮可以召回主窗口。
+
+个人主页的卡片区域用于转动环绕卡片，卡片区域外可上下滚动页面；下滑按钮进入歌曲管理区域。中央名片支持编辑和向上拖动切换前后层，其他卡片悬停时恢复色彩。背景、卡面封面和三类交互音效可按个人喜好调整。
+
+### 数据保存与缓存
+
+配置与曲库保存在本机应用用户数据目录。本地歌曲主要保存文件索引；喜欢、收藏、历史和歌单保存曲目信息。主动下载的文件与自动缓存分开，清除自动缓存不会删除歌曲库存。
+
+自动缓存默认上限 1 GiB，可调整为 512 MiB、1 GiB、2 GiB 或 5 GiB；超过容量时优先淘汰较久未访问的内容，30 天未访问的缓存可清理。缓存不是永久歌曲备份。
+
+个人名片及部分外观偏好存放在 Local Storage 中。当前没有统一配置导出和云同步功能；详细位置、备份范围及发行默认值建议见 [配置与存储说明](docs/distribution-config.md#当前配置存放位置)。
 
 ## 本地开发
 
@@ -67,6 +112,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Create-DesktopShortcut.ps1
 
 ## 文档与工程说明
 
+界面使用 React、TypeScript 与 Vite，桌面端使用 Electron；主进程负责文件、曲库、窗口、源请求、缓存及下载，界面通过预加载接口调用。源脚本使用独立宿主运行，播放请求由应用代理。
+
+```text
+src/              界面、播放器状态、歌词与交互
+electron/         桌面主进程、预加载接口、曲库与音乐源
+electron/runtime/ 源宿主、网络、媒体代理和缓存模块
+assets/           图标、动画相关资源与合成音效
+scripts/          本地启动辅助与性能采样脚本
+docs/             协议、配置和工程说明
+licenses/         第三方许可证与通知原文
+```
+
 - [音乐源接入设计](docs/custom-source-design.md)
 - [Zenix 自定义源协议](docs/zenix-source-protocol.md)
 - [性能优化、模块划分与内存采样](docs/performance-architecture.md)
@@ -77,17 +134,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Create-DesktopShortcut.ps1
 
 ## 致谢与参考项目
 
-感谢以下项目的作者、维护者与贡献者。此处说明项目与 Zenix 的具体关系，完整依赖清单见 [第三方组件明细](THIRD_PARTY_NOTICES.md)。
+感谢以下项目的作者、维护者与贡献者。参考与使用范围概述如下，版本、许可原文及更详细的来源记录见 [第三方说明](THIRD_PARTY_NOTICES.md)。
 
 ### 界面与功能参考
 
-| 项目或资源 | 在 Zenix 中的用途 | 来源与许可状态 |
-| --- | --- | --- |
-| [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) | 窗口布局、玻璃控件、贴纸墙、卡片展开、聚焦切歌及动效参考。 | 上游 LICENSE 为 [AGPL-3.0](https://github.com/chthollyphile/folia-major/blob/main/LICENSE)；具体源码借用或改编情况尚待逐文件核对。 |
-| [lyswhut/lx-music-desktop](https://github.com/lyswhut/lx-music-desktop) | 自定义源事件协议、脚本宿主接口、歌曲字段、目录 SDK 和按需解析链路参考。 | 上游 LICENSE 为 [Apache-2.0](https://github.com/lyswhut/lx-music-desktop/blob/master/LICENSE)；Zenix 中的目录适配与兼容实现仍需完成代码来源核对。 |
-| 用户提供的 `zenix-space.html` | 个人名片、中央卡片和环绕卡片的设计参考与功能整合。 | 用户提供的本地页面，无公开项目地址；未提供单独许可证，相关来源与再分发范围待确认。 |
-
-LX 接口参考资料：[自定义源协议](https://lxmusic.toside.cn/desktop/custom-source)、[音乐 SDK](https://github.com/lyswhut/lx-music-desktop/blob/master/src/renderer/utils/musicSdk/index.js)、[脚本宿主](https://github.com/lyswhut/lx-music-desktop/blob/master/src/main/modules/userApi/renderer/preload.js)。对应实现主要位于 `electron/lx-catalog.cjs`、`electron/lx-source-preload.cjs` 和 `electron/sources.cjs`。
+| 项目或资源 | 参考内容 |
+| --- | --- |
+| [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) | 参考窗口布局、玻璃控件、贴纸展示、聚焦切歌和交互动效，以及 README 的组织方式。 |
+| [lyswhut/lx-music-desktop](https://github.com/lyswhut/lx-music-desktop) | 参考自定义音乐源协议、脚本接口和音乐目录适配相关代码与实现思路。 |
+| 用户提供的 `zenix-space.html` | 参考个人名片和环绕卡片设计，整合为个人主页。 |
 
 ### 直接使用的运行组件
 
@@ -105,32 +160,51 @@ LX 接口参考资料：[自定义源协议](https://lxmusic.toside.cn/desktop/c
 
 ### 外部音乐源与入口资源
 
-下列入口由开发者自行收集，用于本机使用和兼容调试。发行时不捆绑源脚本、开发者已配置的源或个人歌曲，用户自行配置；下表是开发来源记录，不作为用户默认安装清单。当前 UI 仍有预设入口，若发行版需要隐藏这些测试地址，应在打包准备阶段单独处理。
+感谢以下音乐源入口维护项目和各脚本原作者。入口由开发者自行收集用于本机使用与兼容调试，发行时不捆绑源脚本或个人歌曲，下表为开发来源记录。
 
 | 项目或入口 | 当前预设涉及的资源 | 使用方式 |
 | --- | --- | --- |
 | [pdone/lx-music-source](https://github.com/pdone/lx-music-source) | 长青、六音 SixYin、Huibq、野花 Flower、备用测试源、IKUN、野草 Grass。 | 提供脚本地址收集与下载入口；原脚本归各自作者。用户安装后，Zenix 加载并执行对应脚本。 |
 | [cdyUuu/lx-music-xinghai-source](https://github.com/cdyUuu/lx-music-xinghai-source) | 星海聚合源。 | 提供星海脚本的项目入口，用户安装后由兼容宿主运行。 |
 
-各预设的具体脚本链接见 [`src/ui/lxPresets.ts`](src/ui/lxPresets.ts)。感谢原作者与入口维护者；入口收集仓库不等于拥有全部脚本的再分发授权，各脚本的许可证、服务要求和授权范围需单独核对。列出入口不代表能够保证服务长期可用。
+脚本归各自作者，其许可证与服务要求独立适用。具体入口与许可状态见 [第三方说明](THIRD_PARTY_NOTICES.md#外部音乐源与脚本入口)，列出入口不代表保证服务长期可用。
 
 目录适配器还访问酷我、酷狗、网易云音乐、QQ 音乐和咪咕音乐的在线接口，用于歌曲检索、封面及歌词补充。这些属于外部服务接入，不代表上述平台参与开发、认可本项目或授予内容再分发许可；接口范围见 [第三方与外部服务说明](THIRD_PARTY_NOTICES.md#外部目录与内容服务)。
 
-### 项目素材与生成工具
+### 素材与生成工具
 
-- 开屏动画数据位于 [`src/ui/zenixIntroAnimation.ts`](src/ui/zenixIntroAnimation.ts)，由 lottie-web 播放。
-- 桌面图标生成脚本位于 [`assets/generate-icon.py`](assets/generate-icon.py)，使用 [Pillow](https://github.com/python-pillow/Pillow)（[MIT-CMU](https://github.com/python-pillow/Pillow/blob/main/LICENSE)）绘制。
-- 三类 WAV 音效的生成脚本位于 [`assets/generate-sounds.py`](assets/generate-sounds.py)，使用 Python 标准库合成。
-- 用户导入的照片、视频、歌曲、歌词和专辑封面属于对应提供者或权利人，不作为 Zenix 自有素材声明。
+开屏使用 Lottie 动画数据，图标通过 [Pillow](https://github.com/python-pillow/Pillow) 绘制，交互音效通过 Python 标准库合成。感谢相关工具作者；用户照片、视频、歌曲和封面属于相应提供者或权利人。
 
-## 许可证与来源说明
+## 常见问题
 
-**Zenix 自有代码的整体开源许可证尚未确定，当前尚未添加根目录 LICENSE。** 依赖采用 MIT、ISC 或 Apache-2.0，不代表整个项目自动取得相同许可。致谢也不代替许可证、版权声明、NOTICE 或受适用许可约束的源码提供义务。
+**搜索有歌曲，但无法播放？** 搜索目录与播放解析是不同环节。检查源是否启用、服务是否可用，尝试较低音质或备用源；本地歌曲可作为离线备用。
 
-当前已将可取得的运行依赖许可证及 NOTICE 原文保存在 [`licenses/`](licenses/)。具体版本、许可文件和未解决项见 [第三方组件与许可证](THIRD_PARTY_NOTICES.md)。
+**导入源后没有搜索结果？** 检查安装结果、源选项中的搜索平台及源是否支持搜索；Zenix 源需正确声明能力，兼容脚本按安装检测结果运行。
 
-Folia 的 [LICENSE](https://github.com/chthollyphile/folia-major/blob/main/LICENSE) 标明 AGPL-3.0，其 [README](https://github.com/chthollyphile/folia-major/blob/main/README.md) 另有学习与非营利用途的说明；这些文字与许可证的关系仍需向上游确认。现阶段仍需核对 Folia/LX 相关文件的实际来源与使用范围，不能仅凭更换品牌、改写结构或添加致谢认定已解除上游许可义务。
+**歌曲没有封面或歌词？** 不同源和目录返回的数据可能不完整；本地歌曲可补充内嵌信息或同名歌词文件，在线歌词以可获取的数据为准。
 
-项目不引入参考仓库的 Git 历史；这与是否使用其源码是两个独立问题。
+**清除缓存会删除歌单吗？** 不会。自动缓存、喜欢/收藏/歌单和主动下载分别管理；曲库或库存删除应通过对应管理入口操作。
 
-音乐源脚本的开源许可不等于歌曲、歌词、封面或其他在线内容的授权。使用与再分发相关内容时，应遵守对应服务和权利人的要求。
+**如何保留个人配置？** 数据保存在本机。升级时保留用户数据目录；跨电脑需重新关联本地歌曲路径并配置音乐源，当前没有统一备份导出功能。
+
+## 开发与贡献
+
+欢迎提供可复现的缺陷说明、交互建议和代码改进。报告问题时请注明版本、Windows 版本、复现步骤和现象；音乐源问题可说明脚本版本及失败阶段，日志和截图应去除访问密钥、联系方式与个人文件路径。
+
+提交改动请说明影响范围及验证方式，保留上游版权与许可证通知，并注明新增第三方代码或资源的来源。贡献者应确保有权提交相应内容，项目自有代码的贡献按下述 GPL-3.0 条款提供。
+
+当前仍在完成使用验收、内存与加载表现优化、来源核对和发行准备。统一配置导出、正式安装包及其他平台支持不作为已完成功能声明。
+
+## 内容与服务说明
+
+Zenix 提供音乐源接入和播放器功能，未接入账号与登录系统。源服务、平台接口和媒体内容独立于本项目，用户应使用有权访问的内容，并遵守相应服务要求。代码开源许可不等于歌曲、歌词、封面或其他在线内容的授权。
+
+软件按许可证约定提供，不作适用性或持续可用性保证。此处说明不增加 GPL 之外的使用限制。
+
+## 许可证
+
+Copyright (C) 2026 17hwliao。
+
+**Zenix 自有且开发者有权授权的代码采用 GNU GPL 第 3 版（`GPL-3.0-only`）。** 完整条款见 [LICENSE](LICENSE)。可按该许可证使用、修改和分发；分发时须保留适用通知，并按许可证要求提供对应源码。
+
+第三方组件、外部脚本与素材保留各自许可，原文和归属见 [第三方说明](THIRD_PARTY_NOTICES.md) 及 [`licenses/`](licenses/)。Folia 上游采用 AGPL-3.0；若存在其受保护代码的借用或改编，相关 AGPL 要求仍适用，不能用本项目 GPL 声明覆盖。现有参考实现的具体来源核对尚未完成，致谢不代替许可处理。

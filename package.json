@@ -2,6 +2,7 @@
   "name": "zenix-music-player",
   "productName": "Zenix Music Player",
   "version": "0.1.0",
+  "license": "GPL-3.0-only",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
