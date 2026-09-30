@@ -60,7 +60,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const [goldTossFrom, setGoldTossFrom] = useState(0);
   const [goldTossing, setGoldTossing] = useState(false);
   const goldBehindRef = useRef(goldBehind);
-  const stageRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
+  const stageRef = useRef<HTMLElement>(null), songSectionRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
   const subjectInputRef = useRef<HTMLInputElement>(null), backgroundInputRef = useRef<HTMLInputElement>(null);
   const rotation = useRef(0), velocity = useRef(0);
   const pointer = useRef<{ id: number; x: number; distance: number; target: HTMLElement } | null>(null);
@@ -241,6 +241,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     else setGoldDragY(0);
   };
   const handleOrbitClick = (action: () => void) => { if (suppressClick.current) { suppressClick.current = false; return; } action(); };
+  const scrollToSongs = () => songSectionRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 
   return <div className="zenix-home-space">
     <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div><button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
@@ -256,9 +257,9 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
         <div className={`zenix-card-center${goldBehind ? ' is-behind' : ''}${goldDragging ? ' is-dragging' : ''}${goldTossing ? ' is-tossing' : ''}`} style={{ '--gold-drag-y': `${goldDragY}px`, '--gold-toss-from': `${goldTossFrom}px` } as CSSProperties}><button ref={holoRef} className="zenix-holo-card" type="button" draggable={false} onDragStart={event => event.preventDefault()} onPointerDown={onGoldDown} onPointerMove={onGoldMove} onPointerUp={event => finishGold(event)} onPointerCancel={event => finishGold(event, true)} onClick={event => { if (suppressGoldClick.current) { suppressGoldClick.current = false; event.preventDefault(); return; } openEditor(); }} onKeyDown={event => { if (event.shiftKey && event.key === 'ArrowUp') { event.preventDefault(); suppressGoldClick.current = true; tossGold(-85); } }} aria-label="编辑个人名片，向上拖动可切换前后层" title="向上拖动金卡切换前后层；点击编辑名片">
           {profile.background && <img className="zenix-holo-background" src={profile.background} alt="" />}<span className="zenix-holo-grid" aria-hidden="true" /><span className="zenix-holo-head"><span>ZENIX / v{appVersion}</span><span>{profile.cardNumber}</span></span><span className="zenix-holo-subject">{profile.subject ? <img src={profile.subject} alt="个人名片主体图" /> : <span className="zenix-holo-monogram">{profile.name.slice(0, 1).toUpperCase() || 'Z'}</span>}</span><span className="zenix-holo-info"><small>{profile.cardLine}</small><strong>{profile.name}</strong><span>{profile.tagline}</span>{profile.about && <p>{profile.about}</p>}{profile.tags && <em>{profile.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 3).join(' · ')}</em>}{profile.contact && <i>{profile.contact}</i>}</span><span className="zenix-holo-foil" aria-hidden="true" /><span className="zenix-holo-glare" aria-hidden="true" /><span className="zenix-holo-edge" aria-hidden="true" />
         </button><div className="zenix-card-shadow" aria-hidden="true" /><button type="button" className="zenix-card-edit" onClick={openEditor}><Pencil size={13} />编辑个人名片</button></div>
-        <div className="zenix-stage-scroll-hint" aria-hidden="true">在卡片外下滑管理自己的歌曲<ChevronDown size={15} strokeWidth={1.8} /></div>
+        <div className="zenix-stage-scroll-hint"><span>在卡片外下滑管理自己的歌曲</span><button type="button" onClick={scrollToSongs} title="下滑到歌曲管理" aria-label="下滑到歌曲管理"><ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" /></button></div>
       </section>
-      <section className="zenix-home-section"><div className="zenix-home-section-head"><div><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
+      <section ref={songSectionRef} className="zenix-home-section"><div className="zenix-home-section-head"><div><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
         {historyTracks.length ? <div className="zenix-recent-strip">{historyTracks.slice(0, 8).map((track, index) => <button key={`${track.id}-${index}`} onClick={() => { onPlayTrack(track, historyTracks); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><strong>{track.title}</strong><small>{track.artist}</small></button>)}</div> : <div className="zenix-home-empty"><Music2 size={25} /><span>听过的歌曲会出现在这里</span>{currentTrack && <button onClick={onOpenPlayer}>继续播放</button>}</div>}
       </section>
       <div className="zenix-home-foot"><div><button onClick={() => void onImportFolder()}><Upload size={13} />导入文件夹</button>{onAddFiles && <button onClick={() => void onAddFiles()}><Plus size={13} />添加音乐文件</button>}{onImportPlaylist && <button onClick={() => void onImportPlaylist()}>导入 M3U 歌单</button>}</div></div>

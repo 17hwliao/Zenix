@@ -57,7 +57,9 @@
 .zenix-stage-heading { position:absolute; z-index:5; top:28px; left:31px; display:flex; flex-direction:column; align-items:start; gap:7px; pointer-events:none; }
 .zenix-stage-heading strong { font-size:16px; font-weight:630; letter-spacing:.02em; }
 .zenix-stage-scroll-hint { position:absolute; z-index:5; left:50%; bottom:135px; display:flex; align-items:center; gap:7px; width:max-content; max-width:calc(100% - 24px); color:rgba(255,255,255,.9); font-size:12px; font-weight:630; letter-spacing:.04em; text-shadow:0 2px 12px rgba(0,0,0,.9); pointer-events:none; transform:translateX(-50%); }
-.zenix-stage-scroll-hint svg { flex:none; opacity:.8; }
+.zenix-stage-scroll-hint button { display:grid; place-items:center; flex:none; width:26px; height:26px; padding:0; border:1px solid rgba(255,255,255,.24); border-radius:50%; background:rgba(255,255,255,.08); color:#fff; pointer-events:auto; cursor:pointer; transition:background .18s,transform .18s,border-color .18s; }
+.zenix-stage-scroll-hint button:hover,.zenix-stage-scroll-hint button:focus-visible { border-color:rgba(255,255,255,.65); background:rgba(255,255,255,.2); transform:translateY(2px); }
+.zenix-stage-scroll-hint button:focus-visible { outline:2px solid #fff; outline-offset:3px; }
 .zenix-orbit-scene { position:absolute; z-index:1; left:50%; top:46%; width:1px; height:1px; transform-style:preserve-3d; transform:rotateX(-10deg); }
 .zenix-orbit-ring { position:absolute; inset:0; transform-style:preserve-3d; }
 .zenix-orbit-guide { position:absolute; left:50%; top:50%; width:min(62vw,590px); height:min(62vw,590px); border:1px solid rgba(255,255,255,.08); border-radius:50%; transform:translate(-50%,-50%) rotateX(90deg); box-shadow:0 0 0 42px rgba(255,255,255,.012); pointer-events:none; }
