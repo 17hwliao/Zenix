@@ -111,8 +111,8 @@
     body.is-vertical .lines { flex-direction:row-reverse; justify-content:center; align-items:stretch; gap:5px; width:100%; height:calc(100% - 156px); min-height:340px; padding:15px 12px 7px; }
     body.is-vertical .lines.is-browsing { padding:15px 12px 7px; }
     body.is-vertical .lines .line { flex:0 0 31%; width:31%; height:100%; writing-mode:vertical-rl; text-orientation:mixed; text-align:center; text-overflow:ellipsis; translate:var(--drag-offset) 0; }
-    body.is-vertical .lines .line.is-latin { writing-mode:horizontal-tb; text-orientation:mixed; text-overflow:clip; }
-    body.is-vertical .lines .line.is-latin .line-text { position:absolute; top:50%; left:50%; display:block; width:max-content; max-width:none; transform:translate(-50%,-50%) rotate(90deg); white-space:nowrap; }
+    body.is-vertical .lines .line.is-latin { display:flex; align-items:center; justify-content:center; writing-mode:horizontal-tb; white-space:normal; text-overflow:clip; }
+    body.is-vertical .lines .line.is-latin .line-text { display:block; width:100%; white-space:normal; overflow-wrap:break-word; text-align:center; }
     body.is-vertical .line.previous,body.is-vertical .line.next { font-size:calc(var(--lyric-size) * .66); }
     body.is-vertical .line.current { font-size:var(--lyric-size); }
     body.is-vertical .line.previous.is-latin,body.is-vertical .line.next.is-latin { font-size:calc(var(--lyric-size) * .66 * var(--latin-fit,1)); }
@@ -297,18 +297,34 @@
     function fitVerticalLyrics() {
       for (const element of document.querySelectorAll('.lines .line')) {
         const text = element.textContent || '';
-        const latinCount = (text.match(/[A-Za-z0-9]/g) || []).length;
-        const latin = latinCount >= 4;
+        const latin = /[A-Za-z]/.test(text);
         element.classList.toggle('is-latin',latin);
-        if (!latin || !document.body.classList.contains('is-vertical') || !lyricMeasure) {
+        if (!latin || !document.body.classList.contains('is-vertical')) {
           element.style.removeProperty('--latin-fit');
+          delete element.dataset.fitSignature;
           continue;
         }
+        const signature = `${text}|${settings.size}|${settings.weight}|${settings.font}|${element.clientWidth}|${element.clientHeight}`;
+        if (element.dataset.fitSignature === signature) continue;
+        element.dataset.fitSignature = signature;
+        const content = element.querySelector('.line-text');
+        const available = Math.max(1,element.clientHeight - 18);
         const baseSize = settings.size * (element.classList.contains('current') ? 1 : .66);
         lyricMeasure.font = `${settings.weight} ${baseSize}px ${getComputedStyle(element).fontFamily}`;
-        const width = lyricMeasure.measureText(text).width;
-        const available = Math.max(1,element.clientHeight - 18);
-        element.style.setProperty('--latin-fit',String(Math.min(1,available / Math.max(1,width))));
+        const words = text.match(/[A-Za-z0-9]+(?:['’._-][A-Za-z0-9]+)*/g) || [];
+        const widestWord = Math.max(1,...words.map(word => lyricMeasure.measureText(word).width));
+        const widthFit = Math.min(1,Math.max(.38,(element.clientWidth - 10) / widestWord));
+        element.style.setProperty('--latin-fit',String(widthFit));
+        if (content.scrollHeight <= available) continue;
+        let small = .38;
+        let large = widthFit;
+        for (let step = 0; step < 7; step++) {
+          const middle = (small + large) / 2;
+          element.style.setProperty('--latin-fit',String(middle));
+          if (content.scrollHeight > available) large = middle;
+          else small = middle;
+        }
+        element.style.setProperty('--latin-fit',String(small));
       }
     }
     new ResizeObserver(fitVerticalLyrics).observe(byId('lines'));
