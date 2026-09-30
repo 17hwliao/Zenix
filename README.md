@@ -70,6 +70,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Create-DesktopShortcut.ps1
 - [音乐源接入设计](docs/custom-source-design.md)
 - [Zenix 自定义源协议](docs/zenix-source-protocol.md)
 - [性能优化、模块划分与内存采样](docs/performance-architecture.md)
+- [发行配置与用户首次配置建议](docs/distribution-config.md)
 - [第三方组件与来源说明](THIRD_PARTY_NOTICES.md)
 
 应用设置、曲库、歌单、历史及缓存保存在本机用户数据目录。音乐源脚本通过独立沙箱窗口运行；只有用户安装并启用的源参与搜索与播放。主程序仓库记录预设入口，不内嵌这些外部源的脚本正文。
@@ -103,6 +104,8 @@ LX 接口参考资料：[自定义源协议](https://lxmusic.toside.cn/desktop/c
 开发与构建还使用 [Vite](https://github.com/vitejs/vite)、[vite-plugin-react](https://github.com/vitejs/vite-plugin-react)、[TypeScript](https://github.com/microsoft/TypeScript)、[DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)、[concurrently](https://github.com/open-cli-tools/concurrently)、[cross-env](https://github.com/kentcdodds/cross-env) 和 [wait-on](https://github.com/jeffbski/wait-on)。开发依赖与发行包内的运行组件分开记录。
 
 ### 外部音乐源与入口资源
+
+下列入口由开发者自行收集，用于本机使用和兼容调试。发行时不捆绑源脚本、开发者已配置的源或个人歌曲，用户自行配置；下表是开发来源记录，不作为用户默认安装清单。当前 UI 仍有预设入口，若发行版需要隐藏这些测试地址，应在打包准备阶段单独处理。
 
 | 项目或入口 | 当前预设涉及的资源 | 使用方式 |
 | --- | --- | --- |

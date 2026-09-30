@@ -72,6 +72,8 @@ Folia 的 [README](https://github.com/chthollyphile/folia-major/blob/main/README
 
 ## 外部音乐源与脚本入口
 
+以下为开发者自行收集的本机使用与兼容调试资源。发行原则是不捆绑源脚本或开发者的已配置源，由用户自行配置；保留本表是说明开发入口的来源。个人歌曲、缓存、背景及名片配置同样不随发行包分发，具体清单见 [发行配置建议](docs/distribution-config.md)。当前尚未执行发行打包，亦未移除 UI 中的测试入口。
+
 预设链接来自 [pdone/lx-music-source](https://github.com/pdone/lx-music-source) 收集仓库及 [cdyUuu/lx-music-xinghai-source](https://github.com/cdyUuu/lx-music-xinghai-source)。感谢各脚本原作者和入口维护者。当前代码中的完整入口如下，顺序按 `src/ui/lxPresets.ts` 列出，不表示服务品质排序。
 
 | 预设名称 | 脚本入口 | 许可与运行方式 |
