@@ -54,3 +54,8 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .floating-lyric-toggle{min-height:30px;font-size:11px;padding:5px 12px;margin:0 auto 5px;display:flex;width:max-content}.floating-lyric-toggle svg{width:15px;height:15px}
 /* Keep bright buttons scrolling under the header from becoming a white blur slab. */
 .mobile-header{background:linear-gradient(#151821ee,#151821de);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+
+/* Safari keeps input focus at 1:1 scale; CSS owns safe areas on both platforms. */
+:root[data-mobile-platform="ios"] input:not([type=range]):not([type=color]),:root[data-mobile-platform="ios"] textarea,:root[data-mobile-platform="ios"] select{font-size:16px}
+:root[data-mobile-platform="ios"] body{overscroll-behavior-y:none}
+:root[data-mobile-platform="ios"] .mobile-header{-webkit-backdrop-filter:blur(15px)}

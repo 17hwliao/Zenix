@@ -115,4 +115,6 @@ Electron 同时用于开发启动与软件运行，版本及通知已列在上�
 
 ## 许可证与通知文件
 
+iOS 适配使用 Capacitor 的 iOS 桥接，Apple SDK 的 AVFoundation、MediaPlayer、JavaScriptCore、Security、CommonCrypto 以及系统 zlib；新增 Swift 播放器、缓存、资料与源适配代码位于 `ios/App/App/`。目录接口与兼容协议继续复用本项目已有实现及上文所列参考关系。`Prepare-iOS.mjs` 将许可文档和便携宿主生成到应用资源中，不复制用户音乐源脚本或资料。
+
 Zenix 自有代码的 GPL-3.0-only 原文位于根目录 [LICENSE](LICENSE)。Paper Shaders 的 LICENSE 与 NOTICE，以及上表列出的已保存运行组件许可证位于 [`licenses/`](licenses/)。安装包将这些文档放在安装目录的 `resources/`；Electron 的 `LICENSE.electron.txt` 与 `LICENSES.chromium.html` 位于安装根目录。第三方组件的许可证、版权声明和通知随对应组件保留。

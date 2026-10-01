@@ -17,11 +17,17 @@
     "android:dev": "vite --mode android --host 127.0.0.1 --port 5175",
     "android:build": "node scripts/Prepare-Android.mjs && tsc --noEmit && vite build --mode android && cap sync android",
     "android:apk": "npm run android:build && powershell -ExecutionPolicy Bypass -File scripts/Build-Android.ps1",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "ios:dev": "vite --mode ios --host 127.0.0.1 --port 5176",
+    "ios:web": "node scripts/Prepare-iOS.mjs && tsc --noEmit && vite build --mode ios",
+    "ios:sync": "npm run ios:web && cross-env ZENIX_PLATFORM=ios cap sync ios",
+    "ios:open": "cross-env ZENIX_PLATFORM=ios cap open ios",
+    "ios:simulator": "node scripts/Build-iOS.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.2",
     "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2",
     "@paper-design/shaders-react": "^0.0.80",
     "framer-motion": "^13.0.0",
     "lottie-web": "^5.13.0",

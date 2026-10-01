@@ -1,15 +1,19 @@
 """Generate Zenix's original desktop icon with Pillow."""
 
 from pathlib import Path
+import argparse
 from PIL import Image, ImageDraw
 
 
 OUT = Path(__file__).parent
+parser = argparse.ArgumentParser()
+parser.add_argument("--ios", action="store_true", help="Render an opaque 1024px iOS app icon without changing desktop assets")
+IOS = parser.parse_args().ios
 SCALE = 4
 SIZE = 512
 CANVAS = SIZE * SCALE
 
-image = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
+image = Image.new("RGBA", (CANVAS, CANVAS), (17, 17, 20, 255) if IOS else (0, 0, 0, 0))
 draw = ImageDraw.Draw(image)
 
 def box(coords):
@@ -26,6 +30,9 @@ for x, y in ((154, 168), (357, 168), (154, 344), (357, 344)):
     draw.ellipse((x * SCALE - r, y * SCALE - r, x * SCALE + r, y * SCALE + r), fill=(248, 248, 249, 255))
 
 draw.arc(box((99, 102, 411, 414)), start=214, end=312, fill=(128, 157, 200, 190), width=5 * SCALE)
-image = image.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
-image.save(OUT / "zenix-icon.png")
-image.save(OUT / "zenix-icon.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+if IOS:
+    image.resize((1024, 1024), Image.Resampling.LANCZOS).convert("RGB").save(OUT.parent / "ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png")
+else:
+    image = image.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
+    image.save(OUT / "zenix-icon.png")
+    image.save(OUT / "zenix-icon.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])

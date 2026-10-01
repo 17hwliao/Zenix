@@ -48,6 +48,10 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 Android 采用 React + Capacitor + 原生 Media3 服务，已接入自定义源、原生播放、缓存、歌单、应用内歌词及跨应用悬浮歌词。手机音乐空间共用桌面版贴纸拼版算法，个人卡片适配触控旋转。[下载 Android 0.2.0 预览版](https://github.com/17hwliao/Zenix/releases/tag/v0.2.0-android.1)（开发签名 Debug APK，尚未完成真机验收）。构建、安装与功能边界见 [Android 开发说明](docs/android.md)，更新内容见 [版本说明](docs/releases/v0.2.0-android.1.md)。
 
+### iOS 适配开发中
+
+iOS 工程复用手机界面，新增 Swift / AVPlayer 原生播放、系统媒体控制、音乐源运行及私有缓存。当前完成网页构建与工程同步，尚未完成 Xcode 编译、签名和真机验证，未提供 IPA。环境、功能边界与构建步骤见 [iOS 开发说明](docs/ios.md)。
+
 提供源码运行与 Windows x64 安装包：[下载 Zenix 0.1.0](https://github.com/17hwliao/Zenix/releases/tag/v0.1.0)。下载 `Zenix-Setup-0.1.0-x64.exe`，支持选择安装目录、桌面及开始菜单快捷方式；安装后从 Zenix 入口启动，无需安装 Node.js。同页提供 `SHA256SUMS.txt` 用于校验。源码启动命令见 [本地开发](#本地开发)。Android 另有预览包；其他桌面系统、网页部署及跨设备同步未作为当前发行能力提供。
 
 当前安装包未进行数字签名，Windows 可能显示未知发布者或 SmartScreen 提示。卸载保留用户数据，便于重装后继续使用自己的配置。

@@ -6,7 +6,7 @@ import type { LyricLine } from '../core/types';
 import type { Track } from '../core/types';
 import { STICKER_GAP, expandedStickerLayout, stickerSlotsForCount } from '../ui/stickerMosaic';
 import { Art } from './Player';
-import { isAndroid, readLyrics, type MobileSnapshot } from './native';
+import { isNativeMobile, readLyrics, type MobileSnapshot } from './native';
 
 /** Uses the desktop mosaic algorithm, finite posters and a touch camera. */
 export default function StickerSpace({ songs, state, label, play, full, actions, remove, focusRequest, seek }: {
@@ -68,7 +68,7 @@ function FocusedLyrics({ track, position, seek }: { track: Track; position: numb
   const [lines, setLines] = useState<LyricLine[]>([]), [preview, setPreview] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), touch = useRef<number | null>(null);
   const active = activeLyricIndex(lines, position), center = preview ?? Math.max(0, active);
-  useEffect(() => { let cancelled = false; setLines([]); setPreview(null); clearTimeout(timer.current); if (isAndroid) void readLyrics(track).then(raw => { if (!cancelled) setLines(raw ? parseLyrics(raw) : []); }).catch(() => {}); return () => { cancelled = true; clearTimeout(timer.current); }; }, [track.id]);
+  useEffect(() => { let cancelled = false; setLines([]); setPreview(null); clearTimeout(timer.current); if (isNativeMobile) void readLyrics(track).then(raw => { if (!cancelled) setLines(raw ? parseLyrics(raw) : []); }).catch(() => {}); return () => { cancelled = true; clearTimeout(timer.current); }; }, [track.id]);
   function browse(direction: number) { setPreview(value => Math.max(0, Math.min(lines.length - 1, (value ?? Math.max(0, active)) + direction))); clearTimeout(timer.current); timer.current = setTimeout(() => setPreview(null), 3000); }
   if (!lines.length) return null;
   return <div className="focused-lyrics" onWheel={event => { event.stopPropagation(); browse(event.deltaY > 0 ? 1 : -1); }} onPointerDown={event => { touch.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); clearTimeout(timer.current); }} onPointerMove={event => { if (touch.current === null) return; const delta = event.clientY - touch.current; if (Math.abs(delta) >= 28) { touch.current = event.clientY; browse(delta < 0 ? 1 : -1); } }} onPointerUp={event => { touch.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); clearTimeout(timer.current); timer.current = setTimeout(() => setPreview(null), 3000); }} onPointerCancel={() => { touch.current = null; timer.current = setTimeout(() => setPreview(null), 3000); }}>

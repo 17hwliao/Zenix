@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23000" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="launch-controller">
+ <dependencies><deployment identifier="iOS"/><plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23000"/></dependencies>
+ <scenes><scene sceneID="launch-scene"><objects>
+  <viewController id="launch-controller" sceneMemberID="viewController">
+   <view key="view" contentMode="scaleToFill" id="launch-view">
+    <rect key="frame" x="0" y="0" width="390" height="844"/>
+    <subviews><label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="Zenix." textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="launch-brand"><rect key="frame" x="130" y="400" width="130" height="44"/><fontDescription key="fontDescription" type="system" weight="bold" pointSize="36"/><color key="textColor" red="0.94" green="0.96" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/></label></subviews>
+    <color key="backgroundColor" red="0.062745" green="0.066667" blue="0.090196" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+    <constraints><constraint firstItem="launch-brand" firstAttribute="centerX" secondItem="launch-view" secondAttribute="centerX" id="launch-x"/><constraint firstItem="launch-brand" firstAttribute="centerY" secondItem="launch-view" secondAttribute="centerY" id="launch-y"/></constraints>
+   </view>
+  </viewController><placeholder placeholderIdentifier="IBFirstResponder" id="launch-responder" sceneMemberID="firstResponder"/>
+ </objects></scene></scenes>
+</document>

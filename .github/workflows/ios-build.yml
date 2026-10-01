@@ -1,0 +1,27 @@
+name: iOS simulator build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulator:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Show selected Xcode
+        run: xcodebuild -version
+      - run: npm ci
+      - run: npm run ios:sync
+      - run: npm run ios:simulator
+      - name: Bundle unsigned simulator app
+        run: ditto -c -k --sequesterRsrc --keepParent release/ios-derived/Build/Products/Debug-iphonesimulator/App.app release/Zenix-iOS-Simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zenix-iOS-Simulator
+          path: release/Zenix-iOS-Simulator.zip
+          retention-days: 7

@@ -18,8 +18,12 @@ interface NativePlugin {
 export type MobileUpdate = Omit<Partial<MobileSnapshot>, 'playback'> & { playback?: Partial<PlayerState> };
 const plugin = registerPlugin<NativePlugin>('ZenixNative');
 export const isAndroid = Capacitor.getPlatform() === 'android';
+export const isIOS = Capacitor.getPlatform() === 'ios';
+export const isNativeMobile = isAndroid || isIOS;
+export const mobilePlatform = isIOS || import.meta.env.MODE === 'ios' ? 'iOS' : 'Android';
+export const supportsOverlay = isAndroid || (!Capacitor.isNativePlatform() && mobilePlatform === 'Android');
 export async function command<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-  if (!isAndroid) throw new Error('此操作需要安装 Android APK；浏览器只提供界面预览。');
+  if (!isNativeMobile) throw new Error(`此操作需要安装 ${mobilePlatform} 应用；浏览器只提供界面预览。`);
   return (await plugin.invoke({ action, payload })).value as T;
 }
 export const observe = (callback: (state: MobileUpdate) => void) => plugin.addListener('snapshot', callback);

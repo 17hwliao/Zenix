@@ -16,3 +16,14 @@ android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
 *.keystore
 *.jks
+dist-ios/
+ios/App/App/public/
+ios/App/App/zenix/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/**/DerivedData/
+ios/**/build/
+ios/**/xcuserdata/
+*.mobileprovision
+*.p12
+*.ipa
