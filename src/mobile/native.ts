@@ -9,6 +9,7 @@ export type MobileSnapshot = {
   profile?: { name: string; bio: string; email?: string; lyricSize?: number; lyricColor?: string };
   appearance?: { completed: boolean; background: { kind: 'image' | 'video'; name: string; url: string } | null };
   localTracks?: Track[];
+  overlay?: { enabled: boolean; permitted: boolean; locked: boolean; compact: boolean; fontSize: number; color: string; font?: string };
 };
 interface NativePlugin {
   invoke(options: { action: string; payload: Record<string, unknown> }): Promise<{ value: unknown }>;

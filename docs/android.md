@@ -1,10 +1,12 @@
 # Zenix Android 开发版
 
-Android 第一阶段复用 Zenix 的 React、玻璃贴纸与个人名片视觉，由 Java 原生服务负责音频播放。没有引入 Go，也没有在 APK 内运行 Electron。
+Android 版复用 Zenix 的 React、玻璃贴纸与个人名片视觉，由 Java 原生服务负责音频播放。没有引入 Go，也没有在 APK 内运行 Electron。
 
 ## 当前范围
 
 - 适配手机的个人空间、可编辑金卡、环绕卡切换、图片或视频背景、开屏过渡。
+- 连续环绕卡：拖动跟手、有限惯性、松手吸附，点击与滑动独立判定；页面纵向滚动保持可用。
+- 手机音乐空间共用 `stickerMosaic.ts` 的桌面拼版规则，支持二维触摸拖动、点击聚焦和重新排布。
 - 顶部玻璃搜索条；搜索直接进入结果贴纸，历史、喜欢、收藏和自定义歌单分别展示实际数量的歌曲。
 - 用户自行导入 HTTPS 地址、兼容 `.js` 脚本或 Zenix v1 `.zenixsource` 文件，查看摘要后确认安装，支持源选项、启用、停用、移除和原顺序更新。
 - 原生 Media3 播放、上一首/下一首、随机/循环、进度跳转、音频焦点、拔出耳机时暂停、媒体通知及系统媒体控制。
@@ -14,7 +16,9 @@ Android 第一阶段复用 Zenix 的 React、玻璃贴纸与个人名片视觉�
 - 应用内歌词：共用桌面版歌词解析器，触摸浏览、点击跳转、3 秒无操作回到当前句、字号和颜色调整。成功取得的歌词缓存在本机，保留最多 100 份。
 - 系统文件选择器导入本地歌曲作为备用，保留读取权限，读取内嵌信息和封面。
 
-跨应用悬浮歌词属于第二阶段，本版没有申请悬浮窗权限。Android 本地歌曲的同名歌词文件扫描、桌面 M3U 文件夹索引、电脑与手机资料同步及发行签名也不属于这一阶段。
+跨应用悬浮歌词由原生 `LyricOverlayService` 实现，通过用户授权的上层窗口与独立前台通知运行。默认三行、顶部拖动、进度跳转、字体/字号/颜色、标准或紧凑布局；浏览歌词 3 秒后回到当前句，锁定后歌词区域不接收触摸，只保留独立小解锁按钮。浮层不覆盖系统安全窗口，不绕过其他应用的悬浮层限制。当前原生浮层支持 LRC 与逐字时间戳文本，应用内仍使用完整的共享解析器。
+
+Android 本地歌曲的同名歌词文件扫描、桌面 M3U 文件夹索引、电脑与手机资料同步及正式发行签名尚未接入。
 
 ## 工程边界
 
@@ -24,6 +28,7 @@ Android 第一阶段复用 Zenix 的 React、玻璃贴纸与个人名片视觉�
 | 平台桥 | `src/mobile/native.ts` / `ZenixNativePlugin.java` | 命令和状态通知、文件选择器 |
 | 原生播放器 | `PlaybackService.java` | MediaSessionService、队列、音频焦点、解码、后台播放 |
 | 源运行层 | `MusicSources.java` / `ScriptEngine.java` / `SourceHttp.java` | 源导入、目录、顺序回退、脚本网络及加密接口 |
+| 原生悬浮歌词 | `LyricOverlayService.java` / `LyricTimeline.java` | 用户授权浮层、三行同步、浏览与锁定透传 |
 | 私有资料 | `PrivateStore.java` | AtomicFile 保存个人资料、歌单、历史及源配置 |
 | 缓存预算 | `CacheBudget.java` | Media3 SimpleCache 的可调整磁盘预算与淘汰 |
 
@@ -56,7 +61,7 @@ Windows 构建脚本默认寻找 `%LOCALAPPDATA%/Android/Sdk`，其他路径可�
 
 ## 安装与运行状态
 
-目前提供开发签名的 Debug APK。应用 ID 为 `com.zenix.musicplayer`，版本 `0.1.0`。正式发行需要另行配置稳定的发行签名，开发签名包不是正式发行包。
+目前提供开发签名的 Debug APK。应用 ID 为 `com.zenix.musicplayer`，版本 `0.2.0`。正式发行需要另行配置稳定的发行签名，开发签名包不是正式发行包。
 
 首次进入可跳过背景选择，随后导入自己的音乐源，或选择本地歌曲。用户无需登录。Android 的媒体服务具备后台播放实现，实际手机厂商的省电策略、锁屏控制、文件权限恢复、脚本兼容性与缓存离线播放仍需在目标设备上验收。
 
@@ -64,10 +69,14 @@ Windows 构建脚本默认寻找 `%LOCALAPPDATA%/Android/Sdk`，其他路径可�
 
 ## 权限与资料
 
-应用声明网络、媒体播放前台服务、唤醒锁及通知权限。照片、视频、音乐与源文件通过用户主动选择的系统文件选择器读取，不要求全盘文件权限。背景复制到应用私有目录；本地音乐保留系统授予的 URI 读取权限，不复制整份音乐文件。
+应用声明网络、媒体播放前台服务、唤醒锁及通知权限。悬浮歌词另外声明 `SYSTEM_ALERT_WINDOW` 和 `FOREGROUND_SERVICE_SPECIAL_USE`，仅在用户主动开启且系统授权后启动，可从浮层、通知或设置关闭。照片、视频、音乐与源文件通过用户主动选择的系统文件选择器读取，不要求全盘文件权限。背景复制到应用私有目录；本地音乐保留系统授予的 URI 读取权限，不复制整份音乐文件。
 
 默认不参加 Android 系统自动备份，避免把用户音乐源配置和个人资料随账号上传。卸载应用会删除其私有资料与缓存；原始本地音乐文件不会删除。APK 不含开发者的桌面资料，手机也不会自动读取电脑的个人配置。
 
 ## 开源组件
 
 React、Framer Motion 与图标依赖沿用主项目。新增 Capacitor 8.5.2（MIT）、AndroidX Media3 1.11.1 与 AndroidX（Apache-2.0）、Java API desugaring（Apache-2.0）。相关原文和通知保存在 `licenses/` 并随 Android 构建作为文档资源保留。
+
+## 窗口与输入法
+
+原生内容容器统一深色背景并处理系统栏/输入法边距，已处理的边距归零后才传入 WebView，避免原生与 CSS 重复留白。浮动搜索与编辑层遵循 visual viewport 的可见高度，输入期间不主动清除焦点。实现依据 [Android WebView 窗口边距说明](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets)；浮层前台服务声明依据 [Android 前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types#special-use)。

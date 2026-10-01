@@ -3,7 +3,7 @@
   "productName": "Zenix Music Player",
   "description": "Zenix 桌面音乐播放器，玻璃贴纸音乐空间与桌面歌词",
   "author": "17hwliao",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "GPL-3.0-only",
   "private": true,
   "type": "module",

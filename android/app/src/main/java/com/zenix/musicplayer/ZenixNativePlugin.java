@@ -27,6 +27,17 @@ public class ZenixNativePlugin extends Plugin {
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
         if(action.equals("exit")){getActivity().moveTaskToBack(true);result(call,true);return;}
+        if(action.equals("overlayEnable")) {
+            if (!args.optBoolean("enabled",true)) { getContext().stopService(new Intent(getContext(),LyricOverlayService.class)); result(call,runtime.overlayStatus());runtime.emit();return; }
+            if (!LyricOverlayService.allowed(getContext())) {
+                Intent permission=new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getContext().getPackageName()));
+                startActivityForResult(call,permission,"overlayPermissionReturned");return;
+            }
+            try{LyricOverlayService.start(getContext());result(call,runtime.overlayStatus());}catch(Exception e){call.reject(Json.message(e));}return;
+        }
+        if(action.equals("overlayConfigure")) {
+            runtime.main.post(()->{try{JSONObject settings=runtime.store.read().optJSONObject("overlay");if(settings==null)settings=new JSONObject();for(java.util.Iterator<String> keys=args.keys();keys.hasNext();){String key=keys.next();if(java.util.Set.of("fontSize","color","locked","compact","font").contains(key))Json.put(settings,key,args.opt(key));}runtime.store.set("overlay",settings);if(runtime.overlay!=null)runtime.overlay.configure(settings);runtime.emit();result(call,runtime.overlayStatus());}catch(Exception e){call.reject(Json.message(e));}});return;
+        }
         if(action.equals("notifications")){if(Build.VERSION.SDK_INT>=33&&getPermissionState("notifications")!=PermissionState.GRANTED)requestPermissionForAlias("notifications",call,"notificationResult");else result(call,true);return;}
         if(action.equals("pickSource")||action.equals("pickBackground")||action.equals("pickLocal")) {
             Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -64,6 +75,7 @@ public class ZenixNativePlugin extends Plugin {
         }catch(Exception e){call.reject(Json.message(e));}});
     }
     @PermissionCallback private void notificationResult(PluginCall call){result(call,getPermissionState("notifications")==PermissionState.GRANTED);}
+    @ActivityCallback private void overlayPermissionReturned(PluginCall call,ActivityResult returned){if(call==null)return;try{if(LyricOverlayService.allowed(getContext()))LyricOverlayService.start(getContext());result(call,runtime.overlayStatus());runtime.emit();}catch(Exception e){call.reject(Json.message(e));}}
     @ActivityCallback private void filePicked(PluginCall call,ActivityResult returned){
         if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null){result(call,null);return;}
         runtime.work.execute(() -> {try {

@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">Windows 桌面音乐播放器 · v0.1.0 · 本地开发与验收阶段</p>
+<p align="center">桌面与 Android 音乐播放器 · Windows v0.1.0 / Android v0.2.0 预览版</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -46,9 +46,9 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ### Android 开发版
 
-Android 第一阶段采用 React + Capacitor + 原生 Media3 服务，已接入自定义源、原生播放、缓存、歌单和应用内歌词；跨应用悬浮歌词随后开发。当前为本地 Debug APK 阶段，尚未完成真机验收，也未发布 Android 安装包。构建、安装与功能边界见 [Android 开发说明](docs/android.md)。
+Android 采用 React + Capacitor + 原生 Media3 服务，已接入自定义源、原生播放、缓存、歌单、应用内歌词及跨应用悬浮歌词。手机音乐空间共用桌面版贴纸拼版算法，个人卡片适配触控旋转。[下载 Android 0.2.0 预览版](https://github.com/17hwliao/Zenix/releases/tag/v0.2.0-android.1)（开发签名 Debug APK，尚未完成真机验收）。构建、安装与功能边界见 [Android 开发说明](docs/android.md)，更新内容见 [版本说明](docs/releases/v0.2.0-android.1.md)。
 
-提供源码运行与 Windows x64 安装包：[下载 Zenix 0.1.0](https://github.com/17hwliao/Zenix/releases/tag/v0.1.0)。下载 `Zenix-Setup-0.1.0-x64.exe`，支持选择安装目录、桌面及开始菜单快捷方式；安装后从 Zenix 入口启动，无需安装 Node.js。同页提供 `SHA256SUMS.txt` 用于校验。源码启动命令见 [本地开发](#本地开发)。其他系统、移动端、网页部署及跨设备同步未作为当前发行能力提供。
+提供源码运行与 Windows x64 安装包：[下载 Zenix 0.1.0](https://github.com/17hwliao/Zenix/releases/tag/v0.1.0)。下载 `Zenix-Setup-0.1.0-x64.exe`，支持选择安装目录、桌面及开始菜单快捷方式；安装后从 Zenix 入口启动，无需安装 Node.js。同页提供 `SHA256SUMS.txt` 用于校验。源码启动命令见 [本地开发](#本地开发)。Android 另有预览包；其他桌面系统、网页部署及跨设备同步未作为当前发行能力提供。
 
 当前安装包未进行数字签名，Windows 可能显示未知发布者或 SmartScreen 提示。卸载保留用户数据，便于重装后继续使用自己的配置。
 
@@ -219,7 +219,7 @@ licenses/         第三方许可证与通知原文
 
 提交改动请说明影响范围及验证方式，保留上游版权与许可证通知，并注明新增第三方代码或资源的来源。贡献者应确保有权提交相应内容，项目自有代码的贡献按下述 GPL-3.0 条款提供。
 
-当前已完成本轮用户测试和 Windows 安装包制作，继续接受交互、性能与兼容性反馈。统一配置导出及其他平台支持暂未提供。
+当前已完成本轮用户测试和 Windows 安装包制作，继续接受交互、性能与兼容性反馈。Android 已提供预览包；统一配置导出、Linux/macOS 发行包及跨设备同步暂未提供。
 
 ## 内容与服务说明
 
