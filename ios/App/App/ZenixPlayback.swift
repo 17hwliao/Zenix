@@ -84,7 +84,7 @@ final class ZenixPlayback {
         // A modest forward buffer avoids retaining minutes of lossless audio.
         item.preferredForwardBufferDuration = 15
         player.replaceCurrentItem(with: item)
-        itemObserver = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in DispatchQueue.main.async {
+        itemObserver = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in DispatchQueue.main.async { [weak self] in
             guard let self, current(token), player.currentItem === item else { return }
             if item.status == .failed { retry() }
             else if item.status == .readyToPlay { if desired { player.play() } else { deadline?.cancel(); activity = nil }; emit() }
