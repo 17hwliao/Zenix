@@ -63,14 +63,14 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                             case "sourceEnable", "sourceRemove", "sourceConfigure": value = try sources.update(args["id"] as? String ?? "", action: action == "sourceEnable" ? "enable" : action == "sourceRemove" ? "remove" : "configure", args: args)
                             case "personal": value = try store.personal(args["operation"] as? String ?? "", args)
                             case "profile":
-                                var profile = store.read()["profile"] as? JSONObject ?? [:]
+                                var profile = store.value("profile") as? JSONObject ?? [:]
                                 for key in ["name", "bio", "email", "lyricColor"] { if let text = args[key] as? String { profile[key] = String(text.prefix(key == "bio" ? 120 : 80)) } }
                                 if let size = args["lyricSize"] as? Double { profile["lyricSize"] = min(38, max(18, size)) }; try store.set("profile", profile); value = profile
                             case "clearBackground":
-                                let old = (store.read()["appearance"] as? JSONObject)?["background"] as? JSONObject
+                                let old = (store.value("appearance") as? JSONObject)?["background"] as? JSONObject
                                 try store.set("appearance", ["completed": true, "background": NSNull()])
                                 if let path = old?["url"] as? String, path.hasPrefix(store.directory.appendingPathComponent("background").path + "/") { try? FileManager.default.removeItem(atPath: path) }; value = true
-                            case "completeWelcome": var appearance = store.read()["appearance"] as? JSONObject ?? ["background": NSNull()]; appearance["completed"] = true; try store.set("appearance", appearance); value = appearance
+                            case "completeWelcome": var appearance = store.value("appearance") as? JSONObject ?? ["background": NSNull()]; appearance["completed"] = true; try store.set("appearance", appearance); value = appearance
                             case "licenses":
                                 let base = Bundle.main.bundleURL.appendingPathComponent("zenix/legal")
                                 let files = [base.appendingPathComponent("LICENSE"), base.appendingPathComponent("THIRD_PARTY_NOTICES.md")] + ((try? FileManager.default.contentsOfDirectory(at: base.appendingPathComponent("licenses"), includingPropertiesForKeys: nil)) ?? [])
@@ -104,12 +104,12 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                 } else if action == "pickBackground", let file = urls.first {
                     let location = try copy(file, folder: "background", limit: 256 * 1024 * 1024, preserveName: false)
                     let kind = UTType(filenameExtension: file.pathExtension)?.conforms(to: .movie) == true ? "video" : "image"
-                    let old = (store.read()["appearance"] as? JSONObject)?["background"] as? JSONObject
+                    let old = (store.value("appearance") as? JSONObject)?["background"] as? JSONObject
                     let appearance: JSONObject = ["completed": true, "background": ["kind": kind, "name": file.lastPathComponent, "url": location.path]]
                     try store.set("appearance", appearance); value = appearance
                     if let path = old?["url"] as? String, path.hasPrefix(store.directory.appendingPathComponent("background").path + "/") { try? FileManager.default.removeItem(atPath: path) }
                 } else if action == "pickLocal" {
-                    var tracks = store.read()["localTracks"] as? [JSONObject] ?? []
+                    var tracks = store.value("localTracks") as? [JSONObject] ?? []
                     // Import sidecars first, regardless of the picker selection order.
                     for file in urls where file.pathExtension.lowercased() == "lrc" { _ = try copy(file, folder: "local", limit: 512 * 1024, preserveName: true) }
                     for file in urls where file.pathExtension.lowercased() != "lrc" {
@@ -150,7 +150,7 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                 }
             }
             let completed = track
-            worker.async { [weak self] in guard let self, let store else { return }; var rows = store.read()["localTracks"] as? [JSONObject] ?? []; if let index = rows.firstIndex(where: { $0["id"] as? String == completed["id"] as? String }) { rows[index] = completed; try? store.set("localTracks", rows); DispatchQueue.main.async { [weak self] in self?.broadcast() } } }
+            worker.async { [weak self] in guard let self, let store else { return }; var rows = store.value("localTracks") as? [JSONObject] ?? []; if let index = rows.firstIndex(where: { $0["id"] as? String == completed["id"] as? String }) { rows[index] = completed; try? store.set("localTracks", rows); DispatchQueue.main.async { [weak self] in self?.broadcast() } } }
         }
     }
 }

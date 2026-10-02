@@ -58,7 +58,7 @@ public final class LyricOverlayService extends Service {
                 .setContentTitle("Zenix 悬浮歌词").setContentText("点击返回音乐空间；可随时关闭悬浮歌词")
                 .setContentIntent(home).setOngoing(true).setSilent(true).addAction(0,"关闭歌词",close).build();
         if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE); else startForeground(NOTIFICATION, notification);
-        runtime.overlay = this; configure(runtime.store.read().optJSONObject("overlay"));
+        runtime.overlay = this; configure(runtime.store.object("overlay"));
         try { build(); } catch (SecurityException | WindowManager.BadTokenException failure) { stopSelf(); return; }
         IntentFilter events = new IntentFilter(); events.addAction(Intent.ACTION_SCREEN_OFF); events.addAction(Intent.ACTION_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenReceiver, events, Context.RECEIVER_NOT_EXPORTED); else registerReceiver(screenReceiver, events);
@@ -127,7 +127,7 @@ public final class LyricOverlayService extends Service {
         int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
         frame=new WindowManager.LayoutParams(dp(330),WindowManager.LayoutParams.WRAP_CONTENT,type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT);
         frame.gravity=Gravity.TOP|Gravity.LEFT;frame.alpha=.78f;
-        JSONObject settings=runtime.store.read().optJSONObject("overlay");frame.x=settings==null?dp(15):dp(settings.optInt("x",15));frame.y=settings==null?dp(130):dp(settings.optInt("y",130));
+        JSONObject settings=runtime.store.object("overlay");frame.x=settings==null?dp(15):dp(settings.optInt("x",15));frame.y=settings==null?dp(130):dp(settings.optInt("y",130));
         lock=new Icon(this,true);lock.setContentDescription("锁定或解锁悬浮歌词");lock.setOnClickListener(v->{locked=!locked;previewing=false;expanded=!locked;shown=Integer.MIN_VALUE;resize();render();save();reveal();});
         lockFrame=new WindowManager.LayoutParams(dp(30),dp(30),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT);lockFrame.gravity=Gravity.TOP|Gravity.LEFT;lock.setBackground(glass());
         windows.addView(root,frame);windows.addView(lock,lockFrame);resize();reveal();

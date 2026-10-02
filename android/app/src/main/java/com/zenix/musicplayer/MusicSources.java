@@ -17,7 +17,7 @@ final class MusicSources implements AutoCloseable {
     private final Map<String,JSONObject> matched=new LinkedHashMap<>();
     private static final Set<String> PLATFORMS=Set.of("kw","kg","wy","tx","mg");
     MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
-    JSONArray list() { return store.read().optJSONArray("sources"); }
+    JSONArray list() { return store.array("sources"); }
     private synchronized ScriptEngine catalog() throws Exception { if(catalogue==null) { catalogue=new ScriptEngine(context,"",new JSONObject(),null,true);catalogue.ready(); }return catalogue; }
     private synchronized ScriptEngine engine(JSONObject source) throws Exception {
         String id=source.getString("id"); if(!id.equals(activeId)) {

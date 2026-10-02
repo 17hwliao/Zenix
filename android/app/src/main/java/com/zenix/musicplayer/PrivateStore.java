@@ -23,6 +23,7 @@ final class PrivateStore {
         try { output=file.startWrite(); output.write(next.toString().getBytes(StandardCharsets.UTF_8)); file.finishWrite(output); data=next; }
         catch(IOException e) { if(output!=null) file.failWrite(output); throw e; }
     }
+    synchronized JSONArray array(String key) { JSONArray value=data.optJSONArray(key); if(value==null)return null; try{return new JSONArray(value.toString());}catch(JSONException error){throw new IllegalStateException(error);} }
     synchronized int integer(String key,int fallback){return data.optInt(key,fallback);}
     synchronized JSONObject personal(String action,JSONObject args) throws Exception {
         JSONObject personal=data.getJSONObject("personal"); personal=Json.copy(personal);

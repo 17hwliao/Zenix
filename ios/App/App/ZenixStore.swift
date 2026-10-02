@@ -28,6 +28,8 @@ final class ZenixStore {
         try location.setResourceValues(values)
     }
     func read() -> JSONObject { lock.lock(); defer { lock.unlock() }; return translate(data, storing: false) as? JSONObject ?? [:] }
+    /// Read a single detached subtree instead of walking songs and playlists for scalar options.
+    func value(_ key: String) -> Any? { lock.lock(); defer { lock.unlock() }; guard let value = data[key] else { return nil }; return translate(value, storing: false, key: key) }
     func set(_ key: String, _ value: Any) throws {
         lock.lock(); defer { lock.unlock() }
         var next = data; next[key] = translate(value, storing: true, key: key)

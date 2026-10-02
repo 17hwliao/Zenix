@@ -89,8 +89,8 @@ final class ZenixScript {
             guard let self else { return }
             let job = SourceNetwork.request(url, options: value["options"] as? JSONObject ?? [:], hosts: hosts) { [weak self] result in
                 guard let self else { return }; queue.async { [self] in
-                    requests.removeValue(forKey: id); requestedIDs.remove(id)
-                    switch result { case .success(let data): context?.objectForKeyedSubscript("__networkResult")?.call(withArguments: [id, data, NSNull()]); case .failure(let error): context?.objectForKeyedSubscript("__networkResult")?.call(withArguments: [id, NSNull(), error.localizedDescription]) }
+                    self.requests.removeValue(forKey: id); self.requestedIDs.remove(id)
+                    switch result { case .success(let data): self.context?.objectForKeyedSubscript("__networkResult")?.call(withArguments: [id, data, NSNull()]); case .failure(let error): self.context?.objectForKeyedSubscript("__networkResult")?.call(withArguments: [id, NSNull(), error.localizedDescription]) }
                 }
             }
             queue.async { [weak self] in if self?.context != nil && self?.requestedIDs.contains(id) == true { self?.requests[id] = job } else { job?.cancel() } }

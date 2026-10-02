@@ -10,7 +10,7 @@ final class ZenixSources {
         self.store = store; directory = store.directory.appendingPathComponent("sources", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
-    func list() -> [JSONObject] { store.read()["sources"] as? [JSONObject] ?? [] }
+    func list() -> [JSONObject] { store.value("sources") as? [JSONObject] ?? [] }
     private func find(_ id: String) throws -> JSONObject {
         guard let source = list().first(where: { $0["id"] as? String == id }) else { throw failure("请先配置音乐源") }; return source
     }

@@ -17,8 +17,8 @@ final class ZenixAudioCache {
         for file in (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [] where file.pathExtension == "partial" { try? FileManager.default.removeItem(at: file) }
         prune()
     }
-    var enabled: Bool { store.read()["cacheEnabled"] as? Bool ?? true }
-    var limit: Int { store.read()["cacheLimitMiB"] as? Int ?? 512 }
+    var enabled: Bool { store.value("cacheEnabled") as? Bool ?? true }
+    var limit: Int { store.value("cacheLimitMiB") as? Int ?? 512 }
     func stats() -> JSONObject { lock.lock(); defer { lock.unlock() }; return ["enabled": enabled, "limitMiB": limit, "usedBytes": entries.reduce(Int64(0)) { $0 + ($1["size"] as? Int64 ?? 0) }] }
     func find(_ id: String, qualities: [String]) -> URL? {
         lock.lock(); defer { lock.unlock() }
