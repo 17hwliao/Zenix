@@ -4,7 +4,7 @@ iOS 沿用手机端 React、旋转个人卡片、玻璃搜索条与歌曲贴纸�
 
 ## 当前状态
 
-当前是本地开发中的首轮适配，**不是已发行的 iPhone 安装包**。Windows 已完成 TypeScript/Vite 资源构建、Capacitor 工程同步以及手机尺寸浏览器界面观察；尚未执行 Xcode 编译、模拟器运行、签名或 iPhone 真机验收。下面的原生能力描述代码接入范围，不表示已通过设备验证。
+0.2.1 提供**未签名的 iOS 模拟器 App**与完整工程，不能安装到 iPhone。Windows 已完成网页构建和同步，GitHub macOS runner 的 Xcode 26.6 已完成原生编译（[构建记录](https://github.com/17hwliao/Zenix/actions/runs/36964915152)）。尚未执行模拟器交互、Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
 
 | 模块 | 接入范围 |
 | --- | --- |
@@ -77,6 +77,17 @@ npm run ios:open
 
 真机运行时，在 Xcode 的 App target → Signing & Capabilities 中选择自己的 Apple Developer Team、合适的 Bundle Identifier 和 iPhone。证书、描述文件、Team 私密资料均不存入仓库。正式 Archive、IPA 导出、TestFlight 和 App Store 上传尚未执行。
 
-提供可手动触发的 `.github/workflows/ios-build.yml`，仅编译和保存未签名模拟器 App，不自动推送代码、打 tag、发布 Release 或上传 TestFlight。当前云端工作流也尚未运行；所选 runner 必须具有 Xcode 26+。
+提供可手动触发的 `.github/workflows/ios-build.yml`，仅编译和保存未签名模拟器 App，不自动推送代码、打 tag、发布 Release 或上传 TestFlight。已完成首轮云端构建；所选 runner 必须具有 Xcode 26+。
 
-原生编译、实际音源、后台续播、断网缓存、锁屏控制、键盘与设备内存表现需要在 Mac/设备上继续验收。浏览器预览不能证明这些系统能力有效。
+实际音源、后台续播、断网缓存、锁屏控制、键盘与设备内存表现需要在 Mac/设备上继续验收。浏览器预览不能证明这些系统能力有效。
+
+## 模拟器包安装
+
+从 [0.2.1 移动预览版](https://github.com/17hwliao/Zenix/releases/tag/v0.2.1-mobile.1) 下载 Zenix-iOS-0.2.1-Simulator.zip，在 Mac 解压后得到 App.app。打开 Xcode 的 Simulator 并启动 iOS 15 或更新的设备，然后执行：
+
+```sh
+xcrun simctl install booted /absolute/path/App.app
+xcrun simctl launch booted com.zenix.musicplayer
+```
+
+完整源码可从同页 Source code 或 Git 仓库取得；工程入口为 ios/App/App.xcodeproj，先运行 npm ci 与 npm run ios:sync。此包没有 Apple 真机签名，不是 IPA。内存策略见 [移动端资源策略](mobile-performance.md)。

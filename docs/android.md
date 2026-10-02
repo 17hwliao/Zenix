@@ -80,3 +80,9 @@ React、Framer Motion 与图标依赖沿用主项目。新增 Capacitor 8.5.2（
 ## 窗口与输入法
 
 原生内容容器统一深色背景并处理系统栏/输入法边距，已处理的边距归零后才传入 WebView，避免原生与 CSS 重复留白。浮动搜索与编辑层遵循 visual viewport 的可见高度，输入期间不主动清除焦点。实现依据 [Android WebView 窗口边距说明](https://developer.android.com/develop/ui/views/layout/webapps/understand-window-insets)；浮层前台服务声明依据 [Android 前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types#special-use)。
+
+## 0.2.1 移动预览发行
+
+[下载 APK](https://github.com/17hwliao/Zenix/releases/tag/v0.2.1-mobile.1)。版本名 0.2.1、versionCode 3、Android 7.0（API 24）及以上。仍使用与上一版相同的本机开发签名，属于 Debug 预览包，不是 Play 商店正式签名版；不包含音乐源或个人配置。APK 已通过构建与签名校验，尚未完成真机验收。
+
+本轮优化将音频缓冲、不可见贴纸封面、后台页面与数据读取分开管理，详细边界见 [移动端资源策略](mobile-performance.md)。
