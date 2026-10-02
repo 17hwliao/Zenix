@@ -17,9 +17,10 @@ final class ZenixPlayback {
     var onTick: (() -> Void)?
     init(store: ZenixStore, sources: ZenixSources) throws {
         self.store = store; self.sources = sources; cache = try ZenixAudioCache(store)
-        queue = store.read()["queue"] as? [JSONObject] ?? []; index = store.read()["queueIndex"] as? Int ?? -1
+        let saved = store.read()
+        queue = saved["queue"] as? [JSONObject] ?? []; index = saved["queueIndex"] as? Int ?? -1
         if !queue.indices.contains(index) { index = queue.isEmpty ? -1 : 0 }
-        shuffle = store.read()["shuffle"] as? Bool ?? false; repeatMode = store.read()["repeat"] as? String ?? "all"; quality = store.read()["quality"] as? String ?? "high"
+        shuffle = saved["shuffle"] as? Bool ?? false; repeatMode = saved["repeat"] as? String ?? "all"; quality = saved["quality"] as? String ?? "high"
         player.automaticallyWaitsToMinimizeStalling = true
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.75, preferredTimescale: 600), queue: .main) { [weak self] _ in
             guard let self else { return }; updateNowPlaying(); if UIApplication.shared.applicationState == .active { onTick?() }
@@ -80,6 +81,8 @@ final class ZenixPlayback {
         }
     }
     private func install(_ item: AVPlayerItem, token: Int) {
+        // A modest forward buffer avoids retaining minutes of lossless audio.
+        item.preferredForwardBufferDuration = 15
         player.replaceCurrentItem(with: item)
         itemObserver = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in DispatchQueue.main.async {
             guard let self, current(token), player.currentItem === item else { return }

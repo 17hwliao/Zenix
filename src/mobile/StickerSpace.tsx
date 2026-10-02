@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { animate, motion, useMotionValue, useReducedMotion } from 'framer-motion';
+import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
 import { Crosshair, Maximize2, Pause, Play, X } from 'lucide-react';
 import { activeLyricIndex, parseLyrics } from '../core/lyrics';
 import type { LyricLine } from '../core/types';
@@ -17,13 +17,18 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
 }) {
   const viewport = useRef<HTMLDivElement>(null), gesture = useRef<{ id: number; x: number; y: number; cx: number; cy: number; moved: boolean } | null>(null);
   const dragged = useRef(false), x = useMotionValue(0), y = useMotionValue(0), reduced = useReducedMotion();
+  const [camera, setCamera] = useState({ x: 0, y: 0 });
+  const cameraTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const updateCamera = () => { if (cameraTimer.current !== undefined) return; cameraTimer.current = setTimeout(() => { cameraTimer.current = undefined; setCamera({ x: x.get(), y: y.get() }); }, 50); };
+  useMotionValueEvent(x, 'change', updateCamera); useMotionValueEvent(y, 'change', updateCamera);
+  useEffect(() => () => clearTimeout(cameraTimer.current), []);
   const animations = useRef<ReturnType<typeof animate>[]>([]);
   const [size, setSize] = useState({ width: 390, height: 500 }), [selected, setSelected] = useState(0), [moving, setMoving] = useState(false);
   const signature = songs.map(song => song.id).join('|'), player = state.playback;
   const slots = useMemo(() => stickerSlotsForCount(songs.length), [songs.length]);
   const expanded = useMemo(() => expandedStickerLayout(Math.min(selected, songs.length - 1), slots), [selected, slots, songs.length]);
   const pitch = Math.max(39, Math.min(85, (size.width - 32) / 6));
-  const rects = slots.map((slot, index) => expanded.get(index) || slot);
+  const rects = useMemo(() => slots.map((slot, index) => expanded.get(index) || slot), [slots, expanded]);
   const bounds = rects.length ? { left: Math.min(...rects.map(rect => rect.x)) * pitch, top: Math.min(...rects.map(rect => rect.y)) * pitch, right: Math.max(...rects.map(rect => rect.x + rect.columns)) * pitch, bottom: Math.max(...rects.map(rect => rect.y + rect.rows)) * pitch } : { left: 0, top: 0, right: 0, bottom: 0 };
   function limit(value: number, start: number, end: number, extent: number) {
     if (end - start < extent - 32) return (extent - (end - start)) / 2 - start;
@@ -53,8 +58,10 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
     }} onPointerUp={event => { gesture.current = null; setMoving(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { gesture.current = null; setMoving(false); }} onClickCapture={event => { if (dragged.current) { event.preventDefault(); event.stopPropagation(); dragged.current = false; } }}>
       <motion.div className="space-plane" style={{ x, y }}>{songs.map((song, index) => {
         const rect = rects[index], current = song.id === player.track?.id, focused = index === selected;
+        // Keep every sticker's geometry, but release offscreen decoded covers.
+        const visible = focused || (rect.x * pitch + camera.x < size.width + 240 && (rect.x + rect.columns) * pitch + camera.x > -240 && rect.y * pitch + camera.y < size.height + 240 && (rect.y + rect.rows) * pitch + camera.y > -240);
         return <motion.article key={song.id} className={`space-sticker ${focused ? 'is-focused' : ''} ${current ? 'is-current' : ''}`} initial={false} animate={{ left: rect.x * pitch, top: rect.y * pitch, width: rect.columns * pitch - STICKER_GAP, height: rect.rows * pitch - STICKER_GAP }} transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 190, damping: 29 }}>
-          <button className="space-poster" onClick={() => { focus(index); if (!current) play(song); }} aria-label={`播放并聚焦 ${song.title}`}><Art track={song} /><span className="sticker-index">{current ? '正在播放 · ' : ''}{String(index + 1).padStart(2, '0')}</span><span className="space-song"><strong>{song.title}</strong><small>{song.artist}</small></span></button>
+          <button className="space-poster" onClick={() => { focus(index); if (!current) play(song); }} aria-label={`播放并聚焦 ${song.title}`}>{visible && <Art track={song} />}<span className="sticker-index">{current ? '正在播放 · ' : ''}{String(index + 1).padStart(2, '0')}</span><span className="space-song"><strong>{song.title}</strong><small>{song.artist}</small></span></button>
           {focused && current && <FocusedLyrics track={song} position={player.position} seek={seek} />}
           {focused && <div className="sticker-toolbar">{actions(song)}<button aria-label={current ? '放大当前歌曲' : '播放歌曲'} onClick={() => { if (current) full(); else play(song); }}>{current ? <Maximize2 /> : <Play />}</button>{current && <button aria-label={player.playing ? '暂停' : '继续播放'} onClick={() => play(song)}>{player.playing ? <Pause /> : <Play />}</button>}</div>}
           {remove && <button className="sticker-toolbar sticker-remove" aria-label="从当前列表移除" onClick={() => remove(song)}><X /></button>}

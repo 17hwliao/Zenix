@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { motion } from 'framer-motion';
 import { Captions, ChevronDown, Disc3, ListMusic, LoaderCircle, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward } from 'lucide-react';
@@ -8,11 +8,11 @@ import { isNativeMobile, supportsOverlay, readLyrics, type MobileSnapshot } from
 
 export const fileUrl = (url?: string) => url && (url.startsWith('/') || url.startsWith('content:')) ? Capacitor.convertFileSrc(url) : url;
 const clock = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
-export function Art({ track }: { track?: Track }) {
+export const Art = memo(function Art({ track }: { track?: Track }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [track?.coverUrl]);
-  return track?.coverUrl && !failed ? <img className="mobile-art" src={fileUrl(track.coverUrl)} alt="" loading="lazy" onError={() => setFailed(true)} draggable={false} /> : <div className="mobile-art art-fallback"><Disc3 /><span>{track?.title?.slice(0, 1) || 'Z'}</span></div>;
-}
+  return track?.coverUrl && !failed ? <img className="mobile-art" src={fileUrl(track.coverUrl)} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} draggable={false} /> : <div className="mobile-art art-fallback"><Disc3 /><span>{track?.title?.slice(0, 1) || 'Z'}</span></div>;
+}, (previous, next) => previous.track?.coverUrl === next.track?.coverUrl && previous.track?.title === next.track?.title);
 export function Seek({ position, duration, onSeek, compact = false }: { position: number; duration: number; onSeek: (seconds: number) => void; compact?: boolean }) {
   const [drag, setDrag] = useState<number | null>(null); const value = drag ?? position;
   return <div className={`mobile-seek ${compact ? 'compact' : ''}`}><span>{clock(value)}</span><input aria-label="歌曲进度" type="range" min="0" max={Math.max(1, duration)} step="0.1" value={Math.min(value, Math.max(1, duration))} style={{ '--progress': `${Math.min(100, value / Math.max(1, duration) * 100)}%` } as CSSProperties} onChange={event => setDrag(Number(event.target.value))} onPointerUp={event => { onSeek(Number(event.currentTarget.value)); setDrag(null); }} onPointerCancel={() => setDrag(null)} onKeyUp={event => { if (event.key.startsWith('Arrow')) { onSeek(Number(event.currentTarget.value)); setDrag(null); } }} /><span>{clock(duration)}</span></div>;

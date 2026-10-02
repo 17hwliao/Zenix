@@ -9,6 +9,7 @@ import androidx.media3.database.StandaloneDatabaseProvider;
 import androidx.media3.datasource.*;
 import androidx.media3.datasource.cache.*;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.session.*;
 import org.json.*;
@@ -33,7 +34,9 @@ public final class PlaybackService extends MediaSessionService {
         cache=new SimpleCache(new File(getCacheDir(),"audio"),budget,new StandaloneDatabaseProvider(this));
         http=new DefaultHttpDataSource.Factory().setUserAgent("Zenix/0.1 Android").setConnectTimeoutMs(7000).setReadTimeoutMs(10000).setAllowCrossProtocolRedirects(false);
         cacheFactory=new CacheDataSource.Factory().setCache(cache).setUpstreamDataSourceFactory(new DefaultDataSource.Factory(this,http)).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
-        player=new ExoPlayer.Builder(this).setMediaSourceFactory(new DefaultMediaSourceFactory(this).setDataSourceFactory(cacheFactory)).build();
+        // Audio-only streaming: bound allocator growth; disk cache is independent.
+        DefaultLoadControl loadControl=new DefaultLoadControl.Builder().setBufferDurationsMs(10000,30000,1000,2500).setTargetBufferBytes(4*1024*1024).setPrioritizeTimeOverSizeThresholds(false).setBackBuffer(0,false).build();
+        player=new ExoPlayer.Builder(this).setLoadControl(loadControl).setMediaSourceFactory(new DefaultMediaSourceFactory(this).setDataSourceFactory(cacheFactory)).build();
         player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),true);player.setHandleAudioBecomingNoisy(true);player.setWakeMode(C.WAKE_MODE_LOCAL);
         player.addListener(new Player.Listener() {
             @Override public void onPlaybackStateChanged(int state) {
@@ -97,7 +100,7 @@ public final class PlaybackService extends MediaSessionService {
     }
     private JSONObject completeCache(JSONObject track) {
         if(!cacheEnabled)return null;
-        JSONObject mappings=runtime.store.read().optJSONObject("cacheMappings");JSONObject saved=mappings==null?null:mappings.optJSONObject(track.optString("id"));if(saved==null)return null;String key=saved.optString("cacheKey");long length=ContentMetadata.getContentLength(cache.getContentMetadata(key));return length>0&&cache.isCached(key,0,length)?saved:null;
+        JSONObject mappings=runtime.store.object("cacheMappings");JSONObject saved=mappings==null?null:mappings.optJSONObject(track.optString("id"));if(saved==null)return null;String key=saved.optString("cacheKey");long length=ContentMetadata.getContentLength(cache.getContentMetadata(key));return length>0&&cache.isCached(key,0,length)?saved:null;
     }
     private void start(JSONObject result,long token) {
         if(token!=generation)return;resolution=result;http.setDefaultRequestProperties(headers(result.optJSONObject("headers")));

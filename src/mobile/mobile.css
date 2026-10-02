@@ -59,3 +59,6 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 :root[data-mobile-platform="ios"] input:not([type=range]):not([type=color]),:root[data-mobile-platform="ios"] textarea,:root[data-mobile-platform="ios"] select{font-size:16px}
 :root[data-mobile-platform="ios"] body{overscroll-behavior-y:none}
 :root[data-mobile-platform="ios"] .mobile-header{-webkit-backdrop-filter:blur(15px)}
+
+/* Native audio keeps playing while the web surface is suspended. */
+.mobile-suspended *, .mobile-suspended *::before, .mobile-suspended *::after { animation-play-state: paused !important; }

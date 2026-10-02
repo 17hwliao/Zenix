@@ -15,6 +15,7 @@ final class PrivateStore {
         catch(Exception ignored) { data=Json.obj("personal",Json.obj("liked",new JSONArray(),"favorites",new JSONArray(),"history",new JSONArray(),"playlists",new JSONArray()),"sources",new JSONArray(),"queue",new JSONArray(),"profile",Json.obj("name","Zenix","bio","你的音乐，自成宇宙。"),"cacheLimitMiB",512,"cacheEnabled",true); }
     }
     synchronized JSONObject read() { return Json.copy(data); }
+    synchronized JSONObject object(String key) { JSONObject value=data.optJSONObject(key); return value==null?null:Json.copy(value); }
     synchronized void set(String key,Object value) throws IOException {
         Object detached=value;
         try{if(value instanceof JSONObject)detached=Json.copy((JSONObject)value);else if(value instanceof JSONArray)detached=new JSONArray(value.toString());}catch(JSONException e){throw new IOException("无法保存数据",e);}

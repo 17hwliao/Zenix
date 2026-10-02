@@ -30,7 +30,8 @@ export default function MobileApp() {
   const enabled = state.sources.filter(source => source.enabled);
   const profile = state.profile || { name: 'Zenix', bio: '你的音乐，自成宇宙。' };
   const background = state.appearance?.background;
-  useEffect(() => { if (backdropVideo.current) { if (full) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } }, [full, background?.url]);
+  useEffect(() => { if (backdropVideo.current) { if (full || document.hidden) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } }, [full, background?.url]);
+  useEffect(() => { const update = () => { document.documentElement.classList.toggle('mobile-suspended', document.hidden); if (backdropVideo.current) { if (document.hidden || full) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } if (!document.hidden && isNativeMobile) void command<MobileSnapshot>('snapshot').then(setState).catch(() => {}); }; document.addEventListener('visibilitychange', update); return () => { document.removeEventListener('visibilitychange', update); document.documentElement.classList.remove('mobile-suspended'); }; }, [full]);
   useEffect(() => {
     if (page !== 'space') return;
     if (collectionId === 'liked') setWall(personal.liked);
@@ -44,7 +45,7 @@ export default function MobileApp() {
   useEffect(() => {
     let alive = true, stop: (() => void) | undefined;
     if (!isNativeMobile) return;
-    void observe(snapshot => { if (alive) setState(previous => snapshot.personal ? snapshot as MobileSnapshot : { ...previous, ...snapshot, playback: { ...previous.playback, ...snapshot.playback } }); }).then(handle => { if (!alive) void handle.remove(); else stop = () => { void handle.remove(); }; });
+    void observe(snapshot => { if (alive && !document.hidden) setState(previous => snapshot.personal ? snapshot as MobileSnapshot : { ...previous, ...snapshot, playback: { ...previous.playback, ...snapshot.playback } }); }).then(handle => { if (!alive) void handle.remove(); else stop = () => { void handle.remove(); }; });
     const timer = setTimeout(() => { void command<MobileSnapshot>('snapshot').then(snapshot => { if (alive) { setState(snapshot); if (!snapshot.appearance?.completed) setModal('welcome'); } }).catch(e => setToast(String(e))); }, 650);
     return () => { alive = false; clearTimeout(timer); stop?.(); };
   }, []);
