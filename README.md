@@ -170,9 +170,8 @@ licenses/         第三方许可证与通知原文
 
 | 项目或资源 | 参考内容 |
 | --- | --- |
-| [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) | 参考窗口布局、玻璃控件、贴纸展示、聚焦切歌和交互动效，以及 README 的组织方式。 |
-| [lyswhut/lx-music-desktop](https://github.com/lyswhut/lx-music-desktop) | 参考自定义音乐源协议、脚本接口和音乐目录适配相关代码与实现思路。 |
-| 用户提供的 `zenix-space.html` | 参考个人名片和环绕卡片设计，整合为个人主页。 |
+| [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major) | 参考窗口布局、玻璃控件、贴纸展示、聚焦切歌和交互动效 |
+| [lyswhut/lx-music-desktop](https://github.com/lyswhut/lx-music-desktop) | 参考自定义音乐源协议、脚本接口和音乐目录适配相关代码与实现思路 |
 
 ### 直接使用的运行组件
 
@@ -193,10 +192,6 @@ licenses/         第三方许可证与通知原文
 感谢以下音乐源入口维护项目和各脚本原作者。入口由开发者自行收集用于本机使用与兼容调试，发行时不捆绑源脚本或个人歌曲，下表为开发来源记录。
 
 | 项目或入口 | 当前预设涉及的资源 | 使用方式 |
-| --- | --- | --- |
-| [pdone/lx-music-source](https://github.com/pdone/lx-music-source) | 长青、六音 SixYin、Huibq、野花 Flower、备用测试源、IKUN、野草 Grass。 | 提供脚本地址收集与下载入口；原脚本归各自作者。用户安装后，Zenix 加载并执行对应脚本。 |
-| [cdyUuu/lx-music-xinghai-source](https://github.com/cdyUuu/lx-music-xinghai-source) | 星海聚合源。 | 提供星海脚本的项目入口，用户安装后由兼容宿主运行。 |
-
 脚本归各自作者，其许可证与服务要求独立适用。具体入口与许可状态见 [第三方说明](THIRD_PARTY_NOTICES.md#外部音乐源与脚本入口)，列出入口不代表保证服务长期可用。
 
 目录适配器还访问酷我、酷狗、网易云音乐、QQ 音乐和咪咕音乐的在线接口，用于歌曲检索、封面及歌词补充。这些属于外部服务接入，不代表上述平台参与开发、认可本项目或授予内容再分发许可；接口范围见 [第三方与外部服务说明](THIRD_PARTY_NOTICES.md#外部目录与内容服务)。
@@ -205,17 +200,6 @@ licenses/         第三方许可证与通知原文
 
 开屏使用 Lottie 动画数据，图标通过 [Pillow](https://github.com/python-pillow/Pillow) 绘制，交互音效通过 Python 标准库合成。感谢相关工具作者；用户照片、视频、歌曲和封面属于相应提供者或权利人。
 
-## 常见问题
-
-**搜索有歌曲，但无法播放？** 搜索目录与播放解析是不同环节。检查源是否启用、服务是否可用，尝试较低音质或备用源；本地歌曲可作为离线备用。
-
-**导入源后没有搜索结果？** 检查安装结果、源选项中的搜索平台及源是否支持搜索；Zenix 源需正确声明能力，兼容脚本按安装检测结果运行。
-
-**歌曲没有封面或歌词？** 不同源和目录返回的数据可能不完整；本地歌曲可补充内嵌信息或同名歌词文件，在线歌词以可获取的数据为准。
-
-**清除缓存会删除歌单吗？** 不会。自动缓存与喜欢/收藏/歌单分别管理；曲库或库存删除应通过对应管理入口操作。
-
-**如何保留个人配置？** 数据保存在本机。升级时保留用户数据目录；跨电脑需重新关联本地歌曲路径并配置音乐源，当前没有统一备份导出功能。
 
 ## 开发与贡献
 
