@@ -290,7 +290,7 @@ export default function App() {
       onOpenPlaylists={() => setPlaylistsOpen(true)}
       onRefreshLibrary={refreshLibrary}
       onMinimize={window.yzqxy ? () => { void window.yzqxy?.window.minimize(); } : undefined}
-      onMaximize={window.yzqxy ? () => { void window.yzqxy?.window.toggleMaximize(); } : undefined}
+      onMaximize={window.yzqxy ? () => { void window.yzqxy?.window.toggleFullscreen(); } : undefined}
       onClose={window.yzqxy ? () => { void window.yzqxy?.window.close(); } : undefined}
       onReplayIntro={() => setIntroVisible(true)}
     />

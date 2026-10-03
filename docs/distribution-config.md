@@ -24,7 +24,7 @@
 
 “不打包用户数据”不等于删除这些数据。发行过程应只读取选定的应用文件，不通过清理开发者目录来制造首次启动状态。
 
-安装器支持自选目录、桌面及开始菜单快捷方式；卸载不删除用户数据。GPL 原文、第三方说明与组件许可证位于安装目录的 `resources/`；Electron 的 `LICENSE.electron.txt` 与 Chromium 的 `LICENSES.chromium.html` 位于安装根目录。当前安装包未签名，没有配置自动更新或发布服务。
+安装器支持自选目录、桌面及开始菜单快捷方式；卸载不删除用户数据。GPL 原文、第三方说明与组件许可证位于安装目录的 `resources/`；Electron 的 `LICENSE.electron.txt` 与 Chromium 的 `LICENSES.chromium.html` 位于安装根目录。已发布的 Windows 0.1.0 安装包未签名。0.3.0 开发版接入自动更新及签名发布流程；Android 已有正式密钥，Windows / iOS 需要对应发行资料，详见 [自动更新与签名说明](automatic-updates.md)。
 
 ## 用户配置建议列表
 

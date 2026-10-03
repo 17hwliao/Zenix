@@ -388,6 +388,7 @@ class PlayerController {
       nextIndex = choices[Math.floor(Math.random() * choices.length)];
       this.shufflePool.delete(nextIndex);
       this.history.push(this.state.queueIndex);
+      if (this.history.length > 300) this.history.shift();
     } else {
       nextIndex = this.state.queueIndex + 1;
       if (nextIndex >= this.state.queue.length) {

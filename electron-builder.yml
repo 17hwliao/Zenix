@@ -9,6 +9,7 @@ directories:
   buildResources: assets
 files:
   - package.json
+  - config/distribution.json
   - dist/**/*
   - electron/**/*.cjs
   - electron/desktop-lyrics.html

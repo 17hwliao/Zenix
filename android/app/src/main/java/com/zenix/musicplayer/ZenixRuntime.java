@@ -16,8 +16,12 @@ final class ZenixRuntime {
     private ZenixRuntime(Context context){this.context=context.getApplicationContext();store=new PrivateStore(context);sources=new MusicSources(context,store);}
     void attach(PlaybackService service){this.service=service;}
     void detach(PlaybackService service){if(this.service==service)this.service=null;}
-    void observe(ZenixNativePlugin plugin,boolean active){observer=plugin;visible=active;main.removeCallbacks(tick);if(active){emit();main.post(tick);}}
-    void removeObserver(ZenixNativePlugin plugin){if(observer==plugin){observer=null;visible=false;main.removeCallbacks(tick);}}
+    void observe(ZenixNativePlugin plugin,boolean active){observer=plugin;visible=active;main.removeCallbacks(tick);main.removeCallbacks(trimSources);if(active){emit();main.post(tick);}else main.postDelayed(trimSources,30000);}
+    void removeObserver(ZenixNativePlugin plugin){if(observer==plugin){observer=null;visible=false;main.removeCallbacks(tick);main.removeCallbacks(trimSources);main.postDelayed(trimSources,30000);}}
+    // Decoders and foreground playback belong to PlaybackService. Retire only
+    // idle script WebViews; the next source request recreates them on demand.
+    private final Runnable trimSources=this::scheduleSourceTrim;
+    private void scheduleSourceTrim(){work.execute(() -> {synchronized(sources){if(!visible)sources.close();}});}
     private final Runnable tick=new Runnable(){@Override public void run(){if(!visible||observer==null)return;if(service!=null)observer.publish(Json.obj("playback",service.progress(),"cache",service.cacheStats()));main.postDelayed(this,750);}};
     void ensureService(){context.startService(new Intent(context,PlaybackService.class));}
     JSONObject overlayStatus(){if(overlay!=null)return overlay.status();JSONObject settings=store.object("overlay");if(settings==null)settings=Json.obj("locked",false,"compact",false,"fontSize",20,"color","#c5e9ff");Json.put(settings,"enabled",false);Json.put(settings,"permitted",LyricOverlayService.allowed(context));return settings;}

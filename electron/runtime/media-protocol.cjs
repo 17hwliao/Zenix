@@ -71,7 +71,12 @@ async function serveFile(filePath, request, contentType) {
   headers.set('Content-Length', String(Math.max(0, end - start + 1)));
   if (request.method === 'HEAD') return new Response(null, { status, headers });
   const stream = fs.createReadStream(filePath, { start, end });
-  return new Response(Readable.toWeb(stream), { status, headers });
+  // Explicitly bound queued bytes; do not depend on the runtime's implicit
+  // queuing strategy. The matching regression also checks cancellation/ranges.
+  const body = Readable.toWeb(stream, {
+    strategy: { highWaterMark: 64 * 1024, size: chunk => chunk.byteLength },
+  });
+  return new Response(body, { status, headers });
 }
 
 function registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance }) {
@@ -96,4 +101,4 @@ function registerMediaProtocol({ protocol, sourceManager, audioCache, library, a
   });
 }
 
-module.exports = { registerMediaProtocol };
+module.exports = { registerMediaProtocol, serveFile };

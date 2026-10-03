@@ -27,3 +27,6 @@ ios/**/xcuserdata/
 *.mobileprovision
 *.p12
 *.ipa
+*-signing.properties
+*.pem
+android/app/src/main/assets/zenix/distribution.json

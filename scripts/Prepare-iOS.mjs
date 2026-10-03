@@ -1,6 +1,7 @@
 import { readFileSync, mkdirSync, writeFileSync, cpSync } from 'node:fs';
 const out = new URL('../ios/App/App/zenix/', import.meta.url);
 mkdirSync(out, { recursive: true });
+cpSync(new URL('../config/distribution.json', import.meta.url), new URL('distribution.json', out));
 // Both native platforms use our existing catalogue and portable source contract.
 const catalog = readFileSync(new URL('../electron/lx-catalog.cjs', import.meta.url), 'utf8')
   .replace("const { createHash } = require('node:crypto');", "const createHash = () => ({ update(value) { this.value = value; return this; }, digest() { return lx.utils.crypto.md5(this.value); } });")

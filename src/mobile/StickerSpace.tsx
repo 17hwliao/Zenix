@@ -58,8 +58,10 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
     }} onPointerUp={event => { gesture.current = null; setMoving(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { gesture.current = null; setMoving(false); }} onClickCapture={event => { if (dragged.current) { event.preventDefault(); event.stopPropagation(); dragged.current = false; } }}>
       <motion.div className="space-plane" style={{ x, y }}>{songs.map((song, index) => {
         const rect = rects[index], current = song.id === player.track?.id, focused = index === selected;
-        // Keep every sticker's geometry, but release offscreen decoded covers.
+        // Layout still includes the complete finite playlist, while React,
+        // motion subscriptions and decoded covers exist only near the viewport.
         const visible = focused || (rect.x * pitch + camera.x < size.width + 240 && (rect.x + rect.columns) * pitch + camera.x > -240 && rect.y * pitch + camera.y < size.height + 240 && (rect.y + rect.rows) * pitch + camera.y > -240);
+        if (!visible) return null;
         return <motion.article key={song.id} className={`space-sticker ${focused ? 'is-focused' : ''} ${current ? 'is-current' : ''}`} initial={false} animate={{ left: rect.x * pitch, top: rect.y * pitch, width: rect.columns * pitch - STICKER_GAP, height: rect.rows * pitch - STICKER_GAP }} transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 190, damping: 29 }}>
           <button className="space-poster" onClick={() => { focus(index); if (!current) play(song); }} aria-label={`播放并聚焦 ${song.title}`}>{visible && <Art track={song} />}<span className="sticker-index">{current ? '正在播放 · ' : ''}{String(index + 1).padStart(2, '0')}</span><span className="space-song"><strong>{song.title}</strong><small>{song.artist}</small></span></button>
           {focused && current && <FocusedLyrics track={song} position={player.position} seek={seek} />}

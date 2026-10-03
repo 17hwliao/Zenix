@@ -5,6 +5,7 @@ import androidx.media3.datasource.cache.*;
 import java.util.*;
 
 /** Mutable disk budget. Spans are removed by oldest access time, independent of songs/collections. */
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 final class CacheBudget implements CacheEvictor {
     private long limit,used;
     private final TreeSet<CacheSpan> spans=new TreeSet<>((a,b)->{int time=Long.compare(a.lastTouchTimestamp,b.lastTouchTimestamp);return time==0?a.compareTo(b):time;});

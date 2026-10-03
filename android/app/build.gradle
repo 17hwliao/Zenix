@@ -1,5 +1,18 @@
 apply plugin: 'com.android.application'
 
+def zenixSigning = new Properties()
+def zenixSigningFile = new File(System.getProperty('user.home'), '.zenix/signing/android-signing.properties')
+if (zenixSigningFile.exists()) zenixSigningFile.withInputStream { zenixSigning.load(it) }
+def signingValue = { field, environment -> System.getenv(environment) ?: zenixSigning.getProperty(field) }
+def signingPath = signingValue('storeFile', 'ZENIX_ANDROID_KEYSTORE')
+def signingPassword = signingValue('storePassword', 'ZENIX_ANDROID_STORE_PASSWORD')
+def signingAlias = signingValue('keyAlias', 'ZENIX_ANDROID_KEY_ALIAS')
+def signingKeyPassword = signingValue('keyPassword', 'ZENIX_ANDROID_KEY_PASSWORD')
+def signingReady = signingPath && signingPassword && signingAlias && signingKeyPassword
+if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') } && !signingReady) {
+    throw new GradleException('正式构建需要发行签名；请配置仓库外密钥或 ZENIX_ANDROID_* 环境变量。')
+}
+
 android {
     namespace = "com.zenix.musicplayer"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +20,8 @@ android {
         applicationId "com.zenix.musicplayer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "0.2.1"
+        versionCode 5
+        versionName "1.0.0"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -21,6 +34,17 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    signingConfigs {
+        if (signingReady) {
+            zenixRelease {
+                storeFile file(signingPath)
+                storePassword signingPassword
+                keyAlias signingAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+    if (signingReady) buildTypes.release.signingConfig = signingConfigs.zenixRelease
     compileOptions { coreLibraryDesugaringEnabled true }
 }
 

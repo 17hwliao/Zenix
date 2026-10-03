@@ -10,5 +10,5 @@ if (version.status !== 0 || Number(version.stdout.match(/Xcode (\d+)/)?.[1] || 0
   console.error('Select Xcode 26+ using xcode-select before building.'); process.exit(1);
 }
 if (!existsSync('ios/App/App/public/index.html')) { console.error('Run npm run ios:sync first.'); process.exit(1); }
-run('xcodebuild', ['-project', 'ios/App/App.xcodeproj', '-scheme', 'App', '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', 'release/ios-derived', 'CODE_SIGNING_ALLOWED=NO', 'build']);
-console.log('Simulator app: release/ios-derived/Build/Products/Debug-iphonesimulator/App.app (not an iPhone installable IPA).');
+run('xcodebuild', ['-project', 'ios/App/App.xcodeproj', '-scheme', 'App', '-configuration', 'Release', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', 'release/ios-derived', 'CODE_SIGNING_ALLOWED=NO', 'build']);
+console.log('Simulator app: release/ios-derived/Build/Products/Release-iphonesimulator/App.app (not an iPhone installable IPA).');

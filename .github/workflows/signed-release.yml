@@ -1,0 +1,130 @@
+name: Build signed Windows and Android release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build (for example v0.3.0)
+        required: true
+      channel:
+        type: choice
+        options: [stable, preview]
+        default: stable
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Load Windows certificate and public publisher identity
+        shell: pwsh
+        env:
+          CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          PUBLISHER: ${{ vars.WINDOWS_PUBLISHER }}
+        run: |
+          if (!$env:CERTIFICATE -or !$env:PUBLISHER) { throw 'Windows signing secrets and publisher are required.' }
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'zenix-windows.p12'
+          [IO.File]::WriteAllBytes($certificatePath,[Convert]::FromBase64String($env:CERTIFICATE))
+          "CSC_LINK=$certificatePath" >> $env:GITHUB_ENV
+          $config = Get-Content -Raw config/distribution.json | ConvertFrom-Json
+          $config.windowsPublisher = $env:PUBLISHER
+          $config | ConvertTo-Json -Depth 8 | Set-Content config/distribution.json -Encoding utf8NoBOM
+      - run: npm run package:win:signed
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-windows
+          path: release/Zenix-Setup-*.exe
+          if-no-files-found: error
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run android:build
+      - name: Build with permanent release identity
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ZENIX_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ZENIX_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ZENIX_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo 'Android release signing secrets are required'; exit 1; }
+          export ZENIX_ANDROID_KEYSTORE="$RUNNER_TEMP/zenix-android-release.p12"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$ZENIX_ANDROID_KEYSTORE"
+          chmod 600 "$ZENIX_ANDROID_KEYSTORE"
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-android
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+  publish:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+      - name: Generate signed update feed
+        env:
+          RELEASE_KEY: ${{ secrets.RELEASE_PRIVATE_KEY_BASE64 }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: |
+          test -n "$RELEASE_KEY" || { echo 'Release manifest signing key is required'; exit 1; }
+          export ZENIX_RELEASE_PRIVATE_KEY="$RUNNER_TEMP/release-key.pem"
+          printf '%s' "$RELEASE_KEY" | base64 --decode > "$ZENIX_RELEASE_PRIVATE_KEY"
+          chmod 600 "$ZENIX_RELEASE_PRIVATE_KEY"
+          node scripts/Prepare-Release.mjs
+          node scripts/Sign-Release.mjs release-assets/description.json
+      - name: Publish installers, then update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --title "Zenix $RELEASE_TAG" --generate-notes
+          gh release upload "$RELEASE_TAG" release-assets/signed-windows/*.exe release-assets/signed-android/*.apk "updates/$RELEASE_CHANNEL.json"
+          # Change only the verified channel file on main; preserve newer source commits.
+          cp "updates/$RELEASE_CHANNEL.json" "$RUNNER_TEMP/feed.json"
+          git fetch origin main
+          git checkout -B update-feed origin/main
+          mkdir -p updates
+          cp "$RUNNER_TEMP/feed.json" "updates/$RELEASE_CHANNEL.json"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "updates/$RELEASE_CHANNEL.json"
+          git diff --cached --quiet || git commit -m "Publish signed $RELEASE_CHANNEL update feed for $RELEASE_TAG"
+          git push origin HEAD:main

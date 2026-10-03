@@ -39,7 +39,7 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'options' | 'sources'>('options');
   const [managerSection, setManagerSection] = useState<string | null>(null);
-  const [maximized, setMaximized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [titlebarRevealed, setTitlebarRevealed] = useState(false);
   const [homeSearchRevealed, setHomeSearchRevealed] = useState(false);
@@ -60,8 +60,8 @@ export default function ZenixShell(props: ZenixShellProps) {
   useEffect(() => {
     const bridge = window.yzqxy?.window;
     if (!bridge) return;
-    void bridge.isMaximized().then(setMaximized);
-    return bridge.onMaximizedChanged(setMaximized);
+    void bridge.isFullscreen?.().then(setFullscreen);
+    return bridge.onFullscreenChanged?.(setFullscreen);
   }, []);
 
   // Keyboard commands mirror the visible player controls while leaving text inputs alone.
@@ -74,6 +74,7 @@ export default function ZenixShell(props: ZenixShellProps) {
         else if (searchOpen) setSearchOpen(false);
         else if (queueOpen) setQueueOpen(false);
         else if (view === 'player') { playUiSound('cancel'); setView('home'); }
+        else if (fullscreen) void window.yzqxy?.window.toggleFullscreen();
         else return;
         event.preventDefault();
         event.stopPropagation();
@@ -101,7 +102,7 @@ export default function ZenixShell(props: ZenixShellProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [currentTrack, duration, interactionLocked, onSeek, onTogglePlay, position, queueOpen, searchOpen, settingsOpen, managerSection, view]);
+  }, [currentTrack, duration, interactionLocked, onSeek, onTogglePlay, position, queueOpen, searchOpen, settingsOpen, managerSection, view, fullscreen]);
 
   const openSearch = (text = query) => {
     playUiSound('enter');
@@ -163,7 +164,7 @@ export default function ZenixShell(props: ZenixShellProps) {
         <div className="yz-window-controls-zone" onMouseEnter={() => setTitlebarRevealed(true)} onMouseLeave={() => setTitlebarRevealed(false)}>
           <div className={`yz-window-controls${titlebarRevealed ? ' is-revealed' : ''}`} role="toolbar" aria-label="窗口控制">
           {onMinimize && <button title="最小化" aria-label="最小化" onClick={onMinimize}><Minus size={14} /></button>}
-          {onMaximize && <button title={maximized ? '还原窗口' : '最大化'} aria-label={maximized ? '还原窗口' : '最大化'} onClick={onMaximize}>{maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button>}
+          {onMaximize && <button title={fullscreen ? '退出全屏（F11）' : '全屏（F11）'} aria-label={fullscreen ? '退出全屏' : '全屏'} onClick={onMaximize}>{fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button>}
           {onClose && <button title="关闭" aria-label="关闭" onClick={onClose}><X size={15} /></button>}
           </div>
         </div>

@@ -52,8 +52,8 @@ async function publish() {
     const uploaded = await response.json();
     if (uploaded.size !== asset.size || uploaded.state !== 'uploaded' || (uploaded.digest && uploaded.digest !== asset.digest)) throw new Error(`Asset verification failed: ${asset.name}`);
   }
-  if (release.draft) await api(`${base}/releases/${release.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draft: false, make_latest: argumentsList.includes('--prerelease') ? 'false' : 'true' }) });
+  if (release.draft) await api(`${base}/releases/${release.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, body, draft: argumentsList.includes('--draft'), make_latest: argumentsList.includes('--draft') || argumentsList.includes('--prerelease') ? 'false' : 'true' }) });
   release = await api(`${base}/releases/tags/${tag}`);
-  console.log(JSON.stringify({ stage: 'published', url: release.html_url, draft: release.draft, prerelease: release.prerelease, assets: release.assets.map(item => ({ name: item.name, size: item.size, digest: item.digest, url: item.browser_download_url })) }, null, 2));
+  console.log(JSON.stringify({ stage: release.draft ? 'staged' : 'published', url: release.html_url, draft: release.draft, prerelease: release.prerelease, assets: release.assets.map(item => ({ name: item.name, size: item.size, digest: item.digest, url: item.browser_download_url })) }, null, 2));
 }
 publish().catch(error => { console.error(error.message); process.exitCode = 1; });

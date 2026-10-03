@@ -6,6 +6,7 @@ import type { AppearanceBackground, PersonalState } from '../core/types';
 import type { TrackView } from './types';
 import CoverArt from './CoverArt';
 import { trackCoverUrl } from '../core/trackCover';
+import { useDocumentVisible } from '../core/useDocumentVisible';
 import './PersonalHome.css';
 
 type Props = {
@@ -54,6 +55,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const [draft, setDraft] = useState<Profile>(profile);
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const documentVisible = useDocumentVisible();
   const [goldBehind, setGoldBehind] = useState(() => { try { return localStorage.getItem(GOLD_LAYER_KEY) === 'behind'; } catch { return false; } });
   const [goldDragging, setGoldDragging] = useState(false);
   const [goldDragY, setGoldDragY] = useState(0);
@@ -109,6 +111,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   }, []);
   useEffect(() => () => goldTimers.current.forEach(timer => clearTimeout(timer)), []);
   useEffect(() => {
+    if (!documentVisible) return;
     let frame = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const tick = () => {
@@ -133,7 +136,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [documentVisible]);
   useEffect(() => {
     if (!editing) return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(false); } };

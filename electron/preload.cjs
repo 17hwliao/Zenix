@@ -7,6 +7,7 @@ function subscribe(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld('yzqxy', {
+  updates: { invoke: (args) => ipcRenderer.invoke('updates:invoke', args) },
   desktopLyrics: {
     toggle: () => ipcRenderer.invoke('lyrics:toggle'),
     isVisible: () => ipcRenderer.invoke('lyrics:is-visible'),
@@ -37,6 +38,7 @@ contextBridge.exposeInMainWorld('yzqxy', {
       importFile: () => ipcRenderer.invoke('sources:import-file'),
       importFolder: () => ipcRenderer.invoke('sources:import-folder'),
       importUrl: (url) => ipcRenderer.invoke('sources:import-url', url),
+      importText: (text, originUrl) => ipcRenderer.invoke('sources:import-text', text, originUrl),
       confirmImport: (token) => ipcRenderer.invoke('sources:confirm-import', token),
       cancelImport: (token) => ipcRenderer.invoke('sources:cancel-import', token),
     setEnabled: (id, enabled) => ipcRenderer.invoke('sources:set-enabled', id, enabled),
@@ -78,6 +80,8 @@ contextBridge.exposeInMainWorld('yzqxy', {
     toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
     toggleFullscreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
+    isFullscreen: () => ipcRenderer.invoke('window:is-fullscreen'),
+    onFullscreenChanged: (callback) => subscribe('window:fullscreen-changed', callback),
     close: () => ipcRenderer.invoke('window:close'),
     onMaximizedChanged: (callback) => subscribe('window:maximized-changed', callback),
   },

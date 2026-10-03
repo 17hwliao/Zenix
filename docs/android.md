@@ -2,6 +2,8 @@
 
 Android 版复用 Zenix 的 React、玻璃贴纸与个人名片视觉，由 Java 原生服务负责音频播放。没有引入 Go，也没有在 APK 内运行 Electron。
 
+1.0.0 源码加入签名更新检查、APK 下载和系统确认安装，分享源包也支持链接入口。本地正式发行密钥已建立，与旧 Debug APK 的签名不同；构建和迁移边界见 [自动更新与签名说明](automatic-updates.md)。
+
 ## 当前范围
 
 - 适配手机的个人空间、可编辑金卡、环绕卡切换、图片或视频背景、开屏过渡。
@@ -83,6 +85,6 @@ React、Framer Motion 与图标依赖沿用主项目。新增 Capacitor 8.5.2（
 
 ## 0.2.1 移动预览发行
 
-[下载 APK](https://github.com/17hwliao/Zenix/releases/tag/v0.2.1-mobile.1)。版本名 0.2.1、versionCode 3、Android 7.0（API 24）及以上。仍使用与上一版相同的本机开发签名，属于 Debug 预览包，不是 Play 商店正式签名版；不包含音乐源或个人配置。APK 已通过构建与签名校验，尚未完成真机验收。
+[下载 APK](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。版本名 0.2.1、versionCode 3、Android 7.0（API 24）及以上。仍使用与上一版相同的本机开发签名，属于 Debug 预览包，不是 Play 商店正式签名版；不包含音乐源或个人配置。APK 已通过构建与签名校验，尚未完成真机验收。
 
 本轮优化将音频缓冲、不可见贴纸封面、后台页面与数据读取分开管理，详细边界见 [移动端资源策略](mobile-performance.md)。

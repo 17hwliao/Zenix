@@ -3,6 +3,7 @@ import { FilePlus2, FolderOpen, Globe2, Power, Trash2 } from 'lucide-react';
 import type { AudioCacheStats, InstalledSource, SourcePreview } from '../core/types';
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
+import SourceBundleImport from './SourceBundleImport';
 
 export default function SourceSettings() {
   const [sources, setSources] = useState<InstalledSource[]>([]);
@@ -105,6 +106,15 @@ export default function SourceSettings() {
         return <div className="zenix-source-preset" key={preset.key}><div><strong>{preset.name}</strong><small>{preset.description}</small></div><button type="button" disabled={busy || !preset.url} onClick={() => void installPreset(preset)}>{!preset.url ? '链接失效' : installed ? '重新获取' : '一键添加'}</button></div>;
       })}</div>
     </section>
+    <SourceBundleImport disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
+      const bridge = window.yzqxy!.sources;
+      let token = '';
+      try {
+        const next = entry.script !== undefined ? await bridge.importText(entry.script, entry.url) : await bridge.importUrl(entry.url);
+        token = next.token;
+        setSources(await bridge.confirmImport(token));
+      } finally { if (token) await bridge.cancelImport(token).catch(() => {}); }
+    }} />
     <div className="zenix-source-import">
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFile())} disabled={busy || !window.yzqxy?.sources}><FilePlus2 size={16} />导入源包 / 脚本</button>
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFolder())} disabled={busy || !window.yzqxy?.sources}><FolderOpen size={16} />源文件夹</button>

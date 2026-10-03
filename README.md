@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">桌面与移动端音乐播放器 · Windows v0.1.0 / Android 与 iOS v0.2.1 预览版</p>
+<p align="center">桌面与移动端音乐播放器 · v1.0.0 首版</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -44,17 +44,23 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### Android 开发版
+### 首版 v1.0.0
 
-Android 采用 React + Capacitor + 原生 Media3 服务，已接入自定义源、原生播放、缓存、歌单、应用内歌词及跨应用悬浮歌词。手机音乐空间共用桌面版贴纸拼版算法，个人卡片适配触控旋转。[下载 Android 0.2.1 预览版](https://github.com/17hwliao/Zenix/releases/tag/v0.2.1-mobile.1)（开发签名 Debug APK，尚未完成真机验收）。构建、安装与功能边界见 [Android 开发说明](docs/android.md)，更新内容见 [版本说明](docs/releases/v0.2.1-mobile.1.md)。
+三端源码统一以 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0) 为初始基线，后续修补使用 v1.0.1、v1.0.2 等递增版本，不覆盖已发行标签及安装包。Android / iOS 内部 build 从 5 继续递增，保持系统升级顺序。
 
-### iOS 模拟器预览版
+| 平台 | 发行内容 | 安装与更新 |
+| --- | --- | --- |
+| Windows x64 | Zenix-Setup-1.0.0-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
+| Android | Zenix-Android-1.0.0.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
+| iOS | Zenix-iOS-1.0.0-Simulator.zip 与源码工程 | Mac / Xcode 模拟器使用；不能安装到 iPhone，尚未提供 Apple 签名 IPA 或 TestFlight 发行。 |
 
-iOS 工程复用手机界面，新增 Swift / AVPlayer 原生播放、系统媒体控制、音乐源运行及私有缓存。已在 GitHub macOS runner 的 Xcode 26.6 环境编译通过，并提供[未签名的模拟器 App](https://github.com/17hwliao/Zenix/releases/tag/v0.2.1-mobile.1)。该 ZIP 需要 Mac 上的 iOS 模拟器，不能直接安装到 iPhone；尚未完成模拟器交互和真机验证，未提供 IPA。环境、功能边界与构建步骤见 [iOS 开发说明](docs/ios.md)。
+同页提供 SHA256SUMS-1.0.0.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
 
-提供源码运行与 Windows x64 安装包：[下载 Zenix 0.1.0](https://github.com/17hwliao/Zenix/releases/tag/v0.1.0)。下载 `Zenix-Setup-0.1.0-x64.exe`，支持选择安装目录、桌面及开始菜单快捷方式；安装后从 Zenix 入口启动，无需安装 Node.js。同页提供 `SHA256SUMS.txt` 用于校验。源码启动命令见 [本地开发](#本地开发)。Android 另有预览包；其他桌面系统、网页部署及跨设备同步未作为当前发行能力提供。
+### 应用更新与专用源入口
 
-当前安装包未进行数字签名，Windows 可能显示未知发布者或 SmartScreen 提示。卸载保留用户数据，便于重装后继续使用自己的配置。
+Windows / Android 校验签名更新清单与安装包，确认后安装；iOS 使用 TestFlight / App Store 更新入口。首版 Android 提供正式更新通道；Windows 自动安装需后续配置受信任代码签名证书，iOS 更新需先建立 Apple 发行渠道。现阶段 Windows 手动下载安装，iOS 使用模拟器或工程。具体步骤见 [自动更新与签名说明](docs/automatic-updates.md)。
+
+音乐源支持分享包文件与 HTTPS 分享链接，可保存自己的专用源入口；软件不附带源包。平台开发说明：[Android](docs/android.md)、[iOS](docs/ios.md)。
 
 ### 首次使用
 
@@ -88,6 +94,8 @@ iOS 工程复用手机界面，新增 Swift / AVPlayer 原生播放、系统媒�
 悬停操作层采用边缘缓冲与延迟收起，拖动时保持展开；调整歌词窗口大小使用右下角的小拖动柄。窗口采用高置顶层级，并在显示、主窗口召回和可见状态下维持顺序，不抢占其他应用的键盘焦点。
 
 个人主页的卡片区域用于转动环绕卡片，卡片区域外可上下滚动页面；下滑按钮进入歌曲管理区域。中央名片支持编辑和向上拖动切换前后层，其他卡片悬停时恢复色彩。背景、卡面封面和三类交互音效可按个人喜好调整。
+
+PC 右上角的放大按钮进入原生全屏，覆盖任务栏区域；再次点击恢复原窗口状态。F11 可随时切换全屏，主页没有打开面板时也可按 Esc 退出全屏。
 
 ### 数据保存与缓存
 
@@ -157,7 +165,9 @@ licenses/         第三方许可证与通知原文
 - [完整技术栈与桌面歌词交互实现](docs/technical-stack.md)
 - [Zenix 自定义源协议](docs/zenix-source-protocol.md)
 - [性能优化、模块划分与内存采样](docs/performance-architecture.md)
+- [回归测试、移动贴纸优化与内存对照（2026-10-03）](docs/regression-memory-2026-10-03.md)
 - [发行配置与用户首次配置建议](docs/distribution-config.md)
+- [可转发音乐源包与批量导入](docs/source-sharing.md)
 - [第三方组件与来源说明](THIRD_PARTY_NOTICES.md)
 
 应用设置、曲库、歌单、历史及缓存保存在本机用户数据目录。音乐源脚本通过独立沙箱窗口运行；只有用户安装并启用的源参与搜索与播放。主程序仓库记录预设入口，不内嵌这些外部源的脚本正文。

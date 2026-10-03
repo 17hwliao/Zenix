@@ -19,6 +19,7 @@ final class MusicSources implements AutoCloseable {
     MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
     JSONArray list() { return store.array("sources"); }
     private synchronized ScriptEngine catalog() throws Exception { if(catalogue==null) { catalogue=new ScriptEngine(context,"",new JSONObject(),null,true);catalogue.ready(); }return catalogue; }
+    private synchronized Object catalogCall(String method,Object payload) throws Exception {return catalog().call(method,payload,new JSONObject());}
     private synchronized ScriptEngine engine(JSONObject source) throws Exception {
         String id=source.getString("id"); if(!id.equals(activeId)) {
             if(active!=null)active.close();active=null;activeId="";
@@ -83,21 +84,21 @@ final class MusicSources implements AutoCloseable {
     private JSONObject find(String id) throws Exception { JSONArray sources=list();for(int i=0;i<sources.length();i++)if(sources.getJSONObject(i).optString("id").equals(id))return sources.getJSONObject(i);throw new Exception("请先配置音乐源"); }
     JSONObject search(String id,String keyword,String cursor) throws Exception {
         JSONObject source=find(id);if(!source.optBoolean("enabled"))throw new Exception("音乐源已停用");JSONObject settings=source.getJSONObject("settings"),result;
-        if(source.optString("kind").equals("lx")) { String platform=settings.optString("lxCatalog",source.getJSONObject("manifest").getJSONObject("lxPlatforms").keys().next()); result=(JSONObject)catalog().call("catalog:search",Json.array(platform,keyword,Math.max(1,parsePage(cursor)),25),new JSONObject()); }
+        if(source.optString("kind").equals("lx")) { String platform=settings.optString("lxCatalog",source.getJSONObject("manifest").getJSONObject("lxPlatforms").keys().next()); result=(JSONObject)catalogCall("catalog:search",Json.array(platform,keyword,Math.max(1,parsePage(cursor)),25)); }
         else result=(JSONObject)invoke(source,"search",Json.obj("keyword",keyword,"cursor",cursor.isEmpty()?null:cursor,"pageSize",25),settings);
         JSONArray rows=result.optJSONArray("items"),tracks=new JSONArray();if(rows!=null)for(int i=0;i<rows.length()&&i<100;i++){JSONObject song=rows.optJSONObject(i);if(song==null||song.optString("remoteId").isEmpty()||song.optString("title").isEmpty())continue;String remote=song.getString("remoteId");JSONObject track=Json.copy(song);Json.put(track,"id",id+":"+sha(remote).substring(0,24));Json.put(track,"providerId",id);Json.put(track,"source","custom");Json.put(track,"path","");Json.put(track,"audioUrl","");if(!track.has("duration"))Json.put(track,"duration",0);if(!track.has("artist"))Json.put(track,"artist","");
             if(!source.optString("kind").equals("lx")&&track.has("coverUrl"))try{SourceHttp.check(track.getString("coverUrl"),source.getJSONObject("manifest").getJSONObject("network").getJSONArray("artworkHosts"));}catch(Exception e){track.remove("coverUrl");}tracks.put(track);}
         return Json.obj("items",tracks,"nextCursor",result.opt("nextCursor"));
     }
     JSONObject artwork(JSONObject track) throws Exception {
-        JSONObject source=find(track.getString("providerId"));Object value=source.optString("kind").equals("lx") ? catalog().call("catalog:artwork",Json.array(readInfo(track)),new JSONObject()) : invoke(source,"artwork",Json.obj("remoteId",track.getString("remoteId")),source.getJSONObject("settings"));
+        JSONObject source=find(track.getString("providerId"));Object value=source.optString("kind").equals("lx") ? catalogCall("catalog:artwork",Json.array(readInfo(track))) : invoke(source,"artwork",Json.obj("remoteId",track.getString("remoteId")),source.getJSONObject("settings"));
         String url=value instanceof JSONObject?((JSONObject)value).optString("url"):String.valueOf(value);if(url.equals("null")||url.isBlank())return new JSONObject();if(url.startsWith("http://"))url=url.replaceFirst("http://","https://");SourceHttp.check(url,source.optString("kind").equals("lx")?null:source.getJSONObject("manifest").getJSONObject("network").getJSONArray("artworkHosts"));return Json.obj("url",url);
     }
     Object lyrics(JSONObject track) throws Exception {
         if(track.optString("source").equals("local"))return JSONObject.NULL;
         File lyricDirectory=new File(context.getCacheDir(),"lyrics");lyricDirectory.mkdirs();File cached=new File(lyricDirectory,sha(track.getString("id"))+".json");
         if(cached.exists())try{return new JSONObject(new String(SourceHttp.bounded(new FileInputStream(cached),512*1024),StandardCharsets.UTF_8));}catch(Exception ignored){}
-        JSONObject source=find(track.getString("providerId"));Object value=source.optString("kind").equals("lx")?catalog().call("catalog:lyrics",Json.array(readInfo(track)),new JSONObject()):invoke(source,"lyrics",Json.obj("remoteId",track.getString("remoteId")),source.getJSONObject("settings"));
+        JSONObject source=find(track.getString("providerId"));Object value=source.optString("kind").equals("lx")?catalogCall("catalog:lyrics",Json.array(readInfo(track))):invoke(source,"lyrics",Json.obj("remoteId",track.getString("remoteId")),source.getJSONObject("settings"));
         if(value instanceof String)value=Json.obj("text",value,"format","lrc","source","custom");if(value instanceof JSONObject){Json.put((JSONObject)value,"source","custom");byte[] data=value.toString().getBytes(StandardCharsets.UTF_8);if(data.length<512*1024){try(OutputStream output=new FileOutputStream(cached)){output.write(data);}File[] files=lyricDirectory.listFiles();if(files!=null&&files.length>100){Arrays.sort(files,Comparator.comparingLong(File::lastModified));for(int i=0;i<files.length-100;i++)files[i].delete();}}}return value;
     }
     interface Progress { void update(String phase,String message); }

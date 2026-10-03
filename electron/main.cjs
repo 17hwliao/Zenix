@@ -9,6 +9,8 @@ const { PersonalStore } = require('./personal.cjs');
 const { SourceManager } = require('./sources.cjs');
 const { AudioCache } = require('./audio-cache.cjs');
 const { LyricsHoverTracker } = require('./runtime/lyrics-hover.cjs');
+const { Updates } = require('./runtime/updates.cjs');
+let updates;
 
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.quit();
@@ -70,6 +72,15 @@ function publishLyrics() {
   lyricsWindow.webContents.send('lyrics:data', data);
 }
 
+function toggleMainFullscreen() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const next = !mainWindow.isFullScreen();
+  // Native fullscreen uses the entire display, including the taskbar area.
+  // Electron retains the preceding window bounds for the return transition.
+  mainWindow.setFullScreen(next);
+  return next;
+}
+
 function createWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
   mainWindow = new BrowserWindow({
@@ -102,6 +113,8 @@ function createWindow() {
   });
   mainWindow.on('maximize', () => broadcast('window:maximized-changed', true));
   mainWindow.on('unmaximize', () => broadcast('window:maximized-changed', false));
+  mainWindow.on('enter-full-screen', () => broadcast('window:fullscreen-changed', true));
+  mainWindow.on('leave-full-screen', () => broadcast('window:fullscreen-changed', false));
   mainWindow.on('focus', () => maintainLyricsZOrder(true));
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -115,6 +128,11 @@ function createWindow() {
   });
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
+    if (input.key === 'F11' && !input.alt && !input.control && !input.meta) {
+      event.preventDefault();
+      if (!input.isAutoRepeat) toggleMainFullscreen();
+      return;
+    }
     const command = {
       MediaPlayPause: 'play-pause',
       MediaTrackNext: 'next',
@@ -394,6 +412,11 @@ function registerHandlers() {
   ipcMain.handle('sources:import-file', () => sourceManager.choosePackage(mainWindow));
   ipcMain.handle('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
   ipcMain.handle('sources:import-url', (_event, url) => sourceManager.importUrl(String(url || '')));
+  ipcMain.handle('sources:import-text', (_event, text, originUrl) => {
+    const origin = new URL(String(originUrl || ''));
+    if (origin.protocol !== 'https:' || origin.username || origin.password) throw new Error('分享源地址无效');
+    return sourceManager.previewPackage(String(text || ''), { kind: 'url', label: origin.href });
+  });
   ipcMain.handle('sources:confirm-import', (_event, token) => sourceManager.confirmImport(String(token || '')));
   ipcMain.handle('sources:cancel-import', (_event, token) => sourceManager.cancelImport(String(token || '')));
   ipcMain.handle('sources:set-enabled', (_event, id, enabled) => sourceManager.setEnabled(String(id || ''), enabled));
@@ -457,11 +480,8 @@ function registerHandlers() {
     return mainWindow.isMaximized();
   });
   ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
-  ipcMain.handle('window:toggle-fullscreen', () => {
-    if (!mainWindow) return false;
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
-    return mainWindow.isFullScreen();
-  });
+  ipcMain.handle('window:toggle-fullscreen', () => toggleMainFullscreen());
+  ipcMain.handle('window:is-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
   ipcMain.handle('window:close', () => { mainWindow?.close(); });
 }
 
@@ -491,6 +511,11 @@ if (primaryInstance) app.whenReady().then(async () => {
   sourceManager = new SourceManager(app.getPath('userData'), broadcast);
   audioCache = new AudioCache(app.getPath('userData'));
   sourceManager.audioCache = audioCache;
+  updates = new Updates(app);
+  ipcMain.handle('updates:invoke', (event, args) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('无权调用更新服务');
+    return updates.invoke(args || {});
+  });
   await Promise.all([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
   registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance });
   registerHandlers();
@@ -503,3 +528,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+app.on('before-quit', () => updates?.stop());

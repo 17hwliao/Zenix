@@ -18,14 +18,23 @@ import java.nio.charset.StandardCharsets;
 @CapacitorPlugin(name="ZenixNative",permissions={@Permission(alias="notifications",strings={Manifest.permission.POST_NOTIFICATIONS})})
 public class ZenixNativePlugin extends Plugin {
     private ZenixRuntime runtime;
+    private AppUpdates updates;
     @Override public void load(){runtime=ZenixRuntime.get(getContext());runtime.ensureService();runtime.observe(this,true);}
     @Override protected void handleOnResume(){runtime.observe(this,true);}
     @Override protected void handleOnPause(){runtime.observe(this,false);}
-    @Override protected void handleOnDestroy(){runtime.removeObserver(this);}
+    @Override protected void handleOnDestroy(){runtime.removeObserver(this);if(updates!=null){updates.cancel();updates.worker.shutdown();}}
     void publish(JSONObject state){try{notifyListeners("snapshot",new JSObject(state.toString()));}catch(Exception ignored){}}
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("updates")) {
+            try { if(updates==null)updates=new AppUpdates(getContext());
+                String operation=args.optString("operation");
+                if(operation.equals("state")){result(call,updates.state());return;}
+                if(operation.equals("cancel")){updates.cancel();result(call,updates.state());return;}
+                updates.worker.execute(()->{try{Object value;switch(operation){case "check":value=updates.check(args.optString("channel","stable"));break;case "download":value=updates.download();break;case "install":value=updates.install(getActivity());break;case "sourceBundle":value=updates.sourceBundle(args.optString("url"));break;default:throw new Exception("无效更新操作");}result(call,value);}catch(Exception e){call.reject(Json.message(e));}});
+            }catch(Exception e){call.reject(Json.message(e));}return;
+        }
         if(action.equals("exit")){getActivity().moveTaskToBack(true);result(call,true);return;}
         if(action.equals("overlayEnable")) {
             if (!args.optBoolean("enabled",true)) { getContext().stopService(new Intent(getContext(),LyricOverlayService.class)); result(call,runtime.overlayStatus());runtime.emit();return; }
@@ -60,6 +69,7 @@ public class ZenixNativePlugin extends Plugin {
                 case "artwork":value=runtime.sources.artwork(args.getJSONObject("track"));String artUrl=((JSONObject)value).optString("url"),artId=args.getJSONObject("track").optString("id");if(!artUrl.isEmpty()){runtime.store.artwork(artId,artUrl);runtime.main.post(()->{if(runtime.service!=null)runtime.service.artwork(artId,artUrl);});}break;
                 case "lyrics":value=runtime.sources.lyrics(args.getJSONObject("track"));break;
                 case "importUrl":value=runtime.sources.importUrl(args.getString("url"));break;
+                case "previewSourceText":String sourceOrigin=args.getString("url");java.net.URI sourceAddress=new java.net.URI(sourceOrigin);if(!"https".equals(sourceAddress.getScheme())||sourceAddress.getHost()==null||sourceAddress.getUserInfo()!=null)throw new Exception("分享源地址无效");value=runtime.sources.preview(args.getString("text"),sourceOrigin,"url");break;
                 case "install":value=runtime.sources.install(args.getString("token"));break;
                 case "sourceEnable":value=runtime.sources.update(args.getString("id"),"enable",args);break;
                 case "sourceRemove":value=runtime.sources.update(args.getString("id"),"remove",args);break;

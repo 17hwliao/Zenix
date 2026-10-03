@@ -108,6 +108,7 @@ export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number };
 
 export interface DesktopBridge {
+  updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };
   cache: {
     stats(): Promise<AudioCacheStats>;
     configure(options: { enabled?: boolean; limitMiB?: number }): Promise<AudioCacheStats>;
@@ -143,6 +144,7 @@ export interface DesktopBridge {
     importFile(): Promise<SourcePreview | null>;
     importFolder(): Promise<SourcePreview | null>;
     importUrl(url: string): Promise<SourcePreview>;
+    importText(text: string, originUrl: string): Promise<SourcePreview>;
     confirmImport(token: string): Promise<InstalledSource[]>;
     cancelImport(token: string): Promise<void>;
     setEnabled(id: string, enabled: boolean): Promise<InstalledSource[]>;
@@ -179,6 +181,8 @@ export interface DesktopBridge {
     toggleMaximize(): Promise<boolean>;
     isMaximized(): Promise<boolean>;
     toggleFullscreen(): Promise<boolean>;
+    isFullscreen(): Promise<boolean>;
+    onFullscreenChanged(callback: (fullscreen: boolean) => void): () => void;
     close(): Promise<void>;
     onMaximizedChanged(callback: (maximized: boolean) => void): () => void;
   };

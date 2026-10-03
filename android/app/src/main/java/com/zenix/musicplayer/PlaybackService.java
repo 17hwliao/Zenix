@@ -18,6 +18,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** The service owns queue/decoder/cache and survives Activity/WebView suspension. */
+@androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
 public final class PlaybackService extends MediaSessionService {
     private ExoPlayer player; private MediaSession session; private SimpleCache cache;
     private final Handler main=new Handler(Looper.getMainLooper());

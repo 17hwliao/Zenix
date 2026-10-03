@@ -185,7 +185,7 @@ class AudioCache {
         const { done, value } = await reader.read();
         if (done) break;
         if (controller.signal.aborted) return;
-        if (!firstBytes) firstBytes = value.subarray(0, 64);
+        if (!firstBytes) firstBytes = value.slice(0, 64);
         size += value.byteLength;
         if (size > MAX_TRACK_BYTES) return;
         let offset = 0;

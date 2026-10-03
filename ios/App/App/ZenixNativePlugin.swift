@@ -4,6 +4,7 @@ import UIKit
 import UniformTypeIdentifiers
 import AVFoundation
 import ImageIO
+import Security
 
 @objc(ZenixNativePlugin)
 public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate {
@@ -11,6 +12,7 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
     public let jsName = "ZenixNative"
     public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "invoke", returnType: CAPPluginReturnPromise)]
     private var store: ZenixStore?, sources: ZenixSources?, playback: ZenixPlayback?, startupError: Error?
+    private var updates: ZenixAppUpdates?
     private let worker = DispatchQueue(label: "zenix.native.commands")
     private var pickerCall: CAPPluginCall?, pickerAction = ""
     public override func load() {
@@ -19,6 +21,7 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
             do {
                 let storage = try ZenixStore(), source = try ZenixSources(storage), player = try ZenixPlayback(store: storage, sources: source)
                 store = storage; sources = source; playback = player
+                updates = try ZenixAppUpdates()
                 player.onChange = { [weak self] in self?.broadcast() }
                 player.onTick = { [weak self] in guard let self, let player = playback else { return }; notifyListeners("snapshot", data: ["playback": player.tickSnapshot()]) }
             } catch { startupError = error }
@@ -33,6 +36,10 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
         DispatchQueue.main.async { [weak self] in
             guard let self, let store, let sources, let playback else { call.reject(self?.startupError?.localizedDescription ?? "原生服务尚未初始化，请重试"); return }
             let action = call.getString("action") ?? "", args = call.getObject("payload") ?? [:]
+            if action == "updates" {
+                guard let updates else { call.reject("更新服务尚未初始化"); return }
+                updates.invoke(args) { result in DispatchQueue.main.async { switch result { case .success(let value): call.resolve(["value": value]); case .failure(let error): call.reject(error.localizedDescription) } } }; return
+            }
             if ["pickSource", "pickBackground", "pickLocal"].contains(action) { presentPicker(action, call); return }
             do {
                 switch action {
@@ -59,6 +66,10 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                                 if let url = result["url"] as? String { try store.artwork(track["id"] as? String ?? "", url) }; value = result
                             case "lyrics": value = try sources.lyrics(args["track"] as? JSONObject ?? [:])
                             case "importUrl": value = try sources.importURL(args["url"] as? String ?? "")
+                            case "previewSourceText":
+                                let origin = args["url"] as? String ?? ""
+                                guard let address = URL(string: origin), address.scheme == "https", address.host != nil, address.user == nil, address.password == nil else { throw failure("分享源地址无效") }
+                                value = try sources.preview(args["text"] as? String ?? "", origin: origin, kind: "url")
                             case "install": value = try sources.install(args["token"] as? String ?? "")
                             case "sourceEnable", "sourceRemove", "sourceConfigure": value = try sources.update(args["id"] as? String ?? "", action: action == "sourceEnable" ? "enable" : action == "sourceRemove" ? "remove" : "configure", args: args)
                             case "personal": value = try store.personal(args["operation"] as? String ?? "", args)
@@ -151,6 +162,71 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
             }
             let completed = track
             worker.async { [weak self] in guard let self, let store else { return }; var rows = store.value("localTracks") as? [JSONObject] ?? []; if let index = rows.firstIndex(where: { $0["id"] as? String == completed["id"] as? String }) { rows[index] = completed; try? store.set("localTracks", rows); DispatchQueue.main.async { [weak self] in self?.broadcast() } } }
+        }
+    }
+}
+
+/// iOS keeps installation in Apple's distribution channel; it never downloads an executable replacement.
+private final class ZenixAppUpdates {
+    private let worker = DispatchQueue(label: "zenix.updates"), lock = NSLock()
+    private let config: JSONObject
+    private var state: JSONObject, artifact: JSONObject?
+    private let build = Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0") ?? 0
+    private let hosts = ["raw.githubusercontent.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
+    init() throws {
+        let location = Bundle.main.bundleURL.appendingPathComponent("zenix/distribution.json")
+        guard let data = try JSONSerialization.jsonObject(with: Data(contentsOf: location)) as? JSONObject else { throw failure("更新配置无效") }
+        config = data
+        state = ["status": "idle", "currentVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "", "progress": 0, "message": "尚未检查更新"]
+    }
+    private func snapshot() -> JSONObject { lock.lock(); defer { lock.unlock() }; return state }
+    private func set(_ key: String, _ value: Any) { lock.lock(); defer { lock.unlock() }; state[key] = value }
+    private func text(_ address: String, restricted: Bool, limit: Int) throws -> String {
+        guard let url = URL(string: address), url.scheme == "https", let host = url.host else { throw failure("请使用 HTTPS 地址") }
+        let result = try SourceNetwork.sync(address, hosts: restricted ? hosts : hosts + [host])
+        let code = result["status"] as? Int ?? 0
+        if code == 404 && restricted { throw NSError(domain: "ZenixUpdateFeed", code: 404, userInfo: [NSLocalizedDescriptionKey: "此通道尚未发布更新清单"]) }
+        guard code == 200, let encoded = result["data"] as? String, let bytes = Data(base64Encoded: encoded), bytes.count <= limit, let string = String(data: bytes, encoding: .utf8) else { throw failure("分享内容无法读取或超过大小限制") }; return string
+    }
+    private func check(_ channel: String) throws -> JSONObject {
+        guard ["stable", "preview"].contains(channel), let feeds = config["feeds"] as? JSONObject, let url = feeds[channel] as? String else { throw failure("更新通道无效") }
+        lock.lock(); state = ["status": "checking", "currentVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "", "progress": 0, "message": "正在检查更新"]; lock.unlock(); artifact = nil
+        do {
+            guard let envelope = try jsonObject(text(url, restricted: true, limit: 256 * 1024)) as? JSONObject,
+                  envelope["format"] as? String == "zenix-signed-release",
+                  let payloadText = envelope["payload"] as? String, let bytes = Data(base64Encoded: payloadText),
+                  let signatureText = envelope["signature"] as? String, let signature = Data(base64Encoded: signatureText),
+                  let publicText = config["publicKeyPkcs1"] as? String, let keyData = Data(base64Encoded: publicText) else { throw failure("更新清单格式错误") }
+            var keyError: Unmanaged<CFError>?
+            guard let key = SecKeyCreateWithData(keyData as CFData, [kSecAttrKeyType: kSecAttrKeyTypeRSA, kSecAttrKeyClass: kSecAttrKeyClassPublic] as CFDictionary, &keyError) else { throw failure("更新公钥无效") }
+            var verificationError: Unmanaged<CFError>?
+            guard SecKeyVerifySignature(key, .rsaSignatureMessagePKCS1v15SHA256, bytes as CFData, signature as CFData, &verificationError) else { throw failure("发布签名校验失败，已停止更新") }
+            guard let manifest = try JSONSerialization.jsonObject(with: bytes) as? JSONObject, manifest["schemaVersion"] as? Int == 1, manifest["channel"] as? String == channel else { throw failure("更新清单格式错误") }
+            guard let item = (manifest["artifacts"] as? JSONObject)?["ios"] as? JSONObject else { set("status", "unpublished"); set("message", "当前通道尚未发布 iOS 更新"); return snapshot() }
+            guard (item["build"] as? Int ?? 0) > build else { set("status", "current"); set("message", "已是此通道的最新版本"); return snapshot() }
+            artifact = item; set("version", item["version"] as? String ?? ""); set("notes", manifest["notes"] as? String ?? ""); set("status", "available"); set("message", "发现新版本，请通过发行渠道更新")
+        } catch { set("status", (error as NSError).domain == "ZenixUpdateFeed" ? "unpublished" : "error"); set("message", error.localizedDescription) }
+        return snapshot()
+    }
+    func invoke(_ args: JSONObject, completion: @escaping (Result<Any, Error>) -> Void) {
+        let operation = args["operation"] as? String ?? ""
+        if operation == "state" { completion(.success(snapshot())); return }
+        worker.async { [self] in
+            do {
+                switch operation {
+                case "check": completion(.success(try check(args["channel"] as? String ?? "stable")))
+                case "sourceBundle":
+                    let requested = args["url"] as? String ?? "", address = requested.isEmpty ? config["managedSourcesUrl"] as? String ?? "" : requested
+                    guard !address.isEmpty else { throw failure("尚未配置专用源分享地址，可导入分享包文件或粘贴链接") }
+                    completion(.success(try text(address, restricted: false, limit: 4 * 1024 * 1024)))
+                case "install":
+                    guard snapshot()["status"] as? String == "available", let item = artifact else { throw failure("没有可安装的更新") }
+                    let address = item["url"] as? String ?? config["iosDistributionUrl"] as? String ?? ""
+                    guard let url = URL(string: address), url.scheme == "https", let host = url.host, ["testflight.apple.com", "apps.apple.com"].contains(host), url.user == nil, url.password == nil else { throw failure("尚未配置 TestFlight 或 App Store 发行地址") }
+                    DispatchQueue.main.async { UIApplication.shared.open(url, options: [:]) { opened in completion(opened ? .success(self.snapshot()) : .failure(failure("无法打开发行渠道，请确认 TestFlight 已安装"))) } }
+                default: throw failure("iOS 更新由 TestFlight / App Store 安装")
+                }
+            } catch { completion(.failure(error)) }
         }
     }
 }
