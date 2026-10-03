@@ -28,7 +28,7 @@ export default function MobileApp() {
   const [collectionId, setCollectionId] = useState('history');
   const [legal, setLegal] = useState('');
   useMobileViewport();
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [page]);
+  useEffect(() => { window.scrollTo(0, 0); }, [page]);
   useEffect(() => { document.documentElement.dataset.mobilePlatform = mobilePlatform.toLowerCase(); return () => { delete document.documentElement.dataset.mobilePlatform; }; }, []);
   const player = state.playback, track = player.track, personal = state.personal;
   const enabled = state.sources.filter(source => source.enabled);
