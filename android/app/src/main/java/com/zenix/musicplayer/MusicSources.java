@@ -52,7 +52,7 @@ final class MusicSources implements AutoCloseable {
         if(previews.size()>5)previews.clear();previews.put(token,preview);JSONObject result=Json.copy(preview);result.remove("pack");return result;
     }
     JSONObject importUrl(String url) throws Exception {
-        if(!url.startsWith("https://"))throw new Exception("音乐源导入地址需要 HTTPS");JSONObject response=SourceHttp.request(url,new JSONObject(),null);if(response.getInt("status")!=200)throw new Exception("音乐源地址返回 HTTP "+response.optInt("status"));
+        JSONObject response=SourceHttp.request(url,new JSONObject(),null);if(response.getInt("status")!=200)throw new Exception("音乐源地址返回 HTTP "+response.optInt("status"));
         return preview(new String(Base64.decode(response.getString("data"),Base64.DEFAULT),StandardCharsets.UTF_8),url,"url");
     }
     synchronized JSONArray install(String token) throws Exception {

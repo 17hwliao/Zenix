@@ -16,6 +16,7 @@
 | csstype | 3.2.3 | MIT | [LICENSE](licenses/csstype/LICENSE) |
 | debug | 4.4.3 | MIT | [LICENSE](licenses/debug/LICENSE) |
 | file-type | 21.3.4 | MIT | [license](licenses/file-type/license) |
+| fflate | 0.8.3 | MIT | [LICENSE](licenses/fflate/LICENSE)；按需读取分享 ZIP 源包 |
 | framer-motion | 13.4.4 | MIT | [LICENSE.md](licenses/framer-motion/LICENSE.md) |
 | ieee754 | 1.2.1 | BSD-3-Clause | [LICENSE](licenses/ieee754/LICENSE) |
 | lottie-web | 5.13.0 | MIT | [LICENSE.md](licenses/lottie-web/LICENSE.md) |

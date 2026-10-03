@@ -48,7 +48,7 @@ public class ZenixNativePlugin extends Plugin {
             runtime.main.post(()->{try{JSONObject settings=runtime.store.object("overlay");if(settings==null)settings=new JSONObject();for(java.util.Iterator<String> keys=args.keys();keys.hasNext();){String key=keys.next();if(java.util.Set.of("fontSize","color","locked","compact","font").contains(key))Json.put(settings,key,args.opt(key));}runtime.store.set("overlay",settings);if(runtime.overlay!=null)runtime.overlay.configure(settings);runtime.emit();result(call,runtime.overlayStatus());}catch(Exception e){call.reject(Json.message(e));}});return;
         }
         if(action.equals("notifications")){if(Build.VERSION.SDK_INT>=33&&getPermissionState("notifications")!=PermissionState.GRANTED)requestPermissionForAlias("notifications",call,"notificationResult");else result(call,true);return;}
-        if(action.equals("pickSource")||action.equals("pickBackground")||action.equals("pickLocal")) {
+        if(action.equals("pickSourceBundle")||action.equals("pickSource")||action.equals("pickBackground")||action.equals("pickLocal")) {
             Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             intent.setType(action.equals("pickLocal")?"audio/*":"*/*");
             if(action.equals("pickBackground"))intent.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/*","video/*"});
@@ -68,8 +68,9 @@ public class ZenixNativePlugin extends Plugin {
                 case "search":value=runtime.sources.search(args.getString("id"),args.getString("keyword").trim().substring(0,Math.min(120,args.getString("keyword").trim().length())),args.optString("cursor"));break;
                 case "artwork":value=runtime.sources.artwork(args.getJSONObject("track"));String artUrl=((JSONObject)value).optString("url"),artId=args.getJSONObject("track").optString("id");if(!artUrl.isEmpty()){runtime.store.artwork(artId,artUrl);runtime.main.post(()->{if(runtime.service!=null)runtime.service.artwork(artId,artUrl);});}break;
                 case "lyrics":value=runtime.sources.lyrics(args.getJSONObject("track"));break;
+                case "sourceDigest":String digestText=args.getString("text");if(digestText.getBytes(StandardCharsets.UTF_8).length>512*1024)throw new Exception("脚本不能超过 512 KiB");value=MusicSources.sha(digestText);break;
                 case "importUrl":value=runtime.sources.importUrl(args.getString("url"));break;
-                case "previewSourceText":String sourceOrigin=args.getString("url");java.net.URI sourceAddress=new java.net.URI(sourceOrigin);if(!"https".equals(sourceAddress.getScheme())||sourceAddress.getHost()==null||sourceAddress.getUserInfo()!=null)throw new Exception("分享源地址无效");value=runtime.sources.preview(args.getString("text"),sourceOrigin,"url");break;
+                case "previewSourceText":String sourceOrigin=args.getString("url");java.net.URI sourceAddress=new java.net.URI(sourceOrigin);if(!java.util.Set.of("https","http").contains(sourceAddress.getScheme())||sourceAddress.getHost()==null||sourceAddress.getUserInfo()!=null)throw new Exception("分享源地址无效");value=runtime.sources.preview(args.getString("text"),sourceOrigin,"url");break;
                 case "install":value=runtime.sources.install(args.getString("token"));break;
                 case "sourceEnable":value=runtime.sources.update(args.getString("id"),"enable",args);break;
                 case "sourceRemove":value=runtime.sources.update(args.getString("id"),"remove",args);break;
@@ -90,7 +91,8 @@ public class ZenixNativePlugin extends Plugin {
         if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null){result(call,null);return;}
         runtime.work.execute(() -> {try {
             String action=call.getString("action","");Uri uri=data.getData();
-            if(action.equals("pickSource")){if(uri==null)throw new Exception("未选择音乐源文件");String text=new String(SourceHttp.bounded(getContext().getContentResolver().openInputStream(uri),1024*1024),StandardCharsets.UTF_8);result(call,runtime.sources.preview(text,displayName(uri),"file"));}
+            if(action.equals("pickSourceBundle")){if(uri==null)throw new Exception("未选择分享源包");byte[] bytes=SourceHttp.bounded(getContext().getContentResolver().openInputStream(uri),8*1024*1024);result(call,Json.obj("name",displayName(uri),"base64",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP)));}
+            else if(action.equals("pickSource")){if(uri==null)throw new Exception("未选择音乐源文件");String text=new String(SourceHttp.bounded(getContext().getContentResolver().openInputStream(uri),1024*1024),StandardCharsets.UTF_8);result(call,runtime.sources.preview(text,displayName(uri),"file"));}
             else if(action.equals("pickBackground")) {
                 if(uri==null)throw new Exception("未选择背景");String type=getContext().getContentResolver().getType(uri);boolean video=type!=null&&type.startsWith("video/");if(type==null||!video&&!type.startsWith("image/"))throw new Exception("请选择图片或视频");
                 File directory=new File(getContext().getFilesDir(),"background");directory.mkdirs();File file=new File(directory,"backdrop-"+System.currentTimeMillis()+(video?".mp4":".image"));long size=0;

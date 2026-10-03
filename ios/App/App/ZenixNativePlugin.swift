@@ -40,7 +40,7 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                 guard let updates else { call.reject("更新服务尚未初始化"); return }
                 updates.invoke(args) { result in DispatchQueue.main.async { switch result { case .success(let value): call.resolve(["value": value]); case .failure(let error): call.reject(error.localizedDescription) } } }; return
             }
-            if ["pickSource", "pickBackground", "pickLocal"].contains(action) { presentPicker(action, call); return }
+            if ["pickSource", "pickSourceBundle", "pickBackground", "pickLocal"].contains(action) { presentPicker(action, call); return }
             do {
                 switch action {
                 case "snapshot": call.resolve(["value": snapshot()])
@@ -65,10 +65,13 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                                 let track = args["track"] as? JSONObject ?? [:], result = try sources.artwork(track)
                                 if let url = result["url"] as? String { try store.artwork(track["id"] as? String ?? "", url) }; value = result
                             case "lyrics": value = try sources.lyrics(args["track"] as? JSONObject ?? [:])
+                            case "sourceDigest":
+                                let text = args["text"] as? String ?? ""
+                                guard text.utf8.count <= 512 * 1024 else { throw failure("脚本不能超过 512 KiB") }; value = sha(text)
                             case "importUrl": value = try sources.importURL(args["url"] as? String ?? "")
                             case "previewSourceText":
                                 let origin = args["url"] as? String ?? ""
-                                guard let address = URL(string: origin), address.scheme == "https", address.host != nil, address.user == nil, address.password == nil else { throw failure("分享源地址无效") }
+                                guard let address = URL(string: origin), ["http", "https"].contains(address.scheme ?? ""), address.host != nil, address.user == nil, address.password == nil else { throw failure("分享源地址无效") }
                                 value = try sources.preview(args["text"] as? String ?? "", origin: origin, kind: "url")
                             case "install": value = try sources.install(args["token"] as? String ?? "")
                             case "sourceEnable", "sourceRemove", "sourceConfigure": value = try sources.update(args["id"] as? String ?? "", action: action == "sourceEnable" ? "enable" : action == "sourceRemove" ? "remove" : "configure", args: args)
@@ -97,7 +100,7 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
     }
     private func presentPicker(_ action: String, _ call: CAPPluginCall) {
         guard pickerCall == nil, let controller = bridge?.viewController, controller.presentedViewController == nil else { call.reject("请先关闭当前文件选择窗口"); return }
-        let types: [UTType] = action == "pickSource" ? [.item] : action == "pickBackground" ? [.image, .movie] : [.audio, UTType(filenameExtension: "lrc") ?? .plainText]
+        let types: [UTType] = ["pickSource", "pickSourceBundle"].contains(action) ? [.item] : action == "pickBackground" ? [.image, .movie] : [.audio, UTType(filenameExtension: "lrc") ?? .plainText]
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
         picker.allowsMultipleSelection = action == "pickLocal"; picker.delegate = self; pickerCall = call; pickerAction = action; controller.present(picker, animated: true)
     }
@@ -108,7 +111,13 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
             guard let self else { call.reject("原生服务已结束"); return }
             do {
                 var value: Any = NSNull()
-                if action == "pickSource", let file = urls.first {
+                if action == "pickSourceBundle", let file = urls.first {
+                    let scope = file.startAccessingSecurityScopedResource(); defer { if scope { file.stopAccessingSecurityScopedResource() } }
+                    guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 0, size <= 8 * 1024 * 1024 else { throw failure("分享源包为空或超过 8 MiB") }
+                    let bytes = try Data(contentsOf: file)
+                    guard bytes.count <= 8 * 1024 * 1024 else { throw failure("分享源包不能超过 8 MiB") }
+                    value = ["name": file.lastPathComponent, "base64": bytes.base64EncodedString()]
+                } else if action == "pickSource", let file = urls.first {
                     guard ["js", "zenixsource", "json"].contains(file.pathExtension.lowercased()) else { throw failure("请选择 .js 或 .zenixsource 文件") }
                     guard (try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 1_048_576 else { throw failure("音乐源文件不能超过 1 MiB") }
                     value = try sources.preview(String(contentsOf: file, encoding: .utf8), origin: file.lastPathComponent, kind: "file")

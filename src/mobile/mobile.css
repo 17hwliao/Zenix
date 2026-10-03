@@ -62,3 +62,20 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 
 /* Native audio keeps playing while the web surface is suspended. */
 .mobile-suspended *, .mobile-suspended *::before, .mobile-suspended *::after { animation-play-state: paused !important; }
+
+/* Only the card owns vertical tossing; the surrounding page keeps native scrolling. */
+.orbit-track{z-index:2;pointer-events:none}
+.orbit-gold,.orbit-gold .gold-card{touch-action:none;-webkit-user-drag:none}
+.continuous-orbit{-webkit-touch-callout:none}
+.gold-card>img,.orbit-satellite>.mobile-art{pointer-events:none;-webkit-user-drag:none}
+.gold-layer-toggle{border:1px solid #ffffff20;border-radius:50%;min-width:36px;padding:7px}
+.keyboard-open .mobile-header{position:relative;backdrop-filter:none;-webkit-backdrop-filter:none}
+.keyboard-open .mobile-content{padding-bottom:32px}
+.keyboard-open .mobile-source-status,.keyboard-open .preview-label{display:none}
+.keyboard-open .mobile-toast{bottom:12px}
+.keyboard-open .zenix-mobile{min-height:var(--visible-height,100dvh)}
+.source-import input{font-size:16px;min-width:0}
+.source-import strong{font-size:15px}
+.source-import button{flex-shrink:0}
+.settings-card>p{overflow-wrap:anywhere}
+.zenix-bundle-import{margin:20px 0}

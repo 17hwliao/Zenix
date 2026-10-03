@@ -414,7 +414,7 @@ function registerHandlers() {
   ipcMain.handle('sources:import-url', (_event, url) => sourceManager.importUrl(String(url || '')));
   ipcMain.handle('sources:import-text', (_event, text, originUrl) => {
     const origin = new URL(String(originUrl || ''));
-    if (origin.protocol !== 'https:' || origin.username || origin.password) throw new Error('分享源地址无效');
+    if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password) throw new Error('分享源地址无效');
     return sourceManager.previewPackage(String(text || ''), { kind: 'url', label: origin.href });
   });
   ipcMain.handle('sources:confirm-import', (_event, token) => sourceManager.confirmImport(String(token || '')));

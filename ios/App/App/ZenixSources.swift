@@ -65,7 +65,7 @@ final class ZenixSources {
         if previews.count >= 5 { previews.removeAll() }; var saved = result; saved["pack"] = pack; previews[token] = saved; return result
     }
     func importURL(_ url: String) throws -> JSONObject {
-        guard url.hasPrefix("https://") else { throw failure("音乐源导入地址需要 HTTPS") }
+        guard let address = URL(string: url), ["http", "https"].contains(address.scheme ?? ""), address.host != nil, address.user == nil, address.password == nil else { throw failure("请填写 HTTP / HTTPS 音乐源地址") }
         let response = try SourceNetwork.sync(url)
         guard response["status"] as? Int == 200, let bytes = Data(base64Encoded: response["data"] as? String ?? ""), bytes.count <= 1_048_576, let text = String(data: bytes, encoding: .utf8) else { throw failure("音乐源地址返回无效文件") }
         return try preview(text, origin: url, kind: "url")
