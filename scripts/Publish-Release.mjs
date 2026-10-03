@@ -13,8 +13,13 @@ if (!tag || !notes || !title || !assets.length || !/^v[\w.-]+$/.test(tag)) throw
 
 async function publish() {
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-  const remoteTag = execFileSync('git', ['ls-remote', 'origin', `refs/tags/${tag}`], { encoding: 'utf8' }).trim();
-  if (!remoteTag) throw new Error('Push the source and tag before uploading release assets');
+  const remoteTag = execFileSync('git', ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`], { encoding: 'utf8' }).trim();
+  if (!remoteTag && !argumentsList.includes('--draft')) throw new Error('Push the source and tag before publishing release assets');
+  if (remoteTag) {
+    const refs = remoteTag.split(/\r?\n/).map(line => line.split(/\s+/));
+    const taggedCommit = (refs.find(row => row[1].endsWith('^{}')) || refs[0])[0];
+    if (taggedCommit !== commit) throw new Error('Remote tag does not match the current source commit');
+  }
   const body = await fsp.readFile(notes, 'utf8');
   const prepared = [];
   for (const file of assets) {
@@ -35,6 +40,8 @@ async function publish() {
     if (!response.ok) throw new Error(`GitHub API HTTP ${response.status}`);
     return response.json();
   }
+  // Draft staging may precede the version tag, but its source must already be on GitHub.
+  if (!remoteTag) await api(`${base}/git/commits/${commit}`);
   let release = await api(`${base}/releases/tags/${tag}`, {}, true);
   if (!release) release = await api(`${base}/releases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: title, body, draft: true, prerelease: argumentsList.includes('--prerelease') }) });
   for (const asset of prepared) {

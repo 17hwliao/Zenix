@@ -1,6 +1,6 @@
 # 应用更新、发行签名与专用源入口
 
-当前源码版本为 **0.3.0 / Android build 4 / iOS build 4**。本次没有自动发布 GitHub Release，也没有为用户替换已安装的测试版本。
+当前源码版本为 **1.0.0 / Android build 5 / iOS build 5**。首版发行范围和迁移说明见 [v1.0.0](releases/v1.0.0.md)。没有自动替换用户已安装的测试版本。
 
 ## 使用方式
 
@@ -31,11 +31,11 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 执行 `npm run android:release` 生成 `android/app/build/outputs/apk/release/app-release.apk`。无签名配置时正式构建会失败，Debug 构建仍可以开发使用。
 
-此前发布的 APK 使用 Debug 签名，与本次正式密钥不同，**不能直接覆盖升级**。不要为迁移测试版随意卸载，否则私有歌单和配置会丢失。当前没有统一移动端数据导出功能；首次正式发行前需要确定测试版数据迁移办法，或继续提供沿用原 Debug 密钥的测试渠道。正式用户后续可正常同签名覆盖更新。
+此前发布的 APK 使用 Debug 签名，与本次正式密钥不同，**不能直接覆盖升级**。不要为迁移测试版随意卸载，否则私有歌单和配置会丢失。当前没有统一移动端数据导出功能，首版未提供 Debug 到正式签名的自动迁移；需要保留测试版资料的用户应保留原应用。正式用户后续可正常同签名覆盖更新。
 
 ### Windows
 
-在 `config/distribution.json` 设置 `windowsPublisher` 为证书完整 Subject；配置 `CSC_LINK` 和 `CSC_KEY_PASSWORD` 后运行 `npm run package:win:signed`。该命令要求强制代码签名，并在生成后核对安装包的有效签名与发行方。普通 `package:win` 仍是本地开发打包，不作为有签名的正式发行包。
+在 `config/distribution.json` 设置 `windowsPublisher` 为证书完整 Subject；配置 `CSC_LINK` 和 `CSC_KEY_PASSWORD` 后运行 `npm run package:win:signed`。该命令要求强制代码签名，并在生成后核对安装包的有效签名与发行方。普通 `package:win` 不保证代码签名。首版按当前条件提供未签名安装器，用户从 Release 手动安装；它不进入自动安装清单。
 
 当前尚未提供受信任 Windows 证书，不能声称已完成 Authenticode 正式签名。云签名服务需按服务商接入，当前流水线采用 PFX/P12 证书。
 
@@ -48,11 +48,11 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 导出文件需提交 App Store Connect，加入 TestFlight 或 App Store 发行；当前流水线仅产生签名构建工件，没有自动提交审核。在更新清单中加入 **已在该渠道提供的** iOS version/build/url；URL 仅接受 `https://testflight.apple.com/...` 或 `https://apps.apple.com/...`。
 
-当前没有 Apple 凭据、macOS 本地编译环境与真机，因此本次仅完成 Web 编译及原生代码集成；新的 Swift 代码和签名流水线需在 macOS 上编译及验收。
+当前没有 Apple 发行凭据和 iPhone 真机。首版使用 GitHub macOS runner 编译模拟器 App，不提供可安装到 iPhone 的签名 IPA；签名流水线仍需配置凭据并执行。
 
 ## 发布更新
 
-公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。本地已生成带有效签名的初始清单，安装包列表暂时为空；该文件尚未公开发布时显示“此通道尚未发布更新清单”，公开初始清单后仍会明确提示相应平台尚未发布更新。正式发布时用实际安装包生成清单。已有旧版没有更新模块，需要先安装一次含本模块的版本，之后才能通过应用更新。
+公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。首版 stable 清单由实际正式签名 APK 生成，包含 Android 1.0.0 / build 5 的下载地址、大小和 SHA256。Windows 缺受信任代码签名、iOS 缺 Apple 发行渠道，因此这两平台尚不提供自动安装的更新条目；preview 清单暂为空。文件未公开或相应平台没有条目时明确提示未发布。已有旧版没有更新模块，需要先安装一次含本模块的版本，之后才能通过应用更新。
 
 `npm run signing:init` 创建仓库外 `%USERPROFILE%\.zenix\signing\release-key.pem` 并生成公钥配置。当前公钥已生成，**请备份对应私钥，不要重复生成新的发行身份**。为多个开发环境使用相同私钥；支持 `ZENIX_SIGNING_DIR` 指定目录，签名时支持 `ZENIX_RELEASE_PRIVATE_KEY` 指定私钥文件。
 
@@ -64,13 +64,13 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
   "notes": "此版本的更新说明",
   "artifacts": {
     "windows": {
-      "version": "0.3.0", "build": 4,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v0.3.0/Zenix-Setup-0.3.0-x64.exe",
-      "file": "release/Zenix-Setup-0.3.0-x64.exe"
+      "version": "1.0.0", "build": 5,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-x64.exe",
+      "file": "release/Zenix-Setup-1.0.0-x64.exe"
     },
     "android": {
-      "version": "0.3.0", "build": 4,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v0.3.0/app-release.apk",
+      "version": "1.0.0", "build": 5,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0.apk",
       "file": "android/app/build/outputs/apk/release/app-release.apk"
     }
   }
@@ -103,9 +103,13 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 本次没有上传源脚本或设置公开默认专用源地址。先前制作的分享包仍可单独转发，或上传到你选择的 HTTPS 文件地址；链接必须直接返回 `.zenixsources` JSON 内容，而不是网盘 HTML 页面。
 
-## 本轮构建记录（2026-10-03）
+## 更新功能开发阶段构建记录（2026-10-03，0.3.0 候选）
 
 - PC：TypeScript / Vite 编译及 Windows 目录打包完成；归档中包含更新模块和公开发行配置，没有签名私钥或 `.zenixsources` 脚本快照。当前本地 EXE 的 Authenticode 状态为 `NotSigned`，没有将 electron-builder 的签名步骤日志当作正式签名证据。
 - Android：正式 Release APK 构建完成，`apksigner verify` 通过，APK Signature Scheme v2，RSA 3072 密钥。文件 `release/update-client/Zenix-Android-0.3.0-release.apk`，6,401,425 字节，SHA256 `8acd475b59675c015470041680d23162538c3192332c6cf9568d8fb0e08cea5e`。
 - iOS：TypeScript / Vite 编译与 Capacitor 工程同步完成。当前 Windows 环境未编译本次新增 Swift 原生代码或执行 Apple 签名。
 - 两个签名工作流已解析为有效 YAML；尚未在 GitHub 执行。本轮未上传代码、安装包或更新清单，也未做跨版本真实升级验收。
+
+## 1.0.0 发行基线
+
+三端版本号统一为 1.0.0，移动端 build 5。首版 Windows NSIS 安装器、Android 正式 APK 与 iOS 模拟器包分别构建，详细结果见 [首版说明](releases/v1.0.0.md)。后续补丁递增到 1.0.x，沿用现有 Android 发行密钥和更新清单公钥。

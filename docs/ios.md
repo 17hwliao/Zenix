@@ -2,11 +2,11 @@
 
 iOS 沿用手机端 React、旋转个人卡片、玻璃搜索条与歌曲贴纸，不运行 Electron，也不引入 Go。原生部分使用 Swift、AVPlayer 和 JavaScriptCore。
 
-1.0.0 源码新增签名清单检查、TestFlight / App Store 更新入口、分享源包链接载入及签名 archive 工作流。新增原生代码本次未在 macOS 编译；Apple 凭据和发行渠道仍待配置，见 [自动更新与签名说明](automatic-updates.md)。
+1.0.0 源码新增签名清单检查、TestFlight / App Store 更新入口、分享源包链接载入及签名 archive 工作流。新增原生代码已在 GitHub macOS runner 编译通过；Apple 凭据和发行渠道仍待配置，见 [自动更新与签名说明](automatic-updates.md)。
 
 ## 当前状态
 
-0.2.1 提供**未签名的 iOS 模拟器 App**与完整工程，不能安装到 iPhone。Windows 已完成网页构建和同步，GitHub macOS runner 的 Xcode 26.6 已完成原生编译（[构建记录](https://github.com/17hwliao/Zenix/actions/runs/36964915152)）。尚未执行模拟器交互、Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
+1.0.0 提供**未签名的 iOS 模拟器 App**与完整工程，不能安装到 iPhone。Windows 已完成网页构建和同步，GitHub macOS runner 已完成 Release 配置原生编译（[构建记录](https://github.com/17hwliao/Zenix/actions/runs/37092562277)）。尚未执行模拟器交互、Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
 
 | 模块 | 接入范围 |
 | --- | --- |
