@@ -43,6 +43,12 @@ async function publish() {
   // Draft staging may precede the version tag, but its source must already be on GitHub.
   if (!remoteTag) await api(`${base}/git/commits/${commit}`);
   let release = await api(`${base}/releases/tags/${tag}`, {}, true);
+  // An unpublished release without a pushed tag may have an untagged placeholder.
+  if (!release) {
+    const candidates = (await api(`${base}/releases`)).filter(item => item.draft && item.name === title);
+    if (candidates.length > 1) throw new Error('More than one matching draft release exists');
+    release = candidates[0] || null;
+  }
   if (!release) release = await api(`${base}/releases`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: title, body, draft: true, prerelease: argumentsList.includes('--prerelease') }) });
   for (const asset of prepared) {
     const existing = (await api(`${base}/releases/${release.id}/assets`)).find(item => item.name === asset.name);
@@ -59,8 +65,8 @@ async function publish() {
     const uploaded = await response.json();
     if (uploaded.size !== asset.size || uploaded.state !== 'uploaded' || (uploaded.digest && uploaded.digest !== asset.digest)) throw new Error(`Asset verification failed: ${asset.name}`);
   }
-  if (release.draft) await api(`${base}/releases/${release.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title, body, draft: argumentsList.includes('--draft'), make_latest: argumentsList.includes('--draft') || argumentsList.includes('--prerelease') ? 'false' : 'true' }) });
-  release = await api(`${base}/releases/tags/${tag}`);
+  if (release.draft) await api(`${base}/releases/${release.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: title, body, draft: argumentsList.includes('--draft'), make_latest: argumentsList.includes('--draft') || argumentsList.includes('--prerelease') ? 'false' : 'true' }) });
+  release = await api(`${base}/releases/${release.id}`);
   console.log(JSON.stringify({ stage: release.draft ? 'staged' : 'published', url: release.html_url, draft: release.draft, prerelease: release.prerelease, assets: release.assets.map(item => ({ name: item.name, size: item.size, digest: item.digest, url: item.browser_download_url })) }, null, 2));
 }
 publish().catch(error => { console.error(error.message); process.exitCode = 1; });
