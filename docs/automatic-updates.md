@@ -1,6 +1,6 @@
 # 应用更新、发行签名与专用源入口
 
-当前源码版本为 **1.0.0 / Android build 5 / iOS build 5**。首版发行范围和迁移说明见 [v1.0.0](releases/v1.0.0.md)。没有自动替换用户已安装的测试版本。
+当前源码版本为 **1.0.0 / Android build 7 / iOS build 7**。首版发行范围和迁移说明见 [v1.0.0](releases/v1.0.0.md)。没有自动替换用户已安装的测试版本。
 
 ## 使用方式
 
@@ -52,7 +52,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ## 发布更新
 
-公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。首版 stable 清单由实际正式签名 APK 生成，包含 Android 1.0.0 / build 5 的下载地址、大小和 SHA256。Windows 缺受信任代码签名、iOS 缺 Apple 发行渠道，因此这两平台尚不提供自动安装的更新条目；preview 清单暂为空。文件未公开或相应平台没有条目时明确提示未发布。已有旧版没有更新模块，需要先安装一次含本模块的版本，之后才能通过应用更新。
+公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。首版 stable 清单由实际正式签名 APK 生成，包含 Android 1.0.0 / build 7 的下载地址、大小和 SHA256。Windows 缺受信任代码签名、iOS 缺 Apple 发行渠道，因此这两平台尚不提供自动安装的更新条目；preview 清单暂为空。文件未公开或相应平台没有条目时明确提示未发布。已有旧版没有更新模块，需要先安装一次含本模块的版本，之后才能通过应用更新。
 
 `npm run signing:init` 创建仓库外 `%USERPROFILE%\.zenix\signing\release-key.pem` 并生成公钥配置。当前公钥已生成，**请备份对应私钥，不要重复生成新的发行身份**。为多个开发环境使用相同私钥；支持 `ZENIX_SIGNING_DIR` 指定目录，签名时支持 `ZENIX_RELEASE_PRIVATE_KEY` 指定私钥文件。
 
@@ -77,7 +77,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 }
 ```
 
-`npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传安装包，再提交签名清单到 main。不要把未签名安装包、测试包或未上架的 iOS 版本加入正式清单。新版本必须递增：Windows 按 semver 比较，Android / iOS 按 build 比较；预览版使用 preview 通道。
+`npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传安装包，再提交签名清单到 main。不要把未签名安装包、测试包或未上架的 iOS 版本加入正式清单。公开版本在作者与测试人员确认后才递增；稳定修补替换当前 Release 工件并递增移动端 build。Windows 按 semver 比较，同版本修补需从 Release 手动重装；Android / iOS 按 build 比较。预览版使用 preview 通道。
 
 `.github/workflows/signed-release.yml` 实现手动按 tag 构建签名 Windows / Android、生成签名清单、上传 Release 并更新 main 中的通道文件。它没有定时触发。需要以下 Secrets / Variables：
 
@@ -88,7 +88,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 | Secrets | `ANDROID_KEYSTORE_BASE64`、`ANDROID_STORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` |
 | Secret | `RELEASE_PRIVATE_KEY_BASE64`（本机发布清单私钥的 Base64） |
 
-密钥只通过环境变量和 runner 临时文件使用，不写进仓库或安装包。工作流要求 tag 与 package.json / Android versionName 相符。main 保护规则如禁止 Actions 直接写入更新清单，需要管理员允许该发布流程或将清单提交通过 PR 合入。重复上传同名 Release 工件会失败，不覆盖已发行的安装包。
+密钥只通过环境变量和 runner 临时文件使用，不写进仓库或安装包。工作流要求 tag 与 package.json / Android versionName 相符。main 保护规则如禁止 Actions 直接写入更新清单，需要管理员允许该发布流程或将清单提交通过 PR 合入。云工作流的同名上传默认拒绝覆盖。替换当前稳定版使用 `scripts/Publish-Release.mjs --replace-stable`：先上传并核对带修订号的新工件，全部齐备后再删除旧工件；保留同一 Release 地址。
 
 ## 三端专用源便捷载入
 
@@ -112,4 +112,4 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ## 1.0.0 发行基线
 
-三端版本号统一为 1.0.0，移动端 build 5。首版 Windows NSIS 安装器、Android 正式 APK 与 iOS 模拟器包分别构建，详细结果见 [首版说明](releases/v1.0.0.md)。后续补丁递增到 1.0.x，沿用现有 Android 发行密钥和更新清单公钥。
+三端公开版本号统一为 1.0.0，当前移动端 build 7。首版 Windows NSIS 安装器、Android 正式 APK 与 iOS 模拟器包分别构建，详细结果见 [首版说明](releases/v1.0.0.md)。后续修补沿用当前稳定版与发行身份；仅在作者和测试人员确认可发布后递增公开版本。

@@ -24,6 +24,7 @@ files:
   # need a second copy in node_modules.
   - '!node_modules/@paper-design/**/*'
   - '!node_modules/framer-motion/**/*'
+  - '!node_modules/fflate/**/*'
   - '!node_modules/lottie-web/**/*'
   - '!node_modules/lucide-react/**/*'
   - '!node_modules/motion-dom/**/*'

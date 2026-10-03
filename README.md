@@ -46,7 +46,7 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ### 首版 v1.0.0
 
-三端源码统一以 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0) 为初始基线，后续修补使用 v1.0.1、v1.0.2 等递增版本，不覆盖已发行标签及安装包。Android / iOS 内部 build 从 5 继续递增，保持系统升级顺序。
+三端公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的三端工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前修订为 r7，Android / iOS build 7。
 
 | 平台 | 发行内容 | 安装与更新 |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ Windows / Android 校验签名更新清单与安装包，确认后安装；iOS �
 
 音乐源支持分享包文件与 HTTPS 分享链接，可保存自己的专用源入口；软件不附带源包。平台开发说明：[Android](docs/android.md)、[iOS](docs/ios.md)。
 
-开发修补分支 `codex/mobile-1.0.1` 同步处理 Android / iOS 输入法遮挡、金卡上抛、环绕卡片密度及分享 ZIP 直接导入。尚未替换 v1.0.0 发行资产，说明见 [移动端修补](docs/releases/v1.0.1-mobile-fixes.md)。
+稳定版 r7 集成 Android / iOS 输入法遮挡修补、金卡上抛、环绕卡片密度、分享 ZIP 直接导入与页面过渡；PC 首页滚轮恢复页面上下滚动。说明见 [稳定版](docs/releases/v1.0.0.md) 与 [移动端修补记录](docs/releases/v1.0.1-mobile-fixes.md)。
 
 ### 首次使用
 

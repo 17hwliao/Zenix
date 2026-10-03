@@ -2,7 +2,7 @@
 
 入口：Windows 个人主页 → 播放器设置 → 音乐源 → **导入分享源包**；Android/iOS 的音乐源页面同名入口。选择 `.zenixsources` 文件，检查列表后确认批量添加。
 
-1.0.1 修补版增加 **导入分享源包 / ZIP**：收到分享 ZIP 可直接选择，不用解压。也支持内容相同的 `.json` 文件和 UTF-8 / UTF-16 文本。Android / iOS 使用系统文件选择器读取完整文件，导入前在原生层计算 SHA-256；桌面仍通过 Web Crypto 校验。ZIP 中只解压源包清单，不把外层 `scripts/` 写入设备。文件及解压后的清单均限制为 8 MiB。
+稳定版 1.0.0 / build 7 增加 **导入分享源包 / ZIP**：早期 build 5 尚不支持此入口；更新后收到分享 ZIP 可直接选择，不用解压。也支持内容相同的 `.json` 文件和 UTF-8 / UTF-16 文本。Android / iOS 使用系统文件选择器读取完整文件，导入前在原生层计算 SHA-256；桌面仍通过 Web Crypto 校验。ZIP 中只解压源包清单，不把外层 `scripts/` 写入设备。文件及解压后的清单均限制为 8 MiB。
 
 移动端音乐源页顶部保留 **通过链接添加音乐源**，接受公开的 HTTP / HTTPS `.js` 或 `.zenixsource` 地址；单脚本使用 **选择 .js / .zenixsource 文件**。分享源包的联网入口仍使用 HTTPS，以 `.zenixsources` JSON 直链为输入；不要将分享 ZIP 链接粘贴到单脚本入口。
 
