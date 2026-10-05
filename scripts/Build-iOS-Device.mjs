@@ -15,7 +15,7 @@ if (Number(xcode.match(/Xcode (\d+)/)?.[1] || 0) < 26) throw new Error('Select X
 if (!existsSync('ios/App/App/public/index.html')) throw new Error('Run npm run ios:sync first.');
 const output = path.resolve('release/ios-device');
 mkdirSync(output, { recursive: true });
-run('xcodebuild', ['-project', 'ios/App/App.xcodeproj', '-scheme', 'App', '-configuration', 'Release', '-destination', 'generic/platform=iOS', '-sdk', 'iphoneos', '-arch', 'arm64', '-archivePath', path.join(output, 'Zenix.xcarchive'), '-derivedDataPath', path.join(output, 'derived'), 'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGN_IDENTITY=', 'archive']);
+run('xcodebuild', ['-project', 'ios/App/App.xcodeproj', '-scheme', 'App', '-configuration', 'Release', '-destination', 'generic/platform=iOS', '-sdk', 'iphoneos', '-archivePath', path.join(output, 'Zenix.xcarchive'), '-derivedDataPath', path.join(output, 'derived'), 'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'CODE_SIGN_IDENTITY=', 'archive']);
 const app = path.join(output, 'Zenix.xcarchive/Products/Applications/App.app');
 const info = JSON.parse(run('plutil', ['-convert', 'json', '-o', '-', path.join(app, 'Info.plist')], { encoding: 'utf8', stdio: 'pipe' }));
 const architecture = run('lipo', ['-archs', path.join(app, info.CFBundleExecutable)], { encoding: 'utf8', stdio: 'pipe' }).trim();
