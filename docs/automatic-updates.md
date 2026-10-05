@@ -48,7 +48,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 导出文件需提交 App Store Connect，加入 TestFlight 或 App Store 发行；当前流水线仅产生签名构建工件，没有自动提交审核。在更新清单中加入 **已在该渠道提供的** iOS version/build/url；URL 仅接受 `https://testflight.apple.com/...` 或 `https://apps.apple.com/...`。
 
-当前没有 Apple 发行凭据和 iPhone 真机。首版使用 GitHub macOS runner 编译模拟器 App，不提供可安装到 iPhone 的签名 IPA；签名流水线仍需配置凭据并执行。
+当前没有 Apple 发行凭据和 iPhone 真机。稳定版提供 GitHub macOS runner 构建的 ARM64 未签名真机 IPA，以及独立模拟器 App。IPA 须由使用者自行签名侧载，不能直接点击文件安装；更新时也须沿用自己的签名身份。Apple 发行签名流水线仍需配置凭据并执行，详情见 [iOS 打包说明](ios.md#arm64-真机-ipa-封装)。
 
 ## 发布更新
 

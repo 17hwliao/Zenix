@@ -50,15 +50,16 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 | 平台 | 发行内容 | 安装与更新 |
 | --- | --- | --- |
-| Windows x64 | Zenix-Setup-1.0.0-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
-| Android | Zenix-Android-1.0.0.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
-| iOS | Zenix-iOS-1.0.0-Simulator.zip 与源码工程 | Mac / Xcode 模拟器使用；不能安装到 iPhone，尚未提供 Apple 签名 IPA 或 TestFlight 发行。 |
+| Windows x64 | Zenix-Setup-1.0.0-r7-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
+| Android | Zenix-Android-1.0.0-r7.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
+| iPhone / iPad | [Zenix-iOS-1.0.0-r7-unsigned.ipa](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-iOS-1.0.0-r7-unsigned.ipa) | iOS 15+、ARM64 真机 IPA；未签名，须自行签名侧载，不能直接点击文件安装。尚无 TestFlight / App Store 发行。 |
+| iOS Simulator | Zenix-iOS-1.0.0-r7-Simulator.zip 与源码工程 | 仅供 Mac / Xcode 模拟器使用，不能安装到 iPhone。 |
 
-同页提供 SHA256SUMS-1.0.0.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
+同页提供 SHA256SUMS-1.0.0-r7.txt 校验文件、iOS 签名安装说明，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
 
 ### 应用更新与专用源入口
 
-Windows / Android 校验签名更新清单与安装包，确认后安装；iOS 使用 TestFlight / App Store 更新入口。首版 Android 提供正式更新通道；Windows 自动安装需后续配置受信任代码签名证书，iOS 更新需先建立 Apple 发行渠道。现阶段 Windows 手动下载安装，iOS 使用模拟器或工程。具体步骤见 [自动更新与签名说明](docs/automatic-updates.md)。
+Windows / Android 校验签名更新清单与安装包，确认后安装；iOS 提供 TestFlight / App Store 更新入口。首版 Android 提供正式更新通道；Windows 自动安装需后续配置受信任代码签名证书，iOS 更新需先建立 Apple 发行渠道。现阶段 Windows 手动下载安装；iOS 真机 IPA 由使用者自行签名侧载，更新也需沿用自己的签名身份。具体步骤见 [自动更新与签名说明](docs/automatic-updates.md)。
 
 音乐源支持分享包文件与 HTTPS 分享链接，可保存自己的专用源入口；软件不附带源包。平台开发说明：[Android](docs/android.md)、[iOS](docs/ios.md)。
 

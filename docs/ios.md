@@ -6,7 +6,7 @@ iOS 沿用手机端 React、旋转个人卡片、玻璃搜索条与歌曲贴纸�
 
 ## 当前状态
 
-1.0.0 提供**未签名的 iOS 模拟器 App**与完整工程，不能安装到 iPhone。Windows 已完成网页构建和同步，GitHub macOS runner 已完成 Release 配置原生编译（[构建记录](https://github.com/17hwliao/Zenix/actions/runs/37092562277)）。尚未执行模拟器交互、Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
+1.0.0 / build 7 提供 **ARM64 未签名真机 IPA**、独立模拟器 App 与完整工程。[真机 Release archive 构建](https://github.com/17hwliao/Zenix/actions/runs/37264430578)已通过；IPA 平台为 iPhoneOS，最低系统 iOS 15。下载后必须自行签名侧载，不能直接点击文件安装。尚未执行 Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
 
 | 模块 | 接入范围 |
 | --- | --- |
@@ -77,7 +77,7 @@ npm run ios:open
 # 打开 ios/App/App.xcodeproj
 ```
 
-真机运行时，在 Xcode 的 App target → Signing & Capabilities 中选择自己的 Apple Developer Team、合适的 Bundle Identifier 和 iPhone。证书、描述文件、Team 私密资料均不存入仓库。正式 Archive、IPA 导出、TestFlight 和 App Store 上传尚未执行。
+真机运行时，在 Xcode 的 App target → Signing & Capabilities 中选择自己的 Apple Developer Team、合适的 Bundle Identifier 和 iPhone。证书、描述文件、Team 私密资料均不存入仓库。未签名真机 Archive 和 IPA 封装已完成；Apple 发行签名、TestFlight 和 App Store 上传尚未执行。
 
 提供可手动触发的 `.github/workflows/ios-build.yml`，仅编译和保存未签名模拟器 App，不自动推送代码、打 tag、发布 Release 或上传 TestFlight。已完成首轮云端构建；所选 runner 必须具有 Xcode 26+。
 
@@ -85,7 +85,7 @@ npm run ios:open
 
 ## 模拟器包安装
 
-从 [1.0.0 首版](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0) 下载 Zenix-iOS-1.0.0-Simulator.zip，在 Mac 解压后得到 App.app。打开 Xcode 的 Simulator 并启动 iOS 15 或更新的设备，然后执行：
+从 [1.0.0 稳定版](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0) 下载 Zenix-iOS-1.0.0-r7-Simulator.zip，在 Mac 解压后得到 App.app。打开 Xcode 的 Simulator 并启动 iOS 15 或更新的设备，然后执行：
 
 ```sh
 xcrun simctl install booted /absolute/path/App.app
@@ -97,6 +97,8 @@ xcrun simctl launch booted com.zenix.musicplayer
 ## ARM64 真机 IPA 封装
 
 没有 Apple 开发者发行凭据时，可先生成 **未签名真机 IPA**，之后由使用者以自己的有效 Apple 身份和描述文件签名侧载。这个文件不能通过点击下载文件直接安装；不是已经发行签名的安装器，也没有完成 iPhone 真机验收。
+
+已发布的 [Zenix-iOS-1.0.0-r7-unsigned.ipa](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-iOS-1.0.0-r7-unsigned.ipa) 为 893,183 字节，SHA256：`285a5b7eb9733530a55f36d5d07b67292bfde6514eaa8a7d01ad046625d12a3a`。下载页另附安装说明与封装元数据。此 IPA 与模拟器 ZIP 分开构建，核对了包内 Info.plist、Mach-O 的 ARM64 CPU 和 iOS 平台标识。
 
 ```sh
 npm ci
