@@ -1,0 +1,28 @@
+name: iOS arm64 device packaging preparation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  device:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ios:sync
+      - run: npm run ios:device
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zenix-iOS-Unsigned-Device-IPA
+          path: |
+            release/ios-device/*.ipa
+            release/ios-device/packaging.json
+            release/ios-device/SHA256SUMS.txt
+            release/ios-device/INSTALLATION.txt
+          if-no-files-found: error
+          retention-days: 7

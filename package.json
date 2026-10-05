@@ -23,6 +23,7 @@
     "ios:sync": "npm run ios:web && cross-env ZENIX_PLATFORM=ios cap sync ios",
     "ios:open": "cross-env ZENIX_PLATFORM=ios cap open ios",
     "ios:simulator": "node scripts/Build-iOS.mjs",
+    "ios:device": "node scripts/Build-iOS-Device.mjs",
     "test": "node --test scripts/Test-Regression.cjs scripts/Test-Mobile.cjs",
     "profile:streams": "node scripts/Profile-Streams.cjs",
     "pack:sources": "node scripts/Pack-Sources.mjs",

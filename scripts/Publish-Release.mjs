@@ -55,7 +55,7 @@ async function publish() {
   if (replaceStable || stageAssets) {
     if (release.draft || release.prerelease) throw new Error('Replacement requires an existing stable release');
     const names = prepared.map(asset => asset.name);
-    if (!names.some(name => /^Zenix-Setup-.*-x64\.exe$/.test(name)) || !names.some(name => /^Zenix-Android-.*\.apk$/.test(name)) || !names.some(name => /^Zenix-iOS-.*-Simulator\.zip$/.test(name)) || !names.some(name => /^SHA256SUMS-.*\.txt$/.test(name)) || !names.includes('stable.json')) throw new Error('Stable replacement requires all three platform builds, checksums and signed feed');
+    if (!names.some(name => /^Zenix-Setup-.*-x64\.exe$/.test(name)) || !names.some(name => /^Zenix-Android-.*\.apk$/.test(name)) || !names.some(name => /^Zenix-iOS-.*(?:-Simulator\.zip|\.ipa)$/.test(name)) || !names.some(name => /^SHA256SUMS-.*\.txt$/.test(name)) || !names.includes('stable.json')) throw new Error('Stable replacement requires all three platform builds, checksums and signed feed');
   }
   const ready = [];
   for (const asset of prepared) {
@@ -72,7 +72,7 @@ async function publish() {
     if (upload.protocol !== 'https:' || upload.hostname !== 'uploads.github.com') throw new Error('Unexpected upload destination');
     upload.searchParams.set('name', uploadName);
     console.log(JSON.stringify({ stage: 'uploading', name: asset.name, size: asset.size }));
-    const response = await fetch(upload, { method: 'POST', headers: { ...headers, 'Content-Type': asset.name.endsWith('.apk') ? 'application/vnd.android.package-archive' : asset.name.endsWith('.zip') ? 'application/zip' : asset.name.endsWith('.exe') ? 'application/octet-stream' : asset.name.endsWith('.json') ? 'application/json' : 'text/plain', 'Content-Length': String(asset.size) }, body: fs.createReadStream(asset.file), duplex: 'half', signal: AbortSignal.timeout(600000) });
+    const response = await fetch(upload, { method: 'POST', headers: { ...headers, 'Content-Type': asset.name.endsWith('.apk') ? 'application/vnd.android.package-archive' : asset.name.endsWith('.zip') ? 'application/zip' : (asset.name.endsWith('.exe') || asset.name.endsWith('.ipa')) ? 'application/octet-stream' : asset.name.endsWith('.json') ? 'application/json' : 'text/plain', 'Content-Length': String(asset.size) }, body: fs.createReadStream(asset.file), duplex: 'half', signal: AbortSignal.timeout(600000) });
     if (!response.ok) throw new Error(`Asset upload HTTP ${response.status}: ${asset.name}`);
     const uploaded = await response.json();
     ready.push({ asset, uploaded });
@@ -90,7 +90,7 @@ async function publish() {
     const final = await api(`${base}/releases/${release.id}/assets`);
     if (!prepared.every(asset => final.some(item => item.name === asset.name && item.digest === asset.digest && item.size === asset.size && item.state === 'uploaded'))) throw new Error('Final stable assets incomplete; keeping remaining old downloads');
     const selected = new Set(prepared.map(asset => asset.name));
-    for (const obsolete of final.filter(item => !selected.has(item.name) && /^(?:Zenix-Setup-.*-x64\.exe|Zenix-Android-.*\.apk|Zenix-iOS-.*-Simulator\.zip|SHA256SUMS-.*\.txt)$/.test(item.name))) await api(`${base}/releases/assets/${obsolete.id}`, { method: 'DELETE' });
+    for (const obsolete of final.filter(item => !selected.has(item.name) && /^(?:Zenix-Setup-.*-x64\.exe|Zenix-Android-.*\.apk|Zenix-iOS-.*(?:-Simulator\.zip|\.ipa)|SHA256SUMS-.*\.txt)$/.test(item.name))) await api(`${base}/releases/assets/${obsolete.id}`, { method: 'DELETE' });
   }
   if (release.draft || replaceStable) await api(`${base}/releases/${release.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: title, body, draft: argumentsList.includes('--draft'), make_latest: argumentsList.includes('--draft') || argumentsList.includes('--prerelease') ? 'false' : 'true' }) });
   release = await api(`${base}/releases/${release.id}`);

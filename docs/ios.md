@@ -93,3 +93,20 @@ xcrun simctl launch booted com.zenix.musicplayer
 ```
 
 完整源码可从同页 Source code 或 Git 仓库取得；工程入口为 ios/App/App.xcodeproj，先运行 npm ci 与 npm run ios:sync。此包没有 Apple 真机签名，不是 IPA。内存策略见 [移动端资源策略](mobile-performance.md)。
+
+## ARM64 真机 IPA 封装
+
+没有 Apple 开发者发行凭据时，可先生成 **未签名真机 IPA**，之后由使用者以自己的有效 Apple 身份和描述文件签名侧载。这个文件不能通过点击下载文件直接安装；不是已经发行签名的安装器，也没有完成 iPhone 真机验收。
+
+```sh
+npm ci
+npm run ios:sync
+npm run ios:device
+# macOS + Xcode 26+；输出 release/ios-device/Zenix-iOS-1.0.0-r7-unsigned.ipa
+```
+
+流程为 iPhoneOS SDK / arm64 / Release archive → 核对平台、版本、架构和包标识 → Payload/App.app 封装 → SHA256。输出 packaging.json 明确标识 signed=false、directInstall=false。设备能力声明为 arm64，最低系统 iOS 15。
+
+Windows 可手动触发 `.github/workflows/ios-device-build.yml`，从 macOS 云端取得上述 IPA、SHA256 与安装说明。该任务不读取 Apple 私钥，不自行发布 Release 或递增公开版本。后续若取得发行凭据，仍可使用签名 archive 流程导出 TestFlight / App Store 包。
+
+签名侧载工具负责生成或使用匹配的个人描述文件，并签署 App 与嵌入框架；签名有效期及可安装设备范围由所用 Apple 身份和描述文件决定。不要将 Apple 账号密码、私钥或描述文件写入公开仓库。使用者修改包标识后，生成的描述文件必须与最终标识匹配。
