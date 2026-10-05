@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Prepare locked Electron runtime
+        run: node node_modules/electron/install.js
       - run: npm run package:win
       - name: Stage verified installer on existing stable release
         shell: pwsh
