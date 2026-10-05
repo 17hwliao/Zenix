@@ -1,0 +1,50 @@
+name: Windows stable revision build
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Internal stable revision (public version stays unchanged)
+        required: true
+        default: '7'
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run package:win
+      - name: Stage verified installer on existing stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          if ($env:GITHUB_REPOSITORY -ne '17hwliao/Zenix' -or $env:REVISION -notmatch '^[1-9][0-9]*$') { throw 'Unexpected destination or revision' }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Not a stable public version' }
+          $tag = "v$version"
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.draft -or $release.prerelease) { throw 'Existing stable release required' }
+          $name = "Zenix-Setup-$version-r$($env:REVISION)-x64.exe"
+          if ($release.assets.name -contains $name) { throw 'Revision asset already exists; do not overwrite it here' }
+          New-Item -ItemType Directory -Force release/cloud-staged | Out-Null
+          Copy-Item -LiteralPath "release/Zenix-Setup-$version-x64.exe" -Destination "release/cloud-staged/$name"
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath "release/cloud-staged/$name").Hash.ToLowerInvariant()
+          "$digest  $name" | Set-Content -Encoding utf8NoBOM release/cloud-staged/windows-SHA256.txt
+          gh release upload $tag "release/cloud-staged/$name" --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Release staging upload failed' }
+          $uploaded = (gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets" | ConvertFrom-Json) | Where-Object name -eq $name
+          if ($uploaded.state -ne 'uploaded' -or $uploaded.digest -ne "sha256:$digest") { throw 'Uploaded installer digest mismatch' }
+          Write-Output "Staged $name SHA256 $digest"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zenix-Windows-Stable-Revision
+          path: release/cloud-staged/*
+          retention-days: 7
