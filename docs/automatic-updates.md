@@ -64,13 +64,13 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
   "notes": "此版本的更新说明",
   "artifacts": {
     "windows": {
-      "version": "1.0.0", "build": 5,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-x64.exe",
-      "file": "release/Zenix-Setup-1.0.0-x64.exe"
+      "version": "1.0.0", "build": 7,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r7-x64.exe",
+      "file": "release/Zenix-Setup-1.0.0-r7-x64.exe"
     },
     "android": {
-      "version": "1.0.0", "build": 5,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0.apk",
+      "version": "1.0.0", "build": 7,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r7.apk",
       "file": "android/app/build/outputs/apk/release/app-release.apk"
     }
   }
