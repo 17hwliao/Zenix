@@ -46,15 +46,15 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ### 首版 v1.0.0
 
-三端公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的三端工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前移动端修订为 r8，Android / iOS build 8；Windows 保留 r7。
+三端公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的三端工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前移动端修订为 r9，Android / iOS build 9；Windows 保留 r7。
 
 | 平台 | 发行内容 | 安装与更新 |
 | --- | --- | --- |
 | Windows x64 | Zenix-Setup-1.0.0-r7-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
-| Android | Zenix-Android-1.0.0-r8.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
-| iPhone / iPad | [Zenix-iOS-1.0.0-r8-unsigned.ipa](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-iOS-1.0.0-r8-unsigned.ipa) | iOS 15+、ARM64 真机 IPA；未签名，须自行签名侧载，不能直接点击文件安装。尚无 TestFlight / App Store 发行。 |
+| Android | Zenix-Android-1.0.0-r9.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
+| iPhone / iPad | [Zenix-iOS-1.0.0-r9-unsigned.ipa](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-iOS-1.0.0-r9-unsigned.ipa) | iOS 15+、ARM64 真机 IPA；未签名，须自行签名侧载，不能直接点击文件安装。尚无 TestFlight / App Store 发行。 |
 
-同页提供 SHA256SUMS-1.0.0-r8.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
+同页提供 SHA256SUMS-1.0.0-r9.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
 
 ### 应用更新与专用源入口
 
@@ -62,7 +62,7 @@ Windows / Android 校验签名更新清单与安装包，确认后安装；iOS �
 
 音乐源支持分享包文件与 HTTPS 分享链接，可保存自己的专用源入口；软件不附带源包。平台开发说明：[Android](docs/android.md)、[iOS](docs/ios.md)。
 
-稳定版移动端 r8 补齐金卡触摸捕获与后层取回抓取区，统一音源包、脚本与多脚本 ZIP 批量导入；r7 集成 Android / iOS 输入法遮挡修补、金卡上抛、环绕卡片密度、分享 ZIP 直接导入与页面过渡；PC 首页滚轮恢复页面上下滚动。说明见 [稳定版](docs/releases/v1.0.0.md) 与 [移动端修补记录](docs/releases/v1.0.1-mobile-fixes.md)。
+稳定版移动端 r9 将歌曲贴纸的聚焦查看与播放分离：点击贴纸只放大查看，点击播放按钮才切歌。r8 补齐金卡触摸捕获与后层取回抓取区，统一音源包、脚本与多脚本 ZIP 批量导入；r7 集成 Android / iOS 输入法遮挡修补、金卡上抛、环绕卡片密度、分享 ZIP 直接导入与页面过渡；PC 首页滚轮恢复页面上下滚动。说明见 [稳定版](docs/releases/v1.0.0.md) 与 [移动端修补记录](docs/releases/v1.0.1-mobile-fixes.md)。
 
 ### 首次使用
 
