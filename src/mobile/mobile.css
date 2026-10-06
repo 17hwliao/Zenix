@@ -19,6 +19,7 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .mobile-overlay{height:var(--visible-height,100dvh);bottom:auto}
 .keyboard-open .mobile-mini,.keyboard-open .mobile-nav{visibility:hidden;pointer-events:none}
 .mobile-search input{font-size:16px}
+.mobile-search{max-height:calc(var(--visible-height,100dvh) - 32px - env(safe-area-inset-top));overflow-y:auto;overscroll-behavior:contain}
 .mobile-sheet{max-height:calc(var(--visible-height,100dvh) - 24px)}
 /* Desktop's finite mosaic adapted to a touch camera; no duplicates or paging cards. */
 .mobile-content[data-page="space"]{padding:0}
