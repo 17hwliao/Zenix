@@ -9,6 +9,7 @@ const argumentsList = process.argv.slice(2);
 const value = flag => argumentsList[argumentsList.indexOf(flag) + 1];
 const tag = value('--tag'), notes = value('--notes'), title = value('--title');
 const replaceStable = argumentsList.includes('--replace-stable'), stageAssets = argumentsList.includes('--stage-assets');
+const retireIOS = argumentsList.includes('--retire-ios');
 if ((replaceStable || stageAssets) && (argumentsList.includes('--draft') || argumentsList.includes('--prerelease'))) throw new Error('Stable replacement cannot be draft or prerelease');
 const assets = argumentsList.flatMap((argument, index) => argument === '--asset' ? [argumentsList[index + 1]] : []);
 if (!tag || !notes || !title || !assets.length || !/^v[\w.-]+$/.test(tag)) throw new Error('Required: --tag --notes --title and --asset');
@@ -55,7 +56,8 @@ async function publish() {
   if (replaceStable || stageAssets) {
     if (release.draft || release.prerelease) throw new Error('Replacement requires an existing stable release');
     const names = prepared.map(asset => asset.name);
-    if (!names.some(name => /^Zenix-Setup-.*-x64\.exe$/.test(name)) || !names.some(name => /^Zenix-Android-.*\.apk$/.test(name)) || !names.some(name => /^Zenix-iOS-.*\.ipa$/.test(name)) || !names.some(name => /^SHA256SUMS-.*\.txt$/.test(name)) || !names.includes('stable.json')) throw new Error('Stable replacement requires all three platform builds, checksums and signed feed');
+    if (!names.some(name => /^Zenix-Setup-.*-x64\.exe$/.test(name)) || !names.some(name => /^Zenix-Android-.*\.apk$/.test(name)) || (!retireIOS && !names.some(name => /^Zenix-iOS-.*\.ipa$/.test(name))) || !names.some(name => /^SHA256SUMS-.*\.txt$/.test(name)) || !names.includes('stable.json')) throw new Error('Stable replacement requires Windows, Android, checksums and signed feed; include iOS unless --retire-ios is explicitly selected');
+    if (retireIOS && names.some(name => /^Zenix-iOS-/.test(name))) throw new Error('Retired iOS assets must not be published');
   }
   const ready = [];
   for (const asset of prepared) {

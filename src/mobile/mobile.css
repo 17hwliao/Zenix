@@ -86,3 +86,12 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .mobile-nav>button{position:relative;isolation:isolate;flex:1;margin:0 4px;min-height:50px;border-radius:20px;transition:color .2s}
 .mobile-nav-selection{position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:20px;background:#ffffff0e;border:1px solid #ffffff12}
 .mobile-content{width:100%}
+
+/* Only the gray card surfaces fade; labels and the personal gold card stay readable. */
+.page-home .orbit-satellite.glass,.page-home .collection-card.glass{background:linear-gradient(145deg,rgb(255 255 255 / calc(.075 * var(--home-card-alpha,1))),rgb(25 27 37 / calc(.45 * var(--home-card-alpha,1))))}
+.page-home .orbit-satellite>.mobile-art,.page-home .orbit-satellite:after{opacity:var(--home-card-alpha,1)}
+#card-transparency{width:100%;accent-color:#c5e9ff}
+.space-caption{transition:opacity .25s ease,transform .25s ease}
+.space-caption.is-hidden{opacity:0;transform:translateY(-8px);pointer-events:none}
+.space-caption.is-visible{opacity:1;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.space-caption{transition:none}}

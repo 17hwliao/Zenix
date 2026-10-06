@@ -25,6 +25,11 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
   const animations = useRef<ReturnType<typeof animate>[]>([]);
   const [size, setSize] = useState({ width: 390, height: 500 }), [selected, setSelected] = useState(0), [moving, setMoving] = useState(false);
   const signature = songs.map(song => song.id).join('|'), player = state.playback;
+  const [captionVisible, setCaptionVisible] = useState(true);
+  const captionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  function showCaption() { clearTimeout(captionTimer.current); setCaptionVisible(true); }
+  function hideCaptionLater() { clearTimeout(captionTimer.current); captionTimer.current = setTimeout(() => setCaptionVisible(false), 3000); }
+  useEffect(() => { showCaption(); hideCaptionLater(); return () => clearTimeout(captionTimer.current); }, [player.track?.id, label]);
   const slots = useMemo(() => stickerSlotsForCount(songs.length), [songs.length]);
   const expanded = useMemo(() => expandedStickerLayout(Math.min(selected, songs.length - 1), slots), [selected, slots, songs.length]);
   const pitch = Math.max(39, Math.min(85, (size.width - 32) / 6));
@@ -45,8 +50,8 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
   useEffect(() => { const element = viewport.current; if (!element) return; const observer = new ResizeObserver(entries => { const { width, height } = entries[0].contentRect; setSize({ width, height }); }); observer.observe(element); return () => observer.disconnect(); }, []);
   useEffect(() => { const current = songs.findIndex(song => song.id === player.track?.id); focus(current >= 0 ? current : 0); }, [signature, focusRequest, size.width, size.height]);
   useEffect(() => () => stop(), []);
-  return <section className={`mobile-space ${moving ? 'is-panning' : ''}`}>
-    <div className="space-caption glass"><span>{label}</span><small>{songs.length} 首</small><button aria-label="聚焦当前歌曲" onClick={() => { const index = songs.findIndex(song => song.id === player.track?.id); focus(index >= 0 ? index : selected); }}><Crosshair /></button></div>
+  return <section className={`mobile-space ${moving ? 'is-panning' : ''}`} onPointerDownCapture={showCaption} onPointerUpCapture={hideCaptionLater} onPointerCancelCapture={hideCaptionLater}>
+    <div className={`space-caption glass ${captionVisible ? "is-visible" : "is-hidden"}`} aria-hidden={!captionVisible}><span>{player.track ? `${player.playing ? "正在播放" : "已暂停"} · ${player.track.title}` : label}</span><small>{songs.length} 首</small><button tabIndex={captionVisible ? 0 : -1} aria-label="聚焦当前歌曲" onClick={() => { const index = songs.findIndex(song => song.id === player.track?.id); focus(index >= 0 ? index : selected); }}><Crosshair /></button></div>
     <div ref={viewport} className="space-viewport" onPointerDown={event => {
       if (event.button !== 0 || (event.target as Element).closest('.sticker-toolbar, input, .focused-lyrics')) return;
       stop(); dragged.current = false; gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, cx: x.get(), cy: y.get(), moved: false };

@@ -6,7 +6,7 @@ export type MobileSnapshot = {
   personal: PersonalState;
   sources: InstalledSource[];
   cache: { usedBytes: number; limitMiB: number; enabled: boolean };
-  profile?: { name: string; bio: string; email?: string; lyricSize?: number; lyricColor?: string };
+  profile?: { name: string; bio: string; email?: string; lyricSize?: number; lyricColor?: string; cardTransparency?: number };
   appearance?: { completed: boolean; background: { kind: 'image' | 'video'; name: string; url: string } | null };
   localTracks?: Track[];
   overlay?: { enabled: boolean; permitted: boolean; locked: boolean; compact: boolean; fontSize: number; color: string; font?: string };
