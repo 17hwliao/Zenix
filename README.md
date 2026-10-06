@@ -53,9 +53,8 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 | Windows x64 | Zenix-Setup-1.0.0-r7-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
 | Android | Zenix-Android-1.0.0-r8.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
 | iPhone / iPad | [Zenix-iOS-1.0.0-r8-unsigned.ipa](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-iOS-1.0.0-r8-unsigned.ipa) | iOS 15+、ARM64 真机 IPA；未签名，须自行签名侧载，不能直接点击文件安装。尚无 TestFlight / App Store 发行。 |
-| iOS Simulator | Zenix-iOS-1.0.0-r8-Simulator.zip 与源码工程 | 仅供 Mac / Xcode 模拟器使用，不能安装到 iPhone。 |
 
-同页提供 SHA256SUMS-1.0.0-r8.txt 校验文件、iOS 签名安装说明，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
+同页提供 SHA256SUMS-1.0.0-r8.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。三端打包不代表已完成所有真机功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
 
 ### 应用更新与专用源入口
 
