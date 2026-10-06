@@ -95,3 +95,9 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .space-caption.is-hidden{opacity:0;transform:translateY(-8px);pointer-events:none}
 .space-caption.is-visible{opacity:1;transform:translateY(0)}
 @media(prefers-reduced-motion:reduce){.space-caption{transition:none}}
+
+.zenix-mobile .mobile-boot{pointer-events:auto}
+.zenix-mobile .zenix-intro-skip{top:calc(16px + env(safe-area-inset-top));right:18px;min-height:44px}
+.zenix-mobile .zenix-intro-emblem{width:min(62vw,300px);height:min(62vw,300px)}
+.zenix-mobile .zenix-intro-wordmark{margin-top:-14px;font-size:clamp(52px,13vw,76px)}
+.zenix-mobile .zenix-intro-caption{font-size:9px;letter-spacing:.3em;gap:12px}

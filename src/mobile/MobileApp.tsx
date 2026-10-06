@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Captions, Check, Disc3, FolderOpen, Heart, Home, ImagePlus, ListMusic, LoaderCircle, Music2, Pause, Pencil, Play, Plus, Search, Settings2, SkipForward, Star, Trash2, X } from 'lucide-react';
@@ -12,6 +12,8 @@ import StickerSpace from './StickerSpace';
 import './mobile.css';
 import SourceBundleImport from '../ui/SourceBundleImport';
 import UpdateSettings from '../ui/UpdateSettings';
+
+const ZenixIntro = lazy(() => import('../ui/ZenixIntro'));
 
 type Page = 'home' | 'space' | 'sources' | 'settings';
 const pageOrder: Page[] = ['home', 'space', 'sources', 'settings'];
@@ -36,6 +38,8 @@ export default function MobileApp() {
   const [name, setName] = useState(''), [bio, setBio] = useState(''), [email, setEmail] = useState(''), [editing, setEditing] = useState('');
   const [url, setUrl] = useState(''), [importing, setImporting] = useState(false), [preview, setPreview] = useState<SourcePreview>();
   const [full, setFull] = useState(false), [focusRequest, setFocusRequest] = useState(0), [boot, setBoot] = useState(true);
+  const [bootReady, setBootReady] = useState(!isNativeMobile);
+  const finishBoot = useCallback(() => setBoot(false), []);
   const query = useRef(0), lastBack = useRef(0), backdropVideo = useRef<HTMLVideoElement>(null);
   const [collectionId, setCollectionId] = useState('history');
   const [legal, setLegal] = useState('');
@@ -56,8 +60,8 @@ export default function MobileApp() {
     clearTimeout(opacitySave.current);
     opacitySave.current = setTimeout(() => { void act('profile', { ...profileRef.current }); }, 300);
   }
-  useEffect(() => { if (backdropVideo.current) { if (full || document.hidden) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } }, [full, background?.url]);
-  useEffect(() => { const update = () => { document.documentElement.classList.toggle('mobile-suspended', document.hidden); if (backdropVideo.current) { if (document.hidden || full) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } if (!document.hidden && isNativeMobile) void command<MobileSnapshot>('snapshot').then(setState).catch(() => {}); }; document.addEventListener('visibilitychange', update); return () => { document.removeEventListener('visibilitychange', update); document.documentElement.classList.remove('mobile-suspended'); }; }, [full]);
+  useEffect(() => { if (backdropVideo.current) { if (full || boot || document.hidden) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } }, [full, boot, background?.url]);
+  useEffect(() => { const update = () => { document.documentElement.classList.toggle('mobile-suspended', document.hidden); if (backdropVideo.current) { if (document.hidden || full || boot) backdropVideo.current.pause(); else void backdropVideo.current.play().catch(() => {}); } if (!document.hidden && isNativeMobile) void command<MobileSnapshot>('snapshot').then(setState).catch(() => {}); }; document.addEventListener('visibilitychange', update); return () => { document.removeEventListener('visibilitychange', update); document.documentElement.classList.remove('mobile-suspended'); }; }, [full, boot]);
   useEffect(() => {
     if (page !== 'space') return;
     if (collectionId === 'liked') setWall(personal.liked);
@@ -72,10 +76,12 @@ export default function MobileApp() {
     let alive = true, stop: (() => void) | undefined;
     if (!isNativeMobile) return;
     void observe(snapshot => { if (alive && !document.hidden) setState(previous => snapshot.personal ? snapshot as MobileSnapshot : { ...previous, ...snapshot, playback: { ...previous.playback, ...snapshot.playback } }); }).then(handle => { if (!alive) void handle.remove(); else stop = () => { void handle.remove(); }; });
-    const timer = setTimeout(() => { void command<MobileSnapshot>('snapshot').then(snapshot => { if (alive) { setState(snapshot); if (!snapshot.appearance?.completed) setModal('welcome'); } }).catch(e => setToast(String(e))); }, 650);
+    const timer = setTimeout(() => { void command<MobileSnapshot>('snapshot').then(snapshot => { if (alive) { setState(snapshot); if (!snapshot.appearance?.completed) setModal('welcome'); } }).catch(e => setToast(String(e))).finally(() => { if (alive) setBootReady(true); }); }, 650);
     return () => { alive = false; clearTimeout(timer); stop?.(); };
   }, []);
-  useEffect(() => { const timer = setTimeout(() => setBoot(false), 1100); return () => clearTimeout(timer); }, []);
+  // Wait for saved appearance before starting the full intro. Never wait on music sources.
+  useEffect(() => { const timer = setTimeout(() => setBootReady(true), 1800); return () => clearTimeout(timer); }, []);
+  useEffect(() => { if (!boot) return; const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = overflow; }; }, [boot]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 4200); return () => clearTimeout(timer); }, [toast]);
   useEffect(() => {
     const back = () => { if (modal) setModal(null); else if (preview) setPreview(undefined); else if (searchOpen) setSearchOpen(false); else if (full) setFull(false); else if (page !== 'home') setPage('home'); else if (Date.now() - lastBack.current < 1800) void act('exit'); else { lastBack.current = Date.now(); setToast('再按一次返回退出界面，音乐继续播放'); } };
@@ -143,6 +149,6 @@ export default function MobileApp() {
       {modal === 'create' && <form onSubmit={async event => { event.preventDefault(); if (await act('personal', { operation: editing ? 'renamePlaylist' : 'createPlaylist', id: editing, name, ...(adding ? { track: adding } : {}) })) { setModal('lists'); setAdding(undefined); } }}><h2>{editing ? '重命名歌单' : '新建歌单'}</h2><input autoFocus maxLength={80} value={name} placeholder="给歌单起个名字" onChange={event => setName(event.target.value)} /><button className="pill" disabled={!name.trim()} type="submit"><Check />保存</button></form>}
       {modal === 'lists' && <><h2>我的歌单</h2>{personal.playlists.map(list => <div className="list-row" key={list.id}><button onClick={() => { collection(list.name, list.tracks, list.id); setModal(null); }}><Art track={list.tracks[0]} /><span>{list.name}<small>{list.tracks.length} 首</small></span></button><button aria-label="重命名" onClick={() => { setName(list.name); setEditing(list.id); setAdding(undefined); setModal('create'); }}><Pencil /></button><button aria-label="删除歌单" onClick={() => { if (window.confirm(`删除歌单「${list.name}」？`)) saved('deletePlaylist', { id: list.id }); }}><Trash2 /></button></div>)}<button className="pill" onClick={() => newList()}><Plus />新建歌单</button></>}
     </motion.section></motion.div>}</AnimatePresence>
-    {toast && <div className="mobile-toast glass" role="status">{toast}</div>}{!isNativeMobile && <div className="preview-label">{mobilePlatform} 界面预览 · 原生功能需安装应用</div>}{boot && <motion.div className="mobile-boot" initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ delay: .7, duration: .4 }}><motion.div initial={{ scale: .65, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}><Disc3 size={60} /><h1>Zenix<span>.</span></h1><p>你的音乐，自成宇宙。</p></motion.div></motion.div>}
+    {toast && <div className="mobile-toast glass" role="status">{toast}</div>}{!isNativeMobile && <div className="preview-label">{mobilePlatform} 界面预览 · 原生功能需安装应用</div>}{boot && <Suspense fallback={<div className="mobile-boot" role="status" aria-label="Zenix 正在启动"><div><Disc3 /><h1>Zenix<span>.</span></h1></div></div>}>{bootReady ? <ZenixIntro onFinish={finishBoot} background={background ? { ...background, url: fileUrl(background.url)! } : null} /> : <div className="mobile-boot" role="status" aria-label="正在读取个人背景"><div><Disc3 /><h1>Zenix<span>.</span></h1></div></div>}</Suspense>}
   </div>;
 }
