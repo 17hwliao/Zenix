@@ -70,7 +70,7 @@ public class ZenixNativePlugin extends Plugin {
                 case "lyrics":value=runtime.sources.lyrics(args.getJSONObject("track"));break;
                 case "sourceDigest":String digestText=args.getString("text");if(digestText.getBytes(StandardCharsets.UTF_8).length>512*1024)throw new Exception("脚本不能超过 512 KiB");value=MusicSources.sha(digestText);break;
                 case "importUrl":value=runtime.sources.importUrl(args.getString("url"));break;
-                case "previewSourceText":String sourceOrigin=args.getString("url");java.net.URI sourceAddress=new java.net.URI(sourceOrigin);if(!java.util.Set.of("https","http").contains(sourceAddress.getScheme())||sourceAddress.getHost()==null||sourceAddress.getUserInfo()!=null)throw new Exception("分享源地址无效");value=runtime.sources.preview(args.getString("text"),sourceOrigin,"url");break;
+                case "previewSourceText":String sourceOrigin=args.getString("url");boolean localSource=args.optString("originKind").equals("file");if(localSource){if(sourceOrigin.isBlank()||sourceOrigin.length()>240)throw new Exception("本地源文件名无效");}else{java.net.URI sourceAddress=new java.net.URI(sourceOrigin);if(!java.util.Set.of("https","http").contains(sourceAddress.getScheme())||sourceAddress.getHost()==null||sourceAddress.getUserInfo()!=null)throw new Exception("分享源地址无效");}value=runtime.sources.preview(args.getString("text"),sourceOrigin,localSource?"file":"url");break;
                 case "install":value=runtime.sources.install(args.getString("token"));break;
                 case "sourceEnable":value=runtime.sources.update(args.getString("id"),"enable",args);break;
                 case "sourceRemove":value=runtime.sources.update(args.getString("id"),"remove",args);break;

@@ -66,6 +66,8 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 /* Only the card owns vertical tossing; the surrounding page keeps native scrolling. */
 .orbit-track{z-index:2;pointer-events:none}
 .orbit-gold,.orbit-gold .gold-card{touch-action:none;-webkit-user-drag:none}
+.gold-grip{position:absolute;top:30px;left:calc(50% - 82px);width:164px;height:40px;z-index:30;display:flex;justify-content:center;align-items:center;touch-action:none;cursor:grab;border-radius:20px;background:linear-gradient(#171a2040,transparent)}
+.gold-grip>span{width:38px;height:4px;border-radius:99px;background:#e9d59aaa;pointer-events:none}
 .continuous-orbit{-webkit-touch-callout:none}
 .gold-card>img,.orbit-satellite>.mobile-art{pointer-events:none;-webkit-user-drag:none}
 .gold-layer-toggle{border:1px solid #ffffff20;border-radius:50%;min-width:36px;padding:7px}

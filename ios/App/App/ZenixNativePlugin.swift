@@ -71,8 +71,13 @@ public final class ZenixNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPic
                             case "importUrl": value = try sources.importURL(args["url"] as? String ?? "")
                             case "previewSourceText":
                                 let origin = args["url"] as? String ?? ""
-                                guard let address = URL(string: origin), ["http", "https"].contains(address.scheme ?? ""), address.host != nil, address.user == nil, address.password == nil else { throw failure("分享源地址无效") }
-                                value = try sources.preview(args["text"] as? String ?? "", origin: origin, kind: "url")
+                                let localSource = args["originKind"] as? String == "file"
+                                if localSource {
+                                    guard !origin.isEmpty, origin.count <= 240 else { throw failure("本地源文件名无效") }
+                                } else {
+                                    guard let address = URL(string: origin), ["http", "https"].contains(address.scheme ?? ""), address.host != nil, address.user == nil, address.password == nil else { throw failure("分享源地址无效") }
+                                }
+                                value = try sources.preview(args["text"] as? String ?? "", origin: origin, kind: localSource ? "file" : "url")
                             case "install": value = try sources.install(args["token"] as? String ?? "")
                             case "sourceEnable", "sourceRemove", "sourceConfigure": value = try sources.update(args["id"] as? String ?? "", action: action == "sourceEnable" ? "enable" : action == "sourceRemove" ? "remove" : "configure", args: args)
                             case "personal": value = try store.personal(args["operation"] as? String ?? "", args)

@@ -5,9 +5,9 @@ import './SourceBundleImport.css';
 import { invokeUpdate, updateSupported } from '../core/updates';
 
 type Result = { name: string; url: string; error?: string };
-type Props = { disabled?: boolean; install(entry: SourceBundleEntry): Promise<void>; onBusy?(busy: boolean): void; pickFile?(): Promise<{ name: string; base64: string } | null>; digest?(text: string): Promise<string> };
+type Props = { disabled?: boolean; install(entry: SourceBundleEntry): Promise<void>; onBusy?(busy: boolean): void; pickFile?(): Promise<{ name: string; base64: string } | null>; digest?(text: string): Promise<string>; localScripts?: boolean };
 
-export default function SourceBundleImport({ disabled, install, onBusy, pickFile, digest }: Props) {
+export default function SourceBundleImport({ disabled, install, onBusy, pickFile, digest, localScripts = false }: Props) {
   const input = useRef<HTMLInputElement>(null), stopped = useRef(false), mounted = useRef(true), running = useRef(false);
   const [bundle, setBundle] = useState<SourceBundle | null>(null), [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Result[]>([]), [active, setActive] = useState(''), [error, setError] = useState('');
@@ -17,19 +17,19 @@ export default function SourceBundleImport({ disabled, install, onBusy, pickFile
   async function read(file?: File) {
     if (!file) return;
     setError(''); setBundle(null); setResults([]);
-    try { if (file.size > MAX_BUNDLE_BYTES) throw new Error('分享源包不能超过 8 MiB'); setBundle(await readSourceBundleFile(new Uint8Array(await file.arrayBuffer()))); }
+    try { if (file.size > MAX_BUNDLE_BYTES) throw new Error('分享源包不能超过 8 MiB'); setBundle(await readSourceBundleFile(new Uint8Array(await file.arrayBuffer()), { name: file.name, localScripts, digest })); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   }
   async function pick() {
     if (!pickFile) { input.current?.click(); return; }
-    setFetching(true); onBusy?.(true); setError('');
+    setFetching(true); onBusy?.(true); setError(''); setBundle(null); setResults([]);
     try {
       const file = await pickFile();
       if (!file) return;
       if (file.base64.length > Math.ceil(MAX_BUNDLE_BYTES / 3) * 4) throw new Error('分享源包不能超过 8 MiB');
       const binary = atob(file.base64), bytes = new Uint8Array(binary.length);
       for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
-      const next = await readSourceBundleFile(bytes);
+      const next = await readSourceBundleFile(bytes, { name: file.name, localScripts, digest });
       if (mounted.current) { setBundle(next); setResults([]); }
     } catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (mounted.current) setFetching(false); onBusy?.(false); }
@@ -69,16 +69,16 @@ export default function SourceBundleImport({ disabled, install, onBusy, pickFile
   }
   const failures = results.filter(result => result.error).length;
   return <section className="zenix-bundle-import" aria-label="音乐源分享包" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (!busy && !fetching && !disabled) void read(event.dataTransfer.files[0]); }}>
-    <input ref={input} hidden type="file" accept=".zenixsources,.json,.zip,application/json,application/zip" disabled={busy || disabled} onChange={event => { void read(event.target.files?.[0]); event.target.value = ''; }} />
-    <button type="button" className="zenix-bundle-pick" disabled={busy || fetching || disabled} onClick={() => void pick()}><FilePlus2 size={17} />导入分享源包 / ZIP</button>
+    <input ref={input} hidden type="file" accept={localScripts ? '.zenixsources,.zenixsource,.js,.json,.zip' : '.zenixsources,.json,.zip,application/json,application/zip'} disabled={busy || disabled} onChange={event => { void read(event.target.files?.[0]); event.target.value = ''; }} />
+    <button type="button" className="zenix-bundle-pick" disabled={busy || fetching || disabled} onClick={() => void pick()}><FilePlus2 size={17} />{localScripts ? '一键导入本地音源包 / 脚本' : '导入分享源包 / ZIP'}</button>
     <button type="button" className="zenix-bundle-pick" disabled={busy || fetching || disabled || !updateSupported()} onClick={() => void loadLink(true)}>载入专用源包</button>
     <div className="zenix-bundle-link"><input type="url" aria-label="分享源包链接" placeholder="粘贴 .zenixsources 的 HTTPS 分享链接" value={address} onChange={event => setAddress(event.target.value)} /><button type="button" disabled={busy || fetching || disabled || !address.trim() || !updateSupported()} onClick={() => void loadLink()}>{fetching ? '正在获取…' : '获取源包'}</button></div>
     {address.trim() && <button type="button" disabled={busy || fetching || disabled} onClick={() => { try { const url = new URL(address.trim()); if (url.protocol !== 'https:' || url.username || url.password) throw new Error('请填写无用户名和密码的 HTTPS 分享链接'); localStorage.setItem('zenix.sources.bundleUrl', url.href); setManagedAddress(url.href); setError(''); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } }}>设为我的专用源入口</button>}
     {managedAddress && <small>专用源入口：{new URL(managedAddress).hostname} · 包更新后再次载入即可</small>}
-    {!bundle && <small>直接选择收到的 .zenixsources、JSON 或分享 ZIP，无需解压；单个 .js 脚本使用上方文件入口。</small>}
+    {!bundle && <small>{localScripts ? '选择源包、ZIP 或单个脚本，自动识别；ZIP 内多份脚本一次全部添加，无需解压。' : '直接选择收到的 .zenixsources、JSON 或分享 ZIP，无需解压；单个 .js 脚本使用上方文件入口。'}</small>}
     {bundle && <div className="zenix-bundle-preview"><strong>{bundle.name} · {bundle.sources.length} 个音乐源</strong>
       <p>确认后会运行包内脚本；缺少脚本的条目将从原始地址获取。仅添加你信任的分享包。</p>
-      <ol>{bundle.sources.map((entry, index) => <li key={entry.url}><span>{String(index + 1).padStart(2, '0')} · {entry.name}</span><small>{entry.script ? '内含脚本' : '联网获取'} · {new URL(entry.url).hostname}</small></li>)}</ol>
+      <ol>{bundle.sources.map((entry, index) => <li key={entry.url}><span>{String(index + 1).padStart(2, '0')} · {entry.name}</span><small>{entry.local ? '本地脚本，无需下载' : `${entry.script ? '内含脚本' : '联网获取'} · ${new URL(entry.url).hostname}`}</small></li>)}</ol>
       <div role="status" aria-live="polite">{busy ? <><LoaderCircle size={15} className="zenix-bundle-spin" />正在添加 {active} · {results.length}/{bundle.sources.length}</> : results.length > 0 ? `已成功 ${results.length - failures} 个，失败 ${failures} 个${results.length < bundle.sources.length ? '，剩余未处理' : ''}` : '按上述顺序添加；已有同地址的源更新后保留原顺序。'}</div>
       {failures > 0 && <ul className="zenix-bundle-errors">{results.filter(result => result.error).map(result => <li key={result.url}>{result.name}：{result.error}</li>)}</ul>}
       <footer>{busy ? <button type="button" onClick={() => { stopped.current = true; }}>完成当前后停止</button> : <><button type="button" onClick={() => { setBundle(null); setResults([]); }}>关闭</button>{failures > 0 && <button type="button" disabled={disabled} onClick={() => void start(true)}>重试失败项</button>}<button type="button" disabled={disabled} onClick={() => void start()}>{results.length ? '重新导入全部' : '确认批量添加'}</button></>}</footer>

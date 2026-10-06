@@ -23,7 +23,7 @@ function Satellite({ card, angle, index, step, open }: { card: Card; angle: Retu
 }
 
 /** Every card stays mounted. Dragging changes one continuous angle, then snaps. */
-export default function OrbitCards({ cards, gold, onOpen }: { cards: Card[]; gold: ReactNode; onOpen: (index: number) => void }) {
+export default function OrbitCards({ cards, gold, onOpen, onEditGold }: { cards: Card[]; gold: ReactNode; onOpen: (index: number) => void; onEditGold: () => void }) {
   const angle = useMotionValue(0), reduced = useReducedMotion();
   const goldY = useMotionValue(0), step = 360 / cards.length;
   const [behind, setBehind] = useState(() => { try { return localStorage.getItem('zenix.mobile.goldLayer') === 'back'; } catch { return false; } });
@@ -51,15 +51,23 @@ export default function OrbitCards({ cards, gold, onOpen }: { cards: Card[]; gol
   }
   function open(index: number) { if (!suppress.current) onOpen(index); }
   return <>
-    <div className="mobile-orbit continuous-orbit" onPointerDown={event => {
-      if (event.button !== 0 || tossing.current) return;
+    <div className="mobile-orbit continuous-orbit" onPointerDownCapture={event => {
+      if (event.button !== 0 || !event.isPrimary || tossing.current || gesture.current) return;
       control.current?.stop(); suppress.current = false;
       goldControl.current?.stop();
-      gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, start: angle.get(), time: performance.now(), velocity: 0, moved: false, horizontal: false, gold: (event.target as Element).closest('.orbit-gold') !== null, vertical: false };
+      const gold = (event.target as Element).closest('.orbit-gold, .gold-grip') !== null;
+      gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, start: angle.get(), time: performance.now(), velocity: 0, moved: false, horizontal: false, gold, vertical: false };
+      // Own the pointer before child tap animations or WebView scrolling can claim it.
+      if (gold) { event.currentTarget.setPointerCapture(event.pointerId); event.stopPropagation(); }
     }} onPointerMove={event => {
       const drag = gesture.current; if (!drag || drag.id !== event.pointerId) return;
       const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
-      if (!drag.moved && Math.hypot(dx, dy) > 9) { drag.moved = true; drag.horizontal = Math.abs(dx) > Math.abs(dy) * 1.15; drag.vertical = drag.gold && dy < 0 && Math.abs(dy) > Math.abs(dx) * 1.15; if (drag.horizontal || drag.vertical) event.currentTarget.setPointerCapture(event.pointerId); }
+      if (!drag.moved && Math.hypot(dx, dy) > 9) {
+        drag.horizontal = Math.abs(dx) > Math.abs(dy) * 1.15;
+        drag.vertical = drag.gold && dy < -9 && Math.abs(dy) > Math.abs(dx) * 1.1;
+        drag.moved = drag.horizontal || drag.vertical;
+        if (drag.moved) event.currentTarget.setPointerCapture(event.pointerId);
+      }
       if (drag.vertical) { event.preventDefault(); suppress.current = true; goldY.set(Math.max(-155, Math.min(0, dy))); return; }
       if (!drag.horizontal) return;
       suppress.current = true; const now = performance.now();
@@ -69,11 +77,16 @@ export default function OrbitCards({ cards, gold, onOpen }: { cards: Card[]; gol
     }} onPointerUp={event => {
       const drag = gesture.current; if (!drag || drag.id !== event.pointerId) return;
       if (drag.horizontal) { const speed = performance.now() - drag.time < 90 ? drag.velocity : 0; snap(angle.get() + Math.max(-55, Math.min(55, speed * 65))); }
-      if (drag.vertical) { if (goldY.get() < -64) void toss(); else goldControl.current = animate(goldY, 0, spring); }
+      if (drag.vertical) { if (goldY.get() <= -56) void toss(); else goldControl.current = animate(goldY, 0, spring); }
+      if (drag.gold && !drag.moved) {
+        suppress.current = true;
+        if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <= 9) onEditGold();
+      }
       gesture.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     }} onPointerCancel={() => { gesture.current = null; snap(angle.get()); goldControl.current = animate(goldY, 0, spring); }} onClickCapture={event => { if (suppress.current || tossing.current) { event.preventDefault(); event.stopPropagation(); suppress.current = false; } }}>
       <div className="orbit-track" aria-label="环绕卡片">{cards.map((card, index) => <Satellite key={card.title} card={card} index={index} step={step} angle={angle} open={() => open(index)} />)}</div>
       <motion.div className="orbit-gold" style={{ y: goldY, zIndex: behind ? 1 : 20 }}>{gold}</motion.div>
+      {behind && <motion.div className="gold-grip" style={{ y: goldY }} role="button" tabIndex={0} aria-label="按住向上拉，取回个人金卡" onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void toss(); } }}><span /></motion.div>}
     </div>
     <div className="orbit-switch"><button aria-label="上一张卡片" onClick={() => snap(destination.current + step)}><ArrowLeft /></button><button className="glass" onClick={() => onOpen(selected)}>{cards[selected].title}<ArrowRight /></button><button aria-label="下一张卡片" onClick={() => snap(destination.current - step)}><ArrowRight /></button><button className="gold-layer-toggle" aria-label={behind ? '将金卡拿回前方' : '将金卡上抛到后方'} onClick={() => void toss()}><ArrowUp /></button></div>
   </>;
