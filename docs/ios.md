@@ -1,12 +1,14 @@
 # Zenix iOS 适配工程
 
+> 2026-10-06：按作者要求暂停 iOS 发行并移除稳定版 IPA。以下保留开发工程与历史构建说明；当前不提供 iOS 安装包。
+
 iOS 沿用手机端 React、旋转个人卡片、玻璃搜索条与歌曲贴纸，不运行 Electron，也不引入 Go。原生部分使用 Swift、AVPlayer 和 JavaScriptCore。
 
 1.0.0 源码新增签名清单检查、TestFlight / App Store 更新入口、分享源包链接载入及签名 archive 工作流。新增原生代码已在 GitHub macOS runner 编译通过；Apple 凭据和发行渠道仍待配置，见 [自动更新与签名说明](automatic-updates.md)。
 
 ## 当前状态
 
-1.0.0 / build 9 稳定版下载仅提供 **ARM64 未签名真机 IPA**；模拟器 App 保留为开发用 Actions 工件，完整工程随源码提供。[真机 Release archive 构建](https://github.com/17hwliao/Zenix/actions/runs/37428512245)已通过；IPA 平台为 iPhoneOS，最低系统 iOS 15。下载后必须自行签名侧载，不能直接点击文件安装。尚未执行 Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
+此前 1.0.0 / build 9 曾提供 **ARM64 未签名真机 IPA**，现已从稳定版移除；模拟器 App 保留为开发用 Actions 工件，完整工程随源码提供。[真机 Release archive 构建](https://github.com/17hwliao/Zenix/actions/runs/37428512245)已通过；IPA 平台为 iPhoneOS，最低系统 iOS 15。下载后必须自行签名侧载，不能直接点击文件安装。尚未执行 Apple 签名或 iPhone 真机验收；下表描述代码接入范围，不表示已通过设备验证。
 
 | 模块 | 接入范围 |
 | --- | --- |
@@ -98,7 +100,7 @@ xcrun simctl launch booted com.zenix.musicplayer
 
 没有 Apple 开发者发行凭据时，可先生成 **未签名真机 IPA**，之后由使用者以自己的有效 Apple 身份和描述文件签名侧载。这个文件不能通过点击下载文件直接安装；不是已经发行签名的安装器，也没有完成 iPhone 真机验收。
 
-已发布的 [Zenix-iOS-1.0.0-r9-unsigned.ipa](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-iOS-1.0.0-r9-unsigned.ipa) 为 894,253 字节，SHA256：`abafcb74304b99d2d2d8febecb32d3f57dd12d04601915e2cb953413538a075e`。安装要求在 Release 正文与本文中说明；封装元数据仅保留在构建工件中。此 IPA 与模拟器 ZIP 分开构建，核对了包内 Info.plist、Mach-O 的 ARM64 CPU 和 iOS 平台标识。
+历史工件 `Zenix-iOS-1.0.0-r9-unsigned.ipa`（已移除下载） 为 894,253 字节，SHA256：`abafcb74304b99d2d2d8febecb32d3f57dd12d04601915e2cb953413538a075e`。安装要求在 Release 正文与本文中说明；封装元数据仅保留在构建工件中。此 IPA 与模拟器 ZIP 分开构建，核对了包内 Info.plist、Mach-O 的 ARM64 CPU 和 iOS 平台标识。
 
 ```sh
 npm ci
