@@ -272,7 +272,7 @@ class PlayerController {
       }
     }
     this.emitLifecycle('selected');
-    await this.play();
+    await this.play(false, origin === 'roaming');
   }
 
   private select(index: number): void {
@@ -289,8 +289,8 @@ class PlayerController {
     this.updateMediaMetadata();
   }
 
-  async play(isRetry = false): Promise<void> {
-    if (!isRetry && this.resumeHandler && await this.resumeHandler()) return;
+  async play(isRetry = false, bypassResume = false): Promise<void> {
+    if (!isRetry && !bypassResume && this.resumeHandler && await this.resumeHandler()) return;
     if (!this.state.track) return;
     if (!isRetry && this.state.error && this.state.track.source === 'custom') {
       this.failedAttempts.clear();
