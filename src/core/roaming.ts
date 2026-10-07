@@ -25,6 +25,7 @@ class RoamingController {
   private generation = 0;
   private abort?: AbortController;
   private advancing = false;
+  private resumeAdvance = false;
   private filling?: Promise<void>;
   private foregroundRequested = false;
   private failureQueued = false;
@@ -87,6 +88,7 @@ class RoamingController {
   }
   private lifecycle(event: PlaybackLifecycle): void {
     if (event.type === 'pause-request' && this.status.active && this.advancing) {
+      this.resumeAdvance = true;
       this.generation += 1; this.abort?.abort(); this.abort = new AbortController();
       this.advancing = false; this.filling = undefined; this.failureQueued = false;
       this.update({ phase: 'paused', message: '漫游已暂停，点击继续漫游恢复' });
@@ -130,13 +132,14 @@ class RoamingController {
       throw new Error('先搜索并听一首歌曲，再开始音乐漫游');
     }
     if (this.status.active && this.status.phase === 'playing') return;
-    if (this.status.active && this.status.phase === 'paused' && player.snapshot.track && this.viewed.some(track => track.id === player.snapshot.track?.id) && !player.snapshot.error) {
+    if (this.status.active && this.status.phase === 'paused' && !this.resumeAdvance && player.snapshot.track && this.viewed.some(track => track.id === player.snapshot.track?.id) && !player.snapshot.error) {
       await player.play(); return;
     }
     this.finish('played');
     this.generation += 1;
     this.abort?.abort(); this.abort = new AbortController();
     this.advancing = false; this.filling = undefined; this.failureQueued = false;
+    this.resumeAdvance = false;
     this.consecutiveFailures = 0;
     this.cursors.clear(); this.completed.clear();
     this.searchFailures = 0; this.successfulSearches = 0;
@@ -147,9 +150,10 @@ class RoamingController {
       await this.advance(reason);
     });
     player.setResumeHandler(async () => {
-      if (!this.status.active || this.advancing) return false;
+      if (!this.status.active) return false;
+      if (this.advancing) { player.pause(); return true; }
       if (this.status.phase === 'failed' || this.status.phase === 'exhausted'
-        || this.status.phase === 'paused' && !this.viewed.some(track => track.id === player.snapshot.track?.id)) {
+        || this.status.phase === 'paused' && (this.resumeAdvance || !this.viewed.some(track => track.id === player.snapshot.track?.id))) {
         await this.start(); return true;
       }
       return false;
@@ -169,6 +173,7 @@ class RoamingController {
   stop(manual = false): void {
     this.generation += 1; this.abort?.abort(); this.abort = undefined;
     this.filling = undefined; this.advancing = false; this.failureQueued = false;
+    this.resumeAdvance = false;
     player.setNavigationHandler(undefined);
     player.setResumeHandler(undefined);
     if (this.status.active) {
