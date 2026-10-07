@@ -10,6 +10,7 @@ export default function UpdateNotice() {
     window.addEventListener('zenix-update-state', refresh); void refresh();
     return () => { stopped = true; clearTimeout(timer); window.removeEventListener('zenix-update-state', refresh); };
   }, []);
-  if (!state || !['available', 'downloading', 'ready'].includes(state.status) || hidden === `${state.version}/${state.status}`) return null;
-  return <aside className="zenix-update-notice">{expanded && <UpdateSettings />}<div><button onClick={() => setExpanded(value => !value)}>{state.status === 'downloading' ? `正在更新 · ${state.progress}%` : state.status === 'ready' ? '更新已就绪 · 点击安装' : `Zenix ${state.version} 可更新`}</button><button aria-label="隐藏更新提醒" onClick={() => { setHidden(`${state.version}/${state.status}`); setExpanded(false); }}>×</button></div></aside>;
+  const reminderKey = `${state?.version}/${state?.build}/${state?.status}`;
+  if (!state || !['available', 'downloading', 'ready'].includes(state.status) || hidden === reminderKey) return null;
+  return <aside className="zenix-update-notice">{expanded && <UpdateSettings />}<div><button onClick={() => setExpanded(value => !value)}>{state.status === 'downloading' ? `正在更新 · ${state.progress}%` : state.status === 'ready' ? '更新已就绪 · 点击安装' : `Zenix ${state.version}${state.build ? ` · r${state.build}` : ''} 可更新`}</button><button aria-label="隐藏更新提醒" onClick={() => { setHidden(reminderKey); setExpanded(false); }}>×</button></div></aside>;
 }

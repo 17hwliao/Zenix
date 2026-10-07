@@ -5,6 +5,7 @@ const { spawn, execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { fetchAllowed, readLimited, checkLxUrl } = require('./source-network.cjs');
 const config = require('../../config/distribution.json');
+const { zenixBuild } = require('../../package.json');
 const hosts = ['raw.githubusercontent.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'];
 const LIMIT = 512 * 1024 * 1024;
 function newer(version, current) {
@@ -23,7 +24,8 @@ function newer(version, current) {
 class Updates {
   constructor(app) {
     this.app = app; this.directory = path.join(app.getPath('userData'), 'updates');
-    this.state = { status: 'idle', currentVersion: app.getVersion(), progress: 0, message: '尚未检查更新' };
+    this.currentBuild = Number.isSafeInteger(zenixBuild) && zenixBuild >= 1 ? zenixBuild : 0;
+    this.state = { status: 'idle', currentVersion: app.getVersion(), currentBuild: this.currentBuild, progress: 0, message: '尚未检查更新' };
   }
   async text(url, limit = 4 * 1024 * 1024, restricted = false) {
     if (new URL(url).protocol !== 'https:') throw new Error('请使用 HTTPS 地址');
@@ -35,7 +37,7 @@ class Updates {
   async check(channel) {
     if (this.downloading || ['checking', 'downloading', 'installing'].includes(this.state.status)) return this.state;
     if (!['stable', 'preview'].includes(channel)) throw new Error('更新通道无效');
-    this.state = { status: 'checking', currentVersion: this.app.getVersion(), progress: 0, message: '正在检查更新' };
+    this.state = { status: 'checking', currentVersion: this.app.getVersion(), currentBuild: this.currentBuild, progress: 0, message: '正在检查更新' };
     this.artifact = null; this.file = null;
     try {
       const envelope = JSON.parse(await this.text(config.feeds[channel], 256 * 1024, true));
@@ -46,11 +48,13 @@ class Updates {
       if (manifest.schemaVersion !== 1 || manifest.channel !== channel) throw new Error('更新清单格式错误');
       const item = manifest.artifacts?.windows;
       if (!item) { this.state.status = 'unpublished'; this.state.message = '当前通道尚未发布 Windows 更新'; return this.state; }
-      if (!newer(item.version, this.app.getVersion())) { this.state.status = 'current'; this.state.message = '已是此通道的最新版本'; return this.state; }
+      if (!/^(\d+)\.(\d+)\.(\d+)(?:-[\w.-]+)?$/.test(item.version) || !Number.isSafeInteger(item.build) || item.build < 1) throw new Error('更新版本或构建号无效');
       const url = new URL(item.url);
-      if (url.origin !== 'https://github.com' || !url.pathname.startsWith('/17hwliao/Zenix/releases/download/') || !url.pathname.endsWith('.exe') || !/^[a-f0-9]{64}$/.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || item.size > LIMIT) throw new Error('安装包信息无效');
+      if (url.origin !== 'https://github.com' || url.username || url.password || !url.pathname.startsWith('/17hwliao/Zenix/releases/download/') || !url.pathname.endsWith('.exe') || !/^[a-f0-9]{64}$/.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || item.size > LIMIT) throw new Error('安装包信息无效');
+      const sameVersion = item.version === this.app.getVersion();
+      if (!(newer(item.version, this.app.getVersion()) || (sameVersion && item.build > this.currentBuild))) { this.state.status = 'current'; this.state.message = `已是此通道的最新版本（r${this.currentBuild}）`; return this.state; }
       this.artifact = item;
-      this.state = { ...this.state, status: 'available', version: item.version, notes: String(manifest.notes || '').slice(0, 4000), message: `发现新版本 ${item.version}` };
+      this.state = { ...this.state, status: 'available', version: item.version, build: item.build, notes: String(manifest.notes || '').slice(0, 4000), message: `发现更新 ${item.version} · r${item.build}` };
     } catch (error) { this.state.status = error.status === 404 ? 'unpublished' : 'error'; this.state.message = error.status === 404 ? '此通道尚未发布更新清单' : error.message; }
     return this.state;
   }
@@ -86,15 +90,19 @@ class Updates {
   async install() {
     if (!this.app.isPackaged) throw new Error('开发模式不能覆盖安装，请使用发行版');
     if (process.platform !== 'win32' || !this.file || this.state.status !== 'ready') throw new Error('安装包尚未就绪');
-    const hash = createHash('sha256'); const file = await fs.open(this.file, 'r');
-    try { for await (const chunk of file.createReadStream()) hash.update(chunk); } finally { await file.close().catch(() => {}); }
-    if (hash.digest('hex') !== this.artifact.sha256) throw new Error('安装包发生变化，请重新下载');
+    if (!this.artifact || !await this.matches(this.file, this.artifact)) throw new Error('安装包发生变化，请重新下载');
     // Authenticode identity is distinct from our update-manifest signature.
-    if (!config.windowsPublisher) throw new Error('当前发行配置尚未设置 Windows 代码签名发行方');
-    const script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $s=Get-AuthenticodeSignature -LiteralPath '" + this.file.replace(/'/g, "''") + "'; @{status=[string]$s.Status; subject=$s.SignerCertificate.Subject} | ConvertTo-Json -Compress";
-    const { stdout } = await promisify(execFile)('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 });
-    const signing = JSON.parse(stdout.trim());
-    if (signing.status !== 'Valid' || signing.subject !== config.windowsPublisher) throw new Error('Windows 安装包签名或发行方不匹配');
+    // This release explicitly trusts the developer-signed manifest and its exact
+    // installer hash. Once a publisher is configured, Authenticode is mandatory.
+    if (config.windowsPublisher || config.windowsUpdateTrust === 'authenticode') {
+      if (!config.windowsPublisher) throw new Error('当前发行配置尚未设置 Windows 代码签名发行方');
+      const script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $s=Get-AuthenticodeSignature -LiteralPath '" + this.file.replace(/'/g, "''") + "'; @{status=[string]$s.Status; subject=$s.SignerCertificate.Subject} | ConvertTo-Json -Compress";
+      const { stdout } = await promisify(execFile)('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, timeout: 15000 });
+      const signing = JSON.parse(stdout.trim());
+      if (signing.status !== 'Valid' || signing.subject !== config.windowsPublisher) throw new Error('Windows 安装包签名或发行方不匹配');
+    } else if (config.windowsUpdateTrust !== 'signed-manifest') {
+      throw new Error('当前发行配置未启用 Windows 安装校验方式');
+    }
     // NSIS --updated preserves app data; interactive installation respects user choices.
     const child = spawn(this.file, ['--updated'], { detached: true, stdio: 'ignore', windowsHide: true });
     await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); }); child.unref();

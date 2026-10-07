@@ -22,7 +22,7 @@ export default function UpdateSettings() {
     finally { setBusy(false); }
   }
   const save = (change: Partial<typeof preferences>) => { const next = { ...preferences, ...change }; setPreferences(next); saveUpdatePreferences(next); if (change.channel) { localStorage.removeItem('zenix.updates.lastCheck'); if (supported) void action('check', next.channel); } };
-  return <section className="zenix-updates glass"><h3>应用更新 <small>v{state.currentVersion}</small></h3>
+  return <section className="zenix-updates glass"><h3>应用更新 <small>v{state.currentVersion}{state.currentBuild ? ` · r${state.currentBuild}` : ''}</small></h3>
     <label>自动检查更新<input type="checkbox" checked={preferences.automatic} onChange={event => save({ automatic: event.target.checked })} /></label>
     {!ios && <label>自动下载，安装前确认<input type="checkbox" checked={preferences.autoDownload} onChange={event => save({ autoDownload: event.target.checked })} /></label>}
     <label>更新通道<select value={preferences.channel} disabled={busy || state.status === 'downloading'} onChange={event => save({ channel: event.target.value as 'stable' | 'preview' })}><option value="stable">正式版</option><option value="preview">预览版</option></select></label>

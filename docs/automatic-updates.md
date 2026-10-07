@@ -1,6 +1,8 @@
 # 应用更新、发行签名与专用源入口
 
-当前源码版本为 **1.0.0 / Android build 7 / iOS build 7**。首版发行范围和迁移说明见 [v1.0.0](releases/v1.0.0.md)。没有自动替换用户已安装的测试版本。
+当前源码版本为 **1.0.0 / Windows build 14 / Android build 14**。公开版本保持 v1.0.0，同版本修补递增内部构建号。iOS 已暂停发行。首版历史记录见 [v1.0.0](releases/v1.0.0.md)。
+
+**Windows r13 及更早版本需要先手动覆盖安装 r14 一次**：旧客户端只比较公开版本号，并要求尚未配置的 Authenticode 发行证书，无法通过同版本更新引导自身升级。无需卸载，安装时保留原目录和用户资料。r14 起可以通过应用内更新获取后续修补版本。
 
 ## 使用方式
 
@@ -8,7 +10,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 默认自动检查，**自动下载默认关闭**。开启后发现新版在后台下载；安装始终需要用户确认。发现更新或下载完成时显示玻璃提醒条，可关闭提醒，之后从设置继续安装。下载进度只在下载/检查期间读取，没有常驻高频后台轮询。失败、超时、取消或校验失败会明确提示，可重新尝试。
 
-- Windows：签名清单检查版本，流式下载 NSIS 安装包，校验 SHA256 和大小，安装前再次校验文件，并检查 Authenticode 的有效性及发行方。使用 `--updated` 调用安装器，保留应用数据。开发模式禁止覆盖安装。
+- Windows：验证签名清单，优先比较公开版本，同版本再比较内部 build；不接受版本回退。流式下载 NSIS 安装包，校验 SHA256 和大小，安装前再次校验文件。当前明确使用 `signed-manifest` 安装信任策略；配置代码签名发行方后额外强制校验 Authenticode。使用 `--updated` 调用安装器，保留应用数据。开发模式禁止覆盖安装。
 - Android：使用独立后台工作线程，保持音乐解析队列可用；核对 SHA256、大小、包名、versionCode、versionName 和签名证书。用户授权“安装未知应用”后由系统确认安装，不会静默安装。
 - iOS：检查新版后打开签名清单指定的 TestFlight / App Store 页面。iOS 应用不能自行覆盖安装二进制；自动安装由 Apple 的发行渠道提供。系统控制的自动更新需用户在 TestFlight 或 App Store 设置中开启。
 
@@ -17,9 +19,9 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 ## 两种独立的签名
 
 1. **发布清单签名**：RSA 3072 / SHA256，三端使用系统密码库验证。公钥随程序发布，私钥仅保存在开发者签名目录或 GitHub Actions Secrets。下载地址、版本、包大小与 SHA256 都在签名覆盖范围内。
-2. **安装包签名**：Windows 需要受信任代码签名证书；Android 使用永久发行 keystore；iOS 需要 Apple Distribution 证书、匹配的描述文件和开发者团队。
+2. **安装包签名**：Windows Authenticode 需要受信任代码签名证书；Android 使用永久发行 keystore；iOS 需要 Apple Distribution 证书、匹配的描述文件和开发者团队。
 
-发布清单签名不能替代 Windows / Apple 的安装包签名。应用验证失败就停止，不会自动降级使用未验证安装包。
+发布清单签名验证开发者发布的下载地址与安装包哈希，不能赋予 Windows 受信任发布者身份，也不能替代 Apple 安装要求。当前 Windows 可以安装已通过签名清单及哈希校验的未签名安装器，系统仍可能提示未知发布者。任何清单签名或文件校验失败都停止安装；配置 Authenticode 要求后也不会自动回退到清单信任方式。
 
 ### 本机 Android 发行密钥
 
@@ -35,7 +37,11 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ### Windows
 
-在 `config/distribution.json` 设置 `windowsPublisher` 为证书完整 Subject；配置 `CSC_LINK` 和 `CSC_KEY_PASSWORD` 后运行 `npm run package:win:signed`。该命令要求强制代码签名，并在生成后核对安装包的有效签名与发行方。普通 `package:win` 不保证代码签名。首版按当前条件提供未签名安装器，用户从 Release 手动安装；它不进入自动安装清单。
+`package.json` 的 `zenixBuild` 是随程序打包的 Windows 内部构建号，签名清单中的 Windows build 必须对应此值。每次同版本修补递增，公开 version 保持不变。
+
+`config/distribution.json` 的 `windowsUpdateTrust` 当前为 `signed-manifest`：安装器可以未提供 Authenticode，但必须来自本仓库 Release，且通过现有发布私钥签署的清单、大小和 SHA256 校验。安装仍需要用户确认。
+
+后续获得证书时，设置 `windowsPublisher` 为证书完整 Subject，并将 `windowsUpdateTrust` 设置为 `authenticode`；配置 `CSC_LINK` 和 `CSC_KEY_PASSWORD` 后运行 `npm run package:win:signed`。该命令要求强制代码签名，并在生成后核对安装包的有效签名与发行方。只要配置了发行方，客户端也会强制检查 Authenticode。
 
 当前尚未提供受信任 Windows 证书，不能声称已完成 Authenticode 正式签名。云签名服务需按服务商接入，当前流水线采用 PFX/P12 证书。
 
@@ -48,11 +54,11 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 导出文件需提交 App Store Connect，加入 TestFlight 或 App Store 发行；当前流水线仅产生签名构建工件，没有自动提交审核。在更新清单中加入 **已在该渠道提供的** iOS version/build/url；URL 仅接受 `https://testflight.apple.com/...` 或 `https://apps.apple.com/...`。
 
-当前没有 Apple 发行凭据和 iPhone 真机。稳定版提供 GitHub macOS runner 构建的 ARM64 未签名真机 IPA，以及独立模拟器 App。IPA 须由使用者自行签名侧载，不能直接点击文件安装；更新时也须沿用自己的签名身份。Apple 发行签名流水线仍需配置凭据并执行，详情见 [iOS 打包说明](ios.md#arm64-真机-ipa-封装)。
+当前没有 Apple 发行凭据和 iPhone 真机，iOS 发行已暂停，稳定版不提供 IPA 或模拟器安装包。保留工程和签名流水线，后续恢复发行仍需要上述凭据。详情见 [iOS 打包说明](ios.md#arm64-真机-ipa-封装)。
 
 ## 发布更新
 
-公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。首版 stable 清单由实际正式签名 APK 生成，包含 Android 1.0.0 / build 7 的下载地址、大小和 SHA256。Windows 缺受信任代码签名、iOS 缺 Apple 发行渠道，因此这两平台尚不提供自动安装的更新条目；preview 清单暂为空。文件未公开或相应平台没有条目时明确提示未发布。已有旧版没有更新模块，需要先安装一次含本模块的版本，之后才能通过应用更新。
+公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。stable 清单同时包含 Windows / Android 的版本、内部构建号、下载地址、大小和 SHA256；iOS 暂不提供条目，preview 清单暂为空。文件未公开或相应平台没有条目时明确提示未发布。Windows 旧客户端须手动覆盖安装一次 r14，之后才能识别同版本修补。
 
 `npm run signing:init` 创建仓库外 `%USERPROFILE%\.zenix\signing\release-key.pem` 并生成公钥配置。当前公钥已生成，**请备份对应私钥，不要重复生成新的发行身份**。为多个开发环境使用相同私钥；支持 `ZENIX_SIGNING_DIR` 指定目录，签名时支持 `ZENIX_RELEASE_PRIVATE_KEY` 指定私钥文件。
 
@@ -64,20 +70,20 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
   "notes": "此版本的更新说明",
   "artifacts": {
     "windows": {
-      "version": "1.0.0", "build": 7,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r7-x64.exe",
-      "file": "release/Zenix-Setup-1.0.0-r7-x64.exe"
+      "version": "1.0.0", "build": 14,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r14-x64.exe",
+      "file": "release/stable-r14/Zenix-Setup-1.0.0-r14-x64.exe"
     },
     "android": {
-      "version": "1.0.0", "build": 7,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r7.apk",
+      "version": "1.0.0", "build": 14,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r14.apk",
       "file": "android/app/build/outputs/apk/release/app-release.apk"
     }
   }
 }
 ```
 
-`npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传安装包，再提交签名清单到 main。不要把未签名安装包、测试包或未上架的 iOS 版本加入正式清单。公开版本在作者与测试人员确认后才递增；稳定修补替换当前 Release 工件并递增移动端 build。Windows 按 semver 比较，同版本修补需从 Release 手动重装；Android / iOS 按 build 比较。预览版使用 preview 通道。
+`npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传安装包，再提交签名清单到 main；不要把测试包或未上架的 iOS 版本加入正式清单。公开版本在作者与测试人员确认后才递增；稳定修补替换当前 Release 工件并递增 Windows / Android build。Windows 先比较 semver，同版本再比较 build；Android 按 build 比较。预览版使用 preview 通道。
 
 `.github/workflows/signed-release.yml` 实现手动按 tag 构建签名 Windows / Android、生成签名清单、上传 Release 并更新 main 中的通道文件。它没有定时触发。需要以下 Secrets / Variables：
 
@@ -112,4 +118,4 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ## 1.0.0 发行基线
 
-三端公开版本号统一为 1.0.0，当前移动端 build 7。首版 Windows NSIS 安装器、Android 正式 APK 与 iOS 模拟器包分别构建，详细结果见 [首版说明](releases/v1.0.0.md)。后续修补沿用当前稳定版与发行身份；仅在作者和测试人员确认可发布后递增公开版本。
+首版历史记录见 [首版说明](releases/v1.0.0.md)。当前维护 Windows / Android，内部构建号为 14；iOS 暂停发行。后续修补沿用当前稳定版与发行身份；仅在作者和测试人员确认可发布后递增公开版本。

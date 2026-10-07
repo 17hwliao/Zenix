@@ -47,18 +47,18 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ### 首版 v1.0.0
 
-当前维护 Windows / Android，公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的 Windows / Android 工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前 Windows / Android 修订为 r13，Android 内部 build 13。iOS 暂停发行，稳定版不再提供 IPA，已有工程保留。
+当前维护 Windows / Android，公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的 Windows / Android 工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前 Windows / Android 修订为 r14，Windows / Android 内部 build 14。iOS 暂停发行，稳定版不再提供 IPA，已有工程保留。
 
 | 平台 | 发行内容 | 安装与更新 |
 | --- | --- | --- |
-| Windows x64 | Zenix-Setup-1.0.0-r13-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
-| Android | Zenix-Android-1.0.0-r13.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
+| Windows x64 | Zenix-Setup-1.0.0-r14-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
+| Android | Zenix-Android-1.0.0-r14.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
 
-同页提供 SHA256SUMS-1.0.0-r13.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。打包完成不代表已完成所有设备功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
+同页提供 SHA256SUMS-1.0.0-r14.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。打包完成不代表已完成所有设备功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
 
 ### 应用更新与专用源入口
 
-Windows / Android 校验签名更新清单与安装包，确认后安装；iOS 提供 TestFlight / App Store 更新入口。首版 Android 提供正式更新通道；Windows 自动安装需后续配置受信任代码签名证书，iOS 更新需先建立 Apple 发行渠道。现阶段 Windows 手动下载安装；iOS 已暂停发行，当前没有公开安装包。具体步骤见 [自动更新与签名说明](docs/automatic-updates.md)。
+Windows / Android 校验签名更新清单与安装包，确认后安装。同版本修补通过内部构建号识别；Windows 使用签名清单与 SHA256 验证当前未签名安装器，系统仍可能提示未知发布者。Windows r13 及更早版本需手动覆盖安装 r14 一次，之后可使用应用内更新。iOS 已暂停发行，当前没有公开安装包。具体步骤见 [自动更新与签名说明](docs/automatic-updates.md)。
 
 音乐源支持分享包文件与 HTTPS 分享链接，可保存自己的专用源入口；软件不附带源包。平台开发说明：[Android](docs/android.md)、[iOS](docs/ios.md)。
 

@@ -1,5 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
-export type UpdateState = { status: 'idle' | 'checking' | 'unpublished' | 'current' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'; currentVersion: string; version?: string; message: string; progress: number; notes?: string };
+export type UpdateState = { status: 'idle' | 'checking' | 'unpublished' | 'current' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'; currentVersion: string; currentBuild?: number; version?: string; build?: number; message: string; progress: number; notes?: string };
 export type UpdateRequest = { operation: 'state' | 'check' | 'download' | 'cancel' | 'install' | 'sourceBundle'; channel?: string; url?: string };
 export type UpdatePreferences = { automatic: boolean; autoDownload: boolean; channel: 'stable' | 'preview' };
 const plugin = registerPlugin<{ invoke(options: { action: string; payload: UpdateRequest }): Promise<{ value: unknown }> }>('ZenixNative');

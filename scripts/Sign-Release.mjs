@@ -8,6 +8,7 @@ if (!input) throw new Error('用法：node scripts/Sign-Release.mjs release-desc
 const description = JSON.parse(readFileSync(input, 'utf8'));
 if (!['stable', 'preview'].includes(description.channel)) throw new Error('channel 必须为 stable 或 preview');
 const config = JSON.parse(readFileSync(new URL('../config/distribution.json', import.meta.url), 'utf8'));
+const application = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const key = readFileSync(process.env.ZENIX_RELEASE_PRIVATE_KEY || path.join(homedir(), '.zenix/signing/release-key.pem'));
 const publicKey = createPublicKey(key);
 if (publicKey.export({ type: 'spki', format: 'der' }).toString('base64') !== config.publicKeySpki) throw new Error('签名私钥不匹配');
@@ -15,6 +16,7 @@ const artifacts = {};
 for (const [platform, artifact] of Object.entries(description.artifacts || {})) {
   if (!['windows', 'android', 'ios'].includes(platform)) throw new Error('不支持的平台');
   if (typeof artifact.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(artifact.version) || !Number.isSafeInteger(artifact.build) || artifact.build < 1) throw new Error('每个平台必须包含有效的 version 和递增的 build');
+  if (platform === 'windows' && (artifact.version !== application.version || artifact.build !== application.zenixBuild)) throw new Error('Windows 清单版本和构建号必须与当前打包源码一致');
   const copy = { ...artifact }; delete copy.file;
   if (platform !== 'ios') {
     if (!artifact.file) throw new Error('安装包必须包含 file');
