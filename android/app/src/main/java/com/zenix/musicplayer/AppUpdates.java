@@ -48,7 +48,7 @@ final class AppUpdates {
     JSONObject check(String channel) throws Exception {
         if(!Arrays.asList("stable","preview").contains(channel))throw new Exception("更新通道无效");
         if(Arrays.asList("checking","downloading","installing").contains(status()))return state();
-        reset();artifact=null;ready=null;
+        reset();set("channel",channel);artifact=null;ready=null;
         try {
             JSONObject envelope=new JSONObject(text(config.getJSONObject("feeds").getString(channel),true,256*1024));
             byte[] bytes=android.util.Base64.decode(envelope.getString("payload"),android.util.Base64.DEFAULT);

@@ -8,7 +8,10 @@ const path = require('node:path');
 const { createHash, createCipheriv, publicEncrypt, constants, randomBytes, randomUUID } = require('node:crypto');
 const zlib = require('node:zlib');
 const { promisify } = require('node:util');
+const { readBoundedFile } = require('./runtime/bounded-file.cjs');
+const { encodeProtected, decodeProtected } = require('./runtime/protected-json.cjs');
 const lxCatalog = require('./lx-catalog.cjs');
+const { sourcePolicy, policyOptions } = require('./runtime/source-policy.cjs');
 
 const CAPABILITIES = new Set(['search', 'resolvePlayback', 'lyrics', 'artwork', 'resolveDownload', 'playlistDetail', 'albumDetail', 'artistDetail', 'discover']);
 const HOST = /^(?:\*\.)?[a-z0-9.-]+$/i;
@@ -79,6 +82,9 @@ class SourceManager {
     this.folder = path.join(userDataPath, 'sources'); this.indexFile = path.join(this.folder, 'index.json');
     this.coverFolder = path.join(userDataPath, 'source-cache', 'covers');
     this.lyricFolder = path.join(userDataPath, 'source-cache', 'lyrics');
+    this.metadataCache = new (require('./runtime/metadata-cache.cjs').MetadataCache)(path.join(userDataPath, 'source-cache'));
+    this.saveQueue = Promise.resolve();
+    this.requests = new Map();
     this.broadcast = broadcast; this.records = []; this.runners = new Map(); this.byContents = new Map();
     this.sessions = new BoundedCache({ maxEntries: 48, ttl: 6 * 60 * 60 * 1000 });
     this.coverCache = new BoundedCache({ maxEntries: 32, maxBytes: 8 * 1024 * 1024, sizeOf: value => value.data.byteLength });
@@ -100,13 +106,20 @@ class SourceManager {
     await fs.mkdir(this.folder, { recursive: true });
     await fs.mkdir(this.coverFolder, { recursive: true });
     await fs.mkdir(this.lyricFolder, { recursive: true });
+    await this.metadataCache.prune({ bestEffort: true });
+    let indexRead = false;
     try {
-      const data = JSON.parse(await fs.readFile(this.indexFile, 'utf8'));
-      this.records = (Array.isArray(data.records) ? data.records : []).map(record => {
-        try { return { ...record, manifest: record.kind === 'lx' ? validateLxManifest(record.manifest) : validateManifest(record.manifest), enabled: record.enabled === true }; } catch { return null; }
-      }).filter(Boolean);
+      const text = await readBoundedFile(this.indexFile, 32 * 1024 * 1024, 'utf8'); indexRead = true;
+      const decoded = await decodeProtected(text);
+      const data = decoded.value;
+      if (!Array.isArray(data.records) || !data.settings || typeof data.settings !== 'object' || Array.isArray(data.settings)) throw new Error('音乐源配置结构无效');
+      this.records = data.records.map(record => {
+        const manifest = record.kind === 'lx' ? validateLxManifest(record.manifest) : validateManifest(record.manifest);
+        if (!SOURCE_ID.test(record.id) || record.id !== manifest.id) throw new Error('音乐源配置 ID 无效');
+        return { ...record, manifest, networkPolicy: sourcePolicy(record.networkPolicy, { allowHttp: true, hosts: null }), enabled: record.enabled === true };
+      });
       this.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
-      let migrated = false;
+      let migrated = decoded.legacy || decoded.rotate || data.records.some(record => record.networkPolicy === undefined);
       this.records = await Promise.all(this.records.map(async (record, index) => {
         if (Number.isFinite(record.installedAt) && record.installedAt > 0) return record;
         const stat = await fs.stat(path.join(this.folder, record.id)).catch(() => null);
@@ -115,31 +128,39 @@ class SourceManager {
       }));
       this.records.sort((left, right) => left.installedAt - right.installedAt);
       if (migrated) await this.save();
-    } catch { this.records = []; }
+    } catch (error) {
+      if (indexRead || error.code !== 'ENOENT') { this.storageError = '音乐源配置无法读取或解密，已保留原文件并停止写入'; this.records = []; this.settings = {}; }
+    }
     return this.list();
   }
-  list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256, installedAt }) => ({ id, kind: kind || 'zenix', manifest, enabled, origin, sha256, installedAt, status: this.errors.has(id) ? 'error' : this.runners.has(id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
+  list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256, installedAt, networkPolicy }) => ({ networkPolicy, id, kind: kind || 'zenix', manifest, enabled, origin, sha256, installedAt, status: this.errors.has(id) ? 'error' : [...this.runners.values()].some(runner => runner.record.id === id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
   async save() {
-    const temp = `${this.indexFile}.${randomUUID()}.tmp`;
-    await fs.writeFile(temp, JSON.stringify({ records: this.records, settings: this.settings }), 'utf8');
-    await fs.rename(temp, this.indexFile);
-    this.broadcast('sources:changed', this.list());
+    this.assertWritable();
+    const task = this.saveQueue.catch(() => {}).then(async () => {
+      const temp = `${this.indexFile}.${randomUUID()}.tmp`;
+      const value = JSON.parse(JSON.stringify({ records: this.records, settings: this.settings }));
+      try { await fs.writeFile(temp, await encodeProtected(value), 'utf8'); await fs.rename(temp, this.indexFile); }
+      finally { await fs.rm(temp, { force: true }).catch(() => {}); }
+      this.broadcast('sources:changed', this.list());
+    }); this.saveQueue = task; return task;
   }
+  assertWritable() { if (this.storageError) throw new Error(this.storageError); }
   record(id) {
     const record = this.records.find(item => item.id === id);
     if (!record || !record.enabled) throw new Error('该音乐源已停用或未安装');
     return record;
   }
-  async installPackage(packageText, origin) {
+  async installPackage(packageText, origin, permission) {
+    this.assertWritable();
     if (Buffer.byteLength(packageText, 'utf8') > MAX_PACKAGE) throw new Error('音乐源包过大');
-    if (isLxScript(packageText) || /\.js(?:$|[?#])/i.test(origin.label)) return this.installLx(packageText, origin);
+    if (isLxScript(packageText) || /\.js(?:$|[?#])/i.test(origin.label)) return this.installLx(packageText, origin, permission);
     const sourcePackage = parseSourcePackage(packageText);
     const manifest = validateManifest(sourcePackage.manifest);
     const script = sourcePackage.script;
     if (typeof script !== 'string' || !script.includes('zenix.register') || Buffer.byteLength(script, 'utf8') > MAX_PACKAGE) throw new Error('音乐源脚本无效');
     const sha256 = createHash('sha256').update(packageText).digest('hex');
     const index = this.records.findIndex(item => item.id === manifest.id);
-    const next = { id: manifest.id, manifest, enabled: true, origin, sha256, installedAt: this.records[index]?.installedAt || Date.now() };
+    const next = { id: manifest.id, manifest, enabled: true, networkPolicy: sourcePolicy(permission, this.records[index]?.networkPolicy), origin, sha256, installedAt: this.records[index]?.installedAt || Date.now() };
     const runner = new SourceRunner(this, next);
     await runner.start(script);
     runner.destroy();
@@ -147,7 +168,7 @@ class SourceManager {
     await fs.mkdir(target, { recursive: true });
     await fs.writeFile(path.join(target, 'manifest.json'), JSON.stringify(manifest), 'utf8');
     await fs.writeFile(path.join(target, 'index.js'), script, 'utf8');
-    const old = this.runners.get(manifest.id); old?.destroy(); this.runners.delete(manifest.id);
+    this.retireSource(manifest.id);
     if (index >= 0) this.records[index] = next; else this.records.push(next);
     await this.save();
     return this.list();
@@ -162,10 +183,10 @@ class SourceManager {
     this.pendingImports.set(token, { packageText, origin, expiresAt: Date.now() + 10 * 60 * 1000 });
     return { token, manifest, origin, sha256: createHash('sha256').update(packageText).digest('hex'), previousVersion: this.records.find(item => item.id === manifest.id)?.manifest.version || null };
   }
-  async confirmImport(token) {
+  async confirmImport(token, permission) {
     const pending = this.pendingImports.get(token);
     if (!pending || Date.now() > pending.expiresAt) throw new Error('音乐源预览已过期，请重新导入');
-    const installed = await this.installPackage(pending.packageText, pending.origin);
+    const installed = await this.installPackage(pending.packageText, pending.origin, permission);
     this.pendingImports.delete(token);
     return installed;
   }
@@ -177,20 +198,21 @@ class SourceManager {
     this.pendingImports.set(token, { packageText: script, origin, expiresAt: Date.now() + 10 * 60 * 1000 });
     return { token, kind: 'lx', manifest, origin, sha256: createHash('sha256').update(script).digest('hex'), previousVersion: this.records.find(item => item.id === id)?.manifest.version || null };
   }
-  async installLx(script, origin) {
+  async installLx(script, origin, permission) {
     const id = `lx.${createHash('sha256').update(origin.label.toLowerCase()).digest('hex').slice(0, 24)}`;
-    const candidate = { kind: 'lx', id };
+    const policy = sourcePolicy(permission, this.records.find(record => record.id === id)?.networkPolicy);
+    const candidate = { kind: 'lx', id, networkPolicy: policy };
     const runner = new SourceRunner(this, candidate);
     let manifest;
     try { await runner.start(script); manifest = lxManifest(origin, script, runner.lxInfo); }
     finally { runner.destroy(); }
     const index = this.records.findIndex(item => item.id === id);
-    const next = { kind: 'lx', id, manifest, enabled: true, origin, sha256: createHash('sha256').update(script).digest('hex'), installedAt: this.records[index]?.installedAt || Date.now() };
+    const next = { kind: 'lx', id, manifest, enabled: true, networkPolicy: policy, origin, sha256: createHash('sha256').update(script).digest('hex'), installedAt: this.records[index]?.installedAt || Date.now() };
     const target = path.join(this.folder, id, manifest.version);
     await fs.mkdir(target, { recursive: true });
     await fs.writeFile(path.join(target, 'manifest.json'), JSON.stringify(manifest), 'utf8');
     await fs.writeFile(path.join(target, 'index.js'), script, 'utf8');
-    this.runners.get(id)?.destroy(); this.runners.delete(id);
+    this.retireSource(id);
     if (index >= 0) this.records[index] = next; else this.records.push(next);
     if (!manifest.lxPlatforms[this.settings[id]?.lxCatalog]) delete this.settings[id];
     await this.save();
@@ -198,26 +220,26 @@ class SourceManager {
   }
   cancelImport(token) { this.pendingImports.delete(token); }
   async importFile(filePath) {
-    const stat = await fs.stat(filePath);
-    if (stat.size > MAX_PACKAGE) throw new Error('音乐源包过大');
-    return this.previewPackage(await fs.readFile(filePath, 'utf8'), { kind: 'file', label: path.basename(filePath) });
+    return this.previewPackage(await readBoundedFile(filePath, MAX_PACKAGE, 'utf8'), { kind: 'file', label: path.basename(filePath) });
   }
   async importUrl(raw) {
     const url = new URL(raw);
     if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('请填写不含账号密码的 HTTP / HTTPS 音乐源地址');
-    const response = await fetchAllowed(url.href, null, { signal: AbortSignal.timeout(25000) });
+    const response = await fetchAllowed(url.href, null, { allowHttp: url.protocol === 'http:', signal: AbortSignal.timeout(25000) });
     if (!response.ok) throw new Error('无法下载音乐源包');
     const body = (await readLimited(response, MAX_PACKAGE)).toString('utf8');
     return this.previewPackage(body, { kind: 'url', label: /\.js$/i.test(url.pathname) ? url.href : url.origin });
   }
   async setEnabled(id, enabled) {
+    this.assertWritable();
     const record = this.records.find(item => item.id === id); if (!record) throw new Error('音乐源不存在');
     record.enabled = Boolean(enabled);
     this.errors.delete(id);
-    if (!record.enabled) { this.runners.get(id)?.destroy(); this.runners.delete(id); }
+    if (!record.enabled) this.retireSource(id);
     await this.save(); return this.list();
   }
   async configure(id, values) {
+    this.assertWritable();
     const record = this.records.find(item => item.id === id); if (!record) throw new Error('音乐源不存在');
     const next = {};
     for (const field of record.manifest.settings) {
@@ -225,52 +247,73 @@ class SourceManager {
       if (field.type === 'select' && !field.options.includes(value)) throw new Error(`${field.label} 的选项无效`);
       next[field.key] = value;
     }
-    this.settings[id] = next;
+    if (values?.__allowHttp !== undefined || values?.__allowedHosts !== undefined) record.networkPolicy = sourcePolicy({ allowHttp: values.__allowHttp === 'true', hosts: String(values.__allowedHosts || '').trim() ? String(values.__allowedHosts).split(/[\s,]+/).filter(Boolean) : null });
+    this.settings[id] = next; this.retireSource(id);
     await this.save(); return next;
   }
   getSettings(id) {
     const record = this.records.find(item => item.id === id); if (!record) throw new Error('音乐源不存在');
-    return Object.fromEntries(record.manifest.settings.map(field => [field.key, this.settings[id]?.[field.key] ?? field.default]));
+    const policy = sourcePolicy(record.networkPolicy);
+    return { ...Object.fromEntries(record.manifest.settings.map(field => [field.key, this.settings[id]?.[field.key] ?? field.default])), __allowHttp: String(policy.allowHttp), __allowedHosts: policy.hosts?.join(', ') || '' };
   }
   async remove(id) {
+    this.assertWritable();
     const index = this.records.findIndex(item => item.id === id); if (index < 0) return this.list();
-    this.runners.get(id)?.destroy(); this.runners.delete(id); this.errors.delete(id); this.records.splice(index, 1);
+    this.retireSource(id); this.errors.delete(id); this.records.splice(index, 1);
     for (const key of this.coverHints.keys()) if (key.startsWith(`${id}:`)) this.coverHints.delete(key);
     await this.save(); await fs.rm(path.join(this.folder, id), { recursive: true, force: true }); return this.list();
   }
-  async runner(id) {
+  retireSource(id) { for (const runner of this.runners.values()) if (runner.record.id === id) runner.destroy(); }
+  close() { this.stopping = true; for (const request of this.requests.values()) request.abort(new Error('应用正在退出')); for (const runner of this.runners.values()) runner.destroy(); }
+  runner(id) {
+    if (this.stopping) throw new Error('应用正在退出');
     const record = this.record(id);
-    if (this.runners.has(id)) {
-      const existing = this.runners.get(id);
-      if (existing.startTask && (!existing.window || !existing.window.isDestroyed())) { await existing.startTask; return existing; }
-      if (existing.window && !existing.window.isDestroyed()) { await existing.ready; return existing; }
-      this.runners.delete(id);
-    }
-    const runner = new SourceRunner(this, record);
-    this.runners.set(id, runner);
+    // Each active operation owns its renderer. Cancellation must never kill a
+    // different search/lyric/playback request sharing the same provider.
+    for (const runner of this.runners.values()) if (runner.record.id === id && !runner.destroyed && !runner.leases && !runner.pending.size) return runner;
+    for (const runner of this.runners.values()) if (!runner.leases && !runner.pending.size && !runner.starting) runner.destroy();
+    if (this.runners.size >= 8) throw new Error('音乐源任务并发过多，请稍后重试');
+    const key = this.runners.has(id) ? `${id}:${randomUUID()}` : id;
+    const runner = new SourceRunner(this, record, key);
+    this.runners.set(key, runner);
     runner.startTask = fs.readFile(path.join(this.folder, id, record.manifest.version, 'index.js'), 'utf8').then(script => runner.start(script));
-    try { await runner.startTask; return runner; }
-    catch (error) { this.runners.delete(id); throw error; }
+    return runner;
   }
-  async call(id, method, payload) {
+  async request(sender, requestId, operation) {
+    if (!requestId) return operation(undefined);
+    if (!/^[a-f0-9-]{36}$/i.test(requestId) || this.requests.size >= 64) throw new Error('请求令牌无效或并发过多');
+    const key = `${sender}:${requestId}`; if (this.requests.has(key)) throw new Error('请求令牌已使用');
+    const controller = new AbortController();this.requests.set(key, controller);
+    const timer = setTimeout(() => controller.abort(new Error('连接超时')), 25000);timer.unref();
+    try { return await operation(controller.signal); }
+    finally { clearTimeout(timer);this.requests.delete(key); }
+  }
+  cancelRequest(sender, requestId) { this.requests.get(`${sender}:${requestId}`)?.abort(new Error('已取消')); }
+  async call(id, method, payload, signal) {
     const record = this.record(id);
     if (!record.manifest.capabilities.includes(method)) throw new Error(`该源未提供 ${method}`);
     let runner;
+    const cancel = () => runner?.destroy();
+    signal?.throwIfAborted();signal?.addEventListener('abort', cancel, { once: true });
     try {
-      runner = await this.runner(id);
+      runner = this.runner(id);
       runner.acquire();
+      await runner.startTask;
+      signal?.throwIfAborted();
       const result = await runner.invoke(method, payload, this.settings[id] || {});
       if (this.errors.delete(id)) this.broadcast('sources:changed', this.list());
       return result;
     } catch (error) {
-      if (!this.runners.get(id)?.window) this.runners.delete(id);
+      if (signal?.aborted) throw signal.reason || error;
+      if (runner && !runner.window) runner.destroy();
       this.errors.set(id, boundedText(error instanceof Error ? error.message : String(error), 180));
       this.broadcast('sources:changed', this.list());
       throw error;
     } finally {
+      signal?.removeEventListener('abort', cancel);
       runner?.release();
       // Keep one warm idle script, without interrupting concurrent active requests.
-      for (const [otherId, other] of this.runners) if (otherId !== id && !other.starting && !other.leases && !other.pending.size) other.destroy();
+      for (const other of this.runners.values()) if (other !== runner && !other.starting && !other.leases && !other.pending.size) other.destroy();
     }
   }
   async http(contentsId, options) {
@@ -304,9 +347,12 @@ class SourceManager {
     try {
       this.lxRunner(contentsId);
       const values = request?.values || {};
-      const buffer = value => Buffer.from(Array.isArray(value) ? value.slice(0, 1024 * 1024) : []);
+      const buffer = value => {
+        if (!(value instanceof Uint8Array) && !Array.isArray(value) || value.length > 1024 * 1024) throw new Error('加密数据无效或过大');
+        return Buffer.from(value);
+      };
       switch (request?.action) {
-        case 'md5': return { value: createHash('md5').update(Array.isArray(values.bytes) ? buffer(values.bytes) : String(values.value || '').slice(0, 1024 * 1024)).digest('hex') };
+        case 'md5': return { value: createHash('md5').update(values.bytes != null ? buffer(values.bytes) : String(values.value || '').slice(0, 1024 * 1024)).digest('hex') };
         case 'randomBytes': return { bytes: [...randomBytes(Math.min(4096, Math.max(0, Number(values.size) || 0)))] };
         case 'aesEncrypt': {
           const cipher = createCipheriv(String(values.mode), buffer(values.key), values.iv == null ? null : buffer(values.iv));
@@ -322,13 +368,21 @@ class SourceManager {
     } catch (error) { return { error: boundedText(error instanceof Error ? error.message : String(error), 180) }; }
   }
   async lxZlib(contentsId, request) {
-    this.lxRunner(contentsId);
-    const input = Buffer.from(Array.isArray(request?.bytes) ? request.bytes.slice(0, 2 * 1024 * 1024) : []);
+    const runner = this.lxRunner(contentsId);
+    if (!(request?.bytes instanceof Uint8Array) && !Array.isArray(request?.bytes) || request.bytes.length > 2 * 1024 * 1024) throw new Error('脚本压缩输入无效或过大');
+    const input = Buffer.from(request.bytes);
     const operation = request?.action === 'inflate' ? zlib.inflate : request?.action === 'deflate' ? zlib.deflate : null;
     if (!operation) throw new Error('不支持的 脚本压缩操作');
-    const output = await promisify(operation)(input);
+    const sourceId = runner.record.id;
+    this.zlibBySource ||= new Map();
+    if (this.zlibActive >= 2 || this.zlibBySource.has(sourceId)) throw new Error('脚本压缩并发过多');
+    this.zlibBySource.set(sourceId, true);
+    this.zlibActive = (this.zlibActive || 0) + 1;
+    let output;
+    try { output = await promisify(operation)(input, { maxOutputLength: 4 * 1024 * 1024 }); }
+    finally { this.zlibActive -= 1; this.zlibBySource.delete(sourceId); }
     if (output.length > 4 * 1024 * 1024) throw new Error('脚本压缩结果过大');
-    return [...output];
+    return new Uint8Array(output);
   }
   async lxHttp(contentsId, request) {
     const runner = this.lxRunner(contentsId);
@@ -357,7 +411,7 @@ class SourceManager {
     let response, data;
     try {
       ({ response, data } = await runner.network(async signal => {
-        const response = await fetchAllowed(request?.url, null, { method, headers, body, signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
+        const response = await fetchAllowed(request?.url, null, { ...policyOptions(runner.record), method, headers, body, signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
         return { response, data: await readLimited(response, 4 * 1024 * 1024) };
       }));
     }
@@ -374,7 +428,7 @@ class SourceManager {
   makeCoverUrl(sourceId, remoteId) {
     return `yzqxy://source-cover/${encodeURIComponent(sourceId)}/${encodeURIComponent(remoteId)}`;
   }
-  async search(id, keyword, cursor = null, pageSize = 25) {
+  async search(id, keyword, cursor = null, pageSize = 25, signal) {
     const record = this.record(id);
     const size = Math.max(1, Math.min(50, Number(pageSize) || 25));
     const platform = this.settings[id]?.lxCatalog || record.manifest.settings[0]?.default;
@@ -384,6 +438,7 @@ class SourceManager {
     let result;
     if (record.kind === 'lx') {
       result = this.catalogCache.get(catalogKey);
+      if (!result && signal) result = await lxCatalog.search(platform, query, page, size, signal);
       if (!result) {
         let pending = this.catalogPending.get(catalogKey);
         if (!pending) {
@@ -392,7 +447,8 @@ class SourceManager {
         }
         result = await pending;
       }
-    } else result = await this.call(id, 'search', { keyword: query, cursor: cursor == null ? null : boundedText(cursor, 300), pageSize: size });
+    } else result = await this.call(id, 'search', { keyword: query, cursor: cursor == null ? null : boundedText(cursor, 300), pageSize: size }, signal);
+    signal?.throwIfAborted();
     if (!result || !Array.isArray(result.items)) throw new Error('音乐源搜索返回的数据格式错误');
     const seen = new Set();
     const items = result.items.slice(0, 50).map(item => {
@@ -428,7 +484,7 @@ class SourceManager {
     for (let index = 0; index < tiers.length; index += 1) { const result = await this.cached(track, tiers[index]); if (result) return { ...result, playbackQuality: tiers[index] }; }
     return null;
   }
-  async resolve(track, quality = 'high', cacheAsId = '', skipCache = false) {
+  async resolve(track, quality = 'high', cacheAsId = '', skipCache = false, signal) {
     const id = track?.providerId, remoteId = track?.remoteId;
     if (!id || !remoteId) throw new Error('歌曲缺少来源 ID');
     const coverUrl = id.startsWith('lx.') ? this.makeCoverUrl(id, remoteId) : track.coverUrl;
@@ -439,15 +495,16 @@ class SourceManager {
     const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     const record = this.record(id);
     quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
-    const result = record.kind === 'lx' ? await this.lxPlayback(id, remoteId, quality) : await this.call(id, 'resolvePlayback', { remoteId, quality });
+    const result = record.kind === 'lx' ? await this.lxPlayback(id, remoteId, quality, signal) : await this.call(id, 'resolvePlayback', { remoteId, quality }, signal);
     if (!result || typeof result.url !== 'string') throw new Error('音乐源没有返回播放地址');
-    if (record.kind === 'lx') await checkLxUrl(result.url); else checkUrl(result.url, record.manifest.network.mediaHosts);
+    if (record.kind === 'lx') await checkLxUrl(result.url, sourcePolicy(record.networkPolicy)); else checkUrl(result.url, record.manifest.network.mediaHosts);
+    signal?.throwIfAborted();
     const token = randomUUID();
     const headers = this.mediaHeaders(result.headers);
     this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
     return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id };
   }
-  async lxPlayback(id, remoteId, quality) {
+  async lxPlayback(id, remoteId, quality, signal) {
     const record = this.record(id);
     const musicInfo = lxCatalog.readInfo(remoteId);
     const supported = record.manifest.lxPlatforms[musicInfo.source]?.qualitys || [];
@@ -456,7 +513,7 @@ class SourceManager {
     let lastError;
     for (const type of order.filter(item => supported.includes(item))) {
       try {
-        const answer = await this.call(id, 'resolvePlayback', { source: musicInfo.source, action: 'musicUrl', info: { type, musicInfo } });
+        const answer = await this.call(id, 'resolvePlayback', { source: musicInfo.source, action: 'musicUrl', info: { type, musicInfo } }, signal);
         const url = typeof answer === 'string' ? answer : answer?.url;
         if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('音乐源未返回可播放地址');
         return { url, actualQuality: type, headers: answer?.headers };
@@ -481,7 +538,7 @@ class SourceManager {
     const fetchMedia = async requestHeaders => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(new Error('音频连接超时')), 8000);
-      try { return await fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { headers: requestHeaders, signal: AbortSignal.any([request.signal, controller.signal]) }); }
+      try { return await fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), headers: requestHeaders, signal: AbortSignal.any([request.signal, controller.signal]) }); }
       finally { clearTimeout(timer); }
     };
     let response;
@@ -499,7 +556,7 @@ class SourceManager {
     outgoing.set('Access-Control-Allow-Origin', '*');
     if (request.method === 'HEAD') { await response.body?.cancel().catch(() => {}); return new Response(null, { status: response.status, headers: outgoing }); }
     const body = [200, 206].includes(response.status)
-      ? this.audioCache?.captureResponse(session.trackId, session.quality, response, signal => fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { headers: session.headers, signal })) || response.body
+      ? this.audioCache?.captureResponse(session.trackId, session.quality, response, signal => fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), headers: session.headers, signal })) || response.body
       : response.body;
     return new Response(body, { status: response.status, headers: outgoing });
   }
@@ -508,27 +565,29 @@ class SourceManager {
     session.refreshes += 1;
     const record = this.record(session.id);
     const result = record.kind === 'lx' ? await this.lxPlayback(session.id, session.remoteId, session.quality) : await this.call(session.id, 'resolvePlayback', { remoteId: session.remoteId, quality: session.quality });
-    if (record.kind === 'lx') await checkLxUrl(result?.url); else checkUrl(result?.url, record.manifest.network.mediaHosts);
+    if (record.kind === 'lx') await checkLxUrl(result?.url, sourcePolicy(record.networkPolicy)); else checkUrl(result?.url, record.manifest.network.mediaHosts);
     session.url = result.url; session.headers = this.mediaHeaders(result.headers); session.expiresAt = Number(result.expiresAt) || 0;
   }
   async lyrics(track) {
+    const epoch = this.metadataCache.epoch;
     if (!track?.providerId || !track?.remoteId) return null;
     const file = path.join(this.lyricFolder, `${createHash('sha256').update(`${track.providerId}:${track.remoteId}`).digest('hex')}.json`);
     const record = this.records.find(item => item.id === track.providerId);
     if (record?.kind === 'lx') {
-      try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch {}
+      try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch {}
     }
     if (!record?.enabled || (record.kind !== 'lx' && !record.manifest.capabilities.includes('lyrics'))) {
-      try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { return null; }
+      try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch { return null; }
     }
     try {
       const result = record.kind === 'lx' ? await lxCatalog.lyrics(lxCatalog.readInfo(track.remoteId)) : await this.call(track.providerId, 'lyrics', { remoteId: track.remoteId });
       const lyrics = typeof result === 'string' ? { text: result.slice(0, 200000), format: 'lrc', source: 'custom' }
         : result && typeof result.text === 'string' ? { text: result.text.slice(0, 200000), translationText: typeof result.translationText === 'string' ? result.translationText.slice(0, 100000) : undefined, format: boundedText(result.format || 'lrc', 15), source: 'custom' } : null;
-      if (lyrics) await fs.writeFile(file, JSON.stringify(lyrics), 'utf8').catch(() => {});
+      if (lyrics && this.metadataCache.writeEnabled && epoch === this.metadataCache.epoch) { await fs.writeFile(file, JSON.stringify(lyrics), 'utf8').catch(() => this.metadataCache.failWrite()); if (epoch !== this.metadataCache.epoch) await fs.rm(file, { force: true }); }
+      this.metadataCache.schedule();
       return lyrics;
     } catch (error) {
-      try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { throw error; }
+      try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch { throw error; }
     }
   }
   async cover(request, id, remoteId) {
@@ -539,24 +598,30 @@ class SourceManager {
     return new Response(result.data || null, { status: result.status || 200, headers: { 'Content-Type': result.type || 'image/jpeg', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'private, max-age=86400' } });
   }
   async coverBytes(id, remoteId) {
+    const epoch = this.metadataCache.epoch;
     try {
       const key = `${id}:${remoteId}`;
       if (this.coverCache.has(key)) { const hit = this.coverCache.get(key); return hit; }
       const hash = createHash('sha256').update(key).digest('hex');
       try {
-        const [data, type] = await Promise.all([fs.readFile(path.join(this.coverFolder, `${hash}.bin`)), fs.readFile(path.join(this.coverFolder, `${hash}.type`), 'utf8')]);
-        if (data.length && data.length <= 5 * 1024 * 1024 && type.startsWith('image/')) { const value = { data, type }; this.coverCache.set(key, value); return value; }
+        const [data, type] = await Promise.all([readBoundedFile(path.join(this.coverFolder, `${hash}.bin`), 5 * 1024 * 1024), readBoundedFile(path.join(this.coverFolder, `${hash}.type`), 256, 'utf8')]);
+        if (data.length && data.length <= 5 * 1024 * 1024 && type.startsWith('image/')) { const value = { data, type }; if (epoch === this.metadataCache.epoch) this.coverCache.set(key, value); return value; }
       } catch {}
       const record = this.record(id);
       const url = this.coverHints.get(key) || (record.kind === 'lx' ? await lxCatalog.artwork(lxCatalog.readInfo(remoteId)) : (await this.call(id, 'artwork', { remoteId }))?.url);
-      if (record.kind === 'lx') await checkLxUrl(url); else checkUrl(url, record.manifest.network.artworkHosts);
-      const response = await fetchAllowed(url, record.kind === 'lx' ? null : record.manifest.network.artworkHosts, { signal: AbortSignal.timeout(10000) });
+      if (record.kind === 'lx') await checkLxUrl(url, sourcePolicy(record.networkPolicy)); else checkUrl(url, record.manifest.network.artworkHosts);
+      const response = await fetchAllowed(url, record.kind === 'lx' ? null : record.manifest.network.artworkHosts, { ...policyOptions(record), signal: AbortSignal.timeout(10000) });
       if (!response.ok) { await response.body?.cancel().catch(() => {}); return { status: response.status }; }
       const type = response.headers.get('content-type') || 'image/jpeg';
       if (!type.startsWith('image/')) { await response.body?.cancel().catch(() => {}); throw new Error('封面格式无效'); }
       const data = await readLimited(response, 5 * 1024 * 1024);
+      if (epoch !== this.metadataCache.epoch) return { data, type };
       this.coverCache.set(key, { data, type });
-      await Promise.all([fs.writeFile(path.join(this.coverFolder, `${hash}.bin`), data), fs.writeFile(path.join(this.coverFolder, `${hash}.type`), type)]).catch(() => {});
+      if (!this.metadataCache.writeEnabled) { this.metadataCache.schedule(); return { data, type }; }
+      const files = [path.join(this.coverFolder, `${hash}.bin`), path.join(this.coverFolder, `${hash}.type`)];
+      await Promise.all([fs.writeFile(files[0], data), fs.writeFile(files[1], type)]).catch(() => this.metadataCache.failWrite());
+      if (epoch !== this.metadataCache.epoch) await Promise.all(files.map(file => fs.rm(file, { force: true })));
+      this.metadataCache.schedule();
       return { data, type };
     } catch { return { status: 404 }; }
   }
@@ -568,10 +633,8 @@ class SourceManager {
     const result = await dialog.showOpenDialog(window, { title: '选择 Zenix 源文件夹', properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return null;
     const folder = result.filePaths[0];
-    const [manifestStat, scriptStat] = await Promise.all([fs.stat(path.join(folder, 'manifest.json')), fs.stat(path.join(folder, 'index.js'))]);
-    if (manifestStat.size + scriptStat.size > MAX_PACKAGE) throw new Error('音乐源文件夹过大');
-    const manifest = await fs.readFile(path.join(folder, 'manifest.json'), 'utf8');
-    const script = await fs.readFile(path.join(folder, 'index.js'), 'utf8');
+    const manifest = await readBoundedFile(path.join(folder, 'manifest.json'), MAX_PACKAGE, 'utf8');
+    const script = await readBoundedFile(path.join(folder, 'index.js'), MAX_PACKAGE - Buffer.byteLength(manifest), 'utf8');
     return this.previewPackage(JSON.stringify({ manifest: JSON.parse(manifest), script }), { kind: 'file', label: folder });
   }
 }

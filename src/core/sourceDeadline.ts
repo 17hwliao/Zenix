@@ -13,3 +13,13 @@ export async function sourceDeadline<T>(operation: () => Promise<T>, signal: Abo
     signal.removeEventListener('abort', abort);
   }
 }
+
+/** A deadline owns a native request as well as its renderer wait. */
+export async function sourceRequest<T>(operation: (requestId: string) => Promise<T>, signal: AbortSignal, milliseconds = 18000): Promise<T> {
+  const requestId = crypto.randomUUID();
+  let completed = false;
+  const cancel = () => { if (!completed) void window.yzqxy?.sources.cancelRequest(requestId).catch(() => {}); };
+  signal.addEventListener('abort', cancel, { once: true });
+  try { const value = await sourceDeadline(() => operation(requestId), signal, milliseconds); completed = true; return value; }
+  finally { cancel(); signal.removeEventListener('abort', cancel); }
+}

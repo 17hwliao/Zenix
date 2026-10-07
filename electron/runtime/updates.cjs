@@ -37,7 +37,7 @@ class Updates {
   async check(channel) {
     if (this.downloading || ['checking', 'downloading', 'installing'].includes(this.state.status)) return this.state;
     if (!['stable', 'preview'].includes(channel)) throw new Error('更新通道无效');
-    this.state = { status: 'checking', currentVersion: this.app.getVersion(), currentBuild: this.currentBuild, progress: 0, message: '正在检查更新' };
+    this.state = { status: 'checking', channel, currentVersion: this.app.getVersion(), currentBuild: this.currentBuild, progress: 0, message: '正在检查更新' };
     this.artifact = null; this.file = null;
     try {
       const envelope = JSON.parse(await this.text(config.feeds[channel], 256 * 1024, true));

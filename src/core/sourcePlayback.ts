@@ -1,5 +1,5 @@
 import type { Track, InstalledSource, SourceProgress } from './types';
-import { sourceDeadline } from './sourceDeadline';
+import { sourceDeadline, sourceRequest } from './sourceDeadline';
 
 function sameSong(original: Track, candidate: Track): boolean {
   const key = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
@@ -84,7 +84,7 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
         try {
           const qualityName = { lossless24: '高解析无损', lossless: '无损', high: '高品质', standard: '标准' }[tier];
           notify('resolving', `正在获取${qualityName}音频`);
-          const resolved = await sourceDeadline(() => bridge.resolve(candidate, tier, track.id, true), signal);
+          const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId), signal);
           if (resolved.audioUrl) {
             return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id, playbackQuality: tier };
           }
@@ -105,7 +105,7 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
     if (unavailable || performance.now() - sourceStarted > 22000 || !source.manifest.capabilities.includes('search')) continue;
     try {
       notify('switching', '正在寻找同一首歌的备用资源');
-      const page = await sourceDeadline(() => bridge.search(source.id, track.title, null, 50), signal, 15000);
+      const page = await sourceRequest(requestId => bridge.search(source.id, track.title, null, 50, requestId), signal, 15000);
       const matches = page.items.filter(candidate => sameSong(track, candidate))
         .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
       for (const candidate of matches.slice(0, 2)) {

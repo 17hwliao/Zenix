@@ -1,5 +1,9 @@
 const { createHash } = require('node:crypto');
 const { inflateSync } = require('node:zlib');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const { fetchAllowed, readLimited } = require('./runtime/source-network.cjs');
+const context = new AsyncLocalStorage();
+const fetch = (url, options = {}) => fetchAllowed(url, null, { ...options, signal: context.getStore() ? AbortSignal.any([context.getStore(), options.signal || AbortSignal.timeout(11000)]) : options.signal || AbortSignal.timeout(11000) });
 
 const PLATFORMS = { kw: '酷我', kg: '酷狗', tx: 'QQ 音乐', wy: '网易云', mg: '咪咕' };
 const MAX_INFO = 4096;
@@ -38,7 +42,7 @@ function normalize(name, artist, album, duration, coverUrl, info) {
 async function json(url, options = {}) {
   const response = await fetch(url, { ...options, signal: AbortSignal.timeout(11000) });
   if (!response.ok) throw new Error(`LX 歌曲目录返回 HTTP ${response.status}`);
-  const text = await response.text();
+  const text = (await readLimited(response, 2 * 1024 * 1024)).toString('utf8');
   if (text.length > 2 * 1024 * 1024) throw new Error('LX 歌曲目录响应过大');
   return JSON.parse(text);
 }
@@ -101,6 +105,8 @@ async function searchTx(keyword, page, size) {
 
 async function searchMg(keyword, page, size) {
   const time = Date.now().toString();
+  // Upstream protocol compatibility constants, not Zenix user credentials.
+  // Changes require checking the catalogue protocol; keep them isolated here.
   const deviceId = '963B7AA0D21511ED807EE5846EC87D20';
   const sign = createHash('md5').update(`${keyword}6cdc72a439cef99a3418d2a78aa28c73yyapp2d16148780a1dcc7408e06336b98cfd50${deviceId}${time}`).digest('hex');
   const query = new URLSearchParams({ isCorrect: '0', isCopyright: '1', searchSwitch: JSON.stringify({ song: 1, album: 0, singer: 0, tagSong: 1, mvSong: 0, bestShow: 1, songlist: 0, lyricSong: 0 }), pageSize: String(size), text: keyword, pageNo: String(page), sort: '0', sid: 'USS' });
@@ -118,7 +124,8 @@ async function searchMg(keyword, page, size) {
 
 const SEARCH = { kw: searchKw, kg: searchKg, tx: searchTx, wy: searchWy, mg: searchMg };
 
-async function search(platform, keyword, page, size) {
+async function search(platform, keyword, page, size, signal) {
+  if (signal) return context.run(signal, () => search(platform, keyword, page, size));
   if (!SEARCH[platform]) throw new Error(`Zenix 尚无 ${platform} 的 LX 歌曲目录适配`);
   const result = await SEARCH[platform](keyword, page, size);
   return { items: result.items, nextCursor: result.items.length && page * size < result.total ? String(page + 1) : null };
@@ -130,7 +137,7 @@ async function artwork(info) {
     const query = new URLSearchParams({ corp: 'kuwo', type: 'rid_pic', pictype: '500', size: '500', rid: String(info.songmid) });
     const response = await fetch(`https://artistpicserver.kuwo.cn/pic.web?${query}`, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) return null;
-    const url = (await response.text()).trim();
+    const url = (await readLimited(response, 65536)).toString('utf8').trim();
     return url.length < 1500 && /^https?:\/\//i.test(url) ? url : null;
   }
   if (info.source === 'kg') {
@@ -139,7 +146,7 @@ async function artwork(info) {
       resource: [{ album_audio_id: info.songmid, album_id: info.albumId, hash: info.hash, id: 0, name: `${info.singer || ''} - ${info.name || ''}.mp3`, type: 'audio' }],
       token: '', userid: 2626431536, vip: 1,
     };
-    const data = await json('http://media.store.kugou.com/v1/get_res_privilege', {
+    const data = await json('https://media.store.kugou.com/v1/get_res_privilege', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'KG-RC': '1', 'KG-THash': 'expand_search_manager.cpp:852736169:451', 'User-Agent': 'KuGou2012-9020-ExpandSearchManager' },
       body: JSON.stringify(body),
     });
@@ -165,7 +172,7 @@ async function lyrics(info) {
     const query = new URLSearchParams({ f: 'web', type: 'lyric', lrcx: '1', rid: String(info.songmid), encode: 'utf8' });
     const response = await fetch(`https://mlyric.kuwo.cn/mobi.s?${query}`, { signal: AbortSignal.timeout(11000) });
     if (!response.ok || Number(response.headers.get('content-length')) > 1024 * 1024) return null;
-    const encoded = Buffer.from(await response.arrayBuffer());
+    const encoded = await readLimited(response, 1024 * 1024);
     if (encoded.length > 1024 * 1024 || !encoded.subarray(0, 10).toString('utf8').toLowerCase().startsWith('tp=content')) return null;
     const start = encoded.indexOf('\r\n\r\n');
     if (start < 0) return null;
@@ -202,7 +209,7 @@ async function lyrics(info) {
     if (url.protocol !== 'https:' || !(url.hostname === 'migu.cn' || url.hostname.endsWith('.migu.cn'))) return null;
     const response = await fetch(url, { signal: AbortSignal.timeout(11000), headers: { Referer: 'https://app.c.nf.migu.cn/' } });
     if (!response.ok || Number(response.headers.get('content-length')) > 200000) return null;
-    const data = Buffer.from(await response.arrayBuffer());
+    const data = await readLimited(response, 1024 * 1024);
     return data.length <= 200000 ? lyricResult(data.toString('utf8').replace(/^@migu music@\s*/i, '')) : null;
   }
   return null;

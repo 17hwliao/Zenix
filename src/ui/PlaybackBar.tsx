@@ -2,6 +2,7 @@ import { ListMusic, Pause, Play, Repeat2, Repeat1, Shuffle, SkipBack, SkipForwar
 import CoverArt from './CoverArt';
 import { trackCoverUrl } from '../core/trackCover';
 import TrackQuickActions from './TrackQuickActions';
+import { usePlayerBarGesture } from './usePlayerBarGesture';
 import { formatTime } from './library';
 import type { TrackView, RepeatMode } from './types';
 import type { PersonalState } from '../core/types';
@@ -31,6 +32,7 @@ interface PlaybackBarProps {
   onToggleShuffle?: () => void;
   onCycleRepeat?: () => void;
   onOpenPlayer: () => void;
+  onExpandPlayer: () => void;
   onOpenQueue: () => void;
 }
 
@@ -38,15 +40,16 @@ export default function PlaybackBar(props: PlaybackBarProps) {
   const {
     track, playing, position, duration, volume, muted, shuffle, repeat, surface, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist,
     onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange, onToggleMute,
-    onToggleShuffle, onCycleRepeat, onOpenPlayer, onOpenQueue,
+    onToggleShuffle, onCycleRepeat, onOpenPlayer, onExpandPlayer, onOpenQueue,
   } = props;
   const total = duration || track.duration || 0;
   const progress = total ? Math.min(100, Math.max(0, (position / total) * 100)) : 0;
+  const open = usePlayerBarGesture(onOpenPlayer, onExpandPlayer);
 
   return (
-    <div className={`yz-playerbar yz-playerbar--${surface}`}>
+    <div className={`yz-playerbar yz-playerbar--${surface}`} onClick={event => { if (!(event.target as Element).closest('button,input,select,a,[role="button"]')) open(); }}>
       <div className="yz-playerbar-main">
-        <button className="yz-playerbar-track" onClick={onOpenPlayer} title="打开播放页">
+        <button className="yz-playerbar-track" onClick={open} title="单击进入音乐空间，双击放大当前歌曲">
           <CoverArt title={track.title} coverUrl={trackCoverUrl(track)} className="yz-playerbar-art" />
           <span className="yz-playerbar-tracktext"><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}{track.actualQuality ? ` · ${QUALITY_LABELS[track.actualQuality] || track.actualQuality}` : ''}</small></span>
         </button>

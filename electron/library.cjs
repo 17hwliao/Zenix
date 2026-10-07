@@ -3,6 +3,8 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
+const { promisify } = require('node:util');
+const { readBoundedFile } = require('./runtime/bounded-file.cjs');
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.wav', '.ogg', '.opus', '.aac']);
 const LYRIC_EXTENSIONS = ['.lrc', '.vtt', '.ttml', '.qrc', '.yrc', '.krc'];
@@ -375,19 +377,19 @@ class LocalLibrary {
       for (const candidate of [stem + extension, record.path + extension]) {
         if (!(await exists(candidate))) continue;
         try {
-          const data = await fsp.readFile(candidate);
+          const data = await readBoundedFile(candidate, 2 * 1024 * 1024);
           let text;
           if (extension === '.krc' && data.subarray(0, 4).toString('ascii') === 'krc1') {
             const encoded = Buffer.from(data.subarray(4));
             for (let index = 0; index < encoded.length; index += 1) encoded[index] ^= KRC_KEY[index % KRC_KEY.length];
-            text = zlib.inflateSync(encoded).toString('utf8');
+            text = (await promisify(zlib.inflate)(encoded, { maxOutputLength: 4 * 1024 * 1024 })).toString('utf8');
           } else {
             text = data.toString('utf8');
           }
           if (text.includes('\uFFFD')) text = new TextDecoder('gb18030').decode(data);
           let translationText;
           const translationPath = stem + '.t' + extension;
-          if (await exists(translationPath)) translationText = await fsp.readFile(translationPath, 'utf8');
+          if (await exists(translationPath)) try { translationText = await readBoundedFile(translationPath, 2 * 1024 * 1024, 'utf8'); } catch { /* Keep the valid original lyric. */ }
           return { text, format: extension.slice(1), source: 'sidecar', translationText };
         } catch (error) {
           console.warn('Cannot read lyric file:', candidate, error.message);

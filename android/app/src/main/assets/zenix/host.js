@@ -38,7 +38,7 @@
   };
   globalThis.fetch = async (url, options) => {
     const result = await request(url, options); const data = buffer.from(result.data, 'base64');
-    return { ok: result.status >= 200 && result.status < 300, status: result.status,
+    return { ok: result.status >= 200 && result.status < 300, status: result.status, byteLength: data.byteLength,
       headers: { get: name => result.headers[String(name).toLowerCase()] ?? null },
       text: async () => buffer.bufToString(data), arrayBuffer: async () => data.buffer, json: async () => JSON.parse(buffer.bufToString(data)) };
   };

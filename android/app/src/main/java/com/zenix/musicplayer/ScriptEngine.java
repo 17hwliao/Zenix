@@ -21,12 +21,20 @@ final class ScriptEngine implements AutoCloseable {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ConcurrentHashMap<Long,CompletableFuture<Object>> pending=new ConcurrentHashMap<>();
     private final CompletableFuture<JSONObject> ready=new CompletableFuture<>();
-    private final ExecutorService network=Executors.newFixedThreadPool(3);
+    private final ExecutorService network=new ThreadPoolExecutor(3,3,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(8));
     private final JSONArray apiHosts;
+    private final boolean allowHttp;
     private WebView view; private long sequence; private volatile boolean closed;
+    private final java.util.Set<okhttp3.Call> requests=ConcurrentHashMap.newKeySet();
+    boolean isClosed(){return closed;}
     @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
     ScriptEngine(Context context,String script,JSONObject info,JSONArray allowed,boolean catalog) {
+        this(context,script,info,allowed,catalog,false);
+    }
+    @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
+    ScriptEngine(Context context,String script,JSONObject info,JSONArray allowed,boolean catalog,boolean allowHttp) {
         apiHosts=allowed;
+        this.allowHttp=allowHttp;
         main.post(() -> {
             try {
                 if(closed) return;
@@ -54,34 +62,38 @@ final class ScriptEngine implements AutoCloseable {
         });
     }
     private static String asset(Context context,String name) throws IOException { return new String(SourceHttp.bounded(context.getAssets().open("zenix/"+name),2*1024*1024),StandardCharsets.UTF_8); }
-    JSONObject ready() throws Exception { return ready.get(18,TimeUnit.SECONDS); }
+    JSONObject ready() throws Exception {try{return ready.get(18,TimeUnit.SECONDS);}catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}}
     synchronized Object call(String method,Object payload,JSONObject settings) throws Exception {
         ready(); if(closed)throw new Exception("音乐源运行层已关闭");
         long id=++sequence; CompletableFuture<Object> result=new CompletableFuture<>(); pending.put(id,result);
         main.post(() -> { if(!closed) evaluate("__invoke("+id+","+JSONObject.quote(method)+","+payload+","+settings+")"); });
         try { return result.get(20,TimeUnit.SECONDS); }
+        catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}
         finally { pending.remove(id); }
     }
     private void evaluate(String code) { if(view!=null&&!closed) view.evaluateJavascript(code,null); }
     private void fail(Exception e) { ready.completeExceptionally(e); pending.values().forEach(f -> f.completeExceptionally(e));pending.clear(); }
-    @Override public void close() { closed=true; fail(new Exception("音乐源已关闭"));network.shutdownNow(); main.post(() -> { if(view!=null) { view.removeJavascriptInterface("NativeHost");view.destroy();view=null; } }); }
+    @Override public void close() { closed=true; fail(new Exception("音乐源已关闭"));for(okhttp3.Call call:requests)call.cancel();requests.clear();network.shutdownNow(); main.post(() -> { if(view!=null) { view.removeJavascriptInterface("NativeHost");view.destroy();view=null; } }); }
     private final class Host {
-        @JavascriptInterface public void ready(String json) { try { ready.complete(new JSONObject(json)); } catch(Exception e) { ready.completeExceptionally(e); } }
+        @JavascriptInterface public void ready(String json) { try { if(json.length()>256*1024)throw new IOException("源声明过大");ready.complete(new JSONObject(json)); } catch(Exception e) { ready.completeExceptionally(e); } }
         @JavascriptInterface public void result(String json) {
-            if(json.length()>SourceHttp.MAX_BYTES)return;
-            try { JSONObject value=new JSONObject(json); CompletableFuture<Object> f=pending.get(value.getLong("id")); if(f==null)return; if(value.has("error"))f.completeExceptionally(new Exception(value.optString("error")));else f.complete(value.opt("value")); }catch(Exception ignored) {}
+            if(json==null||json.length()>SourceHttp.MAX_BYTES){fail(new IOException("音乐源返回数据超过大小限制"));close();return;}
+            try { JSONObject value=new JSONObject(json); CompletableFuture<Object> f=pending.get(value.getLong("id")); if(f==null)return; if(value.has("error"))f.completeExceptionally(new Exception(value.optString("error")));else f.complete(value.opt("value")); }catch(Exception error){fail(new IOException("音乐源返回数据格式错误",error));close();}
         }
         @JavascriptInterface public void http(String json) {
-            if(closed||json.length()>SourceHttp.MAX_BYTES)return;
+            if(closed)return;
+            if(json==null||json.length()>SourceHttp.MAX_BYTES){fail(new IOException("音乐源网络请求超过大小限制"));close();return;}
             try {
                 JSONObject request=new JSONObject(json); long id=request.getLong("id");
                 network.execute(() -> {
                     String result,error;
-                    try { result=SourceHttp.request(request.getString("url"),request.optJSONObject("options")==null ? new JSONObject() : request.getJSONObject("options"),apiHosts).toString();error="null"; }
+                    okhttp3.Call[] running=new okhttp3.Call[1];
+                    try { result=SourceHttp.request(request.getString("url"),request.optJSONObject("options")==null ? new JSONObject() : request.getJSONObject("options"),apiHosts,call->{running[0]=call;requests.add(call);if(closed)call.cancel();},allowHttp).toString();error="null"; }
                     catch(Exception e) { result="null";error=JSONObject.quote(Json.message(e)); }
+                    finally{if(running[0]!=null)requests.remove(running[0]);}
                     String js="__networkResult("+id+","+result+","+error+")"; main.post(() -> evaluate(js));
                 });
-            } catch(Exception ignored) {}
+            } catch(Exception error) {try{long id=new JSONObject(json).getLong("id");main.post(()->evaluate("__networkResult("+id+",null,\"网络请求队列已满或关闭\")"));}catch(Exception ignored){}}
         }
         @JavascriptInterface public String crypto(String json) {
             try {

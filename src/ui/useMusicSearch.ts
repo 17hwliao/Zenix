@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { InstalledSource } from '../core/types';
 import type { TrackView } from './types';
+import { sourceRequest } from '../core/sourceDeadline';
 
 type SearchPage = { items: TrackView[]; nextCursor: string | null; loading: boolean; error: string };
 type SearchResults = { key: string; pages: Record<string, SearchPage> };
@@ -15,6 +16,7 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<SearchResults>({ key: '', pages: {} });
   const serial = useRef(0);
+  const searchAbort = useRef<AbortController | null>(null);
   const keyword = query.trim();
   const enabled = useMemo(() => sources.filter(source => source.enabled && source.manifest.capabilities.includes('search')), [sources]);
   const enabledKey = enabled.map(source => `${source.id}:${source.manifest.version}`).join('|');
@@ -48,10 +50,11 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
   useEffect(() => {
     if (!active || !sourcesLoaded) return;
     const token = ++serial.current;
+    const controller = new AbortController(); searchAbort.current = controller;
     const initial = Object.fromEntries(enabled.map(source => [source.id, { items: [], nextCursor: null, loading: Boolean(searchText), error: '' }])) as Record<string, SearchPage>;
     setResults({ key: requestKey, pages: initial });
     if (searchText && window.yzqxy?.sources) for (const source of enabled) {
-      void window.yzqxy.sources.search(source.id, searchText).then(page => {
+      void sourceRequest(id => window.yzqxy!.sources.search(source.id, searchText, null, 25, id), controller.signal).then(page => {
         if (serial.current !== token) return;
         setResults(previous => ({ ...previous, pages: { ...previous.pages, [source.id]: { items: page.items, nextCursor: page.nextCursor, loading: false, error: '' } } }));
       }).catch(reason => {
@@ -59,7 +62,7 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
         setResults(previous => ({ ...previous, pages: { ...previous.pages, [source.id]: { items: [], nextCursor: null, loading: false, error: String(reason) } } }));
       });
     }
-    return () => { serial.current++; };
+    return () => { serial.current++; controller.abort(); if (searchAbort.current === controller) searchAbort.current = null; };
   }, [active, sourcesLoaded, requestKey]);
 
   const localResults = useMemo(() => keyword ? localTracks.filter(track => `${track.title} ${track.artist} ${track.album ?? ''}`.toLocaleLowerCase().includes(keyword.toLocaleLowerCase())).slice(0, 50) : [], [localTracks, keyword]);
@@ -76,10 +79,11 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
 
   const loadMore = (source: InstalledSource) => {
     const old = pages[source.id];
-    if (!old?.nextCursor || old.loading || !window.yzqxy?.sources) return;
+    const signal = searchAbort.current?.signal;
+    if (!old?.nextCursor || old.loading || !window.yzqxy?.sources || !signal || signal.aborted) return;
     const token = serial.current;
     setResults(previous => ({ ...previous, pages: { ...previous.pages, [source.id]: { ...previous.pages[source.id], loading: true } } }));
-    void window.yzqxy.sources.search(source.id, searchText, old.nextCursor).then(page => {
+    void sourceRequest(id => window.yzqxy!.sources.search(source.id, searchText, old.nextCursor, 25, id), signal).then(page => {
       if (serial.current !== token) return;
       setResults(previous => {
         const current = previous.pages[source.id];

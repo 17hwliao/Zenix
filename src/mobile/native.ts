@@ -2,11 +2,12 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor
 import type { PlayerState, PersonalState, Track, RawLyrics, InstalledSource } from '../core/types';
 
 export type MobileSnapshot = {
+  storageError?: string;
   roaming?: { active: boolean; phase: 'idle' | 'searching' | 'playing' | 'paused' | 'exhausted' | 'failed'; message: string; discovered: number; tracks: Track[] };
   playback: PlayerState;
   personal: PersonalState;
   sources: InstalledSource[];
-  cache: { usedBytes: number; limitMiB: number; enabled: boolean };
+  cache: { usedBytes: number; limitMiB: number; enabled: boolean; metadataBytes?: number; metadataLimitMiB?: number };
   profile?: { name: string; bio: string; email?: string; lyricSize?: number; lyricColor?: string; cardTransparency?: number };
   appearance?: { completed: boolean; background: { kind: 'image' | 'video'; name: string; url: string } | null };
   localTracks?: Track[];

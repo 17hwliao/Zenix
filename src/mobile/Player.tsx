@@ -4,15 +4,37 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Captions, ChevronDown, Disc3, ListMusic, LoaderCircle, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward } from 'lucide-react';
 import { activeLyricIndex, parseLyrics } from '../core/lyrics';
 import type { LyricLine, Track } from '../core/types';
-import { isNativeMobile, supportsOverlay, readLyrics, type MobileSnapshot } from './native';
+import { isNativeMobile, isAndroid, command, supportsOverlay, readLyrics, type MobileSnapshot } from './native';
 
 export const fileUrl = (url?: string) => url && (url.startsWith('/') || url.startsWith('content:')) ? Capacitor.convertFileSrc(url) : url;
 const clock = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
+const artworkPending = new Map<string, Promise<{ url?: string }>>();
+function artwork(track: Track) {
+  let task = artworkPending.get(track.id);
+  if (!task) {
+    if (artworkPending.size >= 32) return Promise.reject(new Error('封面加载队列已满'));
+    task = command<{ url?: string }>('artwork', { track }).finally(() => artworkPending.delete(track.id));
+    artworkPending.set(track.id, task);
+  }
+  return task;
+}
 export const Art = memo(function Art({ track }: { track?: Track }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [track?.coverUrl]);
-  return track?.coverUrl && !failed ? <img className="mobile-art" src={fileUrl(track.coverUrl)} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} draggable={false} /> : <div className="mobile-art art-fallback"><Disc3 /><span>{track?.title?.slice(0, 1) || 'Z'}</span></div>;
-}, (previous, next) => previous.track?.coverUrl === next.track?.coverUrl && previous.track?.title === next.track?.title);
+  const [resolved, setResolved] = useState<string>();
+  const element = useRef<HTMLDivElement | HTMLImageElement | null>(null);
+  const needsNative = isAndroid && track?.source === 'custom';
+  const url = needsNative ? resolved : track?.coverUrl;
+  useEffect(() => {
+    setFailed(false); setResolved(undefined);
+    if (!needsNative || !track) return;
+    let cancelled = false, requested = false;
+    const load = () => { if (requested) return; requested = true; void artwork(track).then(value => { if (!cancelled && value.url?.startsWith('/')) setResolved(value.url); }).catch(() => {}); };
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); load(); } }, { rootMargin: '120px' });
+    if (element.current) observer.observe(element.current);
+    return () => { cancelled = true; observer.disconnect(); };
+  }, [needsNative, track?.id, track?.coverUrl, track?.coverHint]);
+  return url && !failed ? <img ref={node => { element.current = node; }} className="mobile-art" src={fileUrl(url)} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} draggable={false} /> : <div ref={node => { element.current = node; }} className="mobile-art art-fallback"><Disc3 /><span>{track?.title?.slice(0, 1) || 'Z'}</span></div>;
+}, (previous, next) => previous.track?.id === next.track?.id && previous.track?.coverUrl === next.track?.coverUrl && previous.track?.coverHint === next.track?.coverHint && previous.track?.title === next.track?.title);
 export function Seek({ position, duration, onSeek, compact = false }: { position: number; duration: number; onSeek: (seconds: number) => void; compact?: boolean }) {
   const [drag, setDrag] = useState<number | null>(null); const value = drag ?? position;
   return <div className={`mobile-seek ${compact ? 'compact' : ''}`}><span>{clock(value)}</span><input aria-label="歌曲进度" type="range" min="0" max={Math.max(1, duration)} step="0.1" value={Math.min(value, Math.max(1, duration))} style={{ '--progress': `${Math.min(100, value / Math.max(1, duration) * 100)}%` } as CSSProperties} onChange={event => setDrag(Number(event.target.value))} onPointerUp={event => { onSeek(Number(event.currentTarget.value)); setDrag(null); }} onPointerCancel={() => setDrag(null)} onKeyUp={event => { if (event.key.startsWith('Arrow')) { onSeek(Number(event.currentTarget.value)); setDrag(null); } }} /><span>{clock(duration)}</span></div>;

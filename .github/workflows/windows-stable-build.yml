@@ -5,7 +5,6 @@ on:
       revision:
         description: Internal stable revision (public version stays unchanged)
         required: true
-        default: '7'
 permissions:
   contents: write
 jobs:
@@ -21,6 +20,12 @@ jobs:
       - run: npm ci
       - name: Prepare locked Electron runtime
         run: node node_modules/electron/install.js
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Regression gate before installer build or upload
+        run: npm test
       - run: npm run package:win
       - name: Stage verified installer on existing stable release
         shell: pwsh
@@ -29,7 +34,9 @@ jobs:
           REVISION: ${{ inputs.revision }}
         run: |
           if ($env:GITHUB_REPOSITORY -ne '17hwliao/Zenix' -or $env:REVISION -notmatch '^[1-9][0-9]*$') { throw 'Unexpected destination or revision' }
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $version = $package.version
+          if ([int]$env:REVISION -ne $package.zenixBuild) { throw 'Revision must match the installer internal build' }
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Not a stable public version' }
           $tag = "v$version"
           $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json

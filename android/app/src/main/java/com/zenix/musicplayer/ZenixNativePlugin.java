@@ -24,6 +24,7 @@ public class ZenixNativePlugin extends Plugin {
     @Override protected void handleOnPause(){runtime.observe(this,false);}
     @Override protected void handleOnDestroy(){runtime.removeObserver(this);if(updates!=null){updates.cancel();updates.worker.shutdown();}}
     void publish(JSONObject state){try{notifyListeners("snapshot",new JSObject(state.toString()));}catch(Exception ignored){}}
+    void publishPrepared(JSObject state){notifyListeners("snapshot",state);}
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
@@ -45,7 +46,7 @@ public class ZenixNativePlugin extends Plugin {
             try{LyricOverlayService.start(getContext());result(call,runtime.overlayStatus());}catch(Exception e){call.reject(Json.message(e));}return;
         }
         if(action.equals("overlayConfigure")) {
-            runtime.main.post(()->{try{JSONObject settings=runtime.store.object("overlay");if(settings==null)settings=new JSONObject();for(java.util.Iterator<String> keys=args.keys();keys.hasNext();){String key=keys.next();if(java.util.Set.of("fontSize","color","locked","compact","font").contains(key))Json.put(settings,key,args.opt(key));}runtime.store.set("overlay",settings);if(runtime.overlay!=null)runtime.overlay.configure(settings);runtime.emit();result(call,runtime.overlayStatus());}catch(Exception e){call.reject(Json.message(e));}});return;
+            runtime.main.post(()->{try{JSONObject settings=runtime.store.object("overlay");if(settings==null)settings=new JSONObject();for(java.util.Iterator<String> keys=args.keys();keys.hasNext();){String key=keys.next();if(java.util.Set.of("fontSize","color","locked","compact","font").contains(key))Json.put(settings,key,args.opt(key));}runtime.store.enqueue(Json.obj("overlay",settings));if(runtime.overlay!=null)runtime.overlay.configure(settings);runtime.emit();result(call,runtime.overlayStatus());}catch(Exception e){call.reject(Json.message(e));}});return;
         }
         if(action.equals("notifications")){if(Build.VERSION.SDK_INT>=33&&getPermissionState("notifications")!=PermissionState.GRANTED)requestPermissionForAlias("notifications",call,"notificationResult");else result(call,true);return;}
         if(action.equals("pickSourceBundle")||action.equals("pickSource")||action.equals("pickBackground")||action.equals("pickLocal")) {
@@ -58,8 +59,8 @@ public class ZenixNativePlugin extends Plugin {
         if(java.util.Set.of("play","toggle","seek","next","previous","mode","removeQueue","cacheConfigure","cacheClear","snapshot","roamingStart","roamingStop","roamingRetry","roamingPlay").contains(action)) {
             getActivity().runOnUiThread(() -> {try {
                 PlaybackService player=runtime.service;if(player==null){runtime.ensureService();call.reject("播放器正在启动，请稍后重试");return;}
-                switch(action){case "roamingStart":case "roamingStop":case "roamingRetry":case "roamingPlay":player.roamingCommand(action,args);break;case "play":player.setQueue(args.getJSONArray("tracks"),args.optInt("index",0));break;case "toggle":player.toggle();break;case "seek":player.seek(args.optDouble("seconds"));break;case "next":player.advance(1);break;case "previous":player.advance(-1);break;case "mode":player.mode(args);break;case "removeQueue":player.remove(args.getString("id"));break;case "cacheConfigure":player.configureCache(args);break;case "cacheClear":player.clearCache();break;}
-                result(call,runtime.snapshot());runtime.emit();
+                switch(action){case "roamingStart":case "roamingStop":case "roamingRetry":case "roamingPlay":player.roamingCommand(action,args);break;case "play":player.setQueue(args.getJSONArray("tracks"),args.optInt("index",0));break;case "toggle":player.toggle();break;case "seek":player.seek(args.optDouble("seconds"));break;case "next":player.advance(1);break;case "previous":player.advance(-1);break;case "mode":player.mode(args);break;case "removeQueue":player.remove(args.getString("id"));break;case "cacheConfigure":player.configureCache(args);break;case "cacheClear":player.clearCache(error->{if(error!=null)call.reject(Json.message(error));else result(call,runtime.dynamicSnapshot());});return;case "snapshot":runtime.snapshot(value->result(call,value),error->call.reject(Json.message(error)));return;}
+                result(call,runtime.dynamicSnapshot());runtime.emit();
             }catch(Exception e){call.reject(Json.message(e));}});return;
         }
         runtime.work.execute(() -> {try {
@@ -71,7 +72,7 @@ public class ZenixNativePlugin extends Plugin {
                 case "sourceDigest":String digestText=args.getString("text");if(digestText.getBytes(StandardCharsets.UTF_8).length>512*1024)throw new Exception("脚本不能超过 512 KiB");value=MusicSources.sha(digestText);break;
                 case "importUrl":value=runtime.sources.importUrl(args.getString("url"));break;
                 case "previewSourceText":String sourceOrigin=args.getString("url");boolean localSource=args.optString("originKind").equals("file");if(localSource){if(sourceOrigin.isBlank()||sourceOrigin.length()>240)throw new Exception("本地源文件名无效");}else{java.net.URI sourceAddress=new java.net.URI(sourceOrigin);if(!java.util.Set.of("https","http").contains(sourceAddress.getScheme())||sourceAddress.getHost()==null||sourceAddress.getUserInfo()!=null)throw new Exception("分享源地址无效");}value=runtime.sources.preview(args.getString("text"),sourceOrigin,localSource?"file":"url");break;
-                case "install":value=runtime.sources.install(args.getString("token"));break;
+                case "install":value=runtime.sources.install(args.getString("token"),args.optJSONObject("networkPolicy"));break;
                 case "sourceEnable":value=runtime.sources.update(args.getString("id"),"enable",args);break;
                 case "sourceRemove":value=runtime.sources.update(args.getString("id"),"remove",args);break;
                 case "sourceConfigure":value=runtime.sources.update(args.getString("id"),"configure",args);break;
@@ -79,7 +80,7 @@ public class ZenixNativePlugin extends Plugin {
                 case "profile":runtime.store.set("profile",args);value=args;break;
                 case "clearBackground":runtime.store.set("appearance",Json.obj("completed",true,"background",null));value=JSONObject.NULL;break;
                 case "completeWelcome":JSONObject appearance=runtime.store.object("appearance");if(appearance==null)appearance=Json.obj("background",null);Json.put(appearance,"completed",true);runtime.store.set("appearance",appearance);value=appearance;break;
-                case "licenses":StringBuilder text=new StringBuilder();for(String path:java.util.List.of("THIRD_PARTY_NOTICES.md","LICENSE","licenses/capacitor/LICENSE","licenses/androidx-media/LICENSE")){text.append("\n\n").append(path).append("\n\n");text.append(new String(SourceHttp.bounded(getContext().getAssets().open("zenix/legal/"+path),256*1024),StandardCharsets.UTF_8));}value=text.toString();break;
+                case "licenses":StringBuilder text=new StringBuilder();for(String path:java.util.List.of("THIRD_PARTY_NOTICES.md","LICENSE","licenses/capacitor/LICENSE","licenses/androidx-media/LICENSE","licenses/undici/LICENSE","licenses/okhttp/LICENSE.txt","licenses/okio/LICENSE.txt")){text.append("\n\n").append(path).append("\n\n");text.append(new String(SourceHttp.bounded(getContext().getAssets().open("zenix/legal/"+path),256*1024),StandardCharsets.UTF_8));}value=text.toString();break;
                 default:throw new Exception("未知 Android 操作");
             }
             result(call,value);runtime.emit();

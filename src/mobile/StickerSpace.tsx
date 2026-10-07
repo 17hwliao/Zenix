@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
-import { Crosshair, Maximize2, Pause, Play, X } from 'lucide-react';
+import { Crosshair, Maximize2, Pause, Play } from 'lucide-react';
 import { activeLyricIndex, parseLyrics } from '../core/lyrics';
 import type { LyricLine } from '../core/types';
 import type { Track } from '../core/types';
@@ -9,9 +9,9 @@ import { Art } from './Player';
 import { isNativeMobile, readLyrics, type MobileSnapshot } from './native';
 
 /** Uses the desktop mosaic algorithm, finite posters and a touch camera. */
-export default function StickerSpace({ songs, state, label, play, full, actions, remove, focusRequest, seek }: {
+export default function StickerSpace({ songs, state, label, play, full, actions, focusRequest, seek }: {
   songs: Track[]; state: MobileSnapshot; label: string; play: (song: Track) => void;
-  full: () => void; actions: (song: Track) => ReactNode; remove?: (song: Track) => void;
+  full: () => void; actions: (song: Track) => ReactNode;
   seek: (seconds: number) => void;
   focusRequest: number;
 }) {
@@ -71,7 +71,6 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
           <button className="space-poster" onClick={() => focus(index)} aria-label={`聚焦查看 ${song.title}`}>{visible && <Art track={song} />}<span className="sticker-index">{current ? '正在播放 · ' : ''}{String(index + 1).padStart(2, '0')}</span><span className="space-song"><strong>{song.title}</strong><small>{song.artist}</small></span></button>
           {focused && current && <FocusedLyrics track={song} position={player.position} seek={seek} />}
           {focused && <div className="sticker-toolbar">{actions(song)}<button aria-label={current ? '放大当前歌曲' : '播放歌曲'} onClick={() => { if (current) full(); else play(song); }}>{current ? <Maximize2 /> : <Play />}</button>{current && <button aria-label={player.playing ? '暂停' : '继续播放'} onClick={() => play(song)}>{player.playing ? <Pause /> : <Play />}</button>}</div>}
-          {remove && <button className="sticker-toolbar sticker-remove" aria-label="从当前列表移除" onClick={() => remove(song)}><X /></button>}
         </motion.article>;
       })}</motion.div>
     </div>

@@ -1,22 +1,18 @@
 import type { PersonalState, RoamingStatus, Track, InstalledSource } from './types';
 import { player, type PlaybackLifecycle } from './player';
-import { sourceDeadline } from './sourceDeadline';
+import { RoamingStore } from './roamingStore';
+import { sourceRequest, sourceDeadline } from './sourceDeadline';
 import { createState, queries, rank, consume, identity, feedback, prune, type RoamingState, type RoamingReason } from './roamingEngine';
 
 const emptyPersonal: PersonalState = { liked: [], favorites: [], history: [], playlists: [] };
-const storageKey = 'zenix.roaming.v1';
-function loadState(): RoamingState {
-  try {
-    const stored = JSON.parse(localStorage.getItem(storageKey) || 'null');
-    if (!stored || stored.version !== 1 || !stored.seen || !stored.feedback || !stored.artistAffinity || !Array.isArray(stored.recentArtists)) return createState();
-    return prune({ ...createState(), ...stored });
-  }
-  catch { return createState(); }
-}
-
 /** Small candidate pool and a persistent recording ledger; no recommendation service. */
 class RoamingController {
-  private learning = loadState();
+  private learning = createState();
+  private ledger = new RoamingStore();
+  private ready?: Promise<void>;
+  private ensureLoaded(): Promise<void> {
+    return this.ready ??= this.ledger.load().then(state => { this.learning = state; }).catch(error => { this.ready = undefined; throw error; });
+  }
   private personal: PersonalState = emptyPersonal;
   private status: RoamingStatus = { active: false, phase: 'idle', message: '', discovered: 0, tracks: [] };
   private listeners = new Set<(status: RoamingStatus) => void>();
@@ -61,14 +57,14 @@ class RoamingController {
   }
   setPersonal(personal: PersonalState): void { this.personal = personal; }
   noteSaved(track: Track, kind: 'liked' | 'favorites' | 'playlist'): void {
-    feedback(this.learning, track, kind); this.persist();
+    void this.ensureLoaded().then(() => { feedback(this.learning, track, kind); return this.persist(); }).catch(() => { this.update({ message: '无法保存漫游偏好，请检查本地存储' }); });
   }
   private update(patch: Partial<RoamingStatus>): void {
     this.status = { ...this.status, ...patch };
     this.listeners.forEach(listener => listener(this.status));
   }
-  private persist(): boolean {
-    try { localStorage.setItem(storageKey, JSON.stringify(this.learning)); return true; }
+  private async persist(): Promise<boolean> {
+    try { await this.ensureLoaded(); await this.ledger.save(this.learning); return true; }
     catch { return false; }
   }
   private elapsed(): void {
@@ -83,8 +79,11 @@ class RoamingController {
     this.elapsed();
     // Cancelling a still-loading selection is not a taste signal.
     const observedReason = reason === 'skip' && this.session.seconds === 0 ? 'failed' : reason;
-    consume(this.learning, this.session.track, observedReason, this.session.seconds, this.session.track.duration || player.snapshot.duration);
-    this.session = undefined; this.persist();
+    const track = this.session.track, seconds = this.session.seconds, duration = track.duration || player.snapshot.duration;
+    this.session = undefined;
+    void this.ensureLoaded().then(() => { consume(this.learning, track, observedReason, seconds, duration); return this.persist(); }).catch(() => {
+      this.update({ message: '无法保存漫游偏好，请检查本地存储' });
+    });
   }
   private lifecycle(event: PlaybackLifecycle): void {
     if (event.type === 'pause-request' && this.status.active && this.advancing) {
@@ -127,6 +126,7 @@ class RoamingController {
     if ((event.type === 'waiting' || event.type === 'pause') && this.session) this.session.audible = false;
   }
   async start(): Promise<void> {
+    await this.ensureLoaded();
     if (!window.yzqxy?.sources) throw new Error('音乐漫游需要在安装版中使用已配置的音乐源');
     if (!this.personal.history.length && !this.personal.liked.length && !this.personal.favorites.length) {
       throw new Error('先搜索并听一首歌曲，再开始音乐漫游');
@@ -218,10 +218,11 @@ class RoamingController {
         return;
       }
       consume(this.learning, next, 'played', 0, next.duration);
-      if (!this.persist()) {
+      if (!await this.persist()) {
         this.update({ phase: 'failed', message: '无法保存漫游去重记录，已暂停推荐。请检查本地存储空间。' });
         return;
       }
+      if (generation !== this.generation) return;
       this.viewed = [...this.viewed.filter(item => identity(item) !== identity(next)), next].slice(-10);
       this.session = { track: next, seconds: 0, clock: performance.now(), audible: false };
       this.update({ discovered: this.status.discovered + 1 });
@@ -257,13 +258,15 @@ class RoamingController {
           if (this.completed.has(key)) continue;
           attempts += 1;
           try {
-            const page = await sourceDeadline(() => window.yzqxy!.sources.search(source.id, plan.keyword, this.cursors.get(key), 30), signal, 12000);
+            const page = await sourceRequest(id => window.yzqxy!.sources.search(source.id, plan.keyword, this.cursors.get(key), 30, id), signal, 12000);
             if (generation !== this.generation) return;
             this.successfulSearches += 1;
             searchedPlans.add(plan.key);
             this.cursors.set(key, page.nextCursor);
             if (!page.nextCursor) this.completed.add(key);
-            candidates.push(...page.items.filter(track => track.source === 'custom'));
+            const unseen = await this.ledger.unseen(page.items.filter(track => track.source === 'custom'));
+            if (generation !== this.generation) return;
+            candidates.push(...unseen);
             this.pending = rank(this.learning, this.personal, candidates).slice(0, this.foregroundRequested ? 5 : 30);
             candidates.splice(0, candidates.length, ...this.pending);
             this.wall();

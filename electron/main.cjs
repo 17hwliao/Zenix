@@ -36,6 +36,18 @@ let lyricsLayoutSave = Promise.resolve();
 let lyricsLocked = false;
 let lyricsLockWindow = null;
 let lyricsLockReady = false;
+function trustedApp(event, channel) {
+  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return false;
+  const windows = [mainWindow, lyricsWindow, ...(channel === 'lyrics:unlock' ? [lyricsLockWindow] : [])];
+  return windows.some(window => window && !window.isDestroyed() && window.webContents === event.sender);
+}
+function handleApp(channel, handler) { ipcMain.handle(channel, (event, ...args) => {
+  if (!trustedApp(event, channel)) throw new Error('未授权的应用请求');
+  return handler(event, ...args);
+}); }
+function onApp(channel, handler) { ipcMain.on(channel, (event, ...args) => {
+  if (trustedApp(event, channel)) handler(event, ...args);
+}); }
 let library = null;
 let appearance = null;
 let personal = null;
@@ -122,6 +134,8 @@ function createWindow() {
     // An invisible source sandbox must not keep a closed desktop application alive.
     if (process.platform !== 'darwin') app.quit();
   });
+  mainWindow.webContents.on('will-navigate', event => event.preventDefault());
+  mainWindow.webContents.on('will-redirect', event => event.preventDefault());
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
@@ -317,7 +331,7 @@ function createLyricsWindow() {
 }
 
 function registerHandlers() {
-  ipcMain.handle('lyrics:toggle', async () => {
+  handleApp('lyrics:toggle', async () => {
     if (lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()) { lyricsWindow.close(); return false; }
     const win = createLyricsWindow();
     await lyricsReady;
@@ -327,21 +341,21 @@ function registerHandlers() {
     broadcast('lyrics:visible', true);
     return true;
   });
-  ipcMain.handle('lyrics:is-visible', () => Boolean(lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()));
-  ipcMain.handle('lyrics:lock-state', () => lyricsLocked);
-  ipcMain.handle('lyrics:hover-state', () => lyricsHover.hovered);
-  ipcMain.handle('lyrics:bounds', () => lyricsWindow && !lyricsWindow.isDestroyed() ? lyricsWindow.getBounds() : null);
-  ipcMain.on('lyrics:resize', (event, size) => {
+  handleApp('lyrics:is-visible', () => Boolean(lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible()));
+  handleApp('lyrics:lock-state', () => lyricsLocked);
+  handleApp('lyrics:hover-state', () => lyricsHover.hovered);
+  handleApp('lyrics:bounds', () => lyricsWindow && !lyricsWindow.isDestroyed() ? lyricsWindow.getBounds() : null);
+  onApp('lyrics:resize', (event, size) => {
     if (lyricsWindow && !lyricsWindow.isDestroyed() && event.sender.id === lyricsWindow.webContents.id) resizeLyricsWindow(size);
   });
-  ipcMain.on('lyrics:pointer-gesture', (event, value) => {
+  onApp('lyrics:pointer-gesture', (event, value) => {
     if (lyricsWindow && !lyricsWindow.isDestroyed() && event.sender.id === lyricsWindow.webContents.id && !lyricsLocked) lyricsHover.setPinned(value === true);
   });
-  ipcMain.handle('lyrics:set-locked', (_event, value) => setLyricsLocked(value));
-  ipcMain.handle('lyrics:orientation', () => lyricsOrientation);
-  ipcMain.handle('lyrics:set-orientation', (_event, value) => setLyricsOrientation(value));
-  ipcMain.on('lyrics:unlock', () => setLyricsLocked(false));
-  ipcMain.handle('lyrics:update', (_event, payload) => {
+  handleApp('lyrics:set-locked', (_event, value) => setLyricsLocked(value));
+  handleApp('lyrics:orientation', () => lyricsOrientation);
+  handleApp('lyrics:set-orientation', (_event, value) => setLyricsOrientation(value));
+  onApp('lyrics:unlock', () => setLyricsLocked(false));
+  handleApp('lyrics:update', (_event, payload) => {
     const duration = Number(payload?.duration);
     const position = Number(payload?.position);
     const sameTrack = payload?.trackId === lyricsPayload.trackId;
@@ -355,7 +369,7 @@ function registerHandlers() {
     lyricsTrack = payload?.track?.id === lyricsPayload.trackId ? payload.track : sameTrack ? lyricsTrack : null;
     publishLyrics();
   });
-  ipcMain.handle('lyrics:personal-action', async (_event, action, value) => {
+  handleApp('lyrics:personal-action', async (_event, action, value) => {
     if (!lyricsTrack || !lyricsPayload.trackId || lyricsTrack.id !== lyricsPayload.trackId) throw new Error('当前没有可保存的歌曲');
     let state;
     if (action === 'liked' || action === 'favorites') state = await personal.toggle(action, lyricsTrack);
@@ -370,20 +384,20 @@ function registerHandlers() {
     publishLyrics();
     return lyricsData().saved;
   });
-  ipcMain.on('lyrics:hide', () => { lyricsWindow?.close(); });
-  ipcMain.handle('lyrics:show-main', () => { showMainWindow(); return true; });
-  ipcMain.on('lyrics:command', (_event, command) => { if (['play-pause', 'play', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
-  ipcMain.on('lyrics:seek', (_event, request) => {
+  onApp('lyrics:hide', () => { lyricsWindow?.close(); });
+  handleApp('lyrics:show-main', () => { showMainWindow(); return true; });
+  onApp('lyrics:command', (_event, command) => { if (['play-pause', 'play', 'next', 'previous'].includes(command)) broadcast('media:command', command); });
+  onApp('lyrics:seek', (_event, request) => {
     const seconds = Number(request?.seconds);
     if (request?.trackId && request.trackId === lyricsPayload.trackId && Number.isFinite(seconds)) broadcast('media:seek', { trackId: lyricsPayload.trackId, seconds: Math.max(0, Math.min(seconds, lyricsPayload.duration || seconds)) });
   });
-  const personalAction = (channel, handler) => ipcMain.handle(channel, async (_event, ...args) => {
+  const personalAction = (channel, handler) => handleApp(channel, async (_event, ...args) => {
     const state = await handler(...args);
     broadcast('personal:changed', state);
     publishLyrics();
     return state;
   });
-  ipcMain.handle('personal:load', () => personal.snapshot());
+  handleApp('personal:load', () => personal.snapshot());
   personalAction('personal:toggle', (kind, track) => personal.toggle(kind, track));
   personalAction('personal:record', track => personal.record(track));
   personalAction('personal:create-playlist', (name, firstTrack) => personal.createPlaylist(name, firstTrack));
@@ -392,52 +406,53 @@ function registerHandlers() {
   personalAction('personal:add-to-playlist', (id, track) => personal.addToPlaylist(id, track));
   personalAction('personal:remove-from-playlist', (id, trackId) => personal.removeFromPlaylist(id, trackId));
   personalAction('personal:remove-saved', (kind, id) => personal.removeSaved(kind, id));
-  ipcMain.handle('appearance:load', () => appearance.snapshot());
-  ipcMain.handle('appearance:choose', async () => {
+  handleApp('appearance:load', () => appearance.snapshot());
+  handleApp('appearance:choose', async () => {
     const state = await appearance.choose(mainWindow);
     if (state) broadcast('appearance:changed', state);
     return state;
   });
-  ipcMain.handle('appearance:complete', async () => {
+  handleApp('appearance:complete', async () => {
     const state = await appearance.complete();
     broadcast('appearance:changed', state);
     return state;
   });
-  ipcMain.handle('appearance:clear', async () => {
+  handleApp('appearance:clear', async () => {
     const state = await appearance.clear();
     broadcast('appearance:changed', state);
     return state;
   });
-  ipcMain.handle('sources:list', () => sourceManager.list());
-  ipcMain.handle('sources:import-file', () => sourceManager.choosePackage(mainWindow));
-  ipcMain.handle('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
-  ipcMain.handle('sources:import-url', (_event, url) => sourceManager.importUrl(String(url || '')));
-  ipcMain.handle('sources:import-text', (_event, text, originUrl) => {
+  handleApp('sources:list', () => { sourceManager.assertWritable(); return sourceManager.list(); });
+  handleApp('sources:import-file', () => sourceManager.choosePackage(mainWindow));
+  handleApp('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
+  handleApp('sources:import-url', (_event, url) => sourceManager.importUrl(String(url || '')));
+  handleApp('sources:import-text', (_event, text, originUrl) => {
     const origin = new URL(String(originUrl || ''));
     if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password) throw new Error('分享源地址无效');
     return sourceManager.previewPackage(String(text || ''), { kind: 'url', label: origin.href });
   });
-  ipcMain.handle('sources:confirm-import', (_event, token) => sourceManager.confirmImport(String(token || '')));
-  ipcMain.handle('sources:cancel-import', (_event, token) => sourceManager.cancelImport(String(token || '')));
-  ipcMain.handle('sources:set-enabled', (_event, id, enabled) => sourceManager.setEnabled(String(id || ''), enabled));
-  ipcMain.handle('sources:configure', (_event, id, values) => sourceManager.configure(String(id || ''), values));
-  ipcMain.handle('sources:get-settings', (_event, id) => sourceManager.getSettings(String(id || '')));
-  ipcMain.handle('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
-  ipcMain.handle('sources:search', (_event, id, keyword, cursor, pageSize) => sourceManager.search(String(id || ''), keyword, cursor, pageSize));
-  ipcMain.handle('sources:cached', (_event, track, quality) => sourceManager.cached(track, quality));
-  ipcMain.handle('sources:cached-best', (_event, track, qualities) => sourceManager.cachedBest(track, qualities));
-  ipcMain.handle('sources:resolve', (_event, track, quality, cacheAsId, skipCache) => sourceManager.resolve(track, quality, cacheAsId, skipCache));
-  ipcMain.handle('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
-  ipcMain.handle('cache:stats', () => audioCache.stats());
-  ipcMain.handle('cache:configure', (_event, options) => audioCache.configure(options));
-  ipcMain.handle('cache:clear', () => audioCache.clear());
-  ipcMain.handle('sources:open-folder', () => shell.openPath(sourceManager.folder));
-  ipcMain.handle('library:load', () => library.load());
-  ipcMain.handle('library:import-folder', async () => {
+  handleApp('sources:confirm-import', (_event, token, policy) => sourceManager.confirmImport(String(token || ''), policy));
+  handleApp('sources:cancel-import', (_event, token) => sourceManager.cancelImport(String(token || '')));
+  handleApp('sources:set-enabled', (_event, id, enabled) => sourceManager.setEnabled(String(id || ''), enabled));
+  handleApp('sources:configure', (_event, id, values) => sourceManager.configure(String(id || ''), values));
+  handleApp('sources:get-settings', (_event, id) => sourceManager.getSettings(String(id || '')));
+  handleApp('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
+  handleApp('sources:search', (event, id, keyword, cursor, pageSize, requestId) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.search(String(id || ''), keyword, cursor, pageSize, signal)));
+  handleApp('sources:cancel-request', (event, requestId) => sourceManager.cancelRequest(event.sender.id, requestId));
+  handleApp('sources:cached', (_event, track, quality) => sourceManager.cached(track, quality));
+  handleApp('sources:cached-best', (_event, track, qualities) => sourceManager.cachedBest(track, qualities));
+  handleApp('sources:resolve', (event, track, quality, cacheAsId, skipCache, requestId) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.resolve(track, quality, cacheAsId, skipCache, signal)));
+  handleApp('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
+  handleApp('cache:stats', async () => ({ ...audioCache.stats(), ...await sourceManager.metadataCache.stats() }));
+  handleApp('cache:configure', async (_event, options) => { const stats = await audioCache.configure(options); sourceManager.metadataCache.limit = Math.max(8, Math.min(64, stats.limitMiB / 8)) * 1024 * 1024; await sourceManager.metadataCache.prune(); return { ...stats, ...await sourceManager.metadataCache.stats() }; });
+  handleApp('cache:clear', async () => { sourceManager.coverCache.clear(); await sourceManager.metadataCache.clear(); return { ...await audioCache.clear(), ...await sourceManager.metadataCache.stats() }; });
+  handleApp('sources:open-folder', () => shell.openPath(sourceManager.folder));
+  handleApp('library:load', () => library.load());
+  handleApp('library:import-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'], title: '选择音乐文件夹' });
     return result.canceled || !result.filePaths[0] ? null : library.importFolder(result.filePaths[0]);
   });
-  ipcMain.handle('library:add-files', async () => {
+  handleApp('library:add-files', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile', 'multiSelections'],
       title: '选择音乐文件',
@@ -445,22 +460,22 @@ function registerHandlers() {
     });
     return result.canceled || result.filePaths.length === 0 ? null : library.addFiles(result.filePaths);
   });
-  ipcMain.handle('library:rescan', () => library.rescan());
-  ipcMain.handle('library:remove-root', (_event, root) => library.removeRoot(root));
-  ipcMain.handle('library:remove-file', (_event, filePath) => library.removeFile(filePath));
-  ipcMain.handle('library:read-lyrics', (_event, id) => library.readLyrics(id));
-  ipcMain.handle('library:create-playlist', (_event, name) => library.createPlaylist(name));
-  ipcMain.handle('library:rename-playlist', (_event, id, name) => library.renamePlaylist(id, name));
-  ipcMain.handle('library:delete-playlist', (_event, id) => library.deletePlaylist(id));
-  ipcMain.handle('library:set-playlist-tracks', (_event, id, trackIds) => library.setPlaylistTracks(id, trackIds));
-  ipcMain.handle('library:import-playlist', async () => {
+  handleApp('library:rescan', () => library.rescan());
+  handleApp('library:remove-root', (_event, root) => library.removeRoot(root));
+  handleApp('library:remove-file', (_event, filePath) => library.removeFile(filePath));
+  handleApp('library:read-lyrics', (_event, id) => library.readLyrics(id));
+  handleApp('library:create-playlist', (_event, name) => library.createPlaylist(name));
+  handleApp('library:rename-playlist', (_event, id, name) => library.renamePlaylist(id, name));
+  handleApp('library:delete-playlist', (_event, id) => library.deletePlaylist(id));
+  handleApp('library:set-playlist-tracks', (_event, id, trackIds) => library.setPlaylistTracks(id, trackIds));
+  handleApp('library:import-playlist', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'], title: '导入 M3U 歌单',
       filters: [{ name: 'M3U 歌单', extensions: ['m3u', 'm3u8'] }],
     });
     return result.canceled || !result.filePaths[0] ? null : library.importPlaylist(result.filePaths[0]);
   });
-  ipcMain.handle('library:export-playlist', async (_event, id) => {
+  handleApp('library:export-playlist', async (_event, id) => {
     const playlist = library.snapshot().playlists.find((item) => item.id === id);
     if (!playlist) return false;
     const result = await dialog.showSaveDialog(mainWindow, {
@@ -472,17 +487,17 @@ function registerHandlers() {
     return true;
   });
 
-  ipcMain.handle('window:minimize', () => { mainWindow?.minimize(); });
-  ipcMain.handle('window:toggle-maximize', () => {
+  handleApp('window:minimize', () => { mainWindow?.minimize(); });
+  handleApp('window:toggle-maximize', () => {
     if (!mainWindow) return false;
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
     else mainWindow.maximize();
     return mainWindow.isMaximized();
   });
-  ipcMain.handle('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
-  ipcMain.handle('window:toggle-fullscreen', () => toggleMainFullscreen());
-  ipcMain.handle('window:is-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
-  ipcMain.handle('window:close', () => { mainWindow?.close(); });
+  handleApp('window:is-maximized', () => Boolean(mainWindow?.isMaximized()));
+  handleApp('window:toggle-fullscreen', () => toggleMainFullscreen());
+  handleApp('window:is-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
+  handleApp('window:close', () => { mainWindow?.close(); });
 }
 
 // Existing installations keep their local library and Chromium storage after the visible rename.
@@ -512,11 +527,13 @@ if (primaryInstance) app.whenReady().then(async () => {
   audioCache = new AudioCache(app.getPath('userData'));
   sourceManager.audioCache = audioCache;
   updates = new Updates(app);
-  ipcMain.handle('updates:invoke', (event, args) => {
+  handleApp('updates:invoke', (event, args) => {
     if (event.sender !== mainWindow?.webContents) throw new Error('无权调用更新服务');
     return updates.invoke(args || {});
   });
   await Promise.all([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
+  sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;
+  await sourceManager.metadataCache.prune({ bestEffort: true });
   registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance });
   registerHandlers();
   createWindow();
@@ -528,4 +545,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => updates?.stop());
+app.on('before-quit', () => { updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });

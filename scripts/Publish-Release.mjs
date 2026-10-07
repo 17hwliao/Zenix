@@ -10,6 +10,7 @@ const value = flag => argumentsList[argumentsList.indexOf(flag) + 1];
 const tag = value('--tag'), notes = value('--notes'), title = value('--title');
 const replaceStable = argumentsList.includes('--replace-stable'), stageAssets = argumentsList.includes('--stage-assets');
 const retireIOS = argumentsList.includes('--retire-ios');
+const keepRevisions = argumentsList.includes('--keep-revisions');
 if ((replaceStable || stageAssets) && (argumentsList.includes('--draft') || argumentsList.includes('--prerelease'))) throw new Error('Stable replacement cannot be draft or prerelease');
 const assets = argumentsList.flatMap((argument, index) => argument === '--asset' ? [argumentsList[index + 1]] : []);
 if (!tag || !notes || !title || !assets.length || !/^v[\w.-]+$/.test(tag)) throw new Error('Required: --tag --notes --title and --asset');
@@ -92,7 +93,10 @@ async function publish() {
     const final = await api(`${base}/releases/${release.id}/assets`);
     if (!prepared.every(asset => final.some(item => item.name === asset.name && item.digest === asset.digest && item.size === asset.size && item.state === 'uploaded'))) throw new Error('Final stable assets incomplete; keeping remaining old downloads');
     const selected = new Set(prepared.map(asset => asset.name));
-    for (const obsolete of final.filter(item => !selected.has(item.name) && /^(?:Zenix-Setup-.*-x64\.exe|Zenix-Android-.*\.apk|Zenix-iOS-.*(?:-Simulator\.zip|\.ipa|-packaging\.json)|iOS-Installation\.txt|SHA256SUMS-.*\.txt)$/.test(item.name))) await api(`${base}/releases/assets/${obsolete.id}`, { method: 'DELETE' });
+    // Signed feeds already cached by clients can still refer to a prior revision.
+    // Keep those immutable download URLs when requested; the current signed feed
+    // and release notes select the newest build without breaking in-flight updates.
+    for (const obsolete of final.filter(item => !selected.has(item.name) && !(keepRevisions && /^(?:Zenix-Setup-.*-r\d+-x64\.exe|Zenix-Android-.*-r\d+\.apk|SHA256SUMS-.*-r\d+\.txt)$/.test(item.name)) && /^(?:Zenix-Setup-.*-x64\.exe|Zenix-Android-.*\.apk|Zenix-iOS-.*(?:-Simulator\.zip|\.ipa|-packaging\.json)|iOS-Installation\.txt|SHA256SUMS-.*\.txt)$/.test(item.name))) await api(`${base}/releases/assets/${obsolete.id}`, { method: 'DELETE' });
   }
   if (release.draft || replaceStable) await api(`${base}/releases/${release.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tag_name: tag, target_commitish: commit, name: title, body, draft: argumentsList.includes('--draft'), make_latest: argumentsList.includes('--draft') || argumentsList.includes('--prerelease') ? 'false' : 'true' }) });
   release = await api(`${base}/releases/${release.id}`);

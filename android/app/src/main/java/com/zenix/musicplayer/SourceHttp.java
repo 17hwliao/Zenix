@@ -5,26 +5,63 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.*;
+import okhttp3.*;
 
 final class SourceHttp {
     static final int MAX_BYTES=4*1024*1024;
+    private static final ExecutorService DNS=new ThreadPoolExecutor(4,4,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(16));
+    private static final OkHttpClient BASE=new OkHttpClient.Builder().dns(SourceHttp::addresses).followRedirects(false).followSslRedirects(false).connectTimeout(8,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).connectionPool(new ConnectionPool(4,30,TimeUnit.SECONDS)).build();
+    private static List<InetAddress> addresses(String host)throws UnknownHostException {
+        Future<InetAddress[]> lookup;
+        try{lookup=DNS.submit(()->InetAddress.getAllByName(host));}catch(RejectedExecutionException error){throw new UnknownHostException("域名查询队列已满");}
+        List<InetAddress> result;
+        try{result=Arrays.asList(lookup.get(5,TimeUnit.SECONDS));}
+        catch(InterruptedException error){Thread.currentThread().interrupt();throw new UnknownHostException("域名查询已取消");}
+        catch(Exception error){throw new UnknownHostException("域名查询超时或失败");}
+        finally{if(!lookup.isDone())lookup.cancel(true);}
+        if(result.isEmpty())throw new UnknownHostException("资源服务器没有地址");
+        for(InetAddress address:result)if(SourceAddressPolicy.blocked(address))throw new UnknownHostException("音乐源不能访问内网、本机或保留地址");
+        return result;
+    }
+    private static URL rule(String address,JSONArray allowed,boolean allowHttp)throws IOException {
+        URL url=new URL(address);String host=url.getHost().toLowerCase(Locale.ROOT);
+        if(!(url.getProtocol().equals("https")||url.getProtocol().equals("http"))||url.getUserInfo()!=null||host.isEmpty()||host.equals("localhost")||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal"))throw new IOException("无效网络地址");
+        if(!url.getProtocol().equals("https")&&!allowHttp)throw new IOException("该音乐源尚未授权 HTTP，请在源选项中开启兼容访问");
+        if(allowed!=null){boolean match=false;for(int i=0;i<allowed.length();i++){String r=allowed.optString(i).toLowerCase(Locale.ROOT);if(host.equals(r)||r.startsWith("*.")&&host.endsWith(r.substring(1)))match=true;}if(!match)throw new IOException("网络地址不在音乐源声明范围");}return url;
+    }
+    // DNS is checked inside the actual connection, and the returned addresses are
+    // the exact candidates OkHttp connects to. No second system lookup occurs.
+    static OkHttpClient client(JSONArray allowed,int timeoutMs){return client(allowed,timeoutMs,false);}
+    static OkHttpClient client(JSONArray allowed,int timeoutMs,boolean allowHttp){return BASE.newBuilder().readTimeout(timeoutMs,TimeUnit.MILLISECONDS).addInterceptor(chain->{
+        Request request=chain.request();
+        for(int hop=0;hop<=5;hop++){
+            rule(request.url().toString(),allowed,allowHttp);Response response=chain.proceed(request);int status=response.code();
+            if(status!=301&&status!=302&&status!=303&&status!=307&&status!=308)return response;
+            String location=response.header("Location");if(location==null)return response;
+            HttpUrl next=request.url().resolve(location);response.close();if(next==null||hop==5)throw new IOException("重定向无效或次数过多");
+            rule(next.toString(),allowed,allowHttp);if(request.url().isHttps()&&!next.isHttps())throw new IOException("禁止 HTTPS 降级到 HTTP");
+            Request.Builder builder=request.newBuilder().url(next);
+            if(!next.scheme().equals(request.url().scheme())||!next.host().equals(request.url().host())||next.port()!=request.url().port())for(String key:request.headers().names())if(key.matches("(?i).*authorization.*|.*cookie.*|.*token.*|.*api[-_]?key.*"))builder.removeHeader(key);
+            if(status==303&& !request.method().equals("HEAD")||(status==301||status==302)&&request.method().equals("POST")){builder.get().removeHeader("Content-Type").removeHeader("Content-Length");}
+            request=builder.build();
+        }throw new IOException("重定向次数过多");
+    }).build();}
     static URL check(String address,JSONArray allowed) throws Exception {
-        URL url=new URL(address);
-        if(!(url.getProtocol().equals("https")||url.getProtocol().equals("http"))||url.getUserInfo()!=null) throw new Exception("无效网络地址");
-        String host=url.getHost().toLowerCase(Locale.ROOT);
-        if(allowed!=null) {
-            boolean match=false;
-            for(int i=0;i<allowed.length();i++) { String rule=allowed.optString(i).toLowerCase(Locale.ROOT); if(host.equals(rule)||rule.startsWith("*.")&&host.endsWith(rule.substring(1))) match=true; }
-            if(!match||!url.getProtocol().equals("https")) throw new Exception("网络地址不在音乐源声明范围");
-        }
-        for(InetAddress resolved:InetAddress.getAllByName(host)) {
-            byte[] bytes=resolved.getAddress();
-            if(resolved.isAnyLocalAddress()||resolved.isLoopbackAddress()||resolved.isLinkLocalAddress()||resolved.isSiteLocalAddress()||resolved.isMulticastAddress()||bytes.length==16&&(bytes[0]&0xfe)==0xfc) throw new Exception("音乐源不能访问内网或本机地址");
-        }
+        return check(address,allowed,false);
+    }
+    static URL check(String address,JSONArray allowed,boolean allowHttp) throws Exception {
+        URL url=rule(address,allowed,allowHttp);addresses(url.getHost());
         return url;
     }
     static JSONObject request(String address,JSONObject options,JSONArray allowed) throws Exception {
-        URL url=check(address,allowed); String method=options.optString("method","GET").toUpperCase(Locale.ROOT);
+        return request(address,options,allowed,null);
+    }
+    static JSONObject request(String address,JSONObject options,JSONArray allowed,java.util.function.Consumer<Call> register) throws Exception {
+        return request(address,options,allowed,register,false);
+    }
+    static JSONObject request(String address,JSONObject options,JSONArray allowed,java.util.function.Consumer<Call> register,boolean allowHttp) throws Exception {
+        URL url=rule(address,allowed,allowHttp); String method=options.optString("method","GET").toUpperCase(Locale.ROOT);
         if(!method.equals("GET")&&!method.equals("POST")) throw new Exception("只支持 GET/POST");
         JSONObject headers=options.optJSONObject("headers");
         String body=options.has("body")?String.valueOf(options.opt("body")):"";
@@ -36,20 +73,12 @@ final class SourceHttp {
         }
         if(options.optJSONObject("form")!=null) { JSONObject form=options.getJSONObject("form"); StringBuilder s=new StringBuilder(); for(Iterator<String> it=form.keys();it.hasNext();) { String key=it.next(); if(s.length()>0)s.append('&'); s.append(URLEncoder.encode(key,"UTF-8")).append('=').append(URLEncoder.encode(form.optString(key),"UTF-8")); } body=s.toString(); if(headers==null)headers=new JSONObject(); Json.put(headers,"Content-Type","application/x-www-form-urlencoded"); }
         if(body.getBytes(StandardCharsets.UTF_8).length>MAX_BYTES) throw new Exception("请求内容过大");
-        for(int hop=0;hop<5;hop++) {
-            HttpURLConnection c=(HttpURLConnection)url.openConnection(); c.setInstanceFollowRedirects(false); c.setConnectTimeout(8000); c.setReadTimeout(Math.max(2000,Math.min(15000,options.optInt("timeout",10000)))); c.setRequestMethod(method);
-            c.setRequestProperty("User-Agent","Zenix/0.1 Android"); c.setRequestProperty("Accept-Encoding","identity");
-            if(headers!=null) for(Iterator<String> it=headers.keys();it.hasNext();) { String key=it.next(); if(key.equalsIgnoreCase("Host")||key.equalsIgnoreCase("Content-Length")||key.contains("\n"))continue; c.setRequestProperty(key,headers.optString(key)); }
-            try {
-                if(method.equals("POST")) { c.setDoOutput(true); try(OutputStream output=c.getOutputStream()) { output.write(body.getBytes(StandardCharsets.UTF_8)); } }
-                int status=c.getResponseCode();
-                if(status>=300&&status<400) { URL target=check(new URL(url,c.getHeaderField("Location")).toString(),allowed); if(!target.getHost().equalsIgnoreCase(url.getHost())) headers=null; url=target; if(status==303||status==302) { method="GET";body=""; } continue; }
-                JSONObject resultHeaders=new JSONObject(); for(Map.Entry<String,List<String>> entry:c.getHeaderFields().entrySet()) if(entry.getKey()!=null)Json.put(resultHeaders,entry.getKey().toLowerCase(Locale.ROOT),String.join(", ",entry.getValue()));
-                InputStream input=status>=400?c.getErrorStream():c.getInputStream(); byte[] data=input==null?new byte[0]:bounded(input,MAX_BYTES);
-                return Json.obj("status",status,"headers",resultHeaders,"data",android.util.Base64.encodeToString(data,android.util.Base64.NO_WRAP));
-            } finally { c.disconnect(); }
-        }
-        throw new Exception("重定向次数过多");
+        OkHttpClient client=client(allowed,Math.max(2000,Math.min(15000,options.optInt("timeout",10000))),allowHttp);
+        Request.Builder builder=new Request.Builder().url(url.toString()).header("User-Agent","Zenix Android").header("Accept-Encoding","identity");
+        if(headers!=null)for(Iterator<String> it=headers.keys();it.hasNext();){String key=it.next();if(key.equalsIgnoreCase("Host")||key.equalsIgnoreCase("Content-Length")||key.contains("\n")||key.contains("\r"))continue;builder.header(key,headers.optString(key));}
+        if(method.equals("POST"))builder.post(RequestBody.create(body.getBytes(StandardCharsets.UTF_8),(MediaType)null));
+        Call call=client.newCall(builder.build());call.timeout().timeout(18,TimeUnit.SECONDS);if(register!=null)register.accept(call);
+        try(Response response=call.execute()){JSONObject resultHeaders=new JSONObject();for(String key:response.headers().names())Json.put(resultHeaders,key.toLowerCase(Locale.ROOT),String.join(", ",response.headers().values(key)));ResponseBody responseBody=response.body();if(responseBody!=null&&responseBody.contentLength()>MAX_BYTES)throw new IOException("内容超过大小限制");byte[] bytes=responseBody==null?new byte[0]:bounded(responseBody.byteStream(),MAX_BYTES);return Json.obj("status",response.code(),"headers",resultHeaders,"data",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP));}
     }
     static byte[] bounded(InputStream input,int limit) throws IOException {
         try(InputStream in=input;ByteArrayOutputStream output=new ByteArrayOutputStream()) {

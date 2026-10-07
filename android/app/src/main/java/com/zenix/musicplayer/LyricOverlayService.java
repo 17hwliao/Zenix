@@ -149,7 +149,7 @@ public final class LyricOverlayService extends Service {
     }
     private void clamp(){if(frame==null)return;int width=getResources().getDisplayMetrics().widthPixels,height=getResources().getDisplayMetrics().heightPixels;frame.x=Math.max(dp(4),Math.min(width-frame.width-dp(4),frame.x));frame.y=Math.max(dp(42),Math.min(height-Math.max(dp(135),root.getHeight())-dp(35),frame.y));}
     private void updateWindow(){if(frame==null||root.getParent()==null)return;try{windows.updateViewLayout(root,frame);lockFrame.x=frame.x+frame.width/2-dp(15);lockFrame.y=Math.max(dp(8),frame.y-dp(30));windows.updateViewLayout(lock,lockFrame);}catch(IllegalArgumentException ignored){}}
-    private void save(){try{JSONObject saved=status();Json.put(saved,"x",Math.round(frame.x/getResources().getDisplayMetrics().density));Json.put(saved,"y",Math.round(frame.y/getResources().getDisplayMetrics().density));saved.remove("enabled");saved.remove("permitted");runtime.store.set("overlay",saved);runtime.emit();}catch(Exception ignored){}}
+    private void save(){try{JSONObject saved=status();Json.put(saved,"x",Math.round(frame.x/getResources().getDisplayMetrics().density));Json.put(saved,"y",Math.round(frame.y/getResources().getDisplayMetrics().density));saved.remove("enabled");saved.remove("permitted");runtime.store.enqueue(Json.obj("overlay",saved));runtime.emit();}catch(Exception ignored){}}
     private void render(){
         int index=previewing?previewIndex:LyricTimeline.active(timeline,position());
         if(index==shown)return;shown=index;

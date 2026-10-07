@@ -4,6 +4,7 @@ import { playUiSound } from '../core/sounds';
 import { trackCoverUrl } from '../core/trackCover';
 import CoverArt from './CoverArt';
 import TrackQuickActions from './TrackQuickActions';
+import { usePlayerBarGesture } from './usePlayerBarGesture';
 import { formatTime } from './library';
 import type { PersonalState } from '../core/types';
 import { STICKER_GAP, expandedStickerLayout, stickerSlotsForCount, type StickerRect } from './stickerMosaic';
@@ -38,6 +39,8 @@ type LatticePlayerProps = {
   onToggleShuffle?: () => void;
   onCycleRepeat?: () => void;
   onOpenQueue: () => void;
+  expandRequest?: number;
+  onExpandPlayer: () => void;
   onOpenSettings: () => void;
   onOpenSearch: () => void;
   searchAvailable?: boolean;
@@ -49,7 +52,7 @@ type LatticePlayerProps = {
 export default function LatticePlayer({
   track, hasPlayback = true, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
-  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onOpenSettings, onOpenSearch, searchAvailable = true, searchRevealed = false, desktopLyricsVisible = false, onToggleDesktopLyrics,
+  onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onExpandPlayer, expandRequest = 0, onOpenSettings, onOpenSearch, searchAvailable = true, searchRevealed = false, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
@@ -117,6 +120,15 @@ export default function LatticePlayer({
     focusSlot(index);
     playUiSound('enter');
   };
+
+  const openBar = usePlayerBarGesture(focusCurrent, onExpandPlayer);
+  const lastExpand = useRef(0);
+  useEffect(() => {
+    if (!expandRequest || lastExpand.current === expandRequest || !hasPlayback) return;
+    const index = wallTracks.findIndex(item => item.id === track.id);
+    if (index < 0) return;
+    lastExpand.current = expandRequest; focusSlot(index); setImmersive(true); setPanning(false);
+  }, [expandRequest, hasPlayback, track.id, wallTracks, focusSlot]);
 
   useEffect(() => {
     const node = wallRef.current;
@@ -287,8 +299,8 @@ export default function LatticePlayer({
     </div>
     <button className="yz-lattice-back" onClick={onBack} aria-label="个人主页" title="个人主页"><Home size={19} /></button>
     {searchAvailable && <div className={`yz-lattice-search-zone${searchRevealed ? ' is-revealed' : ''}`}><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}
-    <div className="yz-lattice-mini">
-      <button className="yz-lattice-mini-focus" onClick={focusCurrent} title="定位到正在播放的贴纸"><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
+    <div className="yz-lattice-mini" onClick={event => { if (!(event.target as Element).closest('button,input,select,a,[role="button"]')) openBar(); }}>
+      <button className="yz-lattice-mini-focus" onClick={openBar} title="单击定位，双击放大当前歌曲"><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span className="yz-lattice-mini-text"><strong>{track.title}</strong><em>{track.artist || '未知艺术家'}</em></span></button>
       <button className={`yz-lattice-mini-lyrics${desktopLyricsVisible ? ' is-active' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} title={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-label={desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词'} aria-pressed={desktopLyricsVisible}><Captions size={18} /></button>
       <TrackQuickActions track={track} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPlaylist} onCreatePlaylist={onCreatePlaylist} compact />
       <input className="yz-lattice-mini-progress" type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(shownPosition, Math.max(total, 1))} disabled={!hasPlayback || total <= 0} onPointerDown={() => { seekDraggingRef.current = true; seekDraftRef.current = position; setSeekDraft(position); }} onChange={event => { const seconds = Number(event.target.value); if (seekDraggingRef.current) { seekDraftRef.current = seconds; setSeekDraft(seconds); } else onSeek(seconds); }} onPointerUp={commitMiniSeek} onPointerCancel={() => { seekDraggingRef.current = false; seekDraftRef.current = null; setSeekDraft(null); }} aria-label="拖动歌曲进度" style={{ '--range-fill': `${total ? Math.min(100, shownPosition / total * 100) : 0}%` } as CSSProperties} /><small className="yz-lattice-mini-time">{formatTime(shownPosition)} / {formatTime(total)}</small>

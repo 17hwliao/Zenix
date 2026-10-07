@@ -64,3 +64,4 @@
 .zenix-source-settings button:disabled { cursor: default; opacity: .45; }
 @media (max-width: 560px) { .zenix-source-import { flex-direction: column; } .zenix-source-import > button { justify-content: center; min-height: 36px; } }
 @media (max-width: 660px) { .zenix-source-preset-list { grid-template-columns: 1fr; } .zenix-source-presets-head { flex-direction: column; gap: 4px; } .zenix-source-presets-head small { text-align: left; } }
+.zenix-network-options{border:1px solid #ffffff20;border-radius:14px;padding:14px;display:grid;gap:12px;min-width:0}.zenix-network-options legend{padding:0 6px}.zenix-network-options label{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.zenix-network-options input:not([type=checkbox]){width:100%;min-width:0}.zenix-network-options input[type=checkbox]{width:18px;height:18px;flex:none}.zenix-network-options small{line-height:1.6;color:#b6bbc6}

@@ -4,6 +4,7 @@ import type { AudioCacheStats, InstalledSource, SourcePreview } from '../core/ty
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
 import SourceBundleImport from './SourceBundleImport';
+import { SourceNetworkOptions, DEFAULT_SOURCE_POLICY, type SourceNetworkPolicy } from './SourceNetworkOptions';
 
 export default function SourceSettings() {
   const [sources, setSources] = useState<InstalledSource[]>([]);
@@ -11,6 +12,7 @@ export default function SourceSettings() {
   const [quality, setQuality] = useState(() => localStorage.getItem('zenix.onlineQuality') || 'auto');
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
+  const [permission, setPermission] = useState<SourceNetworkPolicy>(DEFAULT_SOURCE_POLICY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function SourceSettings() {
   };
   const loadPreview = async (action: () => Promise<SourcePreview | null>) => {
     setBusy(true); setError('');
-    try { const next = await action(); if (next) { if (preview) await window.yzqxy!.sources.cancelImport(preview.token); setPreview(next); } }
+    try { const next = await action(); if (next) { if (preview) await window.yzqxy!.sources.cancelImport(preview.token); setPreview(next); setPermission(DEFAULT_SOURCE_POLICY); } }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
@@ -53,7 +55,7 @@ export default function SourceSettings() {
   const installPreview = () => {
     if (!preview) return;
     const token = preview.token;
-    void run(async () => { const next = await window.yzqxy!.sources.confirmImport(token); setPreview(null); setUrl(''); return next; });
+    void run(async () => { const next = await window.yzqxy!.sources.confirmImport(token, permission); setPreview(null); setUrl(''); return next; });
   };
   const installPreset = async (preset: LxPreset) => {
     if (!preset.url || !window.yzqxy?.sources) return;
@@ -97,6 +99,8 @@ export default function SourceSettings() {
       <label>启用<input type="checkbox" checked={cache.enabled} onChange={event => void configureCache({ enabled: event.target.checked })} /></label>
       <label>容量上限<select value={cache.limitMiB} onChange={event => void configureCache({ limitMiB: Number(event.target.value) })}><option value={512}>512 MB</option><option value={1024}>1 GB</option><option value={2048}>2 GB</option><option value={5120}>5 GB</option></select></label>
       <small>已缓存 {cache.trackCount} 首 · {(cache.usedBytes / 1024 / 1024).toFixed(1)} MB；超过容量时先清理最久未使用的歌曲，30 天未使用的缓存会过期。</small>
+      <small>封面与歌词缓存 {((cache.metadataBytes || 0) / 1024 / 1024).toFixed(1)} MB / {cache.metadataLimitMiB || 64} MB，30 天过期。</small>
+      {cache.metadataError && <small role="status">{cache.metadataError}</small>}
       <button type="button" onClick={() => void clearCache()}>清除自动缓存</button>
     </section>}
     <section className="zenix-source-presets" aria-label="音乐源快捷添加">
@@ -120,7 +124,7 @@ export default function SourceSettings() {
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFolder())} disabled={busy || !window.yzqxy?.sources}><FolderOpen size={16} />源文件夹</button>
       <form onSubmit={importUrl}><Globe2 size={16} /><input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="粘贴 HTTP / HTTPS 源包或 .js 脚本地址" aria-label="音乐源地址" /><button type="submit" disabled={busy || !url.trim()}>导入</button></form>
     </div>
-    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.filter(capability => capability !== 'resolveDownload').join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
+    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.filter(capability => capability !== 'resolveDownload').join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<SourceNetworkOptions compatible={preview.kind === 'lx'} policy={permission} onChange={setPermission} /><small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
     <p className="zenix-source-hint">支持 .zenixsource JSON、自定义 .js 脚本及其 HTTPS 地址。搜索平台可在安装后的“源选项”中切换。<button className="zenix-source-folder-link" onClick={() => void window.yzqxy?.sources.openFolder()}>打开已安装源目录</button></p>
     {error && <p className="zenix-source-error" role="alert">{error}</p>}
     <div className="zenix-source-list">
@@ -131,13 +135,14 @@ export default function SourceSettings() {
         <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · 音乐源脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
         <div className="zenix-source-actions">
-          {source.manifest.settings.length > 0 && <button onClick={() => void openSettings(source)} disabled={busy}>{editing === source.id ? '收起选项' : '源选项'}</button>}
+          {<button onClick={() => void openSettings(source)} disabled={busy}>{editing === source.id ? '收起选项' : '源选项'}</button>}
           <button title="移除" aria-label={`移除 ${source.manifest.name}`} onClick={() => { if (window.confirm(`移除音乐源“${source.manifest.name}”？已收藏的歌曲记录会保留。`)) void run(() => window.yzqxy!.sources.remove(source.id)); }} disabled={busy}><Trash2 size={14} /></button>
         </div>
         {editing === source.id && <form className="zenix-source-options" onSubmit={event => void saveSettings(event, source.id)}>
           {source.manifest.settings.map(field => <label key={field.key}>{field.key === 'lxCatalog' ? '搜索平台' : field.label}{field.type === 'select'
             ? <select value={values[field.key] ?? field.default} onChange={event => setValues(previous => ({ ...previous, [field.key]: event.target.value }))}>{field.options.map(option => <option key={option} value={option}>{source.kind === 'lx' ? source.manifest.lxPlatforms?.[option]?.name || option : option}</option>)}</select>
             : <input value={values[field.key] ?? field.default} onChange={event => setValues(previous => ({ ...previous, [field.key]: event.target.value }))} />}</label>)}
+          <SourceNetworkOptions compatible={source.kind === 'lx'} policy={{ allowHttp: values.__allowHttp === 'true', hosts: values.__allowedHosts ? values.__allowedHosts.split(',').map(host => host.trim()) : null }} onChange={policy => setValues(previous => ({ ...previous, __allowHttp: String(policy.allowHttp), __allowedHosts: policy.hosts?.join(',') || '' }))} />
           <button type="submit" disabled={busy}>保存源选项</button>
         </form>}
       </section>)}

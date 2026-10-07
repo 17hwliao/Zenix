@@ -11,8 +11,32 @@ on:
         default: stable
 permissions:
   contents: read
+concurrency:
+  group: zenix-release-${{ inputs.channel }}
+  cancel-in-progress: false
 jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: node node_modules/electron/install.js
+      - run: npm test
+      - run: npm run build
+      - run: npm run android:build
   windows:
+    needs: verify
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -46,6 +70,7 @@ jobs:
           path: release/Zenix-Setup-*.exe
           if-no-files-found: error
   android:
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -115,16 +140,5 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_CHANNEL: ${{ inputs.channel }}
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --title "Zenix $RELEASE_TAG" --generate-notes
-          gh release upload "$RELEASE_TAG" release-assets/signed-windows/*.exe release-assets/signed-android/*.apk "updates/$RELEASE_CHANNEL.json"
-          # Change only the verified channel file on main; preserve newer source commits.
-          cp "updates/$RELEASE_CHANNEL.json" "$RUNNER_TEMP/feed.json"
           git fetch origin main
-          git checkout -B update-feed origin/main
-          mkdir -p updates
-          cp "$RUNNER_TEMP/feed.json" "updates/$RELEASE_CHANNEL.json"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "updates/$RELEASE_CHANNEL.json"
-          git diff --cached --quiet || git commit -m "Publish signed $RELEASE_CHANNEL update feed for $RELEASE_TAG"
-          git push origin HEAD:main
+          node scripts/Publish-CI-Release.mjs

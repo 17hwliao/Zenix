@@ -7,6 +7,7 @@ export interface Track {
   duration: number;
   audioUrl: string;
   coverUrl?: string;
+  coverHint?: string;
   year?: number;
   trackNumber?: number;
   discNumber?: number;
@@ -109,10 +110,10 @@ export type SourceManifest = {
   settings: { key: string; label: string; type: 'text' | 'select'; options: string[]; default: string }[];
   lxPlatforms?: Record<string, { name: string; qualitys: string[] }>;
 };
-export type InstalledSource = { id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; installedAt: number; status: string; lastError: string };
+export type InstalledSource = { networkPolicy?: { allowHttp: boolean; hosts: string[] | null }; id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; installedAt: number; status: string; lastError: string };
 export type SourcePreview = { token: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
 export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
-export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number };
+export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number; metadataBytes?: number; metadataLimitMiB?: number; metadataError?: string };
 
 export interface DesktopBridge {
   updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };
@@ -152,16 +153,17 @@ export interface DesktopBridge {
     importFolder(): Promise<SourcePreview | null>;
     importUrl(url: string): Promise<SourcePreview>;
     importText(text: string, originUrl: string): Promise<SourcePreview>;
-    confirmImport(token: string): Promise<InstalledSource[]>;
+    confirmImport(token: string, policy?: { allowHttp: boolean; hosts: string[] | null }): Promise<InstalledSource[]>;
     cancelImport(token: string): Promise<void>;
     setEnabled(id: string, enabled: boolean): Promise<InstalledSource[]>;
     configure(id: string, values: Record<string, string>): Promise<Record<string, string>>;
     getSettings(id: string): Promise<Record<string, string>>;
     remove(id: string): Promise<InstalledSource[]>;
-    search(id: string, keyword: string, cursor?: string | null, pageSize?: number): Promise<SourceSearchPage>;
+    search(id: string, keyword: string, cursor?: string | null, pageSize?: number, requestId?: string): Promise<SourceSearchPage>;
+    cancelRequest(requestId: string): Promise<void>;
     cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string } | null>;
     cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string } | null>;
-    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
+    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     openFolder(): Promise<string>;
     onChanged(callback: (sources: InstalledSource[]) => void): () => void;

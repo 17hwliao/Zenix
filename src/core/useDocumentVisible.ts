@@ -4,4 +4,4 @@ const subscribe = (callback: () => void) => {
   return () => document.removeEventListener('visibilitychange', callback);
 };
 const snapshot = () => document.visibilityState !== 'hidden';
-export const useDocumentVisible = () => useSyncExternalStore(subscribe, snapshot);
+export const useDocumentVisible = () => useSyncExternalStore(subscribe, snapshot, () => true);

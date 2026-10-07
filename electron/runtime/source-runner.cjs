@@ -5,8 +5,10 @@ const { lxScriptInfo } = require('./source-metadata.cjs');
 const boundedText = (value, max = 200) => String(value ?? '').trim().slice(0,max);
 
 class SourceRunner {
-  constructor(manager, record) { this.manager = manager; this.record = record; this.window = null; this.pending = new Map(); this.ready = null; this.idleTimer = null; this.leases = 0; this.networkRequests = new Set(); this.starting = false; }
+  constructor(manager, record, key = record.id) { this.manager = manager; this.record = record; this.key = key; this.window = null; this.pending = new Map(); this.ready = null; this.idleTimer = null; this.leases = 0; this.networkRequests = new Set(); this.starting = false; }
   async network(operation) {
+    if (this.destroyed) throw new Error('音乐源已取消');
+    if (this.networkRequests.size >= 8) throw new Error('音乐源请求并发过多');
     const controller = new AbortController(); this.networkRequests.add(controller);
     try { return await operation(controller.signal); }
     finally { this.networkRequests.delete(controller); }
@@ -20,6 +22,7 @@ class SourceRunner {
     this.idleTimer.unref();
   }
   async start(script) {
+    if (this.destroyed) throw new Error("音乐源已取消");
     if (this.window) return this.ready;
     this.starting = true;
     if (this.record.kind === 'lx') this.scriptInfo = lxScriptInfo(script);
@@ -31,6 +34,7 @@ class SourceRunner {
       },
     });
     const contents = this.window.webContents;
+    const contentsId = contents.id;
     this.manager.byContents.set(contents.id, this);
     contents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     contents.session.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (_details, callback) => callback({ cancel: true }));
@@ -38,13 +42,17 @@ class SourceRunner {
     contents.on('will-navigate', event => event.preventDefault());
     this.window.on('closed', () => {
       clearTimeout(this.idleTimer);
-      this.manager.byContents.delete(contents.id);
+      this.rejectReady?.(new Error("音乐源已关闭"));
+      this.manager.byContents.delete(contentsId);
       for (const pending of this.pending.values()) pending.reject(new Error('音乐源已关闭'));
       this.pending.clear(); this.window = null;
-      if (this.manager.runners.get(this.record.id) === this) this.manager.runners.delete(this.record.id);
+      if (this.manager.runners.get(this.key) === this) this.manager.runners.delete(this.key);
     });
     let resolveReady; let rejectReady;
     this.ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+    // Cancellation may happen while loadURL is still pending.
+    void this.ready.catch(() => {});
+    this.rejectReady = rejectReady;
     this.onRegistered = data => {
       if (this.record.kind === 'lx') this.lxInfo = data;
       resolveReady();
@@ -58,7 +66,8 @@ class SourceRunner {
     finally { clearTimeout(timer); this.starting = false; }
   }
   async invoke(method, payload, settings = {}) {
-    if (!this.window) throw new Error('音乐源尚未启动');
+    if (this.destroyed || !this.window) throw new Error('音乐源尚未启动');
+    if (this.pending.size >= 8) throw new Error('音乐源调用并发过多');
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} 请求超时`)); this.destroy(); }, method === 'search' ? 11000 : 15000);
@@ -75,9 +84,11 @@ class SourceRunner {
     message.ok ? pending.resolve(message.result) : pending.reject(new Error(reason));
   }
   destroy() {
+    this.destroyed = true;
+    this.rejectReady?.(new Error("音乐源已取消"));
     clearTimeout(this.idleTimer);
     for (const controller of this.networkRequests) controller.abort(); this.networkRequests.clear();
-    if (this.manager.runners.get(this.record.id) === this) this.manager.runners.delete(this.record.id);
+    if (this.manager.runners.get(this.key) === this) this.manager.runners.delete(this.key);
     if (this.window && !this.window.isDestroyed()) this.window.destroy();
   }
 }

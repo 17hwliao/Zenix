@@ -18,7 +18,10 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 /* Native inset handling owns Android safe areas. Fixed sheets follow the visible viewport. */
 .mobile-overlay{height:var(--visible-height,100dvh);bottom:auto}
 .keyboard-open .mobile-mini,.keyboard-open .mobile-nav{visibility:hidden;pointer-events:none}
-.mobile-search input{font-size:16px}
+.mobile-search form{display:grid;grid-template-columns:22px minmax(0,1fr) 36px 36px;column-gap:10px;min-width:0}
+.mobile-search form>svg{position:static;width:20px;height:20px;justify-self:center}
+.mobile-search input{font-size:16px;width:100%;min-width:0;padding:12px 4px;line-height:24px;text-overflow:ellipsis}
+.mobile-search form button{width:36px;min-width:36px;padding:6px}
 .mobile-search{max-height:calc(var(--visible-height,100dvh) - 32px - env(safe-area-inset-top));overflow-y:auto;overscroll-behavior:contain}
 .mobile-sheet{max-height:calc(var(--visible-height,100dvh) - 24px)}
 /* Desktop's finite mosaic adapted to a touch camera; no duplicates or paging cards. */
@@ -106,3 +109,5 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .home-entry-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}.home-intro{align-items:flex-start}.home-entry-actions .small{font-size:11px;min-height:40px;padding:8px 12px}.home-entry-actions svg{width:16px;height:16px}
 .mobile-roaming{position:fixed;left:18px;right:18px;bottom:calc(173px + env(safe-area-inset-bottom));z-index:20;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#1b202699;font-size:11px;max-width:580px;margin:auto}.mobile-roaming>svg{width:17px;height:17px}.mobile-roaming>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-roaming>button{min-height:32px;padding:4px 8px;white-space:nowrap;background:#ffffff0f;border-radius:999px}.mobile-roaming>button>svg{width:15px;height:15px}.keyboard-open .mobile-roaming{display:none}
 @media(max-width:420px){.home-intro{flex-direction:column;gap:12px}.home-entry-actions{justify-content:flex-start;width:100%}}
+
+.zenix-network-options{border:1px solid #ffffff20;border-radius:14px;padding:14px;margin:14px 0;display:grid;gap:12px;min-width:0;font-size:12px}.zenix-network-options legend{padding:0 6px}.zenix-network-options label{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.zenix-network-options input:not([type=checkbox]){width:100%;min-width:0}.zenix-network-options input[type=checkbox]{width:18px;height:18px;flex:none}.zenix-network-options small{line-height:1.6;color:#b6bbc6}

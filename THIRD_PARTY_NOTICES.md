@@ -34,6 +34,7 @@
 | tslib | 2.8.1 | 0BSD | [LICENSE.txt](licenses/tslib/LICENSE.txt) |
 | uint8array-extras | 1.5.0 | MIT | [license](licenses/uint8array-extras/license) |
 | win-guid | 0.2.1 | MIT | [LICENSE.txt](licenses/win-guid/LICENSE.txt) |
+| undici | 7.30.0 | MIT | [LICENSE](licenses/undici/LICENSE)；用于绑定校验后的 DNS 地址建立 HTTP 连接 |
 | electron | 43.7.5 | MIT | [LICENSE](licenses/electron/LICENSE) |
 
 Electron 随软件发行的二进制还包含 Chromium 等组件；打包时需要随包保留 Electron 的 LICENSE 与 LICENSES.chromium.html（当前位于 node_modules/electron/dist）。上表包含生产依赖及其锁定依赖，开发构建工具不等于随发行包分发的组件。
@@ -46,6 +47,7 @@ Electron 随软件发行的二进制还包含 Chromium 等组件；打包时需�
 | --- | --- | --- | --- |
 | Capacitor Core / Android / CLI | 8.5.2 | React 与 Android 平台桥、Android 工程生成 | [MIT 原文](licenses/capacitor/LICENSE) |
 | AndroidX Media3 | 1.11.1 | ExoPlayer、MediaSessionService、流式数据与缓存 | [Apache-2.0 原文](licenses/androidx-media/LICENSE) |
+| OkHttp / Okio | 4.12.0 / 3.6.0 | 受控 HTTP 与原生音频数据传输 | [OkHttp Apache-2.0](licenses/okhttp/LICENSE.txt)、[Okio Apache-2.0](licenses/okio/LICENSE.txt) |
 | AndroidX | 由 Android 工程固定声明 | Activity、权限、窗口及数据库支持 | Apache-2.0，组件通知随 Android 依赖保留 |
 | desugar_jdk_libs | 2.1.5 | Android 旧版本上的 Java API 支持 | [Apache-2.0](https://github.com/google/desugar_jdk_libs/blob/master/LICENSE) |
 
