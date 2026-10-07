@@ -55,10 +55,10 @@ public class ZenixNativePlugin extends Plugin {
             if(action.equals("pickLocal"))intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
             startActivityForResult(call,intent,"filePicked");return;
         }
-        if(java.util.Set.of("play","toggle","seek","next","previous","mode","removeQueue","cacheConfigure","cacheClear","snapshot").contains(action)) {
+        if(java.util.Set.of("play","toggle","seek","next","previous","mode","removeQueue","cacheConfigure","cacheClear","snapshot","roamingStart","roamingStop","roamingRetry","roamingPlay").contains(action)) {
             getActivity().runOnUiThread(() -> {try {
                 PlaybackService player=runtime.service;if(player==null){runtime.ensureService();call.reject("播放器正在启动，请稍后重试");return;}
-                switch(action){case "play":player.setQueue(args.getJSONArray("tracks"),args.optInt("index",0));break;case "toggle":player.toggle();break;case "seek":player.seek(args.optDouble("seconds"));break;case "next":player.advance(1);break;case "previous":player.advance(-1);break;case "mode":player.mode(args);break;case "removeQueue":player.remove(args.getString("id"));break;case "cacheConfigure":player.configureCache(args);break;case "cacheClear":player.clearCache();break;}
+                switch(action){case "roamingStart":case "roamingStop":case "roamingRetry":case "roamingPlay":player.roamingCommand(action,args);break;case "play":player.setQueue(args.getJSONArray("tracks"),args.optInt("index",0));break;case "toggle":player.toggle();break;case "seek":player.seek(args.optDouble("seconds"));break;case "next":player.advance(1);break;case "previous":player.advance(-1);break;case "mode":player.mode(args);break;case "removeQueue":player.remove(args.getString("id"));break;case "cacheConfigure":player.configureCache(args);break;case "cacheClear":player.clearCache();break;}
                 result(call,runtime.snapshot());runtime.emit();
             }catch(Exception e){call.reject(Json.message(e));}});return;
         }

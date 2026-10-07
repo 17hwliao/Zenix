@@ -72,6 +72,13 @@ export type SourceProgress = {
   detail?: string;
 };
 export type SourceActivity = SourceProgress & { startedAt: number };
+export interface RoamingStatus {
+  active: boolean;
+  phase: 'idle' | 'searching' | 'playing' | 'paused' | 'exhausted' | 'failed';
+  message: string;
+  discovered: number;
+  tracks: Track[];
+}
 
 export interface PlayerState {
   track?: Track;

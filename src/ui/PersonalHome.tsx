@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, ChevronDown, Disc3, FolderOpen, Heart, History, ImagePlus, ListMusic, Music2, Pencil, Plus, RotateCcw, Settings2, Star, Trash2, Upload, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Compass, Disc3, FolderOpen, Heart, History, ImagePlus, ListMusic, Music2, Pencil, Plus, RotateCcw, Settings2, Star, Trash2, Upload, X } from 'lucide-react';
 import { version as appVersion } from '../../package.json';
 import type { AppearanceBackground, PersonalState } from '../core/types';
 import type { TrackView } from './types';
@@ -18,6 +18,7 @@ type Props = {
   onReplayIntro?: () => void; onImportFolder: () => void | Promise<void>;
   onAddFiles?: () => void | Promise<void>; onOpenLocalLibrary?: () => void;
   onImportPlaylist?: () => void | Promise<void>;
+  onRoaming?: () => void; roamingActive?: boolean;
 };
 type OrbitCoverKey = 'liked' | 'favorites' | 'history' | 'playlists' | 'library';
 type Profile = { name: string; tagline: string; cardLine: string; cardNumber: string; about: string; tags: string; contact: string; subject: string; background: string; orbitCovers: Record<OrbitCoverKey, string> };
@@ -50,7 +51,7 @@ function imageToDataUrl(file: File, maxEdge: number, transparent: boolean): Prom
 }
 type OrbitCard = { id: OrbitCoverKey | 'settings'; label: string; caption: string; icon: typeof Heart; image?: string; action: () => void };
 
-export default function PersonalHome({ personal, tracks, currentTrack, appearanceBackground, appearanceBusy, onPlayTrack, onOpenPlayer, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist }: Props) {
+export default function PersonalHome({ personal, tracks, currentTrack, appearanceBackground, appearanceBusy, onPlayTrack, onOpenPlayer, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist, onRoaming, roamingActive }: Props) {
   const [profile, setProfile] = useState<Profile>(readProfile);
   const [draft, setDraft] = useState<Profile>(profile);
   const [editing, setEditing] = useState(false);
@@ -241,7 +242,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   };
 
   return <div className="zenix-home-space">
-    <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div><button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
+    <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div>{onRoaming && <button className="zenix-home-roaming" onClick={onRoaming}><Compass size={18} />{roamingActive ? '继续音乐漫游' : '开始音乐漫游'}</button>}<button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
     <div ref={scrollRef} className="zenix-home-scroll">
       <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp} onPointerLeave={event => event.currentTarget.classList.remove('is-orbit-hot')}>
         <div className="zenix-stage-aura" aria-hidden="true" />

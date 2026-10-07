@@ -1,6 +1,7 @@
 import type { MediaCommand, PlayerState, RepeatMode, SourceProgress, Track } from './types';
 
 type Listener = (state: PlayerState) => void;
+export type PlaybackLifecycle = { type: 'audible' | 'pause' | 'pause-request' | 'waiting' | 'failure' | 'manual' | 'selected' | 'tick' | 'skip' | 'ended'; track?: Track };
 
 function readPreference<T>(key: string, fallback: T): T {
   try {
@@ -23,6 +24,9 @@ class PlayerController {
   private audio: HTMLAudioElement;
   private state: PlayerState;
   private listeners = new Set<Listener>();
+  private lifecycleListeners = new Set<(event: PlaybackLifecycle) => void>();
+  private navigation?: (reason: 'next' | 'ended' | 'previous') => Promise<void>;
+  private resumeHandler?: () => Promise<boolean>;
   private history: number[] = [];
   private shufflePool = new Set<number>();
   private unlistenMedia?: () => void;
@@ -60,16 +64,18 @@ class PlayerController {
 
     this.audio.addEventListener('play', () => this.update({ playing: true, error: undefined }));
     this.audio.addEventListener('playing', () => {
+      this.emitLifecycle('audible');
       clearTimeout(this.mediaWaitTimer);
       this.update({ sourceActivity: undefined });
     });
     this.audio.addEventListener('waiting', () => {
+      this.emitLifecycle('waiting');
       if (this.state.track?.source === 'custom' && this.state.playing && !this.resolvingSource) {
         this.reportSource({ phase: 'buffering', message: '正在缓冲音频', detail: '连接仍在运行，请稍候' });
         this.armMediaWait(this.playbackToken);
       }
     });
-    this.audio.addEventListener('pause', () => this.update({ playing: false }));
+    this.audio.addEventListener('pause', () => { this.emitLifecycle('pause'); this.update({ playing: false }); });
     this.audio.addEventListener('timeupdate', () => this.updateClock());
     this.audio.addEventListener('durationchange', () => this.updateClock());
     this.audio.addEventListener('loadedmetadata', () => {
@@ -111,6 +117,32 @@ class PlayerController {
     return () => this.listeners.delete(listener);
   }
 
+  subscribeLifecycle(listener: (event: PlaybackLifecycle) => void): () => void {
+    this.lifecycleListeners.add(listener);
+    return () => { this.lifecycleListeners.delete(listener); };
+  }
+
+  setNavigationHandler(handler?: (reason: 'next' | 'ended' | 'previous') => Promise<void>): void { this.navigation = handler; }
+  setResumeHandler(handler?: () => Promise<boolean>): void { this.resumeHandler = handler; }
+
+  private emitLifecycle(type: PlaybackLifecycle['type']): void {
+    this.lifecycleListeners.forEach(listener => listener({ type, track: this.state.track }));
+  }
+
+  retainCurrentTrack(): void {
+    const track = this.state.track;
+    this.update({ queue: track ? [track] : [], queueIndex: track ? 0 : -1 });
+    this.history = [];
+    this.shufflePool.clear();
+    this.persistQueue();
+  }
+
+  syncRoamingQueue(upcoming: Track[]): void {
+    const track = this.state.track;
+    this.update({ queue: track ? [track, ...upcoming.filter(item => item.id !== track.id)] : upcoming, queueIndex: track ? 0 : -1 });
+    this.persistQueue();
+  }
+
   setTrackResolver<T extends Track>(resolver: ((track: T, failedAttempts: readonly string[], report: (progress: SourceProgress) => void, signal: AbortSignal) => Promise<T>) | undefined): void {
     this.trackResolver = resolver ? (track, failedAttempts, report, signal) => resolver(track as T, failedAttempts, report, signal) : undefined;
   }
@@ -135,6 +167,7 @@ class PlayerController {
     clearTimeout(this.mediaWaitTimer);
     if (this.state.track?.source === 'custom') this.reportSource({ phase: 'failed', message: /超时|timeout/i.test(message) ? '连接超时，暂时无法播放' : '暂时没有可播放的资源', detail: /没有启用/.test(message) ? '请先添加或启用音乐源，再重新播放' : '可用连接已尝试完毕，请重试或更换音乐源' });
     this.update({ playing: false, error: message });
+    this.emitLifecycle('failure');
   }
 
   private armMediaWait(request: number): void {
@@ -155,6 +188,7 @@ class PlayerController {
   }
 
   private updateClock(): void {
+    this.emitLifecycle('tick');
     if (this.pendingSeek?.token === this.selectionToken && this.audio.readyState >= HTMLMediaElement.HAVE_METADATA && Math.abs(this.audio.currentTime - this.pendingSeek.seconds) < 0.15) this.pendingSeek = undefined;
     const pending = this.pendingSeek?.token === this.selectionToken ? this.pendingSeek : undefined;
     const position = pending?.seconds ?? (Number.isFinite(this.audio.currentTime) ? this.audio.currentTime : 0);
@@ -220,7 +254,8 @@ class PlayerController {
     this.persistQueue();
   }
 
-  async playTrack(track: Track, queue?: Track[]): Promise<void> {
+  async playTrack(track: Track, queue?: Track[], origin: 'manual' | 'roaming' = 'manual'): Promise<void> {
+    if (origin === 'manual') this.emitLifecycle('manual');
     if (queue) {
       const index = queue.findIndex((item) => item.id === track.id);
       const nextQueue = index >= 0
@@ -236,6 +271,7 @@ class PlayerController {
         this.select(index);
       }
     }
+    this.emitLifecycle('selected');
     await this.play();
   }
 
@@ -254,6 +290,7 @@ class PlayerController {
   }
 
   async play(isRetry = false): Promise<void> {
+    if (!isRetry && this.resumeHandler && await this.resumeHandler()) return;
     if (!this.state.track) return;
     if (!isRetry && this.state.error && this.state.track.source === 'custom') {
       this.failedAttempts.clear();
@@ -349,7 +386,8 @@ class PlayerController {
     return pending;
   }
 
-  pause(): void {
+  pause(internal = false): void {
+    if (!internal) this.emitLifecycle('pause-request');
     this.playbackToken += 1;
     this.invalidateSelection();
     this.audio.pause();
@@ -368,6 +406,8 @@ class PlayerController {
   }
 
   async next(fromEnded = false): Promise<void> {
+    if (this.navigation) { await this.navigation(fromEnded ? 'ended' : 'next'); return; }
+    this.emitLifecycle(fromEnded ? 'ended' : 'skip');
     if (this.state.queue.length === 0) return;
     if (fromEnded && this.state.repeat === 'one') {
       this.seek(0);
@@ -404,6 +444,7 @@ class PlayerController {
   }
 
   async previous(): Promise<void> {
+    if (this.navigation) { await this.navigation('previous'); return; }
     if (this.state.queue.length === 0) return;
     if (this.state.position > 3) {
       this.seek(0);
@@ -577,6 +618,7 @@ class PlayerController {
     this.audio.removeAttribute('src');
     this.audio.load();
     this.listeners.clear();
+    this.lifecycleListeners.clear();
   }
 }
 

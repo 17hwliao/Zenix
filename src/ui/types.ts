@@ -34,6 +34,10 @@ export interface PlaylistView {
 }
 
 export interface ZenixShellProps {
+  roaming?: { active: boolean; phase: 'idle' | 'searching' | 'playing' | 'paused' | 'exhausted' | 'failed'; message: string; discovered: number; tracks: TrackView[] };
+  onStartRoaming?: () => void | Promise<void>;
+  onStopRoaming?: () => void;
+  onPlayRoaming?: (track: TrackView) => void;
   desktopLyricsVisible?: boolean;
   onToggleDesktopLyrics?: () => void;
   personal?: PersonalState;

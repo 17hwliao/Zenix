@@ -2,6 +2,7 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor
 import type { PlayerState, PersonalState, Track, RawLyrics, InstalledSource } from '../core/types';
 
 export type MobileSnapshot = {
+  roaming?: { active: boolean; phase: 'idle' | 'searching' | 'playing' | 'paused' | 'exhausted' | 'failed'; message: string; discovered: number; tracks: Track[] };
   playback: PlayerState;
   personal: PersonalState;
   sources: InstalledSource[];

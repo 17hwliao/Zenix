@@ -509,3 +509,8 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
 @media (prefers-reduced-motion: reduce) {
   .yz-shell * { scroll-behavior: auto; }
 }
+
+/* A small glass control for the self-learning radio, above the playback bar. */
+.yz-roaming-strip{position:fixed;left:50%;bottom:132px;transform:translateX(-50%);z-index:28;max-width:min(660px,calc(100vw - 150px));display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid #ffffff29;border-radius:999px;background:#1b202680;backdrop-filter:blur(18px);color:#edf1f6;font-size:12px;box-shadow:0 4px 16px #0002}
+.yz-roaming-strip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.yz-roaming-strip>svg{flex-shrink:0}.yz-roaming-strip>button{min-height:30px;padding:4px 10px;border-radius:999px;white-space:nowrap;background:#ffffff12}.yz-roaming-strip>button:disabled{opacity:.5}.yz-roaming-spin{animation:yz-roaming-turn 1s linear infinite}@keyframes yz-roaming-turn{to{transform:rotate(360deg)}}
+.zenix-home-top>div{display:flex;align-items:center;gap:10px}.zenix-home-top button.zenix-home-roaming{background:#22283180;color:#f5f6fa;border:1px solid #ffffff36;backdrop-filter:blur(14px)}

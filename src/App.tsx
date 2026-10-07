@@ -5,6 +5,8 @@ import AppearanceOnboarding from './ui/AppearanceOnboarding';
 import { library, loadLyrics, parseLyrics, player } from './core';
 import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, PlayerState, Track } from './core';
 import { resolveCustomTrack } from './core/sourcePlayback';
+import { roaming } from './core/roaming';
+import type { RoamingStatus } from './core/types';
 import { PlaylistManager } from './playlists';
 
 export default function App() {
@@ -20,10 +22,22 @@ export default function App() {
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [roamingStatus, setRoamingStatus] = useState<RoamingStatus>(roaming.snapshot);
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [playerViewRequestKey, setPlayerViewRequestKey] = useState(0);
   const lastHistoryEvent = useRef('');
   const lyricsDelivery = useRef<{ lyrics: LyricLine[]; track: Track | undefined } | null>(null);
+
+  useEffect(() => {
+    const disconnect = roaming.connect();
+    const unsubscribe = roaming.subscribe(setRoamingStatus);
+    return () => { unsubscribe(); disconnect(); };
+  }, []);
+  useEffect(() => { roaming.setPersonal(personal); }, [personal]);
+  const startRoaming = async () => {
+    try { await roaming.start(); }
+    catch (error) { setNotice(error instanceof Error ? error.message : '无法开始音乐漫游'); }
+  };
 
   useEffect(() => {
     const bridge = window.yzqxy?.personal;
@@ -256,10 +270,14 @@ export default function App() {
       onRemoveSaved={removeSaved}
       onRenamePersonalPlaylist={renamePersonalPlaylist}
       onDeletePersonalPlaylist={deletePersonalPlaylist}
-      onSetQueue={(tracks, index) => player.setQueue(tracks as Track[], index)}
+      onSetQueue={(tracks, index) => { roaming.stop(true); player.setQueue(tracks as Track[], index); }}
       onRemoveFromQueue={index => player.removeFromQueue(index)}
       playlists={collection.playlists}
       playerViewRequestKey={playerViewRequestKey}
+      roaming={roamingStatus}
+      onStartRoaming={startRoaming}
+      onStopRoaming={() => roaming.stop()}
+      onPlayRoaming={track => { void roaming.playCandidate(track as Track); }}
       currentTrack={playback.track}
       playbackError={playback.error}
       sourceActivity={playback.sourceActivity}

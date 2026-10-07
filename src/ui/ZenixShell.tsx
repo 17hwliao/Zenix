@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Home, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
+import { Compass, Home, LoaderCircle, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
 import PersonalBackdrop, { type PersonalScene } from './PersonalBackdrop';
 import LatticePlayer from './LatticePlayer';
 import PlaybackBar from './PlaybackBar';
@@ -28,10 +28,10 @@ export default function ZenixShell(props: ZenixShellProps) {
     onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onOpenPlaylists, onRefreshLibrary,
     onMinimize, onMaximize, onClose, onReplayIntro,
     personal = { liked: [], favorites: [], history: [], playlists: [] }, onToggleSaved, onCreatePersonalPlaylist, onAddToPersonalPlaylist, onRemovePersonalTrack, onRemoveSaved, onRenamePersonalPlaylist, onDeletePersonalPlaylist, onRemoveFromQueue, onSetQueue,
-    desktopLyricsVisible = false, onToggleDesktopLyrics,
+    desktopLyricsVisible = false, onToggleDesktopLyrics, roaming, onStartRoaming, onStopRoaming, onPlayRoaming,
   } = props;
   const [view, setView] = useState<'home' | 'player'>('home');
-  const [playerWallMode, setPlayerWallMode] = useState<'recent' | 'queue' | 'search'>('recent');
+  const [playerWallMode, setPlayerWallMode] = useState<'recent' | 'queue' | 'search' | 'roaming'>('recent');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const musicSearch = useMusicSearch(query, searchOpen || (view === 'player' && playerWallMode === 'search'), tracks);
@@ -54,7 +54,8 @@ export default function ZenixShell(props: ZenixShellProps) {
   useEffect(() => {
     if (previousViewRequestRef.current !== playerViewRequestKey) {
       previousViewRequestRef.current = playerViewRequestKey;
-      enterPlayer('queue');
+      if (roaming?.active) { setPlayerWallMode('roaming'); setView('player'); }
+      else enterPlayer('queue');
     }
   }, [playerViewRequestKey]);
   useEffect(() => {
@@ -123,6 +124,12 @@ export default function ZenixShell(props: ZenixShellProps) {
     setHomeSearchRevealed(false);
   };
   const openQueue = () => { playUiSound('enter'); setSearchOpen(false); setSettingsOpen(false); setQueueOpen(true); };
+  const startRoaming = async () => {
+    if (!personal.history.length && !personal.liked.length && !personal.favorites.length) { openSearch(''); return; }
+    setPlayerWallMode('roaming'); setView('player'); setSearchOpen(false); setQueueOpen(false); setManagerSection(null);
+    if (roaming?.active && roaming.phase === 'playing') return;
+    await onStartRoaming?.();
+  };
   const togglePlayback = () => { playUiSound(playing ? 'cancel' : 'enter'); onTogglePlay(); };
   const previousTrack = () => { playUiSound('enter'); onPrevious(); };
   const nextTrack = () => { playUiSound('enter'); onNext(); };
@@ -133,8 +140,9 @@ export default function ZenixShell(props: ZenixShellProps) {
   const showPersonalBackground = Boolean(appearanceBackground);
   const recentTracks = personal.history.map(entry => entry.track);
   const searchingWall = searchOpen || playerWallMode === 'search';
-  const playerAnchor = currentTrack || (searchingWall ? musicSearch.visibleTracks[0] : playerWallMode === 'recent' ? recentTracks[0] : queue[0]);
-  const displayTracks = searchingWall ? musicSearch.visibleTracks : playerWallMode === 'recent' ? recentTracks.length ? recentTracks : currentTrack ? [currentTrack] : [] : undefined;
+  const roamingAttention = Boolean(roaming?.active && (roaming.phase === 'failed' || roaming.phase === 'exhausted'));
+  const playerAnchor = currentTrack || (searchingWall ? musicSearch.visibleTracks[0] : playerWallMode === 'roaming' ? roaming?.tracks[0] : playerWallMode === 'recent' ? recentTracks[0] : queue[0]);
+  const displayTracks = searchingWall ? musicSearch.visibleTracks : playerWallMode === 'roaming' ? roaming?.tracks || [] : playerWallMode === 'recent' ? recentTracks.length ? recentTracks : currentTrack ? [currentTrack] : [] : undefined;
 
   return (
     <div className={`yz-shell yz-shell--${view}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`} onPointerMove={event => {
@@ -173,20 +181,28 @@ export default function ZenixShell(props: ZenixShellProps) {
       <AnimatePresence mode="wait" initial={false}>
         {view === 'home' ? (
           <motion.div key="home" className="yz-page yz-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.32 }}>
-            <PersonalHome personal={personal} tracks={tracks} currentTrack={currentTrack} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenPlayer={() => enterPlayer('recent')} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
+            <PersonalHome onRoaming={onStartRoaming ? () => { void startRoaming(); } : undefined} roamingActive={roaming?.active} personal={personal} tracks={tracks} currentTrack={currentTrack} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenPlayer={() => enterPlayer('recent')} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
             {currentTrack && <PlaybackBar track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} surface="home" onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenPlayer={() => enterPlayer('recent')} onOpenQueue={openQueue} />}
           </motion.div>
         ) : (
           <motion.div key="player" className="yz-page yz-player" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.34 }}>
             {playerAnchor ? (
-              <LatticePlayer track={playerAnchor} hasPlayback={Boolean(currentTrack)} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} displayTracks={displayTracks} onPlayTrack={track => { playUiSound('enter'); onPlayTrack(track, searchingWall ? musicSearch.playableTracks : playerWallMode === 'recent' ? recentTracks : undefined); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={currentTrack ? togglePlayback : () => onPlayTrack(playerAnchor, searchingWall ? musicSearch.playableTracks : recentTracks)} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch()} searchRevealed={homeSearchRevealed} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
+              <LatticePlayer track={playerAnchor} hasPlayback={Boolean(currentTrack)} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} displayTracks={displayTracks} onPlayTrack={track => { playUiSound('enter'); if (playerWallMode === 'roaming' && roaming?.active && onPlayRoaming) { onPlayRoaming(track); return; } onPlayTrack(track, searchingWall ? musicSearch.playableTracks : playerWallMode === 'recent' ? recentTracks : undefined); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={currentTrack ? togglePlayback : () => onPlayTrack(playerAnchor, searchingWall ? musicSearch.playableTracks : recentTracks)} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch()} searchRevealed={homeSearchRevealed} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
             ) : <><button className="yz-player-back yz-player-back--empty" onClick={() => { playUiSound('cancel'); setView('home'); }} title="个人主页" aria-label="个人主页"><Home size={19} /></button><div className={`yz-lattice-search-zone${homeSearchRevealed ? ' is-revealed' : ''}`}><button onClick={() => openSearch()} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div><div className="yz-empty-player-dots" aria-hidden="true" /></>}
             {searchingWall && !musicSearch.visibleTracks.length && !searchOpen && <div className="yz-search-wall-status" role="status"><strong>{musicSearch.loading ? `正在搜索“${musicSearch.keyword}”…` : `没有找到“${musicSearch.keyword}”`}</strong>{!musicSearch.loading && <button onClick={() => openSearch()}>修改搜索或音乐源</button>}</div>}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {sourceActivity && <SourceCallout activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
+      {onStartRoaming && view === 'player' && (!sourceActivity || roamingAttention) && !searchOpen && !queueOpen && !settingsOpen && !managerSection && <div className={`yz-roaming-strip${playerWallMode === 'roaming' ? ' is-active' : ''}`} role="status">
+        {roaming?.active && roaming.phase === 'searching' ? <LoaderCircle size={17} className="yz-roaming-spin" /> : <Compass size={17} />}
+        <span title={roaming?.message}>{playerWallMode === 'roaming' && roaming?.message ? roaming.message : '按你的喜好，继续发现新歌'}</span>
+        <button disabled={roaming?.phase === 'searching'} onClick={() => { void startRoaming(); }}>{playerWallMode === 'roaming' && roaming?.active ? roaming.phase === 'playing' ? '正在漫游' : '继续探索' : '开始漫游'}</button>
+        {roamingAttention && <button onClick={() => { setSettingsInitialTab('sources'); setSettingsOpen(true); }}>音乐源</button>}
+        {roaming?.active && <button aria-label="结束自动漫游" title="结束自动漫游" onClick={() => { onStopRoaming?.(); enterPlayer('queue'); }}><X size={15} /></button>}
+      </div>}
+
+      {sourceActivity && !(view === 'player' && roamingAttention) && <SourceCallout activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
 
       {playbackError && !sourceActivity && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
         <div><strong>播放失败</strong><span>{playbackError}</span></div>
