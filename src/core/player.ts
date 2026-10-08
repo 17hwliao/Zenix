@@ -48,15 +48,15 @@ class PlayerController {
     const muted = readPreference<boolean>('yzqxy.muted', false);
     const shuffle = readPreference<boolean>('yzqxy.shuffle', false);
     const repeat = readPreference<RepeatMode>('yzqxy.repeat', 'all');
-    this.audio.volume = Math.max(0, Math.min(1, volume));
-    this.audio.muted = muted;
+    this.audio.volume = typeof volume === 'number' && Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.75;
+    this.audio.muted = muted === true;
     this.state = {
       playing: false,
       position: 0,
       duration: 0,
       volume: this.audio.volume,
-      muted,
-      shuffle,
+      muted: muted === true,
+      shuffle: shuffle === true,
       repeat: ['off', 'all', 'one'].includes(repeat) ? repeat : 'all',
       queue: [],
       queueIndex: -1,
@@ -220,7 +220,7 @@ class PlayerController {
     }
     const queue = saved.ids.map((id) => byId.get(id)).filter((track): track is Track => Boolean(track));
     if (queue.length === 0) return;
-    const queueIndex = Math.max(0, Math.min(queue.length - 1, Number(saved.index) || 0));
+    const queueIndex = Math.max(0, Math.min(queue.length - 1, Number.isInteger(saved.index) ? saved.index : 0));
     const track = queue[queueIndex];
     this.playbackToken += 1;
     this.invalidateSelection();

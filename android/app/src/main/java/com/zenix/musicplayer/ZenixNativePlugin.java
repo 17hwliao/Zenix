@@ -28,6 +28,9 @@ public class ZenixNativePlugin extends Plugin {
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("exportSourceBundle")) {
+            Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/octet-stream");intent.putExtra(Intent.EXTRA_TITLE,"Zenix-音乐源.zenixsources");startActivityForResult(call,intent,"sourceBundleSaved");return;
+        }
         if(action.equals("features")){
             String operation=args.optString("operation");
             if(operation.equals("exportFile")||operation.equals("saveImage")){Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(operation.equals("saveImage")?"image/png":"application/octet-stream");intent.putExtra(Intent.EXTRA_TITLE,operation.equals("saveImage")?"Zenix-音乐回忆.png":"Zenix-歌单.zenixlist");startActivityForResult(call,intent,"featureFile");return;}
@@ -123,6 +126,16 @@ public class ZenixNativePlugin extends Plugin {
         }catch(Exception e){call.reject(Json.message(e));}});
     }
     private String displayName(Uri uri){try(Cursor cursor=getContext().getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){if(cursor!=null&&cursor.moveToFirst())return cursor.getString(0);}catch(Exception ignored){}return "用户文件";}
+
+    @ActivityCallback private void sourceBundleSaved(PluginCall call,ActivityResult returned) {
+        if(call==null)return;Intent data=returned.getData();
+        if(returned.getResultCode()!=Activity.RESULT_OK||data==null||data.getData()==null){result(call,Json.obj("saved",false,"count",0));return;}
+        runtime.work.execute(()->{try{
+            JSONObject bundle=runtime.sources.shareBundle();byte[] bytes=bundle.toString().getBytes(StandardCharsets.UTF_8);
+            try(OutputStream output=getContext().getContentResolver().openOutputStream(data.getData(),"wt")){if(output==null)throw new IOException("文件无法写入");output.write(bytes);}
+            result(call,Json.obj("saved",true,"count",bundle.getJSONArray("sources").length()));
+        }catch(Exception error){call.reject(Json.message(error));}});
+    }
 
     @ActivityCallback private void featureFile(PluginCall call,ActivityResult returned){
         if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null||data.getData()==null){result(call,false);return;}Uri uri=data.getData();

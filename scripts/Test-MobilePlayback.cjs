@@ -8,7 +8,7 @@ test('Android production source lanes, resolver budgets, priority, cache decisio
   if(fs.existsSync(cached))for(const child of fs.readdirSync(cached)){const candidate=path.join(cached,child,'json-20250517.jar');if(fs.existsSync(candidate)){jar=candidate;break;}}
   if(!jar){jar=path.join(folder,'json.jar');const response=await fetch('https://repo.maven.apache.org/maven2/org/json/json/20250517/json-20250517.jar');if(!response.ok)throw Error('JSON test runtime unavailable');await fsp.writeFile(jar,Buffer.from(await response.arrayBuffer()));}
   const root=path.resolve(__dirname,'../android/app/src/main/java/com/zenix/musicplayer');
-  const sources=['Json','SourceEngineLane','PlaybackSourcePlan','AudioCachePlan','PersonalCollections','MusicSources'].map(name=>path.join(root,name+'.java'));
+  const sources=['Json','SourceShare','SourceEngineLane','PlaybackSourcePlan','AudioCachePlan','PersonalCollections','MusicSources'].map(name=>path.join(root,name+'.java'));
   sources.push(path.join(__dirname,'fixtures/MobilePlaybackContractCheck.java'));
   for(const name of ['android/content/Context.java','android/os/SystemClock.java','android/util/Base64.java','android/util/AtomicFile.java'])sources.push(path.join(__dirname,'fixtures/mobile-playback-stubs',name));
   await promisify(execFile)(bin('javac'),['-cp',jar,'-d',folder,...sources],{timeout:30000,windowsHide:true});

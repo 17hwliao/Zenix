@@ -430,7 +430,20 @@ function registerHandlers() {
   handleApp('sources:import-file', () => sourceManager.choosePackage(mainWindow));
   handleApp('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
   handleApp('sources:import-url', (_event, url) => sourceManager.importUrl(String(url || '')));
-  handleApp('sources:import-text', (_event, text, originUrl) => {
+  handleApp('sources:export-bundle', async (event) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('无权导出音乐源');
+    const bundle = await sourceManager.shareBundle();
+    const target = await dialog.showSaveDialog(mainWindow, { title: '保存全部音乐源分享包', defaultPath: 'Zenix-音乐源.zenixsources', filters: [{ name: 'Zenix 音乐源分享包', extensions: ['zenixsources'] }] });
+    if (target.canceled || !target.filePath) return { saved: false, count: 0 };
+    await fsp.writeFile(target.filePath, bundle.text, 'utf8');
+    return { saved: true, count: bundle.count };
+  });
+  handleApp('sources:import-text', (_event, text, originUrl, originKind) => {
+    if (originKind === 'file') {
+      const label = String(originUrl || '');
+      if (!label || label.length > 120 || path.basename(label) !== label || /[\\/\x00-\x1f]/.test(label)) throw new Error('分享源文件名无效');
+      return sourceManager.previewPackage(String(text || ''), { kind: 'file', label });
+    }
     const origin = new URL(String(originUrl || ''));
     if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password) throw new Error('分享源地址无效');
     return sourceManager.previewPackage(String(text || ''), { kind: 'url', label: origin.href });
@@ -535,7 +548,11 @@ if (primaryInstance) app.whenReady().then(async () => {
     if (event.sender !== mainWindow?.webContents) throw new Error('无权调用更新服务');
     return updates.invoke(args || {});
   });
-  await Promise.all([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
+  // A damaged user store remains read-only and surfaces through its own IPC;
+  // it must not prevent the app (including its updater) from opening.
+  const startupStores = ['library', 'appearance', 'personal', 'sources', 'cache'];
+  const startupResults = await Promise.allSettled([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
+  startupResults.forEach((result, i) => { if (result.status === 'rejected') console.error(`Zenix ${startupStores[i]} could not load; original files preserved`); });
   musicWidget = new MusicWidget({ BrowserWindow, command: action => broadcast('media:command', action), showApp: showMainWindow });
   companion = new Companion({ folder: app.getPath('userData'), personal, library, dialog, getWindow: () => mainWindow, broadcast, app, widget: musicWidget });
   await companion.stats.load();

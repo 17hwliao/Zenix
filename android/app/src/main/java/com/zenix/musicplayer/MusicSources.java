@@ -21,6 +21,12 @@ final class MusicSources implements AutoCloseable {
     private static final Set<String> PLATFORMS=Set.of("kw","kg","wy","tx","mg");
     MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
     JSONArray list() { return store.array("sources"); }
+    synchronized JSONObject shareBundle() throws Exception {
+        return SourceShare.bundle(list(),source -> {
+            String id=source.getString("id");if(!id.matches("[a-zA-Z0-9][a-zA-Z0-9._-]{2,119}"))throw new Exception("音乐源 ID 无效");
+            return new JSONObject(new String(SourceHttp.bounded(new FileInputStream(new File(directory,id+".json")),2*1024*1024),StandardCharsets.UTF_8));
+        });
+    }
     private Object catalogCall(String method,Object payload) throws Exception {return catalogCall(method,payload,false,20000);}
     private Object catalogCall(String method,Object payload,boolean playback,long timeout) throws Exception {
         return (playback?playbackCatalog:browseCatalog).call("catalog",()->new ScriptEngine(context,"",new JSONObject(),null,true),engine->engine.call(method,payload,new JSONObject(),timeout));

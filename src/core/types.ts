@@ -155,7 +155,8 @@ export interface DesktopBridge {
     importFile(): Promise<SourcePreview | null>;
     importFolder(): Promise<SourcePreview | null>;
     importUrl(url: string): Promise<SourcePreview>;
-    importText(text: string, originUrl: string): Promise<SourcePreview>;
+    importText(text: string, originUrl: string, originKind?: 'file' | 'url'): Promise<SourcePreview>;
+    exportBundle(): Promise<{ saved: boolean; count: number }>;
     confirmImport(token: string, policy?: { allowHttp: boolean; hosts: string[] | null }): Promise<InstalledSource[]>;
     cancelImport(token: string): Promise<void>;
     setEnabled(id: string, enabled: boolean): Promise<InstalledSource[]>;

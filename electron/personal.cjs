@@ -45,11 +45,18 @@ class PersonalStore {
     this.file = path.join(userDataPath, 'personal-library.json');
     this.data = { liked: [], favorites: [], history: [], playlists: [] };
     this.pendingSave = Promise.resolve();
+    this.loadError = '';
   }
 
   async load() {
     try {
       const raw = JSON.parse(await fs.readFile(this.file, 'utf8'));
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('资料结构无效');
+      for (const kind of ['liked', 'favorites', 'history', 'playlists']) if (raw[kind] !== undefined && !Array.isArray(raw[kind])) throw new Error('资料结构无效');
+      if (['liked', 'favorites'].some(kind => (raw[kind] || []).some(track => !cleanTrack(track)))
+        || (raw.history || []).some(entry => !cleanTrack(entry?.track))
+        || (raw.playlists || []).some(entry => !entry || typeof entry !== 'object' || !Array.isArray(entry.tracks) || entry.tracks.some(track => !cleanTrack(track)))) throw new Error('资料条目无效');
+      this.loadError = '';
       const loadedHistory = (Array.isArray(raw.history) ? raw.history : []).map(entry => {
         const track = cleanTrack(entry?.track);
         return track ? { id: String(entry.id || randomUUID()), track, playedAt: Number(entry.playedAt) || Date.now() } : null;
@@ -64,20 +71,25 @@ class PersonalStore {
         })),
       };
       if (this.data.history.length !== loadedHistory.length) await this.save();
-    } catch { /* First launch has no personal library yet. */ }
+    } catch (error) {
+      if (error.code !== 'ENOENT') { this.loadError = '个人曲库无法读取，已保留原文件并停止写入'; throw new Error(this.loadError); }
+      this.loadError = '';
+    }
     return this.snapshot();
   }
 
-  snapshot() { return structuredClone(this.data); }
+  assertWritable() { if (this.loadError) throw new Error(this.loadError); }
+  snapshot() { this.assertWritable(); return structuredClone(this.data); }
   lyricsSaved(trackId) {
     return { liked: this.data.liked.some(track => track.id === trackId), favorite: this.data.favorites.some(track => track.id === trackId), playlists: this.data.playlists.map(list => ({ id: list.id, name: list.name, count: list.tracks.length })) };
   }
 
   async save() {
+    this.assertWritable();
     this.pendingSave = this.pendingSave.catch(() => {}).then(async () => {
       const temporary = `${this.file}.${randomUUID()}.tmp`;
-      await fs.writeFile(temporary, JSON.stringify(this.data), 'utf8');
-      await fs.rename(temporary, this.file);
+      try { await fs.writeFile(temporary, JSON.stringify(this.data), 'utf8'); await fs.rename(temporary, this.file); }
+      finally { await fs.unlink(temporary).catch(() => {}); }
     });
     await this.pendingSave;
     return this.snapshot();

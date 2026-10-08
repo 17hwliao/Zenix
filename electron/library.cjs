@@ -70,13 +70,21 @@ class LocalLibrary {
     this.loaded = false;
     this.mutation = Promise.resolve();
     this.musicMetadata = null;
+    this.loadError = '';
   }
 
   async load() {
+    if (this.loadError) throw new Error(this.loadError);
     if (this.loaded) return this.snapshot();
     await fsp.mkdir(path.dirname(this.dataFile), { recursive: true });
     try {
       const saved = JSON.parse(await fsp.readFile(this.dataFile, 'utf8'));
+      if (!saved || saved.version !== 1) throw new Error('曲库版本无效');
+      for (const key of ['roots', 'looseFiles', 'playlists', 'records']) if (saved[key] === undefined) saved[key] = [];
+      if (['roots', 'looseFiles', 'playlists', 'records'].some(key => !Array.isArray(saved[key]))
+        || [...saved.roots, ...saved.looseFiles].some(value => typeof value !== 'string')
+        || saved.playlists.some(list => !list || typeof list.id !== 'string' || typeof list.name !== 'string' || !Array.isArray(list.trackIds) || list.trackIds.some(id => typeof id !== 'string'))
+        || saved.records.some(record => !record || ['id', 'path', 'artist', 'title'].some(key => typeof record[key] !== 'string') || record.album !== undefined && typeof record.album !== 'string')) throw new Error('曲库结构无效');
       if (saved.version === 1) {
         this.roots = Array.isArray(saved.roots) ? saved.roots.filter((value) => typeof value === 'string') : [];
         this.looseFiles = Array.isArray(saved.looseFiles) ? saved.looseFiles.filter((value) => typeof value === 'string') : [];
@@ -88,13 +96,14 @@ class LocalLibrary {
         }
       }
     } catch (error) {
-      if (error.code !== 'ENOENT') console.error('Cannot load music library:', error);
+      if (error.code !== 'ENOENT') { this.loadError = '本地曲库无法读取，已保留原文件并停止写入'; throw new Error(this.loadError); }
     }
     this.loaded = true;
     return this.snapshot();
   }
 
   snapshot() {
+    if (this.loadError) throw new Error(this.loadError);
     const tracks = [...this.records.values()]
       .map(({ embeddedLyrics, coverPath, coverMtimeMs, ...track }) => track)
       .sort((a, b) => a.artist.localeCompare(b.artist, 'zh-CN') || a.album?.localeCompare(b.album || '', 'zh-CN') || a.title.localeCompare(b.title, 'zh-CN'));
@@ -107,6 +116,7 @@ class LocalLibrary {
   }
 
   async save() {
+    if (this.loadError) throw new Error(this.loadError);
     const payload = JSON.stringify({
       version: 1,
       roots: this.roots,

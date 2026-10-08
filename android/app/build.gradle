@@ -30,8 +30,11 @@ android {
         applicationId "com.zenix.musicplayer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
+        versionCode 20
         versionName "1.0.0"
+        if (project.hasProperty('zenixAcceptance')) {
+            testInstrumentationRunner 'com.zenix.acceptance.UpdateAcceptanceInstrumentation'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -55,6 +58,11 @@ android {
         }
     }
     if (signingReady) buildTypes.release.signingConfig = signingConfigs.zenixRelease
+    // Opt-in device acceptance only. These sources never enter the shipped application.
+    if (project.hasProperty('zenixAcceptance')) {
+        if (!signingReady) throw new GradleException('验收工具须使用原发行签名。')
+        testBuildType 'release'
+    }
     compileOptions { coreLibraryDesugaringEnabled true }
 }
 

@@ -163,7 +163,7 @@ public final class LyricOverlayService extends Service {
         if(screenActive&&runtime.service!=null){JSONObject player=runtime.service.state();JSONObject track=player.optJSONObject("track");String id=track==null?"":track.optString("id");
             if(!id.equals(trackId)){trackId=id;lastTrack=track==null?null:Json.copy(track);timeline=Collections.emptyList();previewing=false;shown=Integer.MIN_VALUE;message=id.isEmpty()?"等待播放音乐":"正在获取歌词";long token=++generation;render();
                 if(track!=null){JSONObject song=Json.copy(track);loader.execute(()->{List<LyricTimeline.Line> value=Collections.emptyList();try{value=LyricTimeline.parse(runtime.sources.lyrics(song));}catch(Exception ignored){}List<LyricTimeline.Line> result=value;main.post(()->{if(!destroyed&&token==generation){timeline=result;message="暂未找到歌词";shown=Integer.MIN_VALUE;render();}});});}}
-            render();if(!updatingSeek)progress.setProgress((int)(player.optDouble("position")/Math.max(1,player.optDouble("duration"))*1000));playButton.setText(player.optBoolean("playing")?"Ⅱ":"▶");
+            render();if(!updatingSeek)progress.setProgress((int)(player.optDouble("position")/Math.max(1,player.optDouble("duration"))*1000));playButton.setText(player.optBoolean("playWhenReady",player.optBoolean("playing"))?"Ⅱ":"▶");
         }main.postDelayed(this,screenActive?350:2000);
     }};
     private final BroadcastReceiver screenReceiver=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){screenActive=!Intent.ACTION_SCREEN_OFF.equals(intent.getAction());if(root!=null){root.setVisibility(screenActive?View.VISIBLE:View.INVISIBLE);lock.setVisibility(screenActive?View.VISIBLE:View.INVISIBLE);}}};

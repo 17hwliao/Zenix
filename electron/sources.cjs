@@ -153,7 +153,7 @@ class SourceManager {
   async installPackage(packageText, origin, permission) {
     this.assertWritable();
     if (Buffer.byteLength(packageText, 'utf8') > MAX_PACKAGE) throw new Error('音乐源包过大');
-    if (isLxScript(packageText) || /\.js(?:$|[?#])/i.test(origin.label)) return this.installLx(packageText, origin, permission);
+    if (!packageText.trimStart().startsWith('{') && (isLxScript(packageText) || /\.js(?:$|[?#])/i.test(origin.label))) return this.installLx(packageText, origin, permission);
     const sourcePackage = parseSourcePackage(packageText);
     const manifest = validateManifest(sourcePackage.manifest);
     const script = sourcePackage.script;
@@ -175,7 +175,7 @@ class SourceManager {
   }
   previewPackage(packageText, origin) {
     if (Buffer.byteLength(packageText, 'utf8') > MAX_PACKAGE) throw new Error('音乐源包过大');
-    if (isLxScript(packageText) || /\.js(?:$|[?#])/i.test(origin.label)) return this.previewLx(packageText, origin);
+    if (!packageText.trimStart().startsWith('{') && (isLxScript(packageText) || /\.js(?:$|[?#])/i.test(origin.label))) return this.previewLx(packageText, origin);
     const sourcePackage = parseSourcePackage(packageText);
     const manifest = validateManifest(sourcePackage.manifest);
     if (typeof sourcePackage.script !== 'string' || !sourcePackage.script.includes('zenix.register') || Buffer.byteLength(sourcePackage.script, 'utf8') > MAX_PACKAGE) throw new Error('音乐源脚本无效');
@@ -219,6 +219,14 @@ class SourceManager {
     return this.list();
   }
   cancelImport(token) { this.pendingImports.delete(token); }
+  async shareBundle() {
+    this.assertWritable();
+    const records = JSON.parse(JSON.stringify(this.records));
+    return require('./runtime/source-share.cjs').sourceShare(records, async record => ({
+      manifest: record.manifest,
+      script: await readBoundedFile(path.join(this.folder, record.id, record.manifest.version, 'index.js'), MAX_PACKAGE, 'utf8'),
+    }));
+  }
   async importFile(filePath) {
     return this.previewPackage(await readBoundedFile(filePath, MAX_PACKAGE, 'utf8'), { kind: 'file', label: path.basename(filePath) });
   }

@@ -5,6 +5,7 @@ import type { AudioCacheStats, InstalledSource, SourcePreview } from '../core/ty
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
 import SourceBundleImport from './SourceBundleImport';
+import SourceBundleExport from './SourceBundleExport';
 import { SourceNetworkOptions, DEFAULT_SOURCE_POLICY, type SourceNetworkPolicy } from './SourceNetworkOptions';
 
 export default function SourceSettings() {
@@ -112,11 +113,12 @@ export default function SourceSettings() {
         return <div className="zenix-source-preset" key={preset.key}><div><strong>{preset.name}</strong><small>{preset.description}</small></div><button type="button" disabled={busy || !preset.url} onClick={() => void installPreset(preset)}>{!preset.url ? '链接失效' : installed ? '重新获取' : '一键添加'}</button></div>;
       })}</div>
     </section>
-    <SourceBundleImport disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
+    <SourceBundleExport count={sources.length} disabled={busy || Boolean(preview) || !window.yzqxy?.sources?.exportBundle} onBusy={setBusy} save={() => window.yzqxy!.sources.exportBundle()}/>
+    <SourceBundleImport localScripts disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
       const bridge = window.yzqxy!.sources;
       let token = '';
       try {
-        const next = entry.script !== undefined ? await bridge.importText(entry.script, entry.url) : await bridge.importUrl(entry.url);
+        const next = entry.script !== undefined ? await bridge.importText(entry.script, entry.local ? entry.name : entry.url, entry.local ? 'file' : 'url') : await bridge.importUrl(entry.url);
         token = next.token;
         setSources(await bridge.confirmImport(token));
       } finally { if (token) await bridge.cancelImport(token).catch(() => {}); }

@@ -4,6 +4,7 @@ const { createHash, createPublicKey, verify } = require('node:crypto');
 const { spawn, execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { fetchAllowed, readLimited, checkLxUrl } = require('./source-network.cjs');
+const { fetchUpdate, updateUrl } = require('./update-network.cjs');
 const config = require('../../config/distribution.json');
 const { zenixBuild } = require('../../package.json');
 const hosts = ['raw.githubusercontent.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'];
@@ -29,8 +30,9 @@ class Updates {
   }
   async text(url, limit = 4 * 1024 * 1024, restricted = false) {
     if (new URL(url).protocol !== 'https:') throw new Error('请使用 HTTPS 地址');
-    await checkLxUrl(url);
-    const response = await fetchAllowed(url, restricted ? hosts : [...hosts, new URL(url).hostname], { signal: AbortSignal.timeout(25000) });
+    if (!restricted) await checkLxUrl(url);
+    const options = { signal: AbortSignal.timeout(25000) };
+    const response = restricted ? await fetchUpdate(url, options) : await fetchAllowed(url, [...hosts, new URL(url).hostname], options);
     if (!response.ok) { await response.body?.cancel(); const error = new Error(`连接失败（HTTP ${response.status}）`); error.status = response.status; throw error; }
     return (await readLimited(response, limit)).toString('utf8');
   }
@@ -49,10 +51,10 @@ class Updates {
       const item = manifest.artifacts?.windows;
       if (!item) { this.state.status = 'unpublished'; this.state.message = '当前通道尚未发布 Windows 更新'; return this.state; }
       if (!/^(\d+)\.(\d+)\.(\d+)(?:-[\w.-]+)?$/.test(item.version) || !Number.isSafeInteger(item.build) || item.build < 1) throw new Error('更新版本或构建号无效');
-      const url = new URL(item.url);
+      const url = updateUrl(item.url);
       if (url.origin !== 'https://github.com' || url.username || url.password || !url.pathname.startsWith('/17hwliao/Zenix/releases/download/') || !url.pathname.endsWith('.exe') || !/^[a-f0-9]{64}$/.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1 || item.size > LIMIT) throw new Error('安装包信息无效');
       const sameVersion = item.version === this.app.getVersion();
-      if (!(newer(item.version, this.app.getVersion()) || (sameVersion && item.build > this.currentBuild))) { this.state.status = 'current'; this.state.message = `已是此通道的最新版本（r${this.currentBuild}）`; return this.state; }
+      if (item.build <= this.currentBuild || !(newer(item.version, this.app.getVersion()) || sameVersion)) { this.state.status = 'current'; this.state.message = `已是此通道的最新版本（r${this.currentBuild}）`; return this.state; }
       this.artifact = item;
       this.state = { ...this.state, status: 'available', version: item.version, build: item.build, notes: String(manifest.notes || '').slice(0, 4000), message: `发现更新 ${item.version} · r${item.build}` };
     } catch (error) { this.state.status = error.status === 404 ? 'unpublished' : 'error'; this.state.message = error.status === 404 ? '此通道尚未发布更新清单' : error.message; }
@@ -68,7 +70,7 @@ class Updates {
     try {
       await fs.mkdir(this.directory, { recursive: true });
       if (await this.matches(target, item)) { this.file = target; this.state.status = 'ready'; this.state.progress = 100; this.state.message = '已读取校验通过的更新包，确认后重启安装'; return this.state; }
-      const response = await fetchAllowed(item.url, hosts, { signal: controller.signal });
+      const response = await fetchUpdate(item.url, { signal: controller.signal });
       if (!response.ok) { await response.body?.cancel(); throw new Error(`下载失败（HTTP ${response.status}）`); }
       if (Number(response.headers.get('content-length')) > item.size) { await response.body?.cancel(); throw new Error('安装包大小与发布记录不一致'); }
       reader = response.body.getReader(); handle = await fs.open(partial, 'w'); const hash = createHash('sha256'); let size = 0;
