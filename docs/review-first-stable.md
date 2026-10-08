@@ -21,6 +21,7 @@
 | U1 | P1 | electron/runtime/updates.cjs：内置清单与安装包仍调用音乐源 checkLxUrl / fetchAllowed | 已隔离 update-network，固定 HTTPS 主机逐跳校验，默认 Electron Chromium 系统网络、TLS 校验保留。合成输送 / 签名清单 / 哈希测试通过；真实 Electron 网络与覆盖安装待验收 |
 | U2 | P2 | src/core/updates.ts：只在启动、可见性与上线事件触发检查 | 已加入单次到期调度，后台 / 离线暂停，按通道缓存，偏好变更生效，未来异常时间戳不永久阻断。6 项更新管线测试通过；真机待验收 |
 | U3 | P2 | electron/runtime/updates.cjs：公开版本更大时未要求 build 递增 | 已要求 build 单调递增；签名合法但低 build 的回退清单被拒绝，相关测试通过 |
+| U4 | P1 | r20 真实 Windows 下载：Electron net.fetch 的 manual 模式取消 GitHub 302 跳转 | 实际 r20 下载失败 `Redirect was cancelled`，r21 不可作为正式包。改用独立内存会话，Chromium 自动跳转前由 webRequest 逐跳校验允许的 HTTPS 地址、最多五次重定向；保留原生流式传输、系统代理和 TLS。真实 Electron 下载候选校验文件返回 200，7 项管线回归通过；完整安装仍待验证 |
 | D1 | P1 | electron/personal.cjs、electron/library.cjs：损坏存储被当作首次启动 | 已明确报错并禁止写入原文件；启动使用逐项 load 结果，不让损坏曲库阻断应用 / 更新入口。4 项存储测试通过；正常旧资料与真机覆盖保留待验收 |
 | P1 | P2 | src/core/player.ts：损坏本地音量 / 队列索引偏好 | 已加类型 / 有限值及整数边界；直接加载生产播放器的损坏偏好测试通过，恢复后队列暂停且可用 |
 | Q1 | P2 | src/mobile/MobileApp.tsx：搜索等待所有源完成、分页读取后来编辑的输入 | 已逐批显示本地 / 已返回源，分页固定原查询，失败游标可重试，新查询排除旧响应；真实 React 交互验证通过 |

@@ -63,12 +63,15 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             if(!retained)throw new IOException("Synthetic personal data was not retained");
             out.put("syntheticCollectionsRetained",true).put("syntheticEncryptedData",fileDigest(new File(root,"synthetic-profile/zenix.json")));
         } else if(mode.equals("check")||mode.equals("download")||mode.equals("install")) {
+            // Keep the real app foreground during lengthy network acceptance. Some
+            // OEMs kill headless instrumentation as a cached background process.
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
+            launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);Activity activity=startActivitySync(launch);
+            runOnMainSync(()->activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
             Object updates=create(target,"AppUpdates",target);
             JSONObject state=(JSONObject)call(updates,"check",new Class<?>[]{String.class},arguments.getString("channel","preview"));
             if(!mode.equals("check")&&state.optString("status").equals("available"))state=(JSONObject)call(updates,"download",new Class<?>[]{});
             if(mode.equals("install")&&state.optString("status").equals("ready")) {
-                Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
-                launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);Activity activity=startActivitySync(launch);
                 state=(JSONObject)call(updates,"install",new Class<?>[]{Activity.class},activity);
             }
             out.put("updateState",state);

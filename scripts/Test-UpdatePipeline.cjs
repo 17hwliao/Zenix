@@ -2,9 +2,30 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os'), vm = require('node:vm');
 const { createRequire } = require('node:module'), { generateKeyPairSync, sign, createHash } = require('node:crypto');
 const ts = require('typescript');
-const { updateUrl, fetchUpdate } = require('../electron/runtime/update-network.cjs');
+const { updateUrl, fetchUpdate, createUpdateTransport } = require('../electron/runtime/update-network.cjs');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const apkUrl = 'https://github.com/17hwliao/Zenix/releases/download/v1.0.0/fixture.exe';
+
+test('Chromium fetch follows allowed redirects with a private session that blocks unsafe hops and loops before connecting', async () => {
+  const listeners = {}, contacts = [];
+  const session = { webRequest: Object.fromEntries(['onBeforeRequest', 'onBeforeRedirect', 'onCompleted', 'onErrorOccurred'].map(name => [name, (filter, listener) => { assert.deepEqual(filter.urls, ['<all_urls>']); listeners[name] = listener; }])),
+    async fetch(url, options) {
+      assert.equal(options.redirect, 'follow'); assert.equal(options.credentials, 'omit');
+      for (const [id, target] of [[1, url], [1, 'https://release-assets.githubusercontent.com/file']]) {
+        if (contacts.length) listeners.onBeforeRedirect({ id });
+        let decision; listeners.onBeforeRequest({ id, url: target }, value => { decision = value; });
+        assert.equal(decision.cancel, false); contacts.push(target);
+      }
+      listeners.onCompleted({ id: 1 }); return new Response('streamed');
+    } };
+  assert.equal(await (await fetchUpdate(apkUrl, {}, createUpdateTransport(session))).text(), 'streamed'); assert.equal(contacts.length, 2);
+  for (const url of ['https://127.0.0.1/file', 'http://github.com/file', 'https://evil.test/file']) {
+    let decision; listeners.onBeforeRequest({ id: 3, url }, value => { decision = value; }); assert.equal(decision.cancel, true);
+  }
+  for (let i = 0; i < 6; i++) listeners.onBeforeRedirect({ id: 4 });
+  let decision; listeners.onBeforeRequest({ id: 4, url: apkUrl }, value => { decision = value; }); assert.equal(decision.cancel, true);
+  listeners.onErrorOccurred({ id: 4 }); listeners.onBeforeRequest({ id: 4, url: apkUrl }, value => { decision = value; }); assert.equal(decision.cancel, false);
+});
 
 test('official update transport validates every redirect and uses the Electron system network without source DNS classification', async () => {
   for (const bad of ['http://github.com/file', 'https://github.com:444/file', 'https://user@github.com/file', 'https://github.com/file#fragment', 'https://github.com.evil.test/file', 'https://127.0.0.1/file']) assert.throws(() => updateUrl(bad));

@@ -7,7 +7,31 @@ function updateUrl(raw) {
   if (url.protocol !== 'https:' || url.port && url.port !== '443' || url.username || url.password || url.hash || !HOSTS.has(url.hostname)) throw new Error('更新地址必须使用允许的 GitHub HTTPS 服务器');
   return url;
 }
-async function fetchUpdate(raw, { signal } = {}, transport = (url, options) => require('electron').net.fetch(url, options)) {
+// Electron net.fetch cancels manual redirects rather than exposing a 302 Response.
+// A private memory-only session guards every outgoing hop before Chromium connects,
+// while fetch retains native streaming, proxy routing and TLS verification.
+function createUpdateTransport(session) {
+  const hops = new Map();
+  const all = { urls: ['<all_urls>'] };
+  session.webRequest.onBeforeRequest(all, (details, callback) => {
+    try {
+      updateUrl(details.url);
+      if ((hops.get(details.id) || 0) > 5) throw new Error('更新下载重定向次数过多');
+      callback({ cancel: false });
+    } catch { callback({ cancel: true }); }
+  });
+  session.webRequest.onBeforeRedirect(all, details => hops.set(details.id, (hops.get(details.id) || 0) + 1));
+  const cleanup = details => hops.delete(details.id);
+  session.webRequest.onCompleted(all, cleanup);
+  session.webRequest.onErrorOccurred(all, cleanup);
+  return (url, options) => session.fetch(url, { ...options, redirect: 'follow' });
+}
+let officialTransport;
+function chromiumTransport(url, options) {
+  officialTransport ||= createUpdateTransport(require('electron').session.fromPartition('zenix-official-updates', { cache: false }));
+  return officialTransport(url, options);
+}
+async function fetchUpdate(raw, { signal } = {}, transport = chromiumTransport) {
   let url = updateUrl(raw);
   for (let hop = 0; hop <= 5; hop++) {
     signal?.throwIfAborted();
@@ -20,4 +44,4 @@ async function fetchUpdate(raw, { signal } = {}, transport = (url, options) => r
   }
   throw new Error('更新下载重定向次数过多');
 }
-module.exports = { updateUrl, fetchUpdate };
+module.exports = { updateUrl, fetchUpdate, createUpdateTransport };
