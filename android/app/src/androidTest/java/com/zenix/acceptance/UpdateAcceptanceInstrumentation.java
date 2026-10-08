@@ -108,6 +108,6 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     private static String canonical(Object value)throws Exception {
         if(value instanceof JSONObject){JSONObject object=(JSONObject)value;java.util.TreeSet<String> keys=new java.util.TreeSet<>();object.keys().forEachRemaining(keys::add);StringBuilder result=new StringBuilder("{");for(String key:keys){if(result.length()>1)result.append(',');result.append(JSONObject.quote(key)).append(':').append(canonical(object.get(key)));}return result.append('}').toString();}
         if(value instanceof org.json.JSONArray){org.json.JSONArray array=(org.json.JSONArray)value;StringBuilder result=new StringBuilder("[");for(int i=0;i<array.length();i++){if(i>0)result.append(',');result.append(canonical(array.get(i)));}return result.append(']').toString();}
-        return JSONObject.valueToString(value);
+        String scalar=new org.json.JSONArray().put(value).toString();return scalar.substring(1,scalar.length()-1);
     }
 }
