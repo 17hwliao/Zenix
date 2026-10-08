@@ -16,6 +16,7 @@ function cleanTrack(value) {
     source: value.source === 'online' || value.source === 'custom' ? value.source : 'local',
     providerId: typeof value.providerId === 'string' ? value.providerId : undefined,
     remoteId: typeof value.remoteId === 'string' ? value.remoteId : undefined,
+    availability: value.availability === 'unavailable' ? 'unavailable' : undefined,
   };
 }
 
@@ -139,6 +140,18 @@ class PersonalStore {
     if (!playlist) throw new Error('歌单不存在');
     playlist.tracks = playlist.tracks.filter(item => item.id !== trackId);
     return this.save();
+  }
+
+  async importPlaylists(lists) {
+    const imported = [];
+    for (const list of lists) {
+      const base = list.name; let name = base, index = 1;
+      while ([...this.data.playlists, ...imported].some(item => item.name.toLocaleLowerCase() === name.toLocaleLowerCase())) name = `${base.slice(0, 85)}（导入 ${index++}）`;
+      const seen = new Set();
+      imported.push({ id: randomUUID(), name, tracks: list.tracks.map(cleanTrack).filter(track => track && !seen.has(track.id) && seen.add(track.id)) });
+    }
+    this.data.playlists.push(...imported);
+    try { return await this.save(); } catch(error) { const ids=new Set(imported.map(list=>list.id));this.data.playlists=this.data.playlists.filter(list=>!ids.has(list.id));throw error; }
   }
 
   async removeSaved(kind, id) {

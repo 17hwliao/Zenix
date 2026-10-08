@@ -28,6 +28,15 @@ public class ZenixNativePlugin extends Plugin {
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("features")){
+            String operation=args.optString("operation");
+            if(operation.equals("exportFile")||operation.equals("saveImage")){Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(operation.equals("saveImage")?"image/png":"application/octet-stream");intent.putExtra(Intent.EXTRA_TITLE,operation.equals("saveImage")?"Zenix-音乐回忆.png":"Zenix-歌单.zenixlist");startActivityForResult(call,intent,"featureFile");return;}
+            if(operation.equals("importFile")){Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("*/*");startActivityForResult(call,intent,"featureFile");return;}
+            if(operation.startsWith("timer")||operation.equals("widgetPin")){
+                runtime.main.post(()->{try{PlaybackService service=runtime.service;if(service==null)throw new Exception("播放器正在启动，请稍后重试");Object value;if(operation.equals("timerSet"))value=service.setSleepTimer(args.optDouble("minutes"));else if(operation.equals("timerCancel"))value=service.setSleepTimer(0);else if(operation.equals("timerState"))value=service.sleepTimerState();else if(operation.equals("widgetPin"))value=MusicWidget.requestPin(getContext(),args.optString("size","3x3"));else throw new Exception("未知定时操作");result(call,value);}catch(Exception e){call.reject(Json.message(e));}});return;
+            }
+            runtime.work.execute(()->{try{result(call,runtime.companion.invoke(args));}catch(Exception e){call.reject(Json.message(e));}});return;
+        }
         if(action.equals("updates")) {
             try { if(updates==null)updates=new AppUpdates(getContext());
                 String operation=args.optString("operation");
@@ -63,7 +72,8 @@ public class ZenixNativePlugin extends Plugin {
                 result(call,runtime.dynamicSnapshot());runtime.emit();
             }catch(Exception e){call.reject(Json.message(e));}});return;
         }
-        runtime.work.execute(() -> {try {
+        java.util.concurrent.ExecutorService worker=java.util.Set.of("search","artwork","lyrics","importUrl","install").contains(action)?runtime.sourceWork:runtime.work;
+        try{worker.execute(() -> {try {
             Object value;
             switch(action){
                 case "search":value=runtime.sources.search(args.getString("id"),args.getString("keyword").trim().substring(0,Math.min(120,args.getString("keyword").trim().length())),args.optString("cursor"));break;
@@ -76,6 +86,7 @@ public class ZenixNativePlugin extends Plugin {
                 case "sourceEnable":value=runtime.sources.update(args.getString("id"),"enable",args);break;
                 case "sourceRemove":value=runtime.sources.update(args.getString("id"),"remove",args);break;
                 case "sourceConfigure":value=runtime.sources.update(args.getString("id"),"configure",args);break;
+                case "sourceMove":value=runtime.sources.move(args.getString("id"),args.optInt("direction",1));break;
                 case "personal":value=runtime.store.personal(args.getString("operation"),args);break;
                 case "profile":runtime.store.set("profile",args);value=args;break;
                 case "clearBackground":runtime.store.set("appearance",Json.obj("completed",true,"background",null));value=JSONObject.NULL;break;
@@ -84,7 +95,7 @@ public class ZenixNativePlugin extends Plugin {
                 default:throw new Exception("未知 Android 操作");
             }
             result(call,value);runtime.emit();
-        }catch(Exception e){call.reject(Json.message(e));}});
+        }catch(Exception e){call.reject(Json.message(e));}});}catch(java.util.concurrent.RejectedExecutionException error){call.reject("音乐资料加载较多，请稍后重试");}
     }
     @PermissionCallback private void notificationResult(PluginCall call){result(call,getPermissionState("notifications")==PermissionState.GRANTED);}
     @ActivityCallback private void overlayPermissionReturned(PluginCall call,ActivityResult returned){if(call==null)return;try{if(LyricOverlayService.allowed(getContext()))LyricOverlayService.start(getContext());result(call,runtime.overlayStatus());runtime.emit();}catch(Exception e){call.reject(Json.message(e));}}
@@ -112,4 +123,12 @@ public class ZenixNativePlugin extends Plugin {
         }catch(Exception e){call.reject(Json.message(e));}});
     }
     private String displayName(Uri uri){try(Cursor cursor=getContext().getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){if(cursor!=null&&cursor.moveToFirst())return cursor.getString(0);}catch(Exception ignored){}return "用户文件";}
+
+    @ActivityCallback private void featureFile(PluginCall call,ActivityResult returned){
+        if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null||data.getData()==null){result(call,false);return;}Uri uri=data.getData();
+        runtime.work.execute(()->{try{JSONObject args=call.getObject("payload",new JSObject());String operation=args.optString("operation");
+            if(operation.equals("importFile")){String text=new String(SourceHttp.bounded(getContext().getContentResolver().openInputStream(uri),PlaylistExchange.MAX_BYTES),StandardCharsets.UTF_8);result(call,runtime.companion.preview(PlaylistExchange.decode(text)));}
+            else{byte[] bytes;if(operation.equals("exportFile"))bytes=PlaylistExchange.bundle(runtime.store,args.optJSONArray("ids")).toString().getBytes(StandardCharsets.UTF_8);else{String encoded=args.optString("base64");if(encoded.length()>6*1024*1024)throw new Exception("回忆卡过大");bytes=android.util.Base64.decode(encoded,android.util.Base64.DEFAULT);byte[] signature={(byte)137,80,78,71,13,10,26,10};if(bytes.length<8||!java.util.Arrays.equals(signature,java.util.Arrays.copyOf(bytes,8)))throw new Exception("图片格式无效");}try(OutputStream output=getContext().getContentResolver().openOutputStream(uri,"wt")){if(output==null)throw new IOException("文件无法写入");output.write(bytes);}result(call,true);}
+        }catch(Exception e){call.reject(Json.message(e));}});
+    }
 }

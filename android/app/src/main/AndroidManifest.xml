@@ -29,6 +29,9 @@
         <service android:name=".PlaybackService" android:foregroundServiceType="mediaPlayback" android:exported="true">
             <intent-filter><action android:name="androidx.media3.session.MediaSessionService" /></intent-filter>
         </service>
+        <receiver android:name=".MusicWidget$Square" android:label="@string/widget_square" android:exported="false"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_square"/></receiver>
+        <receiver android:name=".MusicWidget$Wide" android:label="@string/widget_wide" android:exported="false"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_wide"/></receiver>
+        <receiver android:name=".MusicWidget$Bar" android:label="@string/widget_bar" android:exported="false"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_bar"/></receiver>
         <service android:name=".LyricOverlayService" android:foregroundServiceType="specialUse" android:exported="false">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled floating synchronized music lyrics, draggable and lockable across apps" />
         </service>

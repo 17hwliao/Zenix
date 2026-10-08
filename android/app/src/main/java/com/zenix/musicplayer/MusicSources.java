@@ -14,26 +14,27 @@ final class MusicSources implements AutoCloseable {
     private final File directory;
     private final java.util.concurrent.atomic.AtomicLong metadataEpoch=new java.util.concurrent.atomic.AtomicLong();
     private volatile long metadataBytes;
-    private ScriptEngine catalogue;private volatile ScriptEngine active,creating; private volatile String activeId="";
+    private final SourceEngineLane<ScriptEngine> playbackLane=new SourceEngineLane<>(), browseLane=new SourceEngineLane<>(), playbackCatalog=new SourceEngineLane<>(), browseCatalog=new SourceEngineLane<>();
+    private final PlaybackSourcePlan sourcePlan=new PlaybackSourcePlan(android.os.SystemClock::elapsedRealtime);
     private final Map<String,JSONObject> previews=new HashMap<>();
     private final Map<String,JSONObject> matched=new LinkedHashMap<>();
     private static final Set<String> PLATFORMS=Set.of("kw","kg","wy","tx","mg");
     MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
     JSONArray list() { return store.array("sources"); }
-    private synchronized ScriptEngine catalog() throws Exception { if(catalogue==null||catalogue.isClosed()) { catalogue=new ScriptEngine(context,"",new JSONObject(),null,true);catalogue.ready(); }return catalogue; }
-    private synchronized Object catalogCall(String method,Object payload) throws Exception {return catalog().call(method,payload,new JSONObject());}
-    private synchronized ScriptEngine engine(JSONObject source) throws Exception {
-        String id=source.getString("id"); if(!id.equals(activeId)||active==null||active.isClosed()) {
-            if(active!=null)active.close();active=null;activeId="";
+    private Object catalogCall(String method,Object payload) throws Exception {return catalogCall(method,payload,false,20000);}
+    private Object catalogCall(String method,Object payload,boolean playback,long timeout) throws Exception {
+        return (playback?playbackCatalog:browseCatalog).call("catalog",()->new ScriptEngine(context,"",new JSONObject(),null,true),engine->engine.call(method,payload,new JSONObject(),timeout));
+    }
+    private ScriptEngine engine(JSONObject source) throws Exception {
+            String id=source.getString("id");
             JSONObject pack=new JSONObject(new String(SourceHttp.bounded(new FileInputStream(new File(directory,id+".json")),2*1024*1024),StandardCharsets.UTF_8));
             JSONArray hosts=SourcePolicy.hosts(source,"apiHosts");
-            ScriptEngine next=new ScriptEngine(context,pack.getString("script"),metadata(pack.getString("script")),hosts,false,SourcePolicy.allowHttp(source));
-            creating=next;try { next.ready();if(next.isClosed())throw new java.util.concurrent.CancellationException();active=next;activeId=id; }catch(Exception e) { next.close();throw e; }finally{if(creating==next)creating=null;}
-        }
-        return active;
+            return new ScriptEngine(context,pack.getString("script"),metadata(pack.getString("script")),hosts,false,SourcePolicy.allowHttp(source));
     }
-    private synchronized Object invoke(JSONObject source,String method,Object payload,JSONObject settings) throws Exception {return engine(source).call(method,payload,settings);}
-    void cancelPlayback(){ScriptEngine current=active,pending=creating;active=null;activeId="";if(current!=null)current.close();if(pending!=null&&pending!=current)pending.close();}
+    private Object invoke(JSONObject source,String method,Object payload,JSONObject settings) throws Exception {return invoke(source,method,payload,settings,false,20000);}
+    private Object invoke(JSONObject source,String method,Object payload,JSONObject settings,boolean playback,long timeout) throws Exception {return (playback?playbackLane:browseLane).call(source.getString("id"),()->engine(source),engine->engine.call(method,payload,settings,timeout));}
+    void cancelPlayback(){playbackLane.cancel();playbackCatalog.cancel();}
+    private void invalidate(String id){playbackLane.cancel(id);browseLane.cancel(id);}
     synchronized JSONObject preview(String text,String origin,String originKind) throws Exception {
         if(text.length()>1024*1024)throw new Exception("音乐源文件不能超过 1 MiB");
         JSONObject manifest,pack;String kind;
@@ -77,7 +78,7 @@ final class MusicSources implements AutoCloseable {
             for(int i=0;i<existing.length();i++) { JSONObject item=existing.getJSONObject(i);if(item.optString("id").equals(id)) { installed=item.optLong("installedAt",installed);settings=item.optJSONObject("settings")==null?settings:item.getJSONObject("settings");replaced=true;next.put(descriptor(preview,manifest,installed,settings,policy)); }else next.put(item); }
             if(!replaced)next.put(descriptor(preview,manifest,installed,settings,policy));
             android.util.AtomicFile file=new android.util.AtomicFile(new File(directory,id+".json"));FileOutputStream output=file.startWrite();try { output.write(pack.toString().getBytes(StandardCharsets.UTF_8));file.finishWrite(output); }catch(Exception e){file.failWrite(output);throw e;}
-            store.set("sources",next);previews.remove(token);if(activeId.equals(id)){if(active!=null)active.close();active=null;activeId="";}return next;
+            store.set("sources",next);previews.remove(token);invalidate(id);return next;
         }finally {candidate.close();}
     }
     private static JSONObject descriptor(JSONObject preview,JSONObject manifest,long installed,JSONObject settings,JSONObject policy) { return Json.obj("id",manifest.optString("id"),"kind",preview.optString("kind"),"manifest",manifest,"enabled",true,"origin",preview.opt("origin"),"sha256",preview.optString("sha256"),"installedAt",installed,"status","ready","lastError","","settings",settings,"networkPolicy",policy); }
@@ -85,13 +86,16 @@ final class MusicSources implements AutoCloseable {
     synchronized JSONArray update(String id,String action,JSONObject args) throws Exception {
         JSONArray current=list(),next=new JSONArray();boolean found=false;
         for(int i=0;i<current.length();i++){JSONObject item=current.getJSONObject(i);if(item.optString("id").equals(id)){found=true;if(action.equals("remove")){new File(directory,id+".json").delete();continue;}if(action.equals("enable"))Json.put(item,"enabled",args.optBoolean("enabled"));else if(action.equals("configure")){if(args.has("networkPolicy"))Json.put(item,"networkPolicy",SourcePolicy.validate(args.getJSONObject("networkPolicy")));if(args.has("values")){JSONObject values=args.getJSONObject("values"),clean=new JSONObject();JSONArray fields=item.getJSONObject("manifest").getJSONArray("settings");for(int f=0;f<fields.length();f++){JSONObject field=fields.getJSONObject(f);String value=values.optString(field.getString("key"),field.optString("default"));if(value.length()>200)throw new IOException("源选项内容过长");if(field.optString("type").equals("select")&&!field.getJSONArray("options").toString().contains(JSONObject.quote(value)))throw new IOException("源选项无效");Json.put(clean,field.getString("key"),value);}Json.put(item,"settings",clean);}}else throw new Exception("未知音乐源操作");}next.put(item);}
-        if(!found)throw new Exception("音乐源不存在");store.set("sources",next);if(activeId.equals(id)){if(active!=null)active.close();active=null;activeId="";}return next;
+        if(!found)throw new Exception("音乐源不存在");store.set("sources",next);invalidate(id);return next;
     }
     private JSONObject find(String id) throws Exception { JSONArray sources=list();for(int i=0;i<sources.length();i++)if(sources.getJSONObject(i).optString("id").equals(id))return sources.getJSONObject(i);throw new Exception("请先配置音乐源"); }
     JSONObject search(String id,String keyword,String cursor) throws Exception {
+        return search(id,keyword,cursor,false,20000);
+    }
+    private JSONObject search(String id,String keyword,String cursor,boolean playback,long timeout) throws Exception {
         JSONObject source=find(id);if(!source.optBoolean("enabled"))throw new Exception("音乐源已停用");JSONObject settings=source.getJSONObject("settings"),result;
-        if(source.optString("kind").equals("lx")) { String platform=settings.optString("lxCatalog",source.getJSONObject("manifest").getJSONObject("lxPlatforms").keys().next()); result=(JSONObject)catalogCall("catalog:search",Json.array(platform,keyword,Math.max(1,parsePage(cursor)),25)); }
-        else result=(JSONObject)invoke(source,"search",Json.obj("keyword",keyword,"cursor",cursor.isEmpty()?null:cursor,"pageSize",25),settings);
+        if(source.optString("kind").equals("lx")) { String platform=settings.optString("lxCatalog",source.getJSONObject("manifest").getJSONObject("lxPlatforms").keys().next()); result=(JSONObject)catalogCall("catalog:search",Json.array(platform,keyword,Math.max(1,parsePage(cursor)),25),playback,timeout); }
+        else result=(JSONObject)invoke(source,"search",Json.obj("keyword",keyword,"cursor",cursor.isEmpty()?null:cursor,"pageSize",25),settings,playback,timeout);
         JSONArray rows=result.optJSONArray("items"),tracks=new JSONArray();if(rows!=null)for(int i=0;i<rows.length()&&i<100;i++){JSONObject song=rows.optJSONObject(i);if(song==null||song.optString("remoteId").isEmpty()||song.optString("title").isEmpty())continue;String remote=song.getString("remoteId");JSONObject track=Json.copy(song);Json.put(track,"id",id+":"+sha(remote).substring(0,24));Json.put(track,"providerId",id);Json.put(track,"source","custom");Json.put(track,"path","");Json.put(track,"audioUrl","");if(!track.has("duration"))Json.put(track,"duration",0);if(!track.has("artist"))Json.put(track,"artist","");
             String hint=track.optString("coverUrl");track.remove("coverUrl");track.remove("coverHint");
             if(hint.length()<=1500&&(hint.startsWith("https://")||hint.startsWith("http://")))Json.put(track,"coverHint",hint);
@@ -140,19 +144,23 @@ final class MusicSources implements AutoCloseable {
     synchronized void pruneMetadata(){List<File> files=metadataFiles();files.sort(Comparator.comparingLong(File::lastModified));long used=0;for(File file:files)used+=file.length();long limit=metadataLimit(),now=System.currentTimeMillis();for(File file:files)if(used>limit||now-file.lastModified()>30L*86400000L){long size=file.length();if(file.delete())used-=size;}metadataBytes=used;}
     synchronized void clearMetadata(){metadataEpoch.incrementAndGet();for(File file:metadataFiles())file.delete();pruneMetadata();}
     interface Progress { void update(String phase,String message); }
-    JSONObject resolve(JSONObject track,Set<String> attempted,String quality,Progress progress,java.util.function.BooleanSupplier cancelled) throws Exception {
-        JSONArray installed=list();Exception last=null;JSONObject original=null;try{original=find(track.optString("providerId"));}catch(Exception ignored){}
-        for(int i=0;i<installed.length();i++) {
+    JSONObject resolve(JSONObject track,Set<String> attempted,String quality,Progress progress,java.util.function.BooleanSupplier cancelled,long budgetMs) throws Exception {
+        String family=family(track);List<JSONObject> installed=sourcePlan.order(list(),family,track.optString("providerId"));Exception last=null;JSONObject original=null;try{original=find(track.optString("providerId"));}catch(Exception ignored){}
+        long deadline=android.os.SystemClock.elapsedRealtime()+Math.max(1,Math.min(PlaybackSourcePlan.TOTAL_MS,budgetMs));
+        for(int i=0;i<installed.size();i++) {
             if(cancelled.getAsBoolean())throw new java.util.concurrent.CancellationException();
-            JSONObject source=installed.getJSONObject(i);if(!source.optBoolean("enabled"))continue;String id=source.getString("id");JSONObject candidate=track;
-            progress.update(i==0?"connecting":"switching",i==0?"正在连接音乐资源":"正在尝试下一个可用资源");
+            if(android.os.SystemClock.elapsedRealtime()>=deadline)break;
+            JSONObject source=installed.get(i);String id=source.getString("id");JSONObject candidate=track;
+            long sourceDeadline=Math.min(deadline,android.os.SystemClock.elapsedRealtime()+PlaybackSourcePlan.SOURCE_MS);
+            String label="（"+(i+1)+"/"+installed.size()+"）";
+            progress.update(i==0?"connecting":"switching",(i==0?"正在连接":"切换至")+source.getJSONObject("manifest").optString("name","音乐源")+label);
             try {
                 boolean same=source.optString("kind").equals("lx")&&original!=null&&original.optString("kind").equals("lx");
                 if(same) { JSONObject info=readInfo(track);same=source.getJSONObject("manifest").getJSONObject("lxPlatforms").has(info.optString("source")); }
                 if(!id.equals(track.optString("providerId"))&&!same) {
                     String matchKey=track.optString("id")+":"+id; synchronized(matched){candidate=matched.get(matchKey);}
                     if(candidate==null){if(attempted.contains(id+":match"))continue;attempted.add(id+":match");
-                    JSONArray matches=search(id,track.optString("title")+" "+track.optString("artist"),"").getJSONArray("items");
+                    JSONArray matches=search(id,track.optString("title")+" "+track.optString("artist"),"",true,remaining(sourceDeadline)).getJSONArray("items");
                     for(int j=0;j<matches.length();j++){JSONObject match=matches.getJSONObject(j);if(key(match.optString("title")).equals(key(track.optString("title")))&&key(match.optString("artist")).equals(key(track.optString("artist")))){candidate=match;break;}}
                     if(candidate!=null)synchronized(matched){if(matched.size()>=32)matched.remove(matched.keySet().iterator().next());matched.put(matchKey,candidate);}}
                     if(candidate==null)continue;
@@ -163,21 +171,28 @@ final class MusicSources implements AutoCloseable {
                     String attempt=id+":"+q;if(attempted.contains(attempt))continue;attempted.add(attempt);
                     String normalized=q.equals("flac")?"lossless":q.equals("320k")?"high":"standard";
                     try {
-                        progress.update("resolving","正在获取"+(normalized.equals("lossless")?"无损":normalized.equals("high")?"高品质":"标准品质")+"音频");Object value;
-                        if(source.optString("kind").equals("lx")){JSONObject info=readInfo(candidate);JSONObject platform=source.getJSONObject("manifest").getJSONObject("lxPlatforms").optJSONObject(info.optString("source"));if(platform==null||!platform.getJSONArray("qualitys").toString().contains(JSONObject.quote(q)))continue;value=invoke(source,"lx",Json.obj("source",info.optString("source"),"action","musicUrl","info",Json.obj("type",q,"musicInfo",info)),source.getJSONObject("settings"));}
-                        else { if(!source.getJSONObject("manifest").getJSONArray("qualities").toString().contains(JSONObject.quote(normalized)))continue;value=invoke(source,"resolvePlayback",Json.obj("remoteId",candidate.getString("remoteId"),"quality",normalized),source.getJSONObject("settings")); }
+                        progress.update("resolving","正在获取"+(normalized.equals("lossless")?"无损":normalized.equals("high")?"高品质":"标准品质")+"音频"+label);Object value;
+                        if(source.optString("kind").equals("lx")){JSONObject info=readInfo(candidate);JSONObject platform=source.getJSONObject("manifest").getJSONObject("lxPlatforms").optJSONObject(info.optString("source"));if(platform==null||!platform.getJSONArray("qualitys").toString().contains(JSONObject.quote(q)))continue;value=invoke(source,"lx",Json.obj("source",info.optString("source"),"action","musicUrl","info",Json.obj("type",q,"musicInfo",info)),source.getJSONObject("settings"),true,remaining(sourceDeadline));}
+                        else { if(!source.getJSONObject("manifest").getJSONArray("qualities").toString().contains(JSONObject.quote(normalized)))continue;value=invoke(source,"resolvePlayback",Json.obj("remoteId",candidate.getString("remoteId"),"quality",normalized),source.getJSONObject("settings"),true,remaining(sourceDeadline)); }
                         JSONObject result=value instanceof JSONObject?(JSONObject)value:Json.obj("url",value);String url=result.optString("url");JSONArray mediaHosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(url,mediaHosts,SourcePolicy.allowHttp(source));Json.put(result,"allowHttp",SourcePolicy.allowHttp(source));if(mediaHosts!=null)Json.put(result,"mediaHosts",mediaHosts);
                         Json.put(result,"quality",normalized);Json.put(result,"providerId",id);Json.put(result,"cacheKey",track.getString("id")+":"+normalized);return result;
-                    }catch(Exception e){last=e;progress.update("retrying","当前资源未就绪，继续尝试");}
+                    }catch(Exception e){if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();last=e;if(PlaybackSourcePlan.transportFailure(e)){sourcePlan.failure(id);break;}progress.update("retrying","当前品质不可用，尝试下一档"+label);}
                 }
-            }catch(java.util.concurrent.CancellationException e){throw e;}catch(Exception e){last=e;}
+            }catch(java.util.concurrent.CancellationException e){throw e;}catch(Exception e){if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();last=e;if(PlaybackSourcePlan.transportFailure(e))sourcePlan.failure(id);}
         }
         throw new Exception(last==null?"没有可用音乐源，请在个人空间中配置":"全部资源暂不可用，请检查网络或更换音乐源。"+Json.message(last));
     }
+    private static long remaining(long deadline)throws java.util.concurrent.TimeoutException {long value=deadline-android.os.SystemClock.elapsedRealtime();if(value<=0)throw new java.util.concurrent.TimeoutException("本音乐源等待已超时");return value;}
+    private String family(JSONObject track){try{JSONObject source=find(track.optString("providerId"));if(source.optString("kind").equals("lx"))return "lx:"+readInfo(track).optString("source");}catch(Exception ignored){}return track.optString("providerId");}
+    void playbackReady(JSONObject track,JSONObject result){if(track!=null&&result!=null&&!result.has("cacheHit"))sourcePlan.success(family(track),result.optString("providerId"));}
+    void playbackFailed(JSONObject result,boolean transport){if(transport&&result!=null&&!result.has("cacheHit"))sourcePlan.failure(result.optString("providerId"));}
+    JSONObject cachedNetwork(JSONObject saved)throws Exception {JSONObject source=find(saved.getString("providerId"));if(!source.optBoolean("enabled"))throw new Exception("原音乐源已关闭");JSONObject copy=Json.copy(saved);JSONArray hosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(copy.getString("url"),hosts,SourcePolicy.allowHttp(source));Json.put(copy,"mediaHosts",hosts==null?JSONObject.NULL:hosts);Json.put(copy,"allowHttp",SourcePolicy.allowHttp(source));return copy;}
+    synchronized JSONArray move(String id,int direction)throws Exception {JSONArray current=list();int at=-1;for(int i=0;i<current.length();i++)if(current.optJSONObject(i).optString("id").equals(id))at=i;if(at<0)throw new Exception("音乐源不存在");int next=Math.max(0,Math.min(current.length()-1,at+(direction<0?-1:1)));JSONArray result=new JSONArray();for(int i=0;i<current.length();i++)result.put(current.opt(i==at?next:i==next?at:i));store.set("sources",result);return result;}
     private static int parsePage(String text){try{return Integer.parseInt(text);}catch(Exception e){return 1;}}
     private static String key(String s){return s.replaceAll("[\\s\\p{Punct}]","").toLowerCase(Locale.ROOT);}
     private static JSONObject readInfo(JSONObject track) throws JSONException { return new JSONObject(new String(Base64.decode(track.getString("remoteId"),Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING),StandardCharsets.UTF_8)); }
     static String sha(String text) throws Exception { StringBuilder b=new StringBuilder();for(byte value:MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)))b.append(String.format("%02x",value&255));return b.toString(); }
     private static JSONObject metadata(String script) { JSONObject info=new JSONObject();for(String field:List.of("name","author","description","version","homepage")){Matcher m=Pattern.compile("^\\s*\\*\\s*@"+field+"\\s+(.+)$",Pattern.MULTILINE|Pattern.CASE_INSENSITIVE).matcher(script);Json.put(info,field,m.find()?m.group(1).trim():field.equals("name")?"自定义音乐源":field.equals("version")?"1":"");}Json.put(info,"rawScript",script);return info; }
-    @Override public synchronized void close() {if(active!=null)active.close();if(catalogue!=null)catalogue.close();active=null;catalogue=null;activeId="";}
+    void trimIdle(){playbackLane.trimIdle();playbackCatalog.trimIdle();browseLane.trimIdle();browseCatalog.trimIdle();}
+    @Override public void close() {playbackLane.cancel();playbackCatalog.cancel();browseLane.cancel();browseCatalog.cancel();}
 }

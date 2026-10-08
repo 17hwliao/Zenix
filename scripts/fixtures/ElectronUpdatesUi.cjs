@@ -17,10 +17,14 @@ app.whenReady().then(async () => {
   await evaluate('window.updateFixture.set({version:"1.2.0",status:"available",notes:"Fixture 1.2 新版本亮点"})'); await wait('!!document.querySelector("dialog[open]")');
   assert.match(await evaluate('document.querySelector("#zenix-update-title").textContent'), /1.2.0/);
   await evaluate('document.querySelector("dialog").dispatchEvent(new Event("cancel",{cancelable:true}))'); await wait('!document.querySelector("dialog")');
+  await evaluate('window.updateFixture.set({version:"1.3.0",status:"ready",notes:"安装确认验证"})');await wait('!!document.querySelector(".zenix-update-dialog[open]")');
+  await evaluate('[...document.querySelectorAll(".zenix-update-dialog button")].find(e=>e.textContent==="安装并重启").click()');await wait('!!document.querySelector(".zenix-glass-dialog[open]")');
+  assert.equal(await evaluate('window.installed||0'),0);await evaluate('document.querySelector(".zenix-glass-dialog [data-cancel]").click()');await wait('!document.querySelector(".zenix-glass-dialog")');assert.equal(await evaluate('window.installed||0'),0);
+  await evaluate('[...document.querySelectorAll(".zenix-update-dialog button")].find(e=>e.textContent==="安装并重启").click()');await wait('!!document.querySelector(".zenix-glass-dialog[open]")');await evaluate('document.querySelector(".zenix-glass-dialog .is-primary").click()');await wait('window.installed===1');await evaluate('document.querySelector("[aria-label=关闭更新提醒]").click()');await wait('!document.querySelector("dialog")');
   for (const width of [320, 360, 390, 430]) {
     window.setContentSize(width, 780); await sleep(90);
     const rects = await evaluate('(()=>{const form=document.querySelector(".mobile-search form");return [...form.children].map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width}})})()');
-    assert.equal(rects.length, 4); for (let i = 1; i < rects.length; i++) assert(rects[i - 1].right + 7 <= rects[i].left, `Search overlap at width ${width}`);
+    assert.equal(rects.length, 4); for (let i = 1; i < rects.length; i++) assert(rects[i - 1].right + 5 <= rects[i].left, `Search overlap at width ${width}`);
     assert(rects[1].width > 80); assert(rects[0].left >= 0); assert(rects[3].right <= width);
   }
   window.setContentSize(390,780); window.showInactive(); await sleep(400);

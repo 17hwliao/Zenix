@@ -10,6 +10,9 @@ const { SourceManager } = require('./sources.cjs');
 const { AudioCache } = require('./audio-cache.cjs');
 const { LyricsHoverTracker } = require('./runtime/lyrics-hover.cjs');
 const { Updates } = require('./runtime/updates.cjs');
+const { Companion } = require('./runtime/companion.cjs');
+const { MusicWidget } = require('./runtime/music-widget.cjs');
+let companion, musicWidget;
 let updates;
 
 const primaryInstance = app.requestSingleInstanceLock();
@@ -129,6 +132,7 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => broadcast('window:fullscreen-changed', false));
   mainWindow.on('focus', () => maintainLyricsZOrder(true));
   mainWindow.on('closed', () => {
+    musicWidget?.close();
     mainWindow = null;
     if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close();
     // An invisible source sandbox must not keep a closed desktop application alive.
@@ -532,6 +536,11 @@ if (primaryInstance) app.whenReady().then(async () => {
     return updates.invoke(args || {});
   });
   await Promise.all([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
+  musicWidget = new MusicWidget({ BrowserWindow, command: action => broadcast('media:command', action), showApp: showMainWindow });
+  companion = new Companion({ folder: app.getPath('userData'), personal, library, dialog, getWindow: () => mainWindow, broadcast, app, widget: musicWidget });
+  await companion.stats.load();
+  handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');return companion.invoke(args || {}); });
+  ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
   sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;
   await sourceManager.metadataCache.prune({ bestEffort: true });
   registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance });
@@ -545,4 +554,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => { updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
+app.on('before-quit', () => { companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });

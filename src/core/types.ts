@@ -84,6 +84,8 @@ export interface RoamingStatus {
 export interface PlayerState {
   track?: Track;
   playing: boolean;
+  playWhenReady?: boolean;
+  cacheStatus?: 'local' | 'disabled' | 'stream' | 'none' | 'partial' | 'complete';
   position: number;
   duration: number;
   volume: number;
@@ -116,6 +118,7 @@ export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number; metadataBytes?: number; metadataLimitMiB?: number; metadataError?: string };
 
 export interface DesktopBridge {
+  companion?: { invoke(args: Record<string, unknown>): Promise<unknown> };
   updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };
   cache: {
     stats(): Promise<AudioCacheStats>;

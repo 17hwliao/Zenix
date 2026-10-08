@@ -8,6 +8,7 @@ import { resolveCustomTrack } from './core/sourcePlayback';
 import { roaming } from './core/roaming';
 import type { RoamingStatus } from './core/types';
 import { PlaylistManager } from './playlists';
+import { ListeningTracker } from './core/listeningTracker';
 
 export default function App() {
   const [introVisible, setIntroVisible] = useState(true);
@@ -27,6 +28,14 @@ export default function App() {
   const [playerViewRequestKey, setPlayerViewRequestKey] = useState(0);
   const lastHistoryEvent = useRef('');
   const lyricsDelivery = useRef<{ lyrics: LyricLine[]; track: Track | undefined } | null>(null);
+
+  useEffect(() => {
+    const bridge=window.yzqxy?.companion;if(!bridge)return;
+    const tracker=new ListeningTracker((track,seconds,plays)=>bridge.invoke({operation:'statsRecord',track,seconds,plays}),undefined,error=>setNotice(error instanceof Error?error.message:'听歌统计保存失败'));
+    const stop=player.subscribeLifecycle(event=>tracker.handle({...event,track:event.track?{...event.track,duration:event.track.duration||player.snapshot.duration}:undefined}));const timer=setInterval(()=>tracker.tick(),1000);
+    let previous='';const stopWidget=player.subscribe(value=>{const key=`${value.track?.id}|${value.playing}|${value.track?.title}`;if(key===previous)return;previous=key;void bridge.invoke({operation:'widgetUpdate',title:value.track?.title,artist:value.track?.artist,playing:value.playing}).catch(()=>{});});
+    return()=>{clearInterval(timer);stop();stopWidget();tracker.close();};
+  },[]);
 
   useEffect(() => {
     const disconnect = roaming.connect();

@@ -1,3 +1,4 @@
+import { useGlassConfirm } from './useGlassConfirm';
 import { useEffect, useState, type FormEvent } from 'react';
 import { FilePlus2, FolderOpen, Globe2, Power, Trash2 } from 'lucide-react';
 import type { AudioCacheStats, InstalledSource, SourcePreview } from '../core/types';
@@ -7,6 +8,7 @@ import SourceBundleImport from './SourceBundleImport';
 import { SourceNetworkOptions, DEFAULT_SOURCE_POLICY, type SourceNetworkPolicy } from './SourceNetworkOptions';
 
 export default function SourceSettings() {
+  const { confirm, dialog } = useGlassConfirm();
   const [sources, setSources] = useState<InstalledSource[]>([]);
   const [cache, setCache] = useState<AudioCacheStats | null>(null);
   const [quality, setQuality] = useState(() => localStorage.getItem('zenix.onlineQuality') || 'auto');
@@ -29,7 +31,7 @@ export default function SourceSettings() {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
   const clearCache = async () => {
-    if (!window.confirm('清除自动缓存的音频？近期播放记录、收藏、歌单和本地音乐文件都会保留。')) return;
+    if (!(await confirm({title:'清理音频缓存',message:'清除自动缓存的音频？近期播放记录、收藏、歌单和本地音乐文件都会保留。',confirmLabel:'清理缓存',danger:true}))) return;
     try { setCache(await window.yzqxy!.cache.clear()); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
@@ -91,7 +93,7 @@ export default function SourceSettings() {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
-  return <div className="zenix-source-settings">
+  return <div className="zenix-source-settings">{dialog}
     <div className="yz-settings-intro"><h2>音乐源</h2><p>按首次接入时间依次尝试。每个源先获取所选音质，再逐级降低；该源仍不可播放时才切换到下一个。更新脚本不会改变顺序。</p></div>
     <label className="zenix-source-quality">播放音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="auto">自动 · 优先最高可用</option><option value="standard">标准</option><option value="high">最高高音质</option><option value="lossless">最高无损</option></select></label>
     {cache && <section className="zenix-audio-cache" aria-label="自动缓存">
@@ -136,7 +138,7 @@ export default function SourceSettings() {
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
         <div className="zenix-source-actions">
           {<button onClick={() => void openSettings(source)} disabled={busy}>{editing === source.id ? '收起选项' : '源选项'}</button>}
-          <button title="移除" aria-label={`移除 ${source.manifest.name}`} onClick={() => { if (window.confirm(`移除音乐源“${source.manifest.name}”？已收藏的歌曲记录会保留。`)) void run(() => window.yzqxy!.sources.remove(source.id)); }} disabled={busy}><Trash2 size={14} /></button>
+          <button title="移除" aria-label={`移除 ${source.manifest.name}`} onClick={async () => { if (await confirm({title:"移除音乐源",message:`移除音乐源“${source.manifest.name}”？已收藏的歌曲记录会保留。`,confirmLabel:"移除",danger:true})) void run(() => window.yzqxy!.sources.remove(source.id)); }} disabled={busy}><Trash2 size={14} /></button>
         </div>
         {editing === source.id && <form className="zenix-source-options" onSubmit={event => void saveSettings(event, source.id)}>
           {source.manifest.settings.map(field => <label key={field.key}>{field.key === 'lxCatalog' ? '搜索平台' : field.label}{field.type === 'select'

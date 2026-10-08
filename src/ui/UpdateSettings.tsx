@@ -1,9 +1,11 @@
+import { useGlassConfirm } from './useGlassConfirm';
 import { useEffect, useState } from 'react';
 import { RefreshCw, ArrowDownToLine, ExternalLink } from 'lucide-react';
 import { invokeUpdate, updateIsIOS, updatePreferences, saveUpdatePreferences, updateSupported, type UpdateState } from '../core/updates';
 import { version } from '../../package.json';
 import './UpdateSettings.css';
 export default function UpdateSettings() {
+  const { confirm, dialog: confirmationDialog } = useGlassConfirm();
   const [state, setState] = useState<UpdateState>({ status: 'idle', currentVersion: version, progress: 0, message: '尚未检查更新' });
   const [preferences, setPreferences] = useState(updatePreferences), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const supported = updateSupported(), ios = updateIsIOS();
@@ -15,14 +17,14 @@ export default function UpdateSettings() {
     return () => { disposed = true; clearTimeout(timer); window.removeEventListener('zenix-update-state', refresh); };
   }, [supported, busy]);
   async function action(operation: 'check' | 'download' | 'cancel' | 'install', channel = preferences.channel) {
-    if (operation === 'install' && !ios && !window.confirm('安装更新会重启应用，正在播放的音乐将暂停。现在安装？')) return;
+    if (operation === 'install' && !ios && !(await confirm({title:'安装更新',message:'安装更新会重启应用，正在播放的音乐将暂停。现在安装？',confirmLabel:'安装并重启'}))) return;
     setBusy(true); setError('');
     try { setState(await invokeUpdate({ operation, channel })); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
   const save = (change: Partial<typeof preferences>) => { const next = { ...preferences, ...change }; setPreferences(next); saveUpdatePreferences(next); if (change.channel) { localStorage.removeItem('zenix.updates.lastCheck'); if (supported) void action('check', next.channel); } };
-  return <section className="zenix-updates glass"><h3>应用更新 <small>v{state.currentVersion}{state.currentBuild ? ` · r${state.currentBuild}` : ''}</small></h3>
+  return <>{confirmationDialog}<section className="zenix-updates glass"><h3>应用更新 <small>v{state.currentVersion}{state.currentBuild ? ` · r${state.currentBuild}` : ''}</small></h3>
     <label>自动检查更新<input type="checkbox" checked={preferences.automatic} onChange={event => save({ automatic: event.target.checked })} /></label>
     {!ios && <label>自动下载，安装前确认<input type="checkbox" checked={preferences.autoDownload} onChange={event => save({ autoDownload: event.target.checked })} /></label>}
     <label>更新通道<select value={preferences.channel} disabled={busy || state.status === 'downloading'} onChange={event => save({ channel: event.target.value as 'stable' | 'preview' })}><option value="stable">正式版</option><option value="preview">预览版</option></select></label>
@@ -36,5 +38,5 @@ export default function UpdateSettings() {
       {state.status === 'downloading' && <button onClick={() => void action('cancel')}>取消下载</button>}
       {state.status === 'error' && state.version && !ios && <button disabled={busy} onClick={() => void action('download')}>重试下载</button>}
     </footer>{ios && <small>由 TestFlight 或 App Store 安装更新，保留个人资料。</small>}
-  </section>;
+  </section></>;
 }

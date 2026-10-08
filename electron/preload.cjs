@@ -7,6 +7,7 @@ function subscribe(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld('yzqxy', {
+  companion: { invoke: args => ipcRenderer.invoke('companion:invoke', args) },
   updates: { invoke: (args) => ipcRenderer.invoke('updates:invoke', args) },
   desktopLyrics: {
     toggle: () => ipcRenderer.invoke('lyrics:toggle'),

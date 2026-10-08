@@ -1,9 +1,11 @@
+import { useGlassConfirm } from './useGlassConfirm';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, X } from 'lucide-react';
 import { invokeUpdate, updateIsIOS, updatePreferences, updateSupported, updatesBusy, type UpdateState } from '../core/updates';
 import { UpdateReminders, updateReminderKey } from '../core/updateReminders';
 import './UpdateSettings.css';
 export default function UpdateNotice() {
+  const { confirm, dialog: confirmationDialog } = useGlassConfirm();
   const [state, setState] = useState<UpdateState>(), [openKey, setOpenKey] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [reminders] = useState(() => new UpdateReminders(window.localStorage));
   const dialog = useRef<HTMLDialogElement>(null), closeButton = useRef<HTMLButtonElement>(null);
@@ -33,13 +35,13 @@ export default function UpdateNotice() {
     return () => { element.close(); if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true }); };
   }, [visible]);
   async function action(operation: 'download' | 'install' | 'cancel') {
-    if (operation === 'install' && !updateIsIOS() && !window.confirm('安装更新会重启应用，正在播放的音乐将暂停。现在安装？')) return;
+    if (operation === 'install' && !updateIsIOS() && !(await confirm({title:'安装更新',message:'安装更新会重启应用，正在播放的音乐将暂停。现在安装？',confirmLabel:'安装并重启'}))) return;
     setBusy(true); setError('');
     try { setState(await invokeUpdate({ operation })); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
   if (!visible || !state) return null;
-  return <dialog ref={dialog} className="zenix-update-dialog" aria-labelledby="zenix-update-title" onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
+  return <>{confirmationDialog}<dialog ref={dialog} className="zenix-update-dialog" aria-labelledby="zenix-update-title" onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === event.currentTarget) close(); }}>
     <section className="zenix-updates" onClick={event => event.stopPropagation()}>
       <header><div><small>ZENIX · 新版本</small><h2 id="zenix-update-title">Zenix {state.version}</h2></div><button ref={closeButton} aria-label="关闭更新提醒" onClick={close}><X size={18} /></button></header>
       <h3>这次更新的亮点</h3><p className="zenix-update-notes">{state.notes?.trim() || '该版本暂未提供更新说明。你可以选择稍后在应用更新中查看和安装。'}</p>
@@ -52,5 +54,5 @@ export default function UpdateNotice() {
         {state.status === 'downloading' && <button disabled={busy} onClick={() => void action('cancel')}>取消下载</button>}
       </footer>
     </section>
-  </dialog>;
+  </dialog></>;
 }

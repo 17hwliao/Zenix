@@ -255,6 +255,7 @@ class PlayerController {
   }
 
   async playTrack(track: Track, queue?: Track[], origin: 'manual' | 'roaming' = 'manual'): Promise<void> {
+    if (track.availability === 'unavailable' && track.source === 'local') throw new Error('这是对方的本地歌曲。请先导入同名、同歌手的音频，再重新导入歌单进行匹配。');
     if (origin === 'manual') this.emitLifecycle('manual');
     if (queue) {
       const index = queue.findIndex((item) => item.id === track.id);
@@ -292,6 +293,7 @@ class PlayerController {
   async play(isRetry = false, bypassResume = false): Promise<void> {
     if (!isRetry && !bypassResume && this.resumeHandler && await this.resumeHandler()) return;
     if (!this.state.track) return;
+    if(this.state.track.source==='local'&&this.state.track.availability==='unavailable'){this.update({playing:false,error:'这是对方的本地歌曲，请先导入同名、同歌手的音频，再重新导入歌单进行匹配。'});return;}
     if (!isRetry && this.state.error && this.state.track.source === 'custom') {
       this.failedAttempts.clear();
       this.invalidateSelection();

@@ -5,6 +5,7 @@ import type { TrackView } from './types';
 import CoverArt from './CoverArt';
 import { trackCoverUrl } from '../core/trackCover';
 import './PersonalLibraryManager.css';
+import { MusicToolsButton } from './MusicTools';
 
 type Props = {
   initialSection: string; personal: PersonalState; tracks: TrackView[]; queue: TrackView[];
@@ -100,6 +101,7 @@ export default function PersonalLibraryManager({ initialSection, personal, track
       <header><div><small>PERSONAL LIBRARY</small><h1>{title}</h1><p>{section === 'history' ? '每首歌只保留最近一次播放记录。' : playlist ? `${playlist.tracks.length} 首歌曲 · 只在这里删除才会从歌单移除。` : '在这台设备上整理你的音乐。'}</p></div><button onClick={onClose} aria-label="关闭"><X size={20} /></button></header>
       {editor && <form className="zenix-manager-editor" onSubmit={event => void submitEditor(event)}><label htmlFor="zenix-playlist-name">{editor === 'create' ? '新建歌单' : '重命名歌单'}</label><div><input id="zenix-playlist-name" autoFocus maxLength={100} value={draftName} onChange={event => setDraftName(event.target.value)} placeholder="输入歌单名称" /><button type="submit" disabled={!draftName.trim() || busy}>{busy ? '保存中…' : editor === 'create' ? '创建' : '保存'}</button><button type="button" onClick={() => setEditor(null)}>取消</button></div></form>}
       {message && <p className="zenix-manager-message" role="status">{message}</p>}
+      <div className="tool-actions"><MusicToolsButton personal={personal} ids={playlist?[playlist.id]:[]}/><MusicToolsButton personal={personal} initial="stats"/></div>
       {section === 'playlists' ? <div className="zenix-manager-overview">
         <div className="zenix-manager-overview-head"><div><h3>自定义歌单</h3><p>从近期播放、喜欢、收藏或本地曲库添加歌曲。</p></div><button onClick={openCreate}><Plus size={16} />新建歌单</button></div>
         {personal.playlists.length ? <div className="zenix-manager-grid">{personal.playlists.map(item => <button key={item.id} className="zenix-manager-playlist-card" onClick={() => selectSection(item.id)}><span className="zenix-manager-playlist-art">{item.tracks[0] ? <CoverArt title={item.tracks[0].title} coverUrl={trackCoverUrl(item.tracks[0])} /> : <ListMusic size={34} />}</span><strong>{item.name}</strong><small>{item.tracks.length} 首歌曲</small></button>)}</div> : <div className="zenix-manager-empty"><ListMusic size={35} /><h3>还没有自定义歌单</h3><p>创建歌单后，可以从播放列表或歌曲旁的“加入歌单”添加。</p><button onClick={openCreate}><Plus size={16} />新建歌单</button></div>}

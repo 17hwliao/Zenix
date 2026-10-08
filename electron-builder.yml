@@ -14,6 +14,7 @@ files:
   - electron/**/*.cjs
   - electron/desktop-lyrics.html
   - electron/lyrics-lock.html
+  - electron/music-widget.html
   - assets/zenix-icon.ico
   - assets/zenix-icon.png
   - LICENSE

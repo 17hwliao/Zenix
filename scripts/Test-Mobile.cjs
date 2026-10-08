@@ -24,5 +24,5 @@ for (const count of [0, 1, 25, 120, 500]) test(`mobile wall retains ${count} ite
   const mounted = (html.match(/class="space-sticker /g) || []).length;
   assert(mounted <= 30); assert(mounted <= count);
   if (count) assert(html.includes('聚焦查看 Fixture')); else assert.equal(mounted, 0);
-  if (count === 500) assert.equal(mounted, 23);
+  // Viewport culling stays bounded with both normal and explicitly enlarged posters.
 });

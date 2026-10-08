@@ -1,5 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="widget_description">Zenix 音乐卡，控制播放与切歌，可自由调整大小。</string>
+    <string name="widget_square">Zenix 音乐卡 · 3×3</string>
+    <string name="widget_wide">Zenix 音乐卡 · 4×2</string>
+    <string name="widget_bar">Zenix 音乐条 · 4×1</string>
     <string name="app_name">Zenix</string>
     <string name="title_activity_main">Zenix</string>
     <string name="package_name">com.zenix.musicplayer</string>

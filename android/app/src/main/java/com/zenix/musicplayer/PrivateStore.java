@@ -52,7 +52,9 @@ final class PrivateStore {
     private JSONObject mutatePersonal(String action,JSONObject args) throws Exception {
         JSONObject personal=data.getJSONObject("personal"); personal=Json.copy(personal);
         String kind=args.optString("kind"), id=args.optString("id"); JSONObject track=args.optJSONObject("track");
-        if(action.equals("toggle")) {
+        if(action.equals("addToCollections")) {
+            PersonalCollections.add(personal,cleanTrack(track),args.optJSONArray("kinds"));
+        } else if(action.equals("toggle")) {
             if(!kind.equals("liked")&&!kind.equals("favorites")) throw new Exception("无效收藏类型");
             JSONArray values=personal.getJSONArray(kind); JSONArray next=new JSONArray(); boolean found=false;
             for(int i=0;i<values.length();i++) { JSONObject v=values.getJSONObject(i); if(v.optString("id").equals(track.getString("id"))) found=true; else next.put(v); }
@@ -62,8 +64,11 @@ final class PrivateStore {
             for(int i=0;i<values.length()&&next.length()<300;i++) { JSONObject v=values.getJSONObject(i); if(!v.getJSONObject("track").optString("id").equals(track.optString("id"))) next.put(v); }
             Json.put(personal,"history",next);
         } else if(action.equals("createPlaylist")) {
-            String name=args.optString("name").trim(); if(name.isEmpty()||name.length()>80) throw new Exception("请填写 1–80 字的歌单名称");
+            String name=args.optString("name").trim(); if(name.isEmpty()||name.length()>100) throw new Exception("请填写 1–100 字的歌单名称");
             personal.getJSONArray("playlists").put(Json.obj("id","list-"+java.util.UUID.randomUUID(),"name",name,"tracks",track==null ? new JSONArray() : Json.array(cleanTrack(track))));
+        } else if(action.equals("importPlaylists")) {
+            JSONArray imported=args.getJSONArray("playlists"),lists=personal.getJSONArray("playlists");
+            for(int i=0;i<imported.length();i++){JSONObject list=imported.getJSONObject(i);String base=list.getString("name");String name=base;int suffix=1;java.util.Set<String> names=new java.util.HashSet<>();for(int j=0;j<lists.length();j++)names.add(lists.getJSONObject(j).optString("name").toLowerCase(java.util.Locale.ROOT));while(names.contains(name.toLowerCase(java.util.Locale.ROOT)))name=base.substring(0,Math.min(85,base.length()))+"（导入 "+suffix+++"）";JSONArray tracks=list.getJSONArray("tracks"),clean=new JSONArray();java.util.Set<String> seen=new java.util.HashSet<>();for(int j=0;j<tracks.length();j++){JSONObject song=cleanTrack(tracks.getJSONObject(j));if(seen.add(song.getString("id")))clean.put(song);}lists.put(Json.obj("id","list-"+java.util.UUID.randomUUID(),"name",name,"tracks",clean));}
         } else if(action.equals("removeSaved")) {
             if(!kind.equals("liked")&&!kind.equals("favorites")&&!kind.equals("history")) throw new Exception("无效列表");
             JSONArray values=personal.getJSONArray(kind),next=new JSONArray();
@@ -75,7 +80,7 @@ final class PrivateStore {
                 if(list.optString("id").equals(id)) {
                     found=true;
                     if(action.equals("deletePlaylist")) continue;
-                    if(action.equals("renamePlaylist")) { String name=args.optString("name").trim(); if(name.isEmpty()||name.length()>80) throw new Exception("请填写歌单名称"); Json.put(list,"name",name); }
+                    if(action.equals("renamePlaylist")) { String name=args.optString("name").trim(); if(name.isEmpty()||name.length()>100) throw new Exception("请填写歌单名称"); Json.put(list,"name",name); }
                     else {
                         JSONArray tracks=list.getJSONArray("tracks"),clean=new JSONArray();
                         String trackId=track==null ? args.optString("trackId") : track.optString("id");

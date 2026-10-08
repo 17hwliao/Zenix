@@ -4,6 +4,7 @@ import type { AppearanceBackground } from '../core/types';
 import { getSoundSettings, playUiSound, setSoundSettings, type SoundKind } from '../core/sounds';
 import SourceSettings from './SourceSettings';
 import UpdateSettings from './UpdateSettings';
+import { MusicToolsButton } from './MusicTools';
 
 type SettingsModalProps = {
   initialTab?: 'options' | 'appearance' | 'sources';
@@ -40,6 +41,7 @@ export default function SettingsModal({ initialTab = 'options', reduceMotion, li
       </div>
       {tab === 'options' && <div className="yz-settings-body">
         <UpdateSettings />
+        <div className="tool-actions"><MusicToolsButton/><MusicToolsButton initial="stats"/><MusicToolsButton initial="timer"/><MusicToolsButton initial="widget"/></div>
         <div className="yz-settings-intro"><h2>选项</h2><p>调整播放界面的使用方式。</p></div>
         <div className="yz-setting-row"><div><strong>减少动效</strong><small>关闭页面间的过渡动画</small></div><button className={`yz-switch ${reduceMotion ? 'is-on' : ''}`} onClick={() => onReduceMotionChange(!reduceMotion)} role="switch" aria-checked={reduceMotion} aria-label="减少动效"><span /></button></div>
         <div className="yz-setting-row"><div><strong>刷新本地曲库</strong><small>重新读取已导入的音乐</small></div><button className="yz-round-button" onClick={() => void onRefreshLibrary?.()} disabled={!onRefreshLibrary || libraryBusy} aria-label="刷新本地曲库"><RefreshCw size={17} /></button></div>
