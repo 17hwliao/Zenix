@@ -27,6 +27,7 @@
 | R1 | P1 | scripts/Publish-Release.mjs：替换发行默认删除旧包、允许不同字节覆盖同名包 | 已强制保留旧工件，只有 stable / preview 清单指针可替换；生产发布器合成 GitHub API 验证保留旧直链且拒绝同名不同安装包 |
 | R2 | P1 | scripts/Init-Signing.mjs、Init-AndroidSigning.ps1：缺失发行密钥时仍可能先创建替代密钥 | 已禁止已发身份的重新生成，提示恢复原密钥；合成目录核验缺失清单私钥不会产生替代文件 |
 | W1 | P2 | Android MusicWidget / LyricOverlayService：缓冲时按钮仍显示播放，组件不读取源封面缓存 | 按播放意图显示暂停并可中止缓冲；允许组件读取本应用 source-artwork 缓存，使用规范化路径保持文件边界；原生编译与设备检查待完成 |
+| UI1 | P2 | PC 搜索悬浮容器从窗口顶边起整块设置 no-drag，遮住上方 titlebar 拖动区域 | 用户追加要求；仅实际搜索表单 / 按钮使用 no-drag，保留其上边缘到窗口顶边的原窗口拖动条，输入和窗口控制仍可操作；加入候选 r21，实际系统鼠标拖动待用户验证 |
 
 ## 本轮追加：音乐源一键分享
 
