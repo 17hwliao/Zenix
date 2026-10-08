@@ -20,7 +20,8 @@ final class AppUpdates {
     final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final Context context; private final JSONObject config;
     private JSONObject state, artifact; private File ready;
-    private volatile boolean cancelled; private volatile HttpURLConnection connection;
+    private volatile boolean cancelled; private volatile okhttp3.Call connection;
+    private final UpdateHttp http = new UpdateHttp();
     private final String currentVersion; private final long currentBuild;
     private static final JSONArray HOSTS=new JSONArray(Arrays.asList("raw.githubusercontent.com","github.com","release-assets.githubusercontent.com","objects.githubusercontent.com"));
     AppUpdates(Context context) throws Exception {
@@ -28,27 +29,37 @@ final class AppUpdates {
         config=new JSONObject(new String(SourceHttp.bounded(context.getAssets().open("zenix/distribution.json"),16384),StandardCharsets.UTF_8));
         PackageInfo own=context.getPackageManager().getPackageInfo(context.getPackageName(),0);
         currentVersion=own.versionName;currentBuild=version(own);
-        state=Json.obj("status","idle","currentVersion",currentVersion,"progress",0,"message","尚未检查更新");
+        state=Json.obj("status","idle","currentVersion",currentVersion,"currentBuild",currentBuild,"progress",0,"message","尚未检查更新");
     }
     private static long version(PackageInfo info){return Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;}
     synchronized JSONObject state() throws Exception {return new JSONObject(state.toString());}
     private synchronized void set(String key,Object value){Json.put(state,key,value);}
     private synchronized String status(){return state.optString("status");}
-    private synchronized void reset(){state=Json.obj("status","checking","currentVersion",currentVersion,"progress",0,"message","正在检查更新");}
-    void cancel(){cancelled=true;HttpURLConnection c=connection;if(c!=null)c.disconnect();}
+    private synchronized void reset(){state=Json.obj("status","checking","currentVersion",currentVersion,"currentBuild",currentBuild,"progress",0,"message","正在检查更新");}
+    void cancel(){cancelled=true;okhttp3.Call c=connection;if(c!=null)c.cancel();}
     private String text(String url,boolean restricted,int limit) throws Exception {
         if(!new URI(url).getScheme().equals("https"))throw new Exception("请使用 HTTPS 地址");
         JSONArray allowed=new JSONArray(HOSTS.toString());if(!restricted)allowed.put(new URI(url).getHost());
-        JSONObject response=SourceHttp.request(url,new JSONObject(),allowed);
-        int code=response.optInt("status");if(code==404&&restricted)throw new FileNotFoundException("此通道尚未发布更新清单");
-        if(code!=200)throw new Exception("连接失败（HTTP "+code+"）");
-        byte[] data=android.util.Base64.decode(response.getString("data"),android.util.Base64.DEFAULT);
-        if(data.length>limit)throw new Exception("分享内容超过大小限制");return new String(data,StandardCharsets.UTF_8);
+        if(!restricted){
+            // User-supplied source bundles keep the music-source SSRF boundary.
+            JSONObject response=SourceHttp.request(url,new JSONObject(),allowed);
+            int code=response.optInt("status");if(code!=200)throw new Exception("连接失败（HTTP "+code+"）");
+            byte[] data=android.util.Base64.decode(response.getString("data"),android.util.Base64.DEFAULT);
+            if(data.length>limit)throw new Exception("分享内容超过大小限制");return new String(data,StandardCharsets.UTF_8);
+        }
+        try(okhttp3.Response response=http.open(url,25000,()->cancelled,c->connection=c)){
+            if(response.code()==404)throw new FileNotFoundException("此通道尚未发布更新清单");
+            if(response.code()!=200)throw new IOException("更新服务器连接失败（HTTP "+response.code()+"）");
+            okhttp3.ResponseBody body=response.body();if(body==null)throw new IOException("更新清单为空");
+            if(body.contentLength()>limit)throw new IOException("更新清单超过大小限制");
+            return new String(SourceHttp.bounded(body.byteStream(),limit),StandardCharsets.UTF_8);
+        }finally{connection=null;}
+
     }
     JSONObject check(String channel) throws Exception {
         if(!Arrays.asList("stable","preview").contains(channel))throw new Exception("更新通道无效");
         if(Arrays.asList("checking","downloading","installing").contains(status()))return state();
-        reset();set("channel",channel);artifact=null;ready=null;
+        cancelled=false;reset();set("channel",channel);artifact=null;ready=null;
         try {
             JSONObject envelope=new JSONObject(text(config.getJSONObject("feeds").getString(channel),true,256*1024));
             byte[] bytes=android.util.Base64.decode(envelope.getString("payload"),android.util.Base64.DEFAULT);
@@ -59,10 +70,10 @@ final class AppUpdates {
             if(manifest.optInt("schemaVersion")!=1||!channel.equals(manifest.optString("channel")))throw new Exception("更新清单格式错误");
             JSONObject item=manifest.getJSONObject("artifacts").optJSONObject("android");
             if(item==null){set("status","unpublished");set("message","当前通道尚未发布 Android 更新");return state();}
-            if(item.optLong("build")<=currentBuild){set("status","current");set("message","已是此通道的最新版本");return state();}
-            URI uri=new URI(item.getString("url"));long size=item.optLong("size");
+            if(item.optLong("build")<=currentBuild){set("status","current");set("message","已是此通道的最新版本（r"+currentBuild+"）");return state();}
+            UpdateUrlPolicy.validate(item.getString("url"));URI uri=new URI(item.getString("url"));long size=item.optLong("size");
             if(!"https".equals(uri.getScheme())||!"github.com".equals(uri.getHost())||uri.getUserInfo()!=null||!uri.getPath().startsWith("/17hwliao/Zenix/releases/download/")||!uri.getPath().endsWith(".apk")||!item.optString("sha256").matches("[a-f0-9]{64}")||size<1||size>512L*1024*1024)throw new Exception("安装包信息无效");
-            artifact=item;set("version",item.getString("version"));set("notes",manifest.optString("notes"));set("status","available");set("message","发现新版本 "+item.getString("version"));
+            artifact=item;set("build",item.getLong("build"));set("version",item.getString("version"));set("notes",manifest.optString("notes"));set("status","available");set("message","发现新版本 "+item.getString("version")+" · r"+item.getLong("build"));
         }catch(Exception error){set("status",error instanceof FileNotFoundException?"unpublished":"error");set("message",Json.message(error));}
         return state();
     }
@@ -73,26 +84,22 @@ final class AppUpdates {
         try {
             if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("无法创建更新目录");
             if(target.isFile()&&target.length()==item.getLong("size")&&hashFile(target).equals(item.getString("sha256"))){validateApk(target,item);ready=target;set("status","ready");set("progress",100);set("message","已读取校验通过的更新包，点击后由系统确认安装");return state();}
-            URL url=SourceHttp.check(item.getString("url"),HOSTS);HttpURLConnection c=null;
-            for(int hop=0;hop<5;hop++){
-                c=(HttpURLConnection)url.openConnection();connection=c;c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(15000);c.setRequestProperty("Accept-Encoding","identity");
-                if(cancelled)throw new IOException("下载已取消");int code=c.getResponseCode();
-                if(code>=300&&code<400){URL next=SourceHttp.check(new URL(url,c.getHeaderField("Location")).toString(),HOSTS);c.disconnect();c=null;url=next;continue;}
-                if(code!=200)throw new IOException("下载失败（HTTP "+code+"）");break;
-            }
-            if(c==null)throw new IOException("重定向次数过多");
             long expected=item.getLong("size"),total=0,deadline=android.os.SystemClock.elapsedRealtime()+600000;
-            if(c.getContentLengthLong()>expected)throw new IOException("安装包大小与发布记录不一致");
             MessageDigest digest=MessageDigest.getInstance("SHA-256");
-            try(InputStream input=c.getInputStream();OutputStream output=new FileOutputStream(partial)){
-                byte[] buffer=new byte[65536];int n;
-                while((n=input.read(buffer))!=-1){if(cancelled||android.os.SystemClock.elapsedRealtime()>deadline)throw new IOException("下载已取消或超时");total+=n;if(total>expected)throw new IOException("安装包超过声明大小");digest.update(buffer,0,n);output.write(buffer,0,n);set("progress",(int)(total*100/expected));}
+            try(okhttp3.Response response=http.open(item.getString("url"),600000,()->cancelled,c->connection=c)){
+                if(response.code()!=200)throw new IOException("更新下载失败（HTTP "+response.code()+"）");
+                okhttp3.ResponseBody body=response.body();if(body==null)throw new IOException("更新安装包为空");
+                if(body.contentLength()>expected)throw new IOException("安装包大小与发布记录不一致");
+                try(InputStream input=body.byteStream();OutputStream output=new FileOutputStream(partial)){
+                    byte[] buffer=new byte[65536];int n;
+                    while((n=input.read(buffer))!=-1){if(cancelled||android.os.SystemClock.elapsedRealtime()>deadline)throw new IOException("下载已取消或超时");total+=n;if(total>expected)throw new IOException("安装包超过声明大小");digest.update(buffer,0,n);output.write(buffer,0,n);set("progress",(int)(total*100/expected));}
+                }
             }
             if(total!=expected||!hex(digest.digest()).equals(item.getString("sha256")))throw new IOException("安装包校验失败，请重新下载");
             validateApk(partial,item);if(target.exists()&&!target.delete())throw new IOException("无法替换旧更新包");if(!partial.renameTo(target))throw new IOException("无法保存更新包");ready=target;
             set("status","ready");set("message","更新已就绪，点击后由系统确认安装");
         }catch(Exception error){set("status","error");set("message",cancelled?"下载已取消，可重新尝试":Json.message(error));}
-        finally{if(connection!=null)connection.disconnect();connection=null;partial.delete();}
+        finally{if(connection!=null)connection.cancel();connection=null;partial.delete();}
         return state();
     }
     @SuppressWarnings("deprecation") private void validateApk(File file,JSONObject item) throws Exception {

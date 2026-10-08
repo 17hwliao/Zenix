@@ -49,14 +49,16 @@ r18 包含 `.zenixlist` 歌单导入导出、Windows / Android 局域网歌单�
 
 ### 首版 v1.0.0
 
-当前维护 Windows / Android，公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的 Windows / Android 工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前 Windows / Android 修订为 r18，内部 build 18。iOS 暂停发行，稳定版不再提供 IPA，已有工程保留。
+当前维护 Windows / Android，公开版本保持 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)。修补完成后替换该稳定版的 Windows / Android 工件，并同步标签与源码；安装包文件名用修订号区分，移动端内部 build 单调递增。只有作者与测试人员共同确认可发布后，才递增公开版本号。当前 Windows / Android 修订为 r19，内部 build 19。iOS 暂停发行，稳定版不再提供 IPA，已有工程保留。
 
 | 平台 | 发行内容 | 安装与更新 |
 | --- | --- | --- |
-| Windows x64 | Zenix-Setup-1.0.0-r18-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
-| Android | Zenix-Android-1.0.0-r18.apk | 正式发行密钥签名 APK，后续沿用同一密钥覆盖更新。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
+| Windows x64 | Zenix-Setup-1.0.0-r19-x64.exe | NSIS 安装包，保留用户资料；未提供受信任代码签名证书，当前安装包为未签名状态，系统可能提示未知发布者。 |
+| Android | Zenix-Android-1.0.0-r19.apk | 沿用原正式发行密钥签名 APK；没有覆盖或重新生成密钥。旧 Debug 测试包不能直接覆盖，迁移前请保留原数据。 |
 
-同页提供 SHA256SUMS-1.0.0-r18.txt 校验文件，以及 GitHub 自动生成的完整源码归档。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。打包完成不代表已完成所有设备功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
+同页提供 SHA256SUMS-1.0.0-r19.txt 校验文件，以及 GitHub 自动生成的完整源码归档。安装包区仅保留当前修订。源码和安装包不包含用户音乐、缓存、个人资料、源脚本或签名私钥。打包完成不代表已完成所有设备功能验收，构建记录与限制见 [首版说明](docs/releases/v1.0.0.md)。
+
+r19 修复 Android 更新下载被音乐源网络限制误拦截的问题，并在正式构建中核对既有签名证书。遇到“音乐源不能访问内网、本机或保留地址”的旧版，需要用浏览器下载当前正式 APK，直接覆盖安装一次，不需要卸载。原因、测试及限制见 [Android 更新修补](docs/android-update-r19.md)。
 
 ### 应用更新与专用源入口
 

@@ -12,6 +12,16 @@ def signingReady = signingPath && signingPassword && signingAlias && signingKeyP
 if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') } && !signingReady) {
     throw new GradleException('正式构建需要发行签名；请配置仓库外密钥或 ZENIX_ANDROID_* 环境变量。')
 }
+if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') } && signingReady) {
+    // Preserve the already published app identity; never generate or replace a keystore here.
+    def expectedCertificate = 'b40080130e2186eba857ea2778350b88fe896c33cc9e0116493022e5adb8514a'
+    def releaseStore = java.security.KeyStore.getInstance(file(signingPath), signingPassword.toCharArray())
+    def releaseCertificate = releaseStore.getCertificate(signingAlias)
+    def actualCertificate = releaseCertificate == null ? '' : java.security.MessageDigest.getInstance('SHA-256').digest(releaseCertificate.encoded).encodeHex().toString()
+    if (actualCertificate != expectedCertificate) {
+        throw new GradleException('正式 APK 签名与既有发行版本不一致，已停止构建。请使用原发行密钥，不要覆盖或重新生成密钥。')
+    }
+}
 
 android {
     namespace = "com.zenix.musicplayer"
@@ -20,7 +30,7 @@ android {
         applicationId "com.zenix.musicplayer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 18
+        versionCode 19
         versionName "1.0.0"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
