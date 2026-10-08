@@ -18,6 +18,11 @@ import java.util.Locale;
 /** Opt-in, original-signed device test. Reports hashes, never personal configuration contents. */
 public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     private Bundle arguments;
+    private volatile Activity foregroundActivity;
+    @Override public void callActivityOnResume(Activity activity) {
+        super.callActivityOnResume(activity);foregroundActivity=activity;
+        activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
     @Override public void onCreate(Bundle args) { arguments=args==null?new Bundle():args; super.onCreate(args); start(); }
     @Override public void onStart() {
         Bundle result=new Bundle();
@@ -40,6 +45,13 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
         File marker=new File(root,"retention-marker.txt");
         if (mode.equals("snapshot")&&!marker.exists())try(FileOutputStream stream=new FileOutputStream(marker)){stream.write("zenix-first-stable-retention-20261008".getBytes(StandardCharsets.UTF_8));}
         out.put("retentionMarker",fileDigest(marker));
+        Object mainStore=create(target,"PrivateStore",target);
+        JSONObject mainData=(JSONObject)call(mainStore,"read",new Class<?>[]{});
+        JSONObject mainPersonal=mainData.getJSONObject("personal");
+        out.put("personalSnapshot",new JSONObject().put("liked",mainPersonal.getJSONArray("liked").length())
+            .put("favorites",mainPersonal.getJSONArray("favorites").length()).put("playlists",mainPersonal.getJSONArray("playlists").length())
+            .put("history",mainPersonal.getJSONArray("history").length())
+            .put("sha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(mainPersonal).getBytes(StandardCharsets.UTF_8)))));
         if (mode.equals("seed")||mode.equals("verify")) {
             Context isolated=new ContextWrapper(target) {
                 @Override public Context getApplicationContext(){return this;}
@@ -66,8 +78,11 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             // Keep the real app foreground during lengthy network acceptance. Some
             // OEMs kill headless instrumentation as a cached background process.
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
-            launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);Activity activity=startActivitySync(launch);
-            runOnMainSync(()->activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
+            launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            long foregroundDeadline=android.os.SystemClock.elapsedRealtime()+15000;
+            while(foregroundActivity==null&&android.os.SystemClock.elapsedRealtime()<foregroundDeadline)Thread.sleep(100);
+            Activity activity=foregroundActivity;
+            if(activity==null)throw new IOException("Target Activity did not resume within 15 seconds");
             Object updates=create(target,"AppUpdates",target);
             JSONObject state=(JSONObject)call(updates,"check",new Class<?>[]{String.class},arguments.getString("channel","preview"));
             if(!mode.equals("check")&&state.optString("status").equals("available"))state=(JSONObject)call(updates,"download",new Class<?>[]{});
@@ -90,4 +105,9 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
         return info.put("size",file.length()).put("sha256",hex(digest.digest()));
     }
     private static String hex(byte[] bytes){StringBuilder text=new StringBuilder();for(byte value:bytes)text.append(String.format(Locale.ROOT,"%02x",value&255));return text.toString();}
+    private static String canonical(Object value)throws Exception {
+        if(value instanceof JSONObject){JSONObject object=(JSONObject)value;java.util.TreeSet<String> keys=new java.util.TreeSet<>();object.keys().forEachRemaining(keys::add);StringBuilder result=new StringBuilder("{");for(String key:keys){if(result.length()>1)result.append(',');result.append(JSONObject.quote(key)).append(':').append(canonical(object.get(key)));}return result.append('}').toString();}
+        if(value instanceof org.json.JSONArray){org.json.JSONArray array=(org.json.JSONArray)value;StringBuilder result=new StringBuilder("[");for(int i=0;i<array.length();i++){if(i>0)result.append(',');result.append(canonical(array.get(i)));}return result.append(']').toString();}
+        return JSONObject.valueToString(value);
+    }
 }
