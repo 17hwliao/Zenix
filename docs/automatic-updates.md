@@ -18,7 +18,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 - Android：使用独立后台工作线程，保持音乐解析队列可用；核对 SHA256、大小、包名、versionCode、versionName 和签名证书。用户授权“安装未知应用”后由系统确认安装，不会静默安装。
 - iOS：检查新版后打开签名清单指定的 TestFlight / App Store 页面。iOS 应用不能自行覆盖安装二进制；自动安装由 Apple 的发行渠道提供。系统控制的自动更新需用户在 TestFlight 或 App Store 设置中开启。
 
-关闭软件或移动系统终止进程会中断当前下载，之后可以重新下载。更新包暂存于应用私有 `updates` 目录，与歌曲缓存分离；不完整下载会清理，PC 在成功获取新版后清理旧安装包，Android 只保留一个安装包。当前不提供断点续传。
+关闭软件或移动系统终止进程会中断当前下载，之后可以重新下载。更新包暂存于应用私有 `updates` 目录，与歌曲缓存分离；不完整下载会清理。Android 按构建号和完整 SHA256 区分安装器输入，保留已经交给系统安装器的文件，避免复用旧包。当前不提供断点续传。
 
 ## 两种独立的签名
 
@@ -29,7 +29,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ### 本机 Android 发行密钥
 
-已新建正式密钥，位于仓库外 `%USERPROFILE%\.zenix\signing\zenix-android-release.p12`，配套密码在同目录 `android-signing.properties`。目录仅当前用户和 SYSTEM 可访问。**请备份这两个文件，后续发行必须沿用同一密钥。**
+既有正式密钥位于仓库外 `%USERPROFILE%\.zenix\signing\zenix-android-release.p12`，配套密码在同目录 `android-signing.properties`。目录仅当前用户和 SYSTEM 可访问。**请备份这两个文件，后续发行必须沿用同一密钥。**
 
 `npm run signing:android` 仅在没有既有密钥时创建，不会覆盖。Gradle 默认读取上述私有配置，也支持以下环境变量覆盖：
 
@@ -37,7 +37,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 执行 `npm run android:release` 生成 `android/app/build/outputs/apk/release/app-release.apk`。无签名配置时正式构建会失败，Debug 构建仍可以开发使用。
 
-此前发布的 APK 使用 Debug 签名，与本次正式密钥不同，**不能直接覆盖升级**。不要为迁移测试版随意卸载，否则私有歌单和配置会丢失。当前没有统一移动端数据导出功能，首版未提供 Debug 到正式签名的自动迁移；需要保留测试版资料的用户应保留原应用。正式用户后续可正常同签名覆盖更新。
+只有与正式密钥不同的 Debug 测试安装无法直接覆盖升级；使用既有正式签名的测试版可覆盖迁移，并须保留资料。不要为迁移随意卸载，否则私有歌单和配置会丢失。当前没有 Debug 到正式签名的自动迁移。正式用户后续使用同签名递增构建更新。
 
 ### Windows
 
@@ -87,7 +87,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 }
 ```
 
-`npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传安装包，再提交签名清单到 main；不要把测试包或未上架的 iOS 版本加入正式清单。公开版本在作者与测试人员确认后才递增；稳定修补替换当前 Release 工件并递增 Windows / Android build。Windows 先比较 semver，同版本再比较 build；Android 按 build 比较。预览版使用 preview 通道。
+`npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传并核对新文件，再提交签名清单到 main；不要把未验收候选或未上架的 iOS 版本加入正式清单。公开版本按约定维护；稳定修补递增 Windows / Android build，使用新的安装包文件名，保留已有工件与下载地址。Windows 先比较 semver，同版本再比较 build；Android 按 build 比较。预览版使用 preview 通道。
 
 `.github/workflows/signed-release.yml` 实现手动按 tag 构建签名 Windows / Android、生成签名清单、上传 Release 并更新 main 中的通道文件。它没有定时触发。需要以下 Secrets / Variables：
 
@@ -98,7 +98,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 | Secrets | `ANDROID_KEYSTORE_BASE64`、`ANDROID_STORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` |
 | Secret | `RELEASE_PRIVATE_KEY_BASE64`（本机发布清单私钥的 Base64） |
 
-密钥只通过环境变量和 runner 临时文件使用，不写进仓库或安装包。工作流要求 tag 与 package.json / Android versionName 相符。main 保护规则如禁止 Actions 直接写入更新清单，需要管理员允许该发布流程或将清单提交通过 PR 合入。云工作流的同名上传默认拒绝覆盖。替换当前稳定版使用 `scripts/Publish-Release.mjs --replace-stable`：先上传并核对带修订号的新工件，全部齐备后再删除旧工件；保留同一 Release 地址。
+密钥只通过环境变量和 runner 临时文件使用，不写进仓库或安装包。工作流要求 tag 与 package.json / Android versionName 相符。main 保护规则如禁止 Actions 直接写入更新清单，需要管理员允许该发布流程或将清单提交通过 PR 合入。云工作流的同名上传默认拒绝覆盖。替换当前稳定版使用 `scripts/Publish-Release.mjs --replace-stable --retire-ios`：先上传并核对带修订号的新工件，通过真实升级验收后切换清单指针与发行说明；旧安装包、校验文件及下载地址全部保留。
 
 ## 三端专用源便捷载入
 
