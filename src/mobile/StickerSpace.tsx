@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
-import { Crosshair, Maximize2, Minimize2, MoreHorizontal, Pause, Play } from 'lucide-react';
+import { Crosshair, Maximize2, Pause, Play } from 'lucide-react';
 import { activeLyricIndex, parseLyrics } from '../core/lyrics';
 import type { LyricLine } from '../core/types';
 import type { Track } from '../core/types';
@@ -26,7 +26,6 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
   useEffect(() => () => clearTimeout(cameraTimer.current), []);
   const animations = useRef<ReturnType<typeof animate>[]>([]);
   const [size, setSize] = useState({ width: 390, height: 500 }), [selected, setSelected] = useState(0), [moving, setMoving] = useState(false);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const signature = songs.map(song => song.id).join('|'), player = state.playback;
   const previousLayout = useRef({ ids: [] as string[], focusRequest: -1, width: 0, height: 0 });
   const [captionVisible, setCaptionVisible] = useState(true);
@@ -35,7 +34,9 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
   function hideCaptionLater() { clearTimeout(captionTimer.current); captionTimer.current = setTimeout(() => setCaptionVisible(false), 3000); }
   useEffect(() => { showCaption(); hideCaptionLater(); return () => clearTimeout(captionTimer.current); }, [player.track?.id, label]);
   const slots = useMemo(() => stickerSlotsForCount(songs.length), [songs.length]);
-  const expanded = useMemo(() => expandedIndex === null ? new Map() : expandedStickerLayout(Math.min(expandedIndex, songs.length - 1), slots), [expandedIndex, slots, songs.length]);
+  // A focused poster expands inside the mosaic, as on PC. This is independent
+  // of playback and of the explicit button that opens the full-screen player.
+  const expanded = useMemo(() => expandedStickerLayout(Math.min(selected, songs.length - 1), slots), [selected, slots, songs.length]);
   const pitch = Math.max(39, Math.min(85, (size.width - 32) / 6));
   const rects = useMemo(() => slots.map((slot, index) => expanded.get(index) || slot), [slots, expanded]);
   const bounds = rects.length ? { left: Math.min(...rects.map(rect => rect.x)) * pitch, top: Math.min(...rects.map(rect => rect.y)) * pitch, right: Math.max(...rects.map(rect => rect.x + rect.columns)) * pitch, bottom: Math.max(...rects.map(rect => rect.y + rect.rows)) * pitch } : { left: 0, top: 0, right: 0, bottom: 0 };
@@ -44,10 +45,10 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
     return Math.max(extent - end - 24, Math.min(24 - start, value));
   }
   function stop() { animations.current.forEach(animation => animation.stop()); }
-  function focus(index: number, enlarged: number | null = expandedIndex) {
+  function focus(index: number) {
     if (!songs.length) return; setSelected(index); stop();
-    const layout = enlarged === null ? new Map() : expandedStickerLayout(enlarged, slots), rect = layout.get(index) || slots[index];
-    const options = reduced ? { duration: 0 } : { type: 'spring' as const, stiffness: 170, damping: 27, mass: .9 };
+    const layout = expandedStickerLayout(index, slots), rect = layout.get(index) || slots[index];
+    const options = reduced ? { duration: 0 } : { duration: .62, ease: [.22, 1, .36, 1] as [number, number, number, number] };
     // Focus is centered deliberately; empty space is filled by the personal background.
     animations.current = [animate(x, size.width / 2 - (rect.x + rect.columns / 2) * pitch, options), animate(y, size.height / 2 - (rect.y + rect.rows / 2) * pitch, options)];
   }
@@ -57,14 +58,14 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
     const appended = previous.ids.length > 0 && previous.ids.length <= ids.length && previous.ids.every((id, index) => id === ids[index]);
     const current = songs.findIndex(song => song.id === player.track?.id);
     if (!appended) {
-      setExpandedIndex(null); focus(current >= 0 ? current : 0, null);
+      focus(current >= 0 ? current : 0);
     } else if (previous.focusRequest !== focusRequest) {
       focus(current >= 0 ? current : selected);
     } else if (previous.width !== size.width || previous.height !== size.height) {
       focus(selected);
     }
     // Progressive source replies and pagination extend the same wall. They must
-    // not recenter the user's camera or undo an explicitly enlarged sticker.
+    // not recenter the user's camera or change the selected poster.
     previousLayout.current = { ids, focusRequest, width: size.width, height: size.height };
   }, [signature, focusRequest, size.width, size.height]);
   useEffect(() => () => stop(), []);
@@ -85,14 +86,13 @@ export default function StickerSpace({ songs, state, label, play, full, actions,
         // motion subscriptions and decoded covers exist only near the viewport.
         const visible = focused || (rect.x * pitch + camera.x < size.width + 240 && (rect.x + rect.columns) * pitch + camera.x > -240 && rect.y * pitch + camera.y < size.height + 240 && (rect.y + rect.rows) * pitch + camera.y > -240);
         if (!visible) return null;
-        return <motion.article key={song.id} className={`space-sticker ${focused ? 'is-focused' : ''} ${current ? 'is-current' : ''} ${index === expandedIndex ? 'is-expanded' : ''}`} data-song-id={song.id} data-compact={rect.rows * pitch - STICKER_GAP < 150 || undefined} initial={false} animate={{ left: rect.x * pitch, top: rect.y * pitch, width: rect.columns * pitch - STICKER_GAP, height: rect.rows * pitch - STICKER_GAP }} transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 190, damping: 29 }}>
+        return <motion.article key={song.id} className={`space-sticker ${focused ? 'is-focused is-expanded' : ''} ${current ? 'is-current' : ''}`} data-song-id={song.id} data-compact={rect.rows * pitch - STICKER_GAP < 150 || undefined} initial={false} animate={{ left: rect.x * pitch, top: rect.y * pitch, width: rect.columns * pitch - STICKER_GAP, height: rect.rows * pitch - STICKER_GAP }} transition={reduced ? { duration: 0 } : { duration: .58, ease: [.22, 1, .36, 1] }}>
           <SongPoster song={song} index={index} current={current} focus={()=>focus(index)} longPress={longPress}/>
-          {focused && current && index === expandedIndex && <FocusedLyrics track={song} position={player.position} seek={seek} />}
-          <AnimatePresence initial={false}>{focused && <motion.div className="sticker-toolbar" initial={{ opacity: 0, y: reduced ? 0 : 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduced ? 0 : 4 }} transition={{ duration: reduced ? 0 : .18 }}>
-            {index === expandedIndex ? actions(song) : <button aria-label={`更多 ${song.title}`} onClick={()=>longPress?.(song)}><MoreHorizontal/></button>}
-            <button aria-label={index === expandedIndex ? `缩小贴纸 ${song.title}` : `放大贴纸 ${song.title}`} aria-pressed={index === expandedIndex} onClick={()=>{const next=index===expandedIndex?null:index;setExpandedIndex(next);focus(index,next);}}>{index === expandedIndex ? <Minimize2/> : <Maximize2/>}</button>
+          {focused && current && <FocusedLyrics track={song} position={player.position} seek={seek} />}
+          <AnimatePresence initial={false}>{focused && <motion.div className="sticker-toolbar" initial={{ opacity: 0, y: reduced ? 0 : 11 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduced ? 0 : 4 }} transition={{ duration: reduced ? 0 : .3, delay: focused && !reduced ? .19 : 0 }}>
+            {actions(song)}
             <button aria-label={`${current && (player.playWhenReady ?? player.playing) ? '暂停' : '播放'} ${song.title}`} onClick={()=>play(song)}>{current && (player.playWhenReady ?? player.playing) ? <Pause/> : <Play/>}</button>
-            {current && index === expandedIndex && <button aria-label="打开完整播放器" onClick={full}><Maximize2/></button>}
+            {current && <button aria-label="打开完整播放器" onClick={full}><Maximize2/></button>}
           </motion.div>}</AnimatePresence>
 
         </motion.article>;

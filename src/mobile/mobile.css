@@ -37,6 +37,7 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .space-plane{position:absolute;left:0;top:0;will-change:transform}
 .space-sticker{position:absolute;overflow:hidden;border:1px solid #ffffff5c;border-radius:3px;background:#11151b;box-shadow:0 2px 6px #00000018;contain:layout paint}
 .space-sticker.is-focused{z-index:2;border-color:#ffffffcc;box-shadow:0 4px 30px #00000045}
+.space-sticker.is-expanded{border:2px solid #fffffff5;box-shadow:0 20px 70px #000000b3,0 0 0 1px #ffffff38}.space-sticker.is-expanded .space-poster>.mobile-art{filter:saturate(.92) brightness(.86)}
 .space-sticker{transition:border-color .24s,box-shadow .24s}
 .space-sticker.is-current{border-color:#f1f4ff}
 .space-poster{position:absolute;inset:0;width:100%;height:100%;padding:0;display:block;text-align:left;border-radius:0;touch-action:none}
@@ -46,6 +47,7 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .space-song strong{font-size:clamp(14px,3.8vw,22px);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .space-song small{display:block;margin-top:5px;color:#ffffffbf;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .is-focused .space-song{bottom:59px}.space-sticker .sticker-index{z-index:2;top:11px;left:10px;font-size:9px;pointer-events:none}
+.is-expanded .space-song strong{font-size:clamp(20px,6.5vw,30px)}.is-expanded .space-song,.is-expanded .sticker-index{animation:mobile-sticker-reveal .3s .19s both}@keyframes mobile-sticker-reveal{from{opacity:0;transform:translateY(11px)}to{opacity:1;transform:none}}
 .space-sticker[data-compact] .space-song{left:10px;right:10px}.space-sticker[data-compact] .space-song strong{-webkit-line-clamp:1;font-size:14px}.space-sticker[data-compact] .space-song small{font-size:10px;margin-top:3px}.space-sticker[data-compact] .sticker-index{top:5px;left:6px;padding:2px}.space-sticker[data-compact].is-focused .space-song{bottom:49px}
 .sticker-toolbar{position:absolute;bottom:6px;left:7px;right:7px;display:flex;align-items:center;justify-content:space-between;z-index:3;border-radius:999px;background:#11141d66;backdrop-filter:blur(10px);padding:1px 5px}
 .sticker-toolbar .track-actions{flex:1;justify-content:flex-start;padding:0;gap:0}.sticker-toolbar button{min-height:34px;height:34px;width:34px;padding:7px}.sticker-toolbar svg{width:16px;height:16px}
