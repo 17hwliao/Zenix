@@ -1,10 +1,10 @@
 # 应用更新、发行签名与专用源入口
 
-第一正式基线为 **1.0.0 / Windows build 27 / Android build 27**。公开版本保持 v1.0.0，同版本修补递增内部构建号。iOS 已暂停发行。发行记录见 [v1.0.0](releases/v1.0.0.md)。
+第一正式基线为 **1.0.0 / Windows build 27 / Android build 27**，当前贴纸空间修补为 **r28**。公开版本保持 v1.0.0，同版本修补递增内部构建号。iOS 已暂停发行。发行记录见 [v1.0.0](releases/v1.0.0.md)。
 
 两端内置更新通道独立于用户音乐源网络权限，限定 GitHub HTTPS 域名与 443 端口，逐跳核验重定向，保留默认 TLS 证书与主机名验证，支持正常系统路由（含 Fake-IP）。清单签名、安装包大小、SHA256、包名、构建号及原发行证书核验继续执行。Android 为不同构建和文件摘要使用独立安装包地址，避免系统安装器复用旧输入；Windows 使用独立 Chromium 会话并显示真实安装器。
 
-**此前测试客户端不承诺均可应用内直升。** 旧版若被地址限制、重定向、隐藏安装器或 Android 旧安装包复用问题阻断，可从当前 Release 下载同签名 r27 覆盖安装一次，保留原目录及资料；无需卸载或清空数据。旧 APK 中的代码不能靠服务端清单替换。正式升级保障从本次第一正式版起；r26→r27 Android 真机、r25→r27 Windows 实际升级及资料保留证据见 [全量审查记录](review-first-stable.md)。历史 r19 修补记录不能替代这一验收。
+**此前测试客户端不承诺均可应用内直升。** 旧版若被地址限制、重定向、隐藏安装器或 Android 旧安装包复用问题阻断，可从当前 Release 下载同签名 r28 覆盖安装一次，保留原目录及资料；无需卸载或清空数据。旧 APK 中的代码不能靠服务端清单替换。正式升级保障从 r27 第一正式版起；Android / Windows r27→r28 实际升级及资料保留证据见 [全量审查记录](review-first-stable.md)。历史 r19 修补记录不能替代这一验收。
 
 ## 使用方式
 
@@ -62,7 +62,7 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ## 发布更新
 
-公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。stable 清单同时包含 Windows / Android 的版本、内部构建号、下载地址、大小和 SHA256；iOS 暂不提供条目，preview 清单暂为空。文件未公开或相应平台没有条目时明确提示未发布。Windows 旧客户端须手动覆盖安装一次 r14，之后才能识别同版本修补。
+公开配置为 `config/distribution.json`。默认更新地址指向本仓库 main 的 `updates/stable.json` / `updates/preview.json`。stable 与 preview 清单均提供 Windows / Android 的版本、内部构建号、下载地址、大小和 SHA256；iOS 暂不提供条目。文件未公开或相应平台没有条目时明确提示未发布。旧测试客户端是否能直接更新取决于其已有更新代码，不能用曾经的 r14 修补代替本次真实验收。
 
 `npm run signing:init` 创建仓库外 `%USERPROFILE%\.zenix\signing\release-key.pem` 并生成公钥配置。当前公钥已生成，**请备份对应私钥，不要重复生成新的发行身份**。为多个开发环境使用相同私钥；支持 `ZENIX_SIGNING_DIR` 指定目录，签名时支持 `ZENIX_RELEASE_PRIVATE_KEY` 指定私钥文件。
 
@@ -122,4 +122,4 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ## 1.0.0 发行基线
 
-首版历史记录见 [首版说明](releases/v1.0.0.md)。当前维护 Windows / Android，内部构建号为 19；iOS 暂停发行。后续修补沿用当前稳定版与发行身份；仅在作者和测试人员确认可发布后递增公开版本。
+首版历史记录见 [首版说明](releases/v1.0.0.md)。当前维护 Windows / Android，内部构建号为 28，第一正式基线为 27；iOS 暂停发行。后续修补沿用当前稳定版与发行身份；仅在作者和测试人员确认可发布后递增公开版本。
