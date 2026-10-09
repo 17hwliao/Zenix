@@ -88,6 +88,21 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             if(!mode.equals("check")&&state.optString("status").equals("available"))state=(JSONObject)call(updates,"download",new Class<?>[]{});
             if(mode.equals("install")&&state.optString("status").equals("ready")) {
                 state=(JSONObject)call(updates,"install",new Class<?>[]{Activity.class},activity);
+                // The production installer posts to the main thread. Drain that
+                // runnable before instrumentation finishes and terminates the app.
+                runOnMainSync(()->{});Thread.sleep(1000);
+                if(!target.getPackageManager().canRequestPackageInstalls()) {
+                    Bundle progress=new Bundle();progress.putString("zenixAcceptanceProgress","awaiting Zenix system installation permission");sendStatus(1,progress);
+                    long permissionDeadline=android.os.SystemClock.elapsedRealtime()+180000;
+                    while(!target.getPackageManager().canRequestPackageInstalls()&&android.os.SystemClock.elapsedRealtime()<permissionDeadline)Thread.sleep(500);
+                    if(target.getPackageManager().canRequestPackageInstalls()) {
+                        state=(JSONObject)call(updates,"install",new Class<?>[]{Activity.class},activity);runOnMainSync(()->{});
+                    }
+                }
+                if(target.getPackageManager().canRequestPackageInstalls()) {
+                    Bundle progress=new Bundle();progress.putString("zenixAcceptanceProgress","awaiting Android system installer confirmation");sendStatus(2,progress);
+                    Thread.sleep(180000);
+                }
             }
             out.put("updateState",state);
             Object worker=field(updates,"worker");((java.util.concurrent.ExecutorService)worker).shutdownNow();

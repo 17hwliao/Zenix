@@ -106,7 +106,7 @@ class Updates {
       throw new Error('当前发行配置未启用 Windows 安装校验方式');
     }
     // NSIS --updated preserves app data; interactive installation respects user choices.
-    const child = spawn(this.file, ['--updated'], { detached: true, stdio: 'ignore', windowsHide: true });
+    const child = spawn(this.file, ['--updated'], { detached: true, stdio: 'ignore', windowsHide: false });
     await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); }); child.unref();
     this.state.status = 'installing'; this.app.quit(); return this.state;
   }

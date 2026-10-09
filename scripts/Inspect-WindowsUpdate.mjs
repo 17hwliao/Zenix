@@ -1,7 +1,7 @@
 // Authorized acceptance of an installed app launched with --remote-debugging-port.
 // Connects only to loopback; reports update state or hashes/counts, never personal contents.
 const port = Number(process.argv[2]), operation = process.argv[3] || 'state', channel = process.argv[4] || 'preview';
-if (!Number.isInteger(port) || port < 1024 || port > 65535 || !['state', 'check', 'download', 'snapshot'].includes(operation) || !['stable', 'preview'].includes(channel)) throw Error('Usage: node scripts/Inspect-WindowsUpdate.mjs port state|check|download|snapshot [stable|preview]');
+if (!Number.isInteger(port) || port < 1024 || port > 65535 || !['state', 'check', 'download', 'install', 'snapshot'].includes(operation) || !['stable', 'preview'].includes(channel)) throw Error('Usage: node scripts/Inspect-WindowsUpdate.mjs port state|check|download|install|snapshot [stable|preview]');
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(5000) })).json();
 const target = targets.find(item => item.type === 'page' && /^file:/.test(item.url) && /\/dist\/index\.html$/.test(item.url));
 if (!target) throw Error('Installed Zenix main renderer not found');
@@ -21,6 +21,7 @@ try {
   const response = await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => { reject(Error('Device acceptance response timed out')); }, 650000);
     socket.onerror = () => { clearTimeout(timeout); reject(Error('Local debugger connection failed')); };
+    socket.onclose = () => { clearTimeout(timeout); if(operation === 'install') resolve({ result:{result:{value:{installationRequested:true,appClosed:true}}} }); else reject(Error('Local debugger closed')); };
     socket.onmessage = event => { const data = JSON.parse(event.data); if (data.id !== 1) return; clearTimeout(timeout); resolve(data); };
     socket.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
   });

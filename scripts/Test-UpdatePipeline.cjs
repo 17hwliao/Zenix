@@ -42,7 +42,7 @@ test('official update transport validates every redirect and uses the Electron s
   const abort = new AbortController(); abort.abort(); await assert.rejects(fetchUpdate(apkUrl, { signal: abort.signal }, async () => { throw Error('must not connect'); }), { name: 'AbortError' });
 });
 
-async function updater(t, mutate = value => value) {
+async function updater(t, mutate = value => value, packaged = false) {
   const directory = await fsp.mkdtemp(path.join(os.tmpdir(), 'zenix-update-pipeline-')); t.after(() => fsp.rm(directory, { recursive: true, force: true }));
   const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const bytes = Buffer.from('synthetic-installer-fixture');
@@ -51,14 +51,24 @@ async function updater(t, mutate = value => value) {
   const envelope = { format: 'zenix-signed-release', payload: payload.toString('base64'), signature: sign('RSA-SHA256', payload, privateKey).toString('base64') };
   const source = path.resolve(__dirname, '../electron/runtime/updates.cjs'), realRequire = createRequire(source), module = { exports: {} };
   let corrupt = false, contacts = 0;
+  const launches=[];let quits=0;
+  const spawn=(file,args,options)=>{const child=new (require('node:events').EventEmitter)();child.unref=()=>{child.unreferenced=true;};launches.push({file,args,options,child});queueMicrotask(()=>child.emit('spawn'));return child;};
   const official = async url => { contacts++; return new Response(url.includes('feed.json') ? JSON.stringify(envelope) : corrupt ? 'corrupt' : bytes); };
-  vm.runInNewContext(fs.readFileSync(source, 'utf8'), { module, exports: module.exports, Buffer, URL, AbortController, AbortSignal, setTimeout, clearTimeout, process,
+  vm.runInNewContext(fs.readFileSync(source, 'utf8'), { module, exports: module.exports, Buffer, URL, AbortController, AbortSignal, setTimeout, clearTimeout, process: {platform:'win32'},
     require(id) { if (id === '../../package.json') return { zenixBuild: 19 }; if (id === '../../config/distribution.json') return { feeds: { stable: 'https://raw.githubusercontent.com/feed.json' }, publicKeySpki: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), windowsUpdateTrust: 'signed-manifest' };
+      if (id === 'node:child_process') return {spawn,execFile:require('node:child_process').execFile};
       if (id === './update-network.cjs') return { updateUrl, fetchUpdate: (url, opts) => fetchUpdate(url, opts, official) }; return realRequire(id); },
   }, { filename: source });
-  const app = { getVersion: () => '1.0.0', getPath: () => directory, isPackaged: false };
-  return { update: new module.exports.Updates(app), bytes, item, corrupt: () => { corrupt = true; }, contacts: () => contacts, envelope };
+  const app = { getVersion: () => '1.0.0', getPath: () => directory, isPackaged: packaged,quit:()=>quits++ };
+  return { update: new module.exports.Updates(app), bytes, item, corrupt: () => { corrupt = true; }, contacts: () => contacts, envelope, launches,quits:()=>quits };
 }
+
+test('verified Windows updates launch a visible interactive installer and quit only after spawn; tampered files cannot start it', async t => {
+  const fixture=await updater(t,x=>x,true),u=fixture.update;await u.check('stable');await u.download();
+  await fsp.writeFile(u.file,'changed');await assert.rejects(u.install(),/发生变化/);assert.equal(fixture.launches.length,0);assert.equal(fixture.quits(),0);
+  await fsp.writeFile(u.file,fixture.bytes);assert.equal((await u.install()).status,'installing');assert.equal(fixture.launches.length,1);
+  const launch=fixture.launches[0];assert.equal(launch.file,u.file);assert.equal(launch.args.join(' '),'--updated');assert.equal(launch.options.windowsHide,false);assert.equal(launch.options.detached,true);assert.equal(launch.child.unreferenced,true);assert.equal(fixture.quits(),1);
+});
 test('production Windows updater: signed same-version build upgrade, streamed hash verification, cache reuse and tamper rejection', async t => {
   const fixture = await updater(t), u = fixture.update;
   assert.equal((await u.check('stable')).status, 'available'); assert.equal(u.state.build, 20);
