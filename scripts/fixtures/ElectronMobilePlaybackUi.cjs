@@ -69,27 +69,29 @@ app.whenReady().then(async()=>{
   await screenshot('mobile-sticker-explicit-expand.png');await click('.is-focused [aria-label^="播放 "]');await sleep(300);
   assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),controlsBefore+1,'only explicit play switches');
   await click('.is-focused [aria-label="打开完整播放器"]');await wait('!!document.querySelector(".mobile-full-player")');await click('[aria-label="收起"]');await sleep(350);
-  // Search form and result list support small screens, long titles and a resized IME viewport.
+  // Search stays in the poster space; lists belong to queue/playlist management.
   await click('[aria-label="搜索歌曲"]');await wait('!!document.querySelector(".mobile-search")');
   await evaluate('(()=>{const el=document.querySelector(".mobile-search input");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,"很长的歌曲标题测试");el.dispatchEvent(new Event("input",{bubbles:true}));})()');
   for(const width of [320,360,390,430]){window.setContentSize(width,820);await sleep(90);assert.equal(await evaluate('(()=>{const el=document.querySelector(".mobile-search");return el.scrollWidth<=el.clientWidth+1&&[...el.querySelectorAll("form>*")].every(e=>e.getBoundingClientRect().right<=innerWidth-10);})()'),true,'search form width '+width);}
   window.setContentSize(320,820);await evaluate('document.querySelector(".mobile-search input").focus();window.dispatchEvent(new CustomEvent("zenix-keyboard",{detail:{open:true,height:300}}))');await sleep(120);
   assert.equal(await evaluate('document.querySelector(".mobile-search").getBoundingClientRect().bottom<=300'),true,'search stays above IME');
-  await screenshot('mobile-search-keyboard.png');await click('.mobile-search button[type="submit"]');await wait('document.querySelectorAll(".mobile-search-result").length===5');
+  await screenshot('mobile-search-keyboard.png');await click('.mobile-search button[type="submit"]');await wait('document.querySelectorAll(".space-sticker").length===5');
   await evaluate('window.dispatchEvent(new CustomEvent("zenix-keyboard",{detail:{open:false,height:820}}))');await sleep(350);
-  for(const width of [320,360,390,430]){window.setContentSize(width,820);await sleep(90);assert.equal(await evaluate('[...document.querySelectorAll(".mobile-search-result")].every(e=>e.scrollWidth<=e.clientWidth+1&&e.getBoundingClientRect().right<=innerWidth)'),true,'search result width '+width);}
+  for(const width of [320,360,390,430]){window.setContentSize(width,820);await sleep(90);assert.equal(await evaluate('(()=>{const v=document.querySelector(".space-viewport"),r=v.getBoundingClientRect();return getComputedStyle(v).touchAction==="none"&&r.width>0&&r.left>=0&&r.right<=innerWidth&&document.documentElement.scrollWidth<=innerWidth+1&&!document.querySelector(".mobile-search-results");})()'),true,'search retains the pannable sticker viewport '+width);}
   window.setContentSize(390,820);await screenshot('mobile-search-results.png');
-  const beforeSearchPlay=await evaluate('window.fixture.calls.filter(c=>c.action==="play").length');await click('.search-result-info');await wait('!!document.querySelector(".song-quick-actions")');assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="play").length'),beforeSearchPlay);await click('.sheet-close');await sleep(300);await click('.mobile-search-result [aria-label="播放 Fixture 2"]');assert.equal(await evaluate('window.fixture.state.playback.track.id'),'fixture-2');
+  const beforeSearchPlay=await evaluate('window.fixture.calls.filter(c=>["play","toggle"].includes(c.action)).length');await click('.space-sticker[data-song-id="fixture-3"] .space-poster');await sleep(500);assert.equal(await evaluate('document.querySelector(".space-sticker.is-focused").dataset.songId'),'fixture-3');assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle"].includes(c.action)).length'),beforeSearchPlay,'search poster click only focuses');assert.equal(await evaluate('!!document.querySelector(".space-sticker.is-expanded")'),false,'poster click does not enlarge');await click('.sticker-toolbar [aria-label="播放 Fixture 3"]');assert.equal(await evaluate('window.fixture.state.playback.track.id'),'fixture-3');
   await click('[aria-label="设置"]');await sleep(400);await click('[aria-label="搜索歌曲"]');await wait('!!document.querySelector(".mobile-search")');await click('[aria-label="关闭搜索"]');await click('.brand');await sleep(400);
-  assert.equal(await evaluate('window.fixture.state.playback.track.id'),'fixture-2','navigation does not restart or clear native playback');
+  assert.equal(await evaluate('window.fixture.state.playback.track.id'),'fixture-3','navigation does not restart or clear native playback');
   // The first result must be usable while another provider is pending; paginate the
   // submitted query even if the user edits and dismisses the search form later.
   await evaluate(`(()=>{const source=window.fixture.state.sources[0];const sources=[{...source,id:'fast'},{...source,id:'slow'},{...source,id:'lyrics',manifest:{...source.manifest,capabilities:['lyrics']}}];window.fixture.pending=[];window.fixture.search=payload=>new Promise((resolve,reject)=>window.fixture.pending.push({payload,resolve,reject}));window.fixture.setSnapshot({sources,localTracks:[{...window.fixture.state.playback.track,id:'local-match',title:'First query local'}]});})()`);
   const submit=async word=>{await click('[aria-label="搜索歌曲"]');await evaluate(`(()=>{const el=document.querySelector('.mobile-search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,${JSON.stringify(word)});el.dispatchEvent(new Event('input',{bubbles:true}));})()`);await sleep(50);await click('.mobile-search button[type="submit"]');};
   await submit('First query');await wait('window.fixture.pending.length===2');
-  assert.equal(await evaluate('document.querySelectorAll(".mobile-search-result").length'),1,'local results appear before native providers finish');
+  assert.equal(await evaluate('document.querySelectorAll(".space-sticker").length'),1,'local results appear before native providers finish');
+  await click('.sticker-toolbar [aria-label^="放大贴纸"]');await sleep(1000);const progressiveCamera=await evaluate('document.querySelector(".space-plane").style.transform');
   await evaluate(`window.fixture.pending[0].resolve({items:[{...window.fixture.state.playback.track,id:'fast-result',title:'Fast result'}],nextCursor:'page-2'})`);
-  await wait('document.querySelectorAll(".mobile-search-result").length===2');
+  await wait('document.querySelectorAll(".space-sticker").length===2');
+  assert.equal(await evaluate('document.querySelector(".space-sticker.is-expanded").dataset.songId'),'local-match','source replies preserve explicit expansion');assert.equal(await evaluate('document.querySelector(".space-plane").style.transform'),progressiveCamera,'source replies preserve browsing camera');
   assert.equal(await evaluate('!!document.querySelector(".space-more")'),false,'pagination waits for pending source cursors');
   await evaluate(`window.fixture.pending[1].resolve({items:[],nextCursor:'slow-2'})`);await wait('!!document.querySelector(".space-more")');
   await click('[aria-label="搜索歌曲"]');await evaluate(`(()=>{const el=document.querySelector('.mobile-search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,'Edited but not submitted');el.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('[aria-label="关闭搜索"]');await click('.space-more');
@@ -101,8 +103,31 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('window.fixture.pending[4].payload.id'),'slow','failed cursor is retained for retry');
   await submit('Second query');await wait('window.fixture.pending.length===7');
   await evaluate(`window.fixture.pending[4].resolve({items:[{...window.fixture.state.playback.track,id:'stale-result'}],nextCursor:''});window.fixture.pending[5].resolve({items:[{...window.fixture.state.playback.track,id:'fresh-result'}],nextCursor:''});window.fixture.pending[6].resolve({items:[],nextCursor:''})`);
-  await wait('document.querySelectorAll(".mobile-search-result").length===1');
-  assert.equal(await evaluate('!!document.querySelector("[aria-label=\\"更多 Fixture 2\\"]")'),true);
+  await wait('document.querySelectorAll(".space-sticker").length===1');
+  assert.equal(await evaluate('document.querySelector(".space-sticker").dataset.songId'),'fresh-result');
   assert.equal(await evaluate('window.fixture.calls.filter(item=>item.action==="search"&&item.payload.id==="lyrics").length'),0,'non-search providers are not queried');
+  // Sample actual animated geometry, not just the presence of a CSS class.
+  await evaluate(`void(window.fixture.search=async()=>({items:Array.from({length:24},(_,index)=>({...window.fixture.state.playback.track,id:'poster-'+index,title:'Poster '+index})),nextCursor:''}))`);
+  await submit('Poster animation');await wait('document.querySelector(".space-sticker[data-song-id=poster-0]")');await sleep(1000);
+  const posterGeometry=()=>evaluate('Object.fromEntries([...document.querySelectorAll(".space-sticker")].map(e=>[e.dataset.songId,{x:parseFloat(e.style.left),y:parseFloat(e.style.top),w:parseFloat(e.style.width),h:parseFloat(e.style.height)}]))');
+  const originalPosters=await posterGeometry(), originalCamera=await evaluate('document.querySelector(".space-plane").style.transform');
+  const beforeAnimationPlay=await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length');
+  await screenshot('mobile-sticker-restored-style.png');
+  await evaluate('document.querySelector(".space-sticker[data-song-id=poster-0] [aria-label^=放大贴纸]").click()');await sleep(70);
+  const duringExpansion=await posterGeometry();await sleep(1000);const enlargedPosters=await posterGeometry();
+  assert.ok(enlargedPosters['poster-0'].w>originalPosters['poster-0'].w+100,'explicit enlargement restores the large poster');
+  assert.ok(duringExpansion['poster-0'].w>originalPosters['poster-0'].w&&duringExpansion['poster-0'].w<enlargedPosters['poster-0'].w,'poster width interpolates through a spring animation');
+  assert.notEqual(await evaluate('document.querySelector(".space-plane").style.transform'),originalCamera,'camera follows the growing poster');
+  const movedNeighbor=Object.keys(originalPosters).find(id=>id!=='poster-0'&&enlargedPosters[id]&&['x','y','w','h'].some(key=>Math.abs(originalPosters[id][key]-enlargedPosters[id][key])>1));
+  assert.ok(movedNeighbor,'surrounding posters move to make room');await screenshot('mobile-sticker-restored-expanded.png');
+  await evaluate('document.querySelector(".space-sticker[data-song-id=poster-0] [aria-label^=缩小贴纸]").click()');await sleep(1000);const restoredPosters=await posterGeometry();
+  for(const id of ['poster-0',movedNeighbor])for(const key of ['x','y','w','h'])assert.ok(Math.abs(restoredPosters[id][key]-originalPosters[id][key])<.5,'shrinking restores mosaic geometry '+id+' '+key);
+  const focusCamera=await evaluate('document.querySelector(".space-plane").style.transform');
+  await evaluate('document.querySelector(".space-sticker[data-song-id=poster-1] .space-poster").click()');await sleep(70);const duringFocus=await evaluate('document.querySelector(".space-plane").style.transform');await sleep(1000);const settledFocus=await evaluate('document.querySelector(".space-plane").style.transform');
+  assert.notEqual(duringFocus,focusCamera,'poster click starts camera motion');assert.notEqual(duringFocus,settledFocus,'focus settles smoothly instead of jumping');
+  assert.equal(await evaluate('!!document.querySelector(".space-sticker.is-expanded")'),false,'focusing preserves the explicit enlargement requirement');
+  assert.equal(await evaluate('(()=>{const e=document.querySelector(".space-sticker.is-focused"),title=e.querySelector(".space-song").getBoundingClientRect(),index=e.querySelector(".sticker-index").getBoundingClientRect(),toolbar=e.querySelector(".sticker-toolbar").getBoundingClientRect();return title.top>=index.bottom&&title.bottom<=toolbar.top;})()'),true,'compact poster title fits between its index and controls');
+  assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),beforeAnimationPlay,'focus and enlargement never control audio');
+  await screenshot('mobile-sticker-restored-focus.png');
   process.stdout.write('MOBILE_PLAYBACK_UI_PASS\n');app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});
