@@ -80,7 +80,12 @@ final class AppUpdates {
     JSONObject download() throws Exception {
         if(artifact==null||!Arrays.asList("available","error","ready").contains(status()))return state();
         JSONObject item=artifact;cancelled=false;set("status","downloading");set("progress",0);set("message","正在下载更新，音乐继续播放");
-        File directory=new File(context.getFilesDir(),"updates"),partial=new File(directory,"update.part"),target=new File(directory,"update.apk");
+        // An OEM installer can retain a previously parsed APK for the same content
+        // URI. Never reuse that URI for different bytes or overwrite an installer
+        // input while it is open. Each signed build/hash has its own immutable name.
+        File directory=new File(context.getFilesDir(),"updates");
+        String name="zenix-r"+item.getLong("build")+"-"+item.getString("sha256")+".apk";
+        File target=new File(directory,name),partial=new File(directory,name+"."+UUID.randomUUID()+".part");
         try {
             if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("无法创建更新目录");
             if(target.isFile()&&target.length()==item.getLong("size")&&hashFile(target).equals(item.getString("sha256"))){validateApk(target,item);ready=target;set("status","ready");set("progress",100);set("message","已读取校验通过的更新包，点击后由系统确认安装");return state();}

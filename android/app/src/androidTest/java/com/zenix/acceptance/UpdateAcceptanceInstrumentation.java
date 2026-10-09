@@ -52,7 +52,12 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             .put("favorites",mainPersonal.getJSONArray("favorites").length()).put("playlists",mainPersonal.getJSONArray("playlists").length())
             .put("history",mainPersonal.getJSONArray("history").length())
             .put("sha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(mainPersonal).getBytes(StandardCharsets.UTF_8)))));
-        if (mode.equals("seed")||mode.equals("verify")) {
+        if (mode.equals("cache")) {
+            org.json.JSONArray packages=new org.json.JSONArray();
+            File[] files=new File(target.getFilesDir(),"updates").listFiles((dir,name)->name.endsWith(".apk"));
+            if(files!=null)for(File file:files)packages.put(archiveDigest(target,file));
+            out.put("cachedUpdates",packages);
+        } else if (mode.equals("seed")||mode.equals("verify")) {
             Context isolated=new ContextWrapper(target) {
                 @Override public Context getApplicationContext(){return this;}
                 @Override public File getFilesDir(){File path=new File(root,"synthetic-profile");path.mkdirs();return path;}
@@ -87,6 +92,10 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             JSONObject state=(JSONObject)call(updates,"check",new Class<?>[]{String.class},arguments.getString("channel","preview"));
             if(!mode.equals("check")&&state.optString("status").equals("available"))state=(JSONObject)call(updates,"download",new Class<?>[]{});
             if(mode.equals("install")&&state.optString("status").equals("ready")) {
+                JSONObject incoming=archiveDigest(target,(File)field(updates,"ready"));
+                JSONObject artifact=(JSONObject)field(updates,"artifact");
+                incoming.put("expectedBuild",artifact.getLong("build")).put("expectedSha256",artifact.getString("sha256"));
+                Bundle packageProgress=new Bundle();packageProgress.putString("zenixIncomingPackage",incoming.toString());sendStatus(3,packageProgress);
                 state=(JSONObject)call(updates,"install",new Class<?>[]{Activity.class},activity);
                 // The production installer posts to the main thread. Drain that
                 // runnable before instrumentation finishes and terminates the app.
@@ -118,6 +127,16 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
         JSONObject info=new JSONObject().put("exists",file.isFile());if(!file.isFile())return info;
         MessageDigest digest=MessageDigest.getInstance("SHA-256");try(InputStream input=new FileInputStream(file)){byte[] bytes=new byte[65536];int n;while((n=input.read(bytes))!=-1)digest.update(bytes,0,n);}
         return info.put("size",file.length()).put("sha256",hex(digest.digest()));
+    }
+    private static JSONObject archiveDigest(Context target,File file)throws Exception {
+        JSONObject result=fileDigest(file).put("filename",file.getName());if(!file.isFile())return result;
+        android.net.Uri providerUri=androidx.core.content.FileProvider.getUriForFile(target,target.getPackageName()+".fileprovider",file);
+        MessageDigest providerHash=MessageDigest.getInstance("SHA-256");long providerSize=0;
+        try(InputStream stream=target.getContentResolver().openInputStream(providerUri)){byte[] chunk=new byte[65536];int n;while((n=stream.read(chunk))!=-1){providerHash.update(chunk,0,n);providerSize+=n;}}
+        result.put("providerSha256",hex(providerHash.digest())).put("providerSize",providerSize);
+        PackageInfo archive=target.getPackageManager().getPackageArchiveInfo(file.getAbsolutePath(),0);
+        if(archive!=null)result.put("build",archive.getLongVersionCode()).put("packageName",archive.packageName).put("version",archive.versionName);
+        return result;
     }
     private static String hex(byte[] bytes){StringBuilder text=new StringBuilder();for(byte value:bytes)text.append(String.format(Locale.ROOT,"%02x",value&255));return text.toString();}
     private static String canonical(Object value)throws Exception {
