@@ -4,6 +4,11 @@ app.setPath('userData',process.env.ZENIX_TEST_USER_DATA);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
   const window=new BrowserWindow({show:false,width:390,height:820,useContentSize:true,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
+  // Hosted Windows runners can request reduced motion. These assertions exercise
+  // the full animation path, so establish that preference before React mounts.
+  await window.loadURL('about:blank');
+  window.webContents.debugger.attach('1.3');
+  await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
   window.webContents.on('console-message',event=>{if(event.level==='error')console.error(event.message);});
   const evaluate=async code=>{try{return await window.webContents.executeJavaScript(code,true);}catch(error){console.error('Fixture expression failed:',code);throw error;}};
   const wait=async code=>{for(let i=0;i<160;i++){if(await evaluate(code))return;await sleep(50);}console.error(await evaluate('JSON.stringify({queue:window.fixture?.state.playback.queue.map(t=>t.id),calls:window.fixture?.calls.slice(-8),events:window.fixture?.events?.slice(-16),rows:[...document.querySelectorAll(".swipe-track-row")].map(e=>({text:e.textContent,rect:e.getBoundingClientRect().toJSON(),style:e.getAttribute("style")}))})'));throw Error('UI timeout: '+code);};
@@ -12,6 +17,7 @@ app.whenReady().then(async()=>{
   const pointer=async(selector,dx=0,dy=0,hold=0)=>{const point=await bounds(selector);window.webContents.sendInputEvent({type:'mouseMove',...point});window.webContents.sendInputEvent({type:'mouseDown',...point,button:'left',clickCount:1});if(hold)await sleep(hold);if(dx||dy){for(let step=1;step<=5;step++){window.webContents.sendInputEvent({type:'mouseMove',x:point.x+Math.round(dx*step/5),y:point.y+Math.round(dy*step/5),modifiers:['leftButtonDown']});await sleep(20);}}window.webContents.sendInputEvent({type:'mouseUp',x:point.x+dx,y:point.y+dy,button:'left',clickCount:1});await sleep(100);};
   const screenshot=async name=>{await sleep(200);await fs.writeFile(path.join(app.getPath('userData'),name),(await window.webContents.capturePage()).toPNG());};
   await window.loadURL(process.env.ZENIX_TEST_UI_URL);
+  assert.equal(await evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'),false,'animation fixture must run with motion enabled');
   await wait('window.fixture&&document.querySelector(".mobile-mini")&&!document.querySelector(".mobile-boot")');
   const initialPlayback=await evaluate('window.fixture.state.playback');
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'resolving',startedAt:Date.now()-5000,message:'正在获取标准品质音频 · Source B（2/7）'}}})`);
@@ -183,7 +189,7 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),beforeAnimationPlay,'focus and enlargement never control audio');
   await screenshot('mobile-sticker-restored-focus.png');
   // Reduced-motion preferences still allow immediate opening and closing.
-  window.webContents.debugger.attach('1.3');
+  if(!window.webContents.debugger.isAttached())window.webContents.debugger.attach('1.3');
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
   await wait('matchMedia("(prefers-reduced-motion: reduce)").matches');await sleep(100);
   await pointer('.mini-info');await pointer('.mini-info');await wait('!!document.querySelector(".mobile-full-player")');
