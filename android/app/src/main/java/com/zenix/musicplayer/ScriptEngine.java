@@ -64,7 +64,7 @@ final class ScriptEngine implements AutoCloseable {
     }
     private static String asset(Context context,String name) throws IOException { return new String(SourceHttp.bounded(context.getAssets().open("zenix/"+name),2*1024*1024),StandardCharsets.UTF_8); }
     JSONObject ready() throws Exception {return ready(18000);}
-    JSONObject ready(long timeoutMs) throws Exception {try{return ready.get(Math.max(1,timeoutMs),TimeUnit.MILLISECONDS);}catch(TimeoutException error){close();throw error;}catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}}
+    JSONObject ready(long timeoutMs) throws Exception {try{return ready.get(Math.max(1,timeoutMs),TimeUnit.MILLISECONDS);}catch(TimeoutException error){close();throw new TimeoutException("音乐源初始化等待超时");}catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}}
     Object call(String method,Object payload,JSONObject settings) throws Exception {return call(method,payload,settings,20000);}
     synchronized Object call(String method,Object payload,JSONObject settings,long timeoutMs) throws Exception {
         long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(Math.max(1,timeoutMs));
@@ -72,7 +72,7 @@ final class ScriptEngine implements AutoCloseable {
         long id=++sequence; CompletableFuture<Object> result=new CompletableFuture<>(); pending.put(id,result);
         main.post(() -> { if(!closed) evaluate("__invoke("+id+","+JSONObject.quote(method)+","+payload+","+settings+")"); });
         try { return result.get(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS); }
-        catch(TimeoutException error){close();throw error;}
+        catch(TimeoutException error){close();throw new TimeoutException("音乐源解析等待超时");}
         catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}
         finally { pending.remove(id); }
     }

@@ -45,3 +45,39 @@ test('missing manifest signing key never generates a replacement when a release 
   await assert.rejects(promisify(execFile)(process.execPath, [path.resolve(__dirname, 'Init-Signing.mjs')], { env: { ...process.env, ZENIX_SIGNING_DIR: folder }, windowsHide: true }), /禁止重新生成/);
   assert.equal(fs.existsSync(path.join(folder, 'release-key.pem')), false);
 });
+
+async function retainedWindowsFeed(t, change={}) {
+  const {generateKeyPairSync,createPublicKey,sign,verify}=require('node:crypto');
+  const folder=await directory(t),file=path.join(folder,'windows.exe'),bytes=Buffer.from('Synthetic retained Windows installer');
+  await fsp.writeFile(file,change.file?Buffer.from('Different installer'):bytes);
+  const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
+  const previous={version:'1.0.0',build:28,url:'https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r28-x64.exe',sha256:hash(bytes).slice(7),size:bytes.length};
+  const payload=Buffer.from(JSON.stringify({schemaVersion:1,channel:'stable',artifacts:{windows:previous}}));
+  const envelope={format:'zenix-signed-release',payload:payload.toString('base64'),signature:sign('RSA-SHA256',payload,privateKey).toString('base64')};
+  if(change.signature)envelope.signature=Buffer.from('invalid signature').toString('base64');
+  const artifact={version:previous.version,build:change.build?27:28,url:change.url?previous.url.replace('r28','r27'):previous.url,file};
+  const description={channel:'preview',artifacts:{windows:artifact,android:{version:'1.0.0',build:33,url:'https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r33.apk',file}}};
+  const reads=new Map([
+    ['description.json',JSON.stringify(description)],
+    ['/synthetic/config/distribution.json',JSON.stringify({publicKeySpki:publicKey.export({type:'spki',format:'der'}).toString('base64')})],
+    ['/synthetic/package.json',JSON.stringify({version:'1.0.0',zenixBuild:33})],
+    ['/synthetic/updates/stable.json',JSON.stringify(envelope)],
+    ['synthetic-key',privateKey.export({type:'pkcs8',format:'pem'})],
+  ]),writes=[];
+  const args=['node','signer','description.json',...(change.flag===false?[]:['--retain-windows'])];
+  let source=await fsp.readFile(path.resolve(__dirname,'Sign-Release.mjs'),'utf8');
+  source=source.replace(/^import .*;\r?\n/gm,'').replaceAll('import.meta.url',JSON.stringify('file:///synthetic/scripts/Sign-Release.mjs'));
+  const read=file=>{const key=file instanceof URL?file.pathname:String(file);if(!reads.has(key))throw Error('Unexpected test input: '+key);return reads.get(key);};
+  await vm.runInNewContext('(async()=>{'+source+'})()',{readFileSync:read,writeFileSync:(file,data)=>writes.push({file,data}),mkdirSync(){},createReadStream:fs.createReadStream,sign,verify,createPublicKey,createHash,homedir:()=>folder,path,process:{argv:args,env:{ZENIX_RELEASE_PRIVATE_KEY:'synthetic-key'}},Buffer,URL,console:{log(){}}});
+  assert.equal(writes.length,1);
+  const result=JSON.parse(writes[0].data),signed=Buffer.from(result.payload,'base64');
+  assert.ok(verify('RSA-SHA256',signed,publicKey,Buffer.from(result.signature,'base64')));
+  const manifest=JSON.parse(signed);assert.deepEqual(manifest.artifacts.windows,previous);assert.equal(manifest.artifacts.android.build,33);
+}
+test('Android-only signer retains exactly the existing authenticated Windows artifact',async t=>retainedWindowsFeed(t));
+test('retained Windows mode rejects altered bytes, URL, build and invalid prior signature',async t=>{
+  for(const change of [{file:true},{url:true},{build:true},{signature:true}])await assert.rejects(retainedWindowsFeed(t,change),/保留 Windows|正式清单签名无效/);
+});
+test('normal signing still rejects a stale Windows build without explicit retention',async t=>{
+  await assert.rejects(retainedWindowsFeed(t,{flag:false}),/当前打包源码一致/);
+});

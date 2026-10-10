@@ -152,17 +152,22 @@ final class MusicSources implements AutoCloseable {
     interface Progress { void update(String phase,String message); }
     JSONObject resolve(JSONObject track,Set<String> attempted,String quality,Progress progress,java.util.function.BooleanSupplier cancelled,long budgetMs) throws Exception {
         String family=family(track);List<JSONObject> installed=sourcePlan.order(list(),family,track.optString("providerId"));Exception last=null;JSONObject original=null;try{original=find(track.optString("providerId"));}catch(Exception ignored){}
+        if(original!=null&&original.optString("kind").equals("lx")){
+            String platform=readInfo(track).optString("source");
+            installed.removeIf(source->{if(!source.optString("kind").equals("lx"))return false;JSONObject manifest=source.optJSONObject("manifest"),platforms=manifest==null?null:manifest.optJSONObject("lxPlatforms");return platforms==null||!platforms.has(platform);});
+        }
         long deadline=android.os.SystemClock.elapsedRealtime()+Math.max(1,Math.min(PlaybackSourcePlan.TOTAL_MS,budgetMs));
         for(int i=0;i<installed.size();i++) {
             if(cancelled.getAsBoolean())throw new java.util.concurrent.CancellationException();
             if(android.os.SystemClock.elapsedRealtime()>=deadline)break;
             JSONObject source=installed.get(i);String id=source.getString("id");JSONObject candidate=track;
-            long sourceDeadline=Math.min(deadline,android.os.SystemClock.elapsedRealtime()+PlaybackSourcePlan.SOURCE_MS);
-            String label="（"+(i+1)+"/"+installed.size()+"）";
-            progress.update(i==0?"connecting":"switching",(i==0?"正在连接":"切换至")+source.getJSONObject("manifest").optString("name","音乐源")+label);
+            long now=android.os.SystemClock.elapsedRealtime();
+            long sourceDeadline=now+PlaybackSourcePlan.sourceBudget(deadline-now,installed.size()-i);
+            String label=" · "+source.getJSONObject("manifest").optString("name","音乐源")+"（"+(i+1)+"/"+installed.size()+"）";
+            progress.update(i==0?"connecting":"switching",(i==0?"正在连接":"正在切换音乐源")+label);
             try {
                 boolean same=source.optString("kind").equals("lx")&&original!=null&&original.optString("kind").equals("lx");
-                if(same) { JSONObject info=readInfo(track);same=source.getJSONObject("manifest").getJSONObject("lxPlatforms").has(info.optString("source")); }
+                if(same) { JSONObject info=readInfo(track);same=source.getJSONObject("manifest").getJSONObject("lxPlatforms").has(info.optString("source"));if(!same)continue; }
                 if(!id.equals(track.optString("providerId"))&&!same) {
                     String matchKey=track.optString("id")+":"+id; synchronized(matched){candidate=matched.get(matchKey);}
                     if(candidate==null){if(attempted.contains(id+":match"))continue;attempted.add(id+":match");
@@ -177,10 +182,15 @@ final class MusicSources implements AutoCloseable {
                     String attempt=id+":"+q;if(attempted.contains(attempt))continue;attempted.add(attempt);
                     String normalized=q.equals("flac")?"lossless":q.equals("320k")?"high":"standard";
                     try {
-                        progress.update("resolving","正在获取"+(normalized.equals("lossless")?"无损":normalized.equals("high")?"高品质":"标准品质")+"音频"+label);Object value;
-                        if(source.optString("kind").equals("lx")){JSONObject info=readInfo(candidate);JSONObject platform=source.getJSONObject("manifest").getJSONObject("lxPlatforms").optJSONObject(info.optString("source"));if(platform==null||!platform.getJSONArray("qualitys").toString().contains(JSONObject.quote(q)))continue;value=invoke(source,"lx",Json.obj("source",info.optString("source"),"action","musicUrl","info",Json.obj("type",q,"musicInfo",info)),source.getJSONObject("settings"),true,remaining(sourceDeadline));}
-                        else { if(!source.getJSONObject("manifest").getJSONArray("qualities").toString().contains(JSONObject.quote(normalized)))continue;value=invoke(source,"resolvePlayback",Json.obj("remoteId",candidate.getString("remoteId"),"quality",normalized),source.getJSONObject("settings"),true,remaining(sourceDeadline)); }
-                        JSONObject result=value instanceof JSONObject?(JSONObject)value:Json.obj("url",value);String url=result.optString("url");JSONArray mediaHosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(url,mediaHosts,SourcePolicy.allowHttp(source));Json.put(result,"allowHttp",SourcePolicy.allowHttp(source));if(mediaHosts!=null)Json.put(result,"mediaHosts",mediaHosts);
+                        boolean lx=source.optString("kind").equals("lx");JSONObject info=lx?readInfo(candidate):null;
+                        if(lx){JSONObject platform=source.getJSONObject("manifest").getJSONObject("lxPlatforms").optJSONObject(info.optString("source"));if(platform==null||!platform.getJSONArray("qualitys").toString().contains(JSONObject.quote(q)))continue;}
+                        else if(!source.getJSONObject("manifest").getJSONArray("qualities").toString().contains(JSONObject.quote(normalized)))continue;
+                        progress.update("resolving","正在获取"+(normalized.equals("lossless")?"无损":normalized.equals("high")?"高品质":"标准品质")+"音频"+label);
+                        Object value=lx?invoke(source,"lx",Json.obj("source",info.optString("source"),"action","musicUrl","info",Json.obj("type",q,"musicInfo",info)),source.getJSONObject("settings"),true,remaining(sourceDeadline))
+                            :invoke(source,"resolvePlayback",Json.obj("remoteId",candidate.getString("remoteId"),"quality",normalized),source.getJSONObject("settings"),true,remaining(sourceDeadline));
+                        JSONObject result=value instanceof JSONObject?(JSONObject)value:Json.obj("url",value);String url=result.optString("url");JSONArray mediaHosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(url,mediaHosts,SourcePolicy.allowHttp(source),remaining(sourceDeadline));remaining(sourceDeadline);
+                        if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();
+                        Json.put(result,"allowHttp",SourcePolicy.allowHttp(source));if(mediaHosts!=null)Json.put(result,"mediaHosts",mediaHosts);
                         Json.put(result,"quality",normalized);Json.put(result,"providerId",id);Json.put(result,"cacheKey",track.getString("id")+":"+normalized);return result;
                     }catch(Exception e){if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();last=e;if(PlaybackSourcePlan.transportFailure(e)){sourcePlan.failure(id);break;}progress.update("retrying","当前品质不可用，尝试下一档"+label);}
                 }

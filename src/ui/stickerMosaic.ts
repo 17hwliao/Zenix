@@ -134,6 +134,14 @@ function assignNearest(base: StickerSlot[], targets: StickerRect[]): number[] {
   return assignment;
 }
 
+/** Camera positioning only needs the focused rectangle, not a repartition. */
+export function focusedStickerRect(selectedIndex: number, slots: StickerSlot[] = STICKER_SLOTS): StickerRect | undefined {
+  const selected = slots[selectedIndex];
+  if (!selected) return undefined;
+  const rect = focusRectFor(selected);
+  return { ...rect, x: selected.blockX * BLOCK_COLUMNS + rect.x, y: selected.blockY * BLOCK_ROWS + rect.y };
+}
+
 export function expandedStickerLayout(selectedIndex: number, slots: StickerSlot[] = STICKER_SLOTS): Map<number, StickerRect> {
   const selected = slots[selectedIndex];
   if (!selected) return new Map();

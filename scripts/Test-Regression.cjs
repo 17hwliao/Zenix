@@ -13,7 +13,7 @@ const { serveFile } = require('../electron/runtime/media-protocol.cjs');
 const { captureBody, audioHeader } = require('../electron/runtime/audio-capture.cjs');
 const { parseLyrics, activeLyricIndex } = require('../src/core/lyrics.ts');
 const { sourceDeadline } = require('../src/core/sourceDeadline.ts');
-const { stickerSlotsForCount, expandedStickerLayout } = require('../src/ui/stickerMosaic.ts');
+const { stickerSlotsForCount, expandedStickerLayout, focusedStickerRect } = require('../src/ui/stickerMosaic.ts');
 const track = (id, extra = {}) => ({ id, path: '', title: 'Fixture', artist: 'Artist', album: '', source: 'custom', providerId: 'first', remoteId: id, duration: 90, audioUrl: 'https://example.com/transient', ...extra });
 const temporary = async () => { const root = path.resolve(__dirname, '../release/regression'); await fsp.mkdir(root, { recursive: true }); return fsp.mkdtemp(path.join(root, 'case-')); };
 
@@ -48,6 +48,7 @@ for (const count of [0, 1, 2, 5, 12, 25, 108, 120, 300, 500]) test(`finite mosai
   const slots = stickerSlotsForCount(count); assert.equal(slots.length, count);
   for (const focus of [...new Set([0, Math.floor(count / 2), count - 1])].filter(i => i >= 0 && i < count)) {
     const expanded = expandedStickerLayout(focus, slots), rects = slots.map((slot, i) => expanded.get(i) || slot);
+    assert.deepEqual(focusedStickerRect(focus,slots),expanded.get(focus),'camera rectangle matches the full PC mosaic without computing a repartition');
     for (let i = 0; i < rects.length; i++) {
       const a = rects[i]; assert(a.columns > 0 && a.rows > 0);
       for (let j = i + 1; j < rects.length; j++) { const b = rects[j]; assert(a.x + a.columns <= b.x || b.x + b.columns <= a.x || a.y + a.rows <= b.y || b.y + b.rows <= a.y, `Overlap ${i},${j}`); }

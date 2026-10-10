@@ -11,6 +11,13 @@ final class PlaybackSourcePlan {
     private final Map<String, Long> failed = new HashMap<>();
     private final Map<String, String> winners = new LinkedHashMap<>();
     PlaybackSourcePlan(LongSupplier clock) { this.clock = clock; }
+    // Share the remaining wait among sources, instead of letting the first three
+    // slow providers consume the whole deadline before later providers are tried.
+    static long sourceBudget(long remaining,int candidates) {
+        if(remaining<=0)return 0;
+        long fair=(remaining+Math.max(1,candidates)-1)/Math.max(1,candidates);
+        return Math.min(remaining,Math.min(SOURCE_MS,Math.max(2000,fair)));
+    }
     synchronized void success(String family, String id) {
         failed.remove(id);
         if (winners.size() >= 64) winners.remove(winners.keySet().iterator().next());

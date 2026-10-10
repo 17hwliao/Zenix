@@ -20,5 +20,6 @@ test('real React mobile UI: queue management, poster search and animated focus/e
   httpServer.on('request',server.middlewares);await new Promise(resolve=>httpServer.listen(0,'127.0.0.1',resolve));t.after(async()=>{await server.close();await new Promise(resolve=>httpServer.close(resolve));});
   const env={...process.env,ZENIX_TEST_USER_DATA:folder,ZENIX_TEST_UI_URL:`http://127.0.0.1:${httpServer.address().port}/scripts/fixtures/mobile-playback-ui.html`};delete env.ELECTRON_RUN_AS_NODE;
   const {stdout,stderr}=await promisify(execFile)(require('electron'),[path.join(__dirname,'fixtures/ElectronMobilePlaybackUi.cjs')],{env,timeout:90000,windowsHide:true});assert.match(stdout,/MOBILE_PLAYBACK_UI_PASS/,stderr);
+  const transition=stdout.match(/DETAIL_TRANSITION (.+)/);if(transition)t.diagnostic('Chromium fixture detail transition: '+transition[1]);
   const output=path.resolve(__dirname,'../release/regression');await fsp.mkdir(output,{recursive:true});for(const name of ['mobile-swipe-playlist.png','mobile-quick-save.png','mobile-save-animation.png','mobile-glass-confirm.png','mobile-sticker-focus-expand.png','mobile-search-keyboard.png','mobile-search-results.png','mobile-sticker-restored-style.png','mobile-sticker-restored-expanded.png','mobile-sticker-restored-focus.png'])await fsp.copyFile(path.join(folder,name),path.join(output,name));
 });

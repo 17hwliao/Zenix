@@ -35,6 +35,11 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .space-viewport{position:absolute;inset:48px 0 0;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
 .is-panning .space-viewport{cursor:grabbing}
 .space-plane{position:absolute;left:0;top:0;will-change:transform}
+/* Blur a small surface, then composite it at full size (6px × 5 = 30px).
+   The visible cover keeps its original resolution; only the blurred wash is reduced. */
+.full-player-art{filter:none}
+.full-player-art>.mobile-art{width:20%;height:20%;filter:blur(6px);transform:scale(5);transform-origin:0 0}
+.full-player-art>.art-fallback{display:none}
 .space-sticker{position:absolute;overflow:hidden;border:1px solid #ffffff5c;border-radius:3px;background:#11151b;box-shadow:0 2px 6px #00000018;contain:layout paint}
 .space-sticker.is-focused{z-index:2;border-color:#ffffffcc;box-shadow:0 4px 30px #00000045}
 .space-sticker.is-expanded{border:2px solid #fffffff5;box-shadow:0 20px 70px #000000b3,0 0 0 1px #ffffff38}.space-sticker.is-expanded .space-poster>.mobile-art{filter:saturate(.92) brightness(.86)}
@@ -140,3 +145,12 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .mobile-search form{grid-template-columns:20px minmax(0,1fr) 44px 44px;column-gap:6px}.mobile-search form button{width:44px;min-width:44px;min-height:44px;border-radius:50%;background:#ffffff0b}.mobile-search form button[type="submit"]{background:#d6e4f2;color:#202734}.source-chips{scrollbar-width:none;padding-bottom:3px}.source-chips>button{min-height:40px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mobile-sheet{border-radius:30px 30px 0 0;background:linear-gradient(145deg,#444c638f,#232836eb);border:1px solid #ffffff30;box-shadow:0 -12px 60px #0003;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);scrollbar-width:thin}.sheet-close{background:#ffffff0c}.mobile-toast{border-radius:24px;background:linear-gradient(120deg,#505a718f,#242a38dd);border-color:#ffffff35;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 10px 40px #0003;overflow-wrap:anywhere}.mobile-source-status{background:#283044ad;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
 @media(prefers-reduced-motion:reduce){.mobile-content>section{animation:none!important}}
+
+/* Keep underlying controls mounted so detail slides do not resize the mosaic. */
+.mobile-space.is-suspended{pointer-events:none}
+.mobile-mini.is-covered{visibility:hidden;pointer-events:none}
+.mobile-source-status .source-status-copy{flex:1;min-width:0;overflow-wrap:anywhere}
+.source-status-copy>span{display:block}
+.source-status-copy small{display:block;font-size:10px;line-height:1.5;opacity:.75;margin-top:4px}
+.source-status-copy summary{font-size:10px;opacity:.85;margin-top:5px;cursor:pointer}
+.mobile-source-status>button{flex-shrink:0;min-height:32px}
