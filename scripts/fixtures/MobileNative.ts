@@ -21,4 +21,8 @@ export async function command<T>(action:string,payload:Record<string,any>={}):Pr
   if(action==='play')state={...state,playback:{...state.playback,queue:payload.tracks,track:payload.tracks[payload.index],queueIndex:payload.index,playWhenReady:true}};
   for(const listener of listeners)listener(state);if(action==='removeQueue'||action==='play'||action==='toggle')value={playback:state.playback,cache:state.cache};return value;
 }
-export const readLyrics=async()=>null;
+export const readLyrics=async()=>{
+  const fixture=(window as any).fixture;
+  (fixture.lyricReads??=[]).push({at:performance.now(),panelTop:document.querySelector('.mobile-full-player')?.getBoundingClientRect().top});
+  return fixture.lyrics??null;
+};

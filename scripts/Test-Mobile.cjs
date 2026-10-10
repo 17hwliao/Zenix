@@ -16,6 +16,15 @@ Module._load = function (id, parent) {
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const StickerSpace = require('../src/mobile/StickerSpace.tsx').default;
+const { mergeMobileSnapshot } = require('../src/mobile/snapshot.ts');
+test('mobile progress preserves presentation references, full playback clears stale loading/errors', () => {
+  const previous={playback:{track:{id:'one'},queue:[{id:'one'}],position:0,playing:false,sourceActivity:{phase:'resolving'},error:'old'},personal:{liked:[{id:'one'}],favorites:[],history:[],playlists:[]},sources:[{id:'source',manifest:{name:'Source'}}],cache:{enabled:true,usedBytes:0}};
+  const progress=mergeMobileSnapshot(previous,{playback:{position:1},cache:{enabled:true,usedBytes:0}});
+  assert.equal(progress.personal,previous.personal);assert.equal(progress.sources,previous.sources);assert.equal(progress.cache,previous.cache);assert.equal(progress.playback.queue,previous.playback.queue);assert.equal(progress.playback.sourceActivity,previous.playback.sourceActivity);
+  const full=mergeMobileSnapshot(progress,{playback:{track:{id:'one'},queue:[{id:'one'}],position:2,playing:true},sources:structuredClone(previous.sources)});
+  assert.equal(full.playback.sourceActivity,undefined);assert.equal(full.playback.error,undefined);assert.equal(full.playback.queue,previous.playback.queue);assert.equal(full.sources,previous.sources);
+  const changed=mergeMobileSnapshot(full,{sources:[{id:'source',manifest:{name:'Renamed'}}]});assert.equal(changed.sources[0].manifest.name,'Renamed');assert.notEqual(changed.sources,full.sources);assert.equal(full.sources[0].manifest.name,'Source');
+});
 for (const count of [0, 1, 25, 120, 500]) test(`mobile wall retains ${count} items but bounds mounted motion nodes`, () => {
   const songs = Array.from({ length: count }, (_, i) => ({ id: String(i), title: 'Fixture', artist: 'Artist', source: 'local', duration: 90, path: '', audioUrl: '' }));
   const html = renderToStaticMarkup(React.createElement(StickerSpace, {

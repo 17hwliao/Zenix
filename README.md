@@ -43,20 +43,22 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 以上为当前代码已集成的功能范围。项目未接入账号或登录系统。
 
-r18 包含 `.zenixlist` 歌单导入导出、Windows / Android 局域网歌单迁移、听歌统计和回忆卡、睡眠定时器，以及 Android 桌面组件 / Windows 音乐小窗，见 [音乐工具说明](docs/music-tools.md)。另修复 Android 后台解析与局部状态合并，加入滑动移出、长按快捷保存动画、缓存状态和音源顺序优化，见 [移动端播放与手势](docs/mobile-playback-and-gestures.md)。本轮另修补页面切换、搜索结果列表、玻璃确认弹窗和贴纸独立播放 / 放大按钮，见 [移动界面修补](docs/mobile-ui-r18.md)。真机验收限制见对应说明。
+支持 `.zenixlist` 歌单文件、局域网歌单迁移、听歌统计和回忆卡、睡眠定时器及桌面组件，见 [音乐工具说明](docs/music-tools.md)。移动端支持滑动移出歌曲、长按快捷保存、缓存状态和音源管理，见 [移动端播放与手势](docs/mobile-playback-and-gestures.md)。当前优化覆盖页面切换、贴纸聚焦与播放器展开 / 收起，保留原拼贴设计，见 [性能记录](docs/review-mobile-performance.md)。
 
 ## 获取与使用
 
 ### 首版 v1.0.0
 
-当前维护 Windows / Android，最新修补为 [v1.0.0 · r28](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)，内部构建均为 28；第一正式升级基线仍为 r27。r28 恢复移动端搜索后的贴纸空间，以及与 PC 一致的点击展开、旧贴纸收回、周围贴纸重排和镜头过渡。点击不切歌或打开全屏，播放 / 全屏仍由按钮触发。新安装包使用独立文件名，已发布下载地址继续保留。iOS 暂停发行，工程与已有下载工件保留。
+当前安装入口统一为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 保留当前稳定构建 28。移动端包含页面切换、贴纸聚焦及播放器展开 / 收起的性能优化；切歌和全屏仍由明确按钮触发。iOS 暂停发行，工程保留。
 
-| 平台 | 发行内容 | 安装与更新 |
+| 平台 | 当前下载 | 安装与更新 |
 | --- | --- | --- |
-| Windows x64 | Zenix-Setup-1.0.0-r28-x64.exe | NSIS 安装包，保留用户资料；沿用签名清单与 SHA256 核验，暂无 Authenticode 发行证书，系统可能提示未知发布者。 |
-| Android | Zenix-Android-1.0.0-r28.apk | 沿用原正式发行密钥签名 APK；没有覆盖或重新生成密钥。不同签名的 Debug 测试包不能直接覆盖。 |
+| Windows x64 | [下载安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r28-x64.exe) | 当前稳定 r28，覆盖安装保留资料；沿用签名清单和 SHA256 核验，暂无 Authenticode 发行证书。 |
+| Android | [下载 APK](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r33.apk) | 优化版 r33，沿用原发行密钥和包名，覆盖安装保留资料。 |
 
-同页提供 SHA256SUMS-1.0.0-r28.txt 校验文件，以及 GitHub 自动生成的完整源码归档。旧安装包保留用于已有清单和下载地址兼容。公开工件不包含用户音乐、缓存、个人资料、私人源脚本或签名私钥。88 项回归及 Android / Windows r27→r28 的真实升级和资料保留验证通过；设备功能的验收边界见 [发行说明](docs/releases/v1.0.0.md)。
+同页提供 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/SHA256SUMS-1.0.0-r33.txt) 和完整源码归档。main 保留当前完整源码。公开工件不包含用户音乐、缓存、个人资料、私人源脚本或签名私钥。本次整理按维护者要求不新增测试，已有验收事实与未验证项见 [发行说明](docs/releases/v1.0.0.md)。
+
+历史安装包和验收 Release 按维护者明确要求清理，旧下载链接失效。持有旧清单的客户端应先重新检查更新，再下载当前包；原发行身份、更新签名和内置通道保留。
 
 第一正式基线之前的发行属于测试阶段，存在下载地址限制、Windows 重定向 / 安装器不可见、Android 安装器复用固定文件地址等已记录问题。受影响旧测试客户端可能需要手动下载当前同签名包覆盖安装一次，无需卸载。r27 及后续正式版本以完整应用内升级为硬约束，见 [审查与验收记录](docs/review-first-stable.md)。
 

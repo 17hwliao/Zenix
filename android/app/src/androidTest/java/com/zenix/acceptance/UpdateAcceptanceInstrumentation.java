@@ -52,7 +52,89 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             .put("favorites",mainPersonal.getJSONArray("favorites").length()).put("playlists",mainPersonal.getJSONArray("playlists").length())
             .put("history",mainPersonal.getJSONArray("history").length())
             .put("sha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(mainPersonal).getBytes(StandardCharsets.UTF_8)))));
-        if (mode.equals("cache")) {
+        if (mode.equals("uiPerformance")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
+            launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            long started=android.os.SystemClock.elapsedRealtime();while(foregroundActivity==null&&android.os.SystemClock.elapsedRealtime()-started<15000)Thread.sleep(100);
+            if(foregroundActivity==null)throw new IOException("Target Activity not resumed");
+            android.webkit.WebView view=((com.getcapacitor.BridgeActivity)foregroundActivity).getBridge().getWebView();
+            started=android.os.SystemClock.elapsedRealtime();
+            while(!evaluate(view,"!!document.querySelector('.mobile-nav')&&!document.querySelector('.mobile-boot')").equals("true")) {
+                if(android.os.SystemClock.elapsedRealtime()-started>20000)throw new IOException("Mobile UI did not become ready");Thread.sleep(200);
+            }
+            String script;try(InputStream stream=getContext().getAssets().open("mobile-performance.js")){script=new String(stream.readAllBytes(),StandardCharsets.UTF_8);}
+            boolean trace=arguments.getString("trace","false").equals("true");
+            try {
+                if(trace){runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(true));Thread.sleep(3000);}
+                evaluate(view,script);started=android.os.SystemClock.elapsedRealtime();String report;
+                while((report=evaluate(view,"JSON.stringify(window.__zenixMobilePerf?.report||null)")).equals("\"null\"")) {
+                    if(android.os.SystemClock.elapsedRealtime()-started>90000)throw new IOException("Mobile performance probe timed out");Thread.sleep(250);
+                }
+                Object decoded=new org.json.JSONTokener(report).nextValue();out.put("uiPerformance",new JSONObject(String.valueOf(decoded)));
+            } finally { if(trace)runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(false)); }
+            out.put("configurationSha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(new JSONObject().put("sources",mainData.opt("sources")).put("profile",mainData.opt("profile")).put("appearance",mainData.opt("appearance"))).getBytes(StandardCharsets.UTF_8))));
+        } else if (mode.equals("sourceDiagnostic")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
+            launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            long started=android.os.SystemClock.elapsedRealtime();while(foregroundActivity==null&&android.os.SystemClock.elapsedRealtime()-started<15000)Thread.sleep(100);
+            if(foregroundActivity==null)throw new IOException("Target Activity not resumed");
+            Class<?> sourcesClass=target.getClassLoader().loadClass("com.zenix.musicplayer.MusicSources");
+            Constructor<?> sourcesConstructor=sourcesClass.getDeclaredConstructor(Context.class,mainStore.getClass());sourcesConstructor.setAccessible(true);
+            Object sources=sourcesConstructor.newInstance(target,mainStore);
+            org.json.JSONArray records=(org.json.JSONArray)call(sources,"list",new Class<?>[]{}),summary=new org.json.JSONArray();
+            org.json.JSONArray queue=mainData.optJSONArray("queue");int index=mainData.optInt("queueIndex",-1);
+            JSONObject track=queue!=null&&index>=0&&index<queue.length()?queue.optJSONObject(index):null;
+            out.put("queueCount",queue==null?0:queue.length()).put("queueIndex",index);
+            JSONObject info=null;if(track!=null&&track.optString("source").equals("custom"))try{
+                info=new JSONObject(new String(android.util.Base64.decode(track.getString("remoteId"),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING),StandardCharsets.UTF_8));
+                out.put("catalogPlatform",info.optString("source"));
+            }catch(Exception ignored){}
+            try {for(int i=0;i<records.length();i++){
+                JSONObject record=new JSONObject(records.getJSONObject(i).toString()),policy=record.optJSONObject("networkPolicy"),settings=record.optJSONObject("settings");
+                boolean httpProbe=arguments.getString("allowHttpProbe","false").equals("true");
+                if(httpProbe){if(policy==null)policy=new JSONObject();policy.put("allowHttp",true);record.put("networkPolicy",policy);}
+                JSONObject item=new JSONObject().put("id",record.optString("id")).put("name",record.getJSONObject("manifest").optString("name")).put("sha256",record.optString("sha256"))
+                    .put("temporaryHttpProbe",httpProbe)
+                    .put("enabled",record.optBoolean("enabled")).put("kind",record.optString("kind"))
+                    .put("allowHttp",policy!=null&&policy.optBoolean("allowHttp"))
+                    .put("restrictedHostCount",policy==null||policy.optJSONArray("hosts")==null?0:policy.getJSONArray("hosts").length())
+                    .put("settingsKeys",settings==null?new org.json.JSONArray():settings.names());
+                summary.put(item);if(!record.optBoolean("enabled")||info==null||!record.optString("kind").equals("lx"))continue;
+                JSONObject platform=record.getJSONObject("manifest").getJSONObject("lxPlatforms").optJSONObject(info.optString("source"));
+                if(platform==null){item.put("result","platformUnsupported");continue;}
+                long begin=android.os.SystemClock.elapsedRealtime();Object engine=null;
+                try{
+                    engine=call(sources,"engine",new Class<?>[]{JSONObject.class},record);
+                    String quality=platform.getJSONArray("qualitys").toString().contains("320k")?"320k":platform.getJSONArray("qualitys").getString(0);
+                    JSONObject request=new JSONObject().put("source",info.getString("source")).put("action","musicUrl")
+                        .put("info",new JSONObject().put("type",quality).put("musicInfo",info));
+                    Object resolved=call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"lx",request,settings,12000L);
+                    String url=resolved instanceof JSONObject?((JSONObject)resolved).optString("url"):String.valueOf(resolved);
+                    java.net.URL parsed=new java.net.URL(url);item.put("resolvedScheme",parsed.getProtocol()).put("resolvedHost",parsed.getHost());
+                    Class<?> policyClass=target.getClassLoader().loadClass("com.zenix.musicplayer.SourcePolicy");
+                    Method hosts=policyClass.getDeclaredMethod("hosts",JSONObject.class,String.class);hosts.setAccessible(true);
+                    org.json.JSONArray allowed=(org.json.JSONArray)hosts.invoke(null,record,"mediaHosts");
+                    Class<?> httpClass=target.getClassLoader().loadClass("com.zenix.musicplayer.SourceHttp");
+                    Method check=httpClass.getDeclaredMethod("check",String.class,org.json.JSONArray.class,boolean.class);check.setAccessible(true);check.invoke(null,url,allowed,item.optBoolean("allowHttp"));
+                    item.put("result","resolvedAndNetworkPolicyPassed");
+                    Method client=httpClass.getDeclaredMethod("client",org.json.JSONArray.class,int.class,boolean.class);client.setAccessible(true);
+                    okhttp3.OkHttpClient media=(okhttp3.OkHttpClient)client.invoke(null,allowed,8000,item.optBoolean("allowHttp"));
+                    okhttp3.Request.Builder mediaRequest=new okhttp3.Request.Builder().url(url).header("User-Agent","Zenix Android").header("Range","bytes=0-1023");
+                    JSONObject mediaHeaders=resolved instanceof JSONObject?((JSONObject)resolved).optJSONObject("headers"):null;
+                    if(mediaHeaders!=null)for(java.util.Iterator<String> keys=mediaHeaders.keys();keys.hasNext();){String key=keys.next();if(!key.equalsIgnoreCase("Host")&&!key.equalsIgnoreCase("Content-Length"))mediaRequest.header(key,mediaHeaders.optString(key));}
+                    okhttp3.Call mediaCall=media.newCall(mediaRequest.build());mediaCall.timeout().timeout(12000,java.util.concurrent.TimeUnit.MILLISECONDS);
+                    try(okhttp3.Response response=mediaCall.execute()){
+                        item.put("mediaStatus",response.code()).put("mediaType",response.header("Content-Type",""));
+                        java.io.InputStream stream=response.body()==null?null:response.body().byteStream();byte[] prefix=new byte[16];int received=stream==null?-1:stream.read(prefix);
+                        item.put("mediaPrefixBytes",Math.max(0,received));item.put("result",response.isSuccessful()&&received>0?"audioBytesReceived":"mediaRejected");
+                    }
+                }catch(Throwable failure){Throwable cause=failure;while(cause instanceof InvocationTargetException||cause instanceof java.util.concurrent.ExecutionException){Throwable next=cause.getCause();if(next==null)break;cause=next;}
+                    String message=String.valueOf(cause.getMessage()).replaceAll("https?://\\S+","[URL]").replaceAll("(?i)(token|password|authorization|api[-_]?key)[=: ]+\\S+","[REDACTED]");
+                    item.put("result","failed").put("errorType",cause.getClass().getSimpleName()).put("message",message);
+                }finally{item.put("elapsedMs",android.os.SystemClock.elapsedRealtime()-begin);if(engine!=null)call(engine,"close",new Class<?>[]{});}
+            }}finally{call(sources,"close",new Class<?>[]{});}
+            out.put("sourceDiagnostics",summary);
+        } else if (mode.equals("cache")) {
             org.json.JSONArray packages=new org.json.JSONArray();
             File[] files=new File(target.getFilesDir(),"updates").listFiles((dir,name)->name.endsWith(".apk"));
             if(files!=null)for(File file:files)packages.put(archiveDigest(target,file));
@@ -137,6 +219,11 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
         PackageInfo archive=target.getPackageManager().getPackageArchiveInfo(file.getAbsolutePath(),0);
         if(archive!=null)result.put("build",archive.getLongVersionCode()).put("packageName",archive.packageName).put("version",archive.versionName);
         return result;
+    }
+    private String evaluate(android.webkit.WebView view,String script)throws Exception {
+        java.util.concurrent.CountDownLatch latch=new java.util.concurrent.CountDownLatch(1);java.util.concurrent.atomic.AtomicReference<String> value=new java.util.concurrent.atomic.AtomicReference<>();
+        runOnMainSync(()->view.evaluateJavascript(script,result->{value.set(result);latch.countDown();}));
+        if(!latch.await(8,java.util.concurrent.TimeUnit.SECONDS))throw new IOException("UI evaluation timeout");return value.get();
     }
     private static String hex(byte[] bytes){StringBuilder text=new StringBuilder();for(byte value:bytes)text.append(String.format(Locale.ROOT,"%02x",value&255));return text.toString();}
     private static String canonical(Object value)throws Exception {

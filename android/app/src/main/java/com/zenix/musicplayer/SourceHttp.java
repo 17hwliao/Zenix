@@ -13,10 +13,13 @@ final class SourceHttp {
     private static final ExecutorService DNS=new ThreadPoolExecutor(4,4,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(16));
     private static final OkHttpClient BASE=new OkHttpClient.Builder().dns(SourceHttp::addresses).followRedirects(false).followSslRedirects(false).connectTimeout(8,TimeUnit.SECONDS).readTimeout(15,TimeUnit.SECONDS).connectionPool(new ConnectionPool(4,30,TimeUnit.SECONDS)).build();
     private static List<InetAddress> addresses(String host)throws UnknownHostException {
+        return addresses(host,5000);
+    }
+    private static List<InetAddress> addresses(String host,long timeoutMs)throws UnknownHostException {
         Future<InetAddress[]> lookup;
         try{lookup=DNS.submit(()->InetAddress.getAllByName(host));}catch(RejectedExecutionException error){throw new UnknownHostException("域名查询队列已满");}
         List<InetAddress> result;
-        try{result=Arrays.asList(lookup.get(5,TimeUnit.SECONDS));}
+        try{result=Arrays.asList(lookup.get(Math.max(1,Math.min(5000,timeoutMs)),TimeUnit.MILLISECONDS));}
         catch(InterruptedException error){Thread.currentThread().interrupt();throw new UnknownHostException("域名查询已取消");}
         catch(Exception error){throw new UnknownHostException("域名查询超时或失败");}
         finally{if(!lookup.isDone())lookup.cancel(true);}
@@ -51,7 +54,10 @@ final class SourceHttp {
         return check(address,allowed,false);
     }
     static URL check(String address,JSONArray allowed,boolean allowHttp) throws Exception {
-        URL url=rule(address,allowed,allowHttp);addresses(url.getHost());
+        return check(address,allowed,allowHttp,5000);
+    }
+    static URL check(String address,JSONArray allowed,boolean allowHttp,long timeoutMs) throws Exception {
+        URL url=rule(address,allowed,allowHttp);addresses(url.getHost(),timeoutMs);
         return url;
     }
     static JSONObject request(String address,JSONObject options,JSONArray allowed) throws Exception {
