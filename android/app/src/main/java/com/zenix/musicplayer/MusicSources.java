@@ -11,6 +11,7 @@ import java.util.regex.*;
 
 final class MusicSources implements AutoCloseable {
     private final Context context; private final PrivateStore store;
+    final SourceDiagnostics diagnostics;
     private final File directory;
     private final java.util.concurrent.atomic.AtomicLong metadataEpoch=new java.util.concurrent.atomic.AtomicLong();
     private volatile long metadataBytes;
@@ -19,7 +20,7 @@ final class MusicSources implements AutoCloseable {
     private final Map<String,JSONObject> previews=new HashMap<>();
     private final Map<String,JSONObject> matched=new LinkedHashMap<>();
     private static final Set<String> PLATFORMS=Set.of("kw","kg","wy","tx","mg");
-    MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
+    MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;diagnostics=new SourceDiagnostics(context,store);directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
     JSONArray list() { return store.array("sources"); }
     synchronized JSONObject shareBundle() throws Exception {
         return SourceShare.bundle(list(),source -> {
@@ -151,7 +152,7 @@ final class MusicSources implements AutoCloseable {
     synchronized void clearMetadata(){metadataEpoch.incrementAndGet();for(File file:metadataFiles())file.delete();pruneMetadata();}
     interface Progress { void update(String phase,String message); }
     JSONObject resolve(JSONObject track,Set<String> attempted,String quality,Progress progress,java.util.function.BooleanSupplier cancelled,long budgetMs) throws Exception {
-        String family=family(track);List<JSONObject> installed=sourcePlan.order(list(),family,track.optString("providerId"));Exception last=null;JSONObject original=null;try{original=find(track.optString("providerId"));}catch(Exception ignored){}
+        String family=family(track);List<JSONObject> installed=sourcePlan.order(list(),family,track.optString("providerId"));if(!store.readKeys("smoothPlayback").optBoolean("smoothPlayback")){installed=new ArrayList<>();JSONArray configured=list();for(int n=0;n<configured.length();n++){JSONObject item=configured.optJSONObject(n);if(item!=null&&item.optBoolean("enabled"))installed.add(item);}}else {JSONObject stats=diagnostics.state().optJSONObject("sources");if(stats!=null)installed.sort((a,b)->Long.compare(stats.optJSONObject(b.optString("id"))==null?0:stats.optJSONObject(b.optString("id")).optLong("lastPlayedAt"),stats.optJSONObject(a.optString("id"))==null?0:stats.optJSONObject(a.optString("id")).optLong("lastPlayedAt")));}String preferred=track.optString("preferredPlaybackProviderId");if(!preferred.isEmpty()){JSONArray configured=list();for(int n=0;n<configured.length();n++){JSONObject item=configured.optJSONObject(n);if(item!=null&&item.optBoolean("enabled")&&item.optString("id").equals(preferred)&&installed.stream().noneMatch(value->value.optString("id").equals(preferred)))installed.add(item);}}installed.removeIf(item->{JSONObject manifest=item.optJSONObject("manifest");JSONArray capabilities=manifest==null?null:manifest.optJSONArray("capabilities");return capabilities!=null&&!capabilities.toString().contains(JSONObject.quote("resolvePlayback"));});if(!preferred.isEmpty())installed.sort((a,b)->Boolean.compare(!a.optString("id").equals(preferred),!b.optString("id").equals(preferred)));Exception last=null;JSONObject original=null;try{original=find(track.optString("providerId"));}catch(Exception ignored){}
         if(original!=null&&original.optString("kind").equals("lx")){
             String platform=readInfo(track).optString("source");
             installed.removeIf(source->{if(!source.optString("kind").equals("lx"))return false;JSONObject manifest=source.optJSONObject("manifest"),platforms=manifest==null?null:manifest.optJSONObject("lxPlatforms");return platforms==null||!platforms.has(platform);});
@@ -181,6 +182,7 @@ final class MusicSources implements AutoCloseable {
                     if(cancelled.getAsBoolean())throw new java.util.concurrent.CancellationException();
                     String attempt=id+":"+q;if(attempted.contains(attempt))continue;attempted.add(attempt);
                     String normalized=q.equals("flac")?"lossless":q.equals("320k")?"high":"standard";
+                    long diagnosticStarted=android.os.SystemClock.elapsedRealtime();
                     try {
                         boolean lx=source.optString("kind").equals("lx");JSONObject info=lx?readInfo(candidate):null;
                         if(lx){JSONObject platform=source.getJSONObject("manifest").getJSONObject("lxPlatforms").optJSONObject(info.optString("source"));if(platform==null||!platform.getJSONArray("qualitys").toString().contains(JSONObject.quote(q)))continue;}
@@ -191,8 +193,9 @@ final class MusicSources implements AutoCloseable {
                         JSONObject result=value instanceof JSONObject?(JSONObject)value:Json.obj("url",value);String url=result.optString("url");JSONArray mediaHosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(url,mediaHosts,SourcePolicy.allowHttp(source),remaining(sourceDeadline));remaining(sourceDeadline);
                         if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();
                         Json.put(result,"allowHttp",SourcePolicy.allowHttp(source));if(mediaHosts!=null)Json.put(result,"mediaHosts",mediaHosts);
+                        Json.put(result,"providerName",source.getJSONObject("manifest").optString("name","音乐源"));Json.put(result,"diagnosticAttemptId",diagnostics.record(id,diagnosticStarted,null));progress.update("connecting","地址已取得，正在连接音频"+label);
                         Json.put(result,"quality",normalized);Json.put(result,"providerId",id);Json.put(result,"cacheKey",track.getString("id")+":"+normalized);return result;
-                    }catch(Exception e){if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();last=e;if(PlaybackSourcePlan.transportFailure(e)){sourcePlan.failure(id);break;}progress.update("retrying","当前品质不可用，尝试下一档"+label);}
+                    }catch(Exception e){if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();diagnostics.record(id,diagnosticStarted,e);last=e;if(PlaybackSourcePlan.transportFailure(e)){sourcePlan.failure(id);break;}progress.update("retrying","当前品质不可用，尝试下一档"+label);}
                 }
             }catch(java.util.concurrent.CancellationException e){throw e;}catch(Exception e){if(cancelled.getAsBoolean()||Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException();last=e;if(PlaybackSourcePlan.transportFailure(e))sourcePlan.failure(id);}
         }
@@ -200,8 +203,8 @@ final class MusicSources implements AutoCloseable {
     }
     private static long remaining(long deadline)throws java.util.concurrent.TimeoutException {long value=deadline-android.os.SystemClock.elapsedRealtime();if(value<=0)throw new java.util.concurrent.TimeoutException("本音乐源等待已超时");return value;}
     private String family(JSONObject track){try{JSONObject source=find(track.optString("providerId"));if(source.optString("kind").equals("lx"))return "lx:"+readInfo(track).optString("source");}catch(Exception ignored){}return track.optString("providerId");}
-    void playbackReady(JSONObject track,JSONObject result){if(track!=null&&result!=null&&!result.has("cacheHit"))sourcePlan.success(family(track),result.optString("providerId"));}
-    void playbackFailed(JSONObject result,boolean transport){if(transport&&result!=null&&!result.has("cacheHit"))sourcePlan.failure(result.optString("providerId"));}
+    void playbackReady(JSONObject track,JSONObject result){diagnostics.outcome(result,true,null);if(track!=null&&result!=null&&!result.has("cacheHit"))sourcePlan.success(family(track),result.optString("providerId"));}
+    void playbackFailed(JSONObject result,boolean transport){diagnostics.outcome(result,false,transport?"网络连接失败":"音频格式不支持");if(transport&&result!=null&&!result.has("cacheHit"))sourcePlan.failure(result.optString("providerId"));}
     JSONObject cachedNetwork(JSONObject saved)throws Exception {JSONObject source=find(saved.getString("providerId"));if(!source.optBoolean("enabled"))throw new Exception("原音乐源已关闭");JSONObject copy=Json.copy(saved);JSONArray hosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(copy.getString("url"),hosts,SourcePolicy.allowHttp(source));Json.put(copy,"mediaHosts",hosts==null?JSONObject.NULL:hosts);Json.put(copy,"allowHttp",SourcePolicy.allowHttp(source));return copy;}
     synchronized JSONArray move(String id,int direction)throws Exception {JSONArray current=list();int at=-1;for(int i=0;i<current.length();i++)if(current.optJSONObject(i).optString("id").equals(id))at=i;if(at<0)throw new Exception("音乐源不存在");int next=Math.max(0,Math.min(current.length()-1,at+(direction<0?-1:1)));JSONArray result=new JSONArray();for(int i=0;i<current.length();i++)result.put(current.opt(i==at?next:i==next?at:i));store.set("sources",result);return result;}
     private static int parsePage(String text){try{return Integer.parseInt(text);}catch(Exception e){return 1;}}
@@ -210,5 +213,5 @@ final class MusicSources implements AutoCloseable {
     static String sha(String text) throws Exception { StringBuilder b=new StringBuilder();for(byte value:MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)))b.append(String.format("%02x",value&255));return b.toString(); }
     private static JSONObject metadata(String script) { JSONObject info=new JSONObject();for(String field:List.of("name","author","description","version","homepage")){Matcher m=Pattern.compile("^\\s*\\*\\s*@"+field+"\\s+(.+)$",Pattern.MULTILINE|Pattern.CASE_INSENSITIVE).matcher(script);Json.put(info,field,m.find()?m.group(1).trim():field.equals("name")?"自定义音乐源":field.equals("version")?"1":"");}Json.put(info,"rawScript",script);return info; }
     void trimIdle(){playbackLane.trimIdle();playbackCatalog.trimIdle();browseLane.trimIdle();browseCatalog.trimIdle();}
-    @Override public void close() {playbackLane.cancel();playbackCatalog.cancel();browseLane.cancel();browseCatalog.cancel();}
+    @Override public void close() {diagnostics.close();playbackLane.cancel();playbackCatalog.cancel();browseLane.cancel();browseCatalog.cancel();}
 }

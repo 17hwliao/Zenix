@@ -45,6 +45,10 @@ final class PrivateStore {
             catch(Exception e){if(output!=null)file.failWrite(output);writeError="配置保存失败："+Json.message(e);scheduleWrite();throw new IOException(writeError,e);}
         }
     }
+    <T> T backupLocked(java.util.concurrent.Callable<T> action)throws Exception{synchronized(diskLock){synchronized(this){if(readOnly)throw new IOException(writeError);return action.call();}}}
+    void replaceAtomic(JSONObject changes)throws Exception{synchronized(diskLock){synchronized(this){if(readOnly)throw new IOException(writeError);JSONObject next=Json.copy(data);for(java.util.Iterator<String> keys=changes.keys();keys.hasNext();){String key=keys.next();Json.put(next,key,changes.opt(key));}byte[] bytes=ProtectedJson.encode(next.toString()).getBytes(StandardCharsets.UTF_8);if(bytes.length>32*1024*1024)throw new IOException("资料存储过大，请分批恢复");FileOutputStream output=null;try{output=file.startWrite();output.write(bytes);file.finishWrite(output);}catch(Exception e){if(output!=null)file.failWrite(output);throw e;}data=next;revision++;persistedRevision=revision;presentationRevision++;writeError="";}}}
+    synchronized void ensureReadable()throws IOException{if(readOnly)throw new IOException(writeError);}
+    synchronized void stopWrites(String reason){readOnly=true;writeError=reason;}
     String error(){return writeError;}
     synchronized JSONArray array(String key) { JSONArray value=data.optJSONArray(key); if(value==null)return null; try{return new JSONArray(value.toString());}catch(JSONException error){throw new IllegalStateException(error);} }
     synchronized int integer(String key,int fallback){return data.optInt(key,fallback);}
@@ -97,7 +101,7 @@ final class PrivateStore {
         apply(Json.obj("personal",personal)); return Json.copy(personal);
     }
     static JSONObject cleanTrack(JSONObject track) {
-        JSONObject value=Json.copy(track);
+        JSONObject value=Json.copy(track);value.remove("searchAlternatives");value.remove("diagnosticAttemptId");
         if(!value.optString("source").equals("local")) { Json.put(value,"audioUrl",""); value.remove("headers"); value.remove("resolvedUrl"); }
         return value;
     }

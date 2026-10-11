@@ -12,6 +12,8 @@ files:
   - config/distribution.json
   - dist/**/*
   - electron/**/*.cjs
+  - src/core/backupFormat.cjs
+  - src/core/sourceDiagnostics.cjs
   - electron/desktop-lyrics.html
   - electron/lyrics-lock.html
   - electron/music-widget.html

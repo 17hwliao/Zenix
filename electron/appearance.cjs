@@ -56,7 +56,8 @@ class AppearanceStore {
     return name && requestedName === name ? path.join(this.folder, name) : null;
   }
 
-  async save(next) {
+  async save(next, backup = false) {
+    if (!backup && this.backupBarrier) await this.backupBarrier;
     await fs.mkdir(this.folder, { recursive: true });
     const temporary = path.join(this.folder, `settings-${randomUUID()}.tmp`);
     await fs.writeFile(temporary, JSON.stringify(next), 'utf8');

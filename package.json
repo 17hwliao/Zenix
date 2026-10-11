@@ -25,7 +25,7 @@
     "ios:open": "cross-env ZENIX_PLATFORM=ios cap open ios",
     "ios:simulator": "node scripts/Build-iOS.mjs",
     "ios:device": "node scripts/Build-iOS-Device.mjs",
-    "test": "node --test --test-concurrency=1 scripts/Test-Regression.cjs scripts/Test-Mobile.cjs scripts/Test-Security.cjs scripts/Test-PlayerBar.cjs scripts/Test-Windows-Protection.cjs scripts/Test-PlayerUi.cjs scripts/Test-UpdateReminders.cjs scripts/Test-Companion.cjs scripts/Test-MobilePlayback.cjs scripts/Test-AndroidUpdates.cjs scripts/Test-StoreProtection.cjs scripts/Test-UpdatePipeline.cjs scripts/Test-ReleasePolicy.cjs scripts/Test-SourceShare.cjs",
+    "test": "node --test --test-concurrency=1 scripts/Test-Regression.cjs scripts/Test-Mobile.cjs scripts/Test-Security.cjs scripts/Test-PlayerBar.cjs scripts/Test-Windows-Protection.cjs scripts/Test-PlayerUi.cjs scripts/Test-UpdateReminders.cjs scripts/Test-Companion.cjs scripts/Test-MobilePlayback.cjs scripts/Test-AndroidUpdates.cjs scripts/Test-StoreProtection.cjs scripts/Test-UpdatePipeline.cjs scripts/Test-ReleasePolicy.cjs scripts/Test-ReleaseContract.cjs scripts/Test-SourceShare.cjs scripts/Test-AppReliability.cjs",
     "profile:streams": "node scripts/Profile-Streams.cjs",
     "pack:sources": "node scripts/Pack-Sources.mjs",
     "signing:init": "node scripts/Init-Signing.mjs",

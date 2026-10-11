@@ -42,7 +42,7 @@ test('official update transport validates every redirect and uses the Electron s
   const abort = new AbortController(); abort.abort(); await assert.rejects(fetchUpdate(apkUrl, { signal: abort.signal }, async () => { throw Error('must not connect'); }), { name: 'AbortError' });
 });
 
-async function updater(t, mutate = value => value, packaged = false) {
+async function updater(t, mutate = value => value, packaged = false, currentBuild = 19) {
   const directory = await fsp.mkdtemp(path.join(os.tmpdir(), 'zenix-update-pipeline-')); t.after(() => fsp.rm(directory, { recursive: true, force: true }));
   const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const bytes = Buffer.from('synthetic-installer-fixture');
@@ -55,7 +55,7 @@ async function updater(t, mutate = value => value, packaged = false) {
   const spawn=(file,args,options)=>{const child=new (require('node:events').EventEmitter)();child.unref=()=>{child.unreferenced=true;};launches.push({file,args,options,child});queueMicrotask(()=>child.emit('spawn'));return child;};
   const official = async url => { contacts++; return new Response(url.includes('feed.json') ? JSON.stringify(envelope) : corrupt ? 'corrupt' : bytes); };
   vm.runInNewContext(fs.readFileSync(source, 'utf8'), { module, exports: module.exports, Buffer, URL, AbortController, AbortSignal, setTimeout, clearTimeout, process: {platform:'win32'},
-    require(id) { if (id === '../../package.json') return { zenixBuild: 19 }; if (id === '../../config/distribution.json') return { feeds: { stable: 'https://raw.githubusercontent.com/feed.json' }, publicKeySpki: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), windowsUpdateTrust: 'signed-manifest' };
+    require(id) { if (id === '../../package.json') return { zenixBuild: currentBuild }; if (id === '../../config/distribution.json') return { feeds: { stable: 'https://raw.githubusercontent.com/feed.json' }, publicKeySpki: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), windowsUpdateTrust: 'signed-manifest' };
       if (id === 'node:child_process') return {spawn,execFile:require('node:child_process').execFile};
       if (id === './update-network.cjs') return { updateUrl, fetchUpdate: (url, opts) => fetchUpdate(url, opts, official) }; return realRequire(id); },
   }, { filename: source });
@@ -81,6 +81,13 @@ test('production Windows updater: signed same-version build upgrade, streamed ha
 test('production Windows updater rejects signed rollback and corrupted manifest signature before contacting installer', async t => {
   const rollback = await updater(t, a => ({ ...a, version: '2.0.0', build: 18 })); assert.equal((await rollback.update.check('stable')).status, 'current'); assert.equal(rollback.contacts(), 1);
   const tamper = await updater(t); tamper.envelope.payload = Buffer.from('{}').toString('base64'); assert.equal((await tamper.update.check('stable')).status, 'error'); assert.match(tamper.update.state.message, /签名/); assert.equal(tamper.contacts(), 1);
+});
+test('current Windows r28 updater accepts a direct r35 jump and the same contract accepts subsequent r36', async t => {
+  for (const [installed, offered] of [[28,35],[35,36]]) {
+    const fixture=await updater(t,item=>({...item,build:offered}),false,installed);
+    const state=await fixture.update.check('stable');assert.equal(state.status,'available');assert.equal(state.currentBuild,installed);assert.equal(state.build,offered);
+    assert.equal((await fixture.update.download()).status,'ready');assert.equal(digest(await fsp.readFile(fixture.update.file)),fixture.item.sha256);
+  }
 });
 
 const schedulerFile = path.resolve(__dirname, '../src/core/updateScheduler.ts'), schedulerModule = { exports: {} };

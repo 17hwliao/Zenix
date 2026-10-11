@@ -13,7 +13,8 @@ export async function command<T>(action:string,payload:Record<string,any>={}):Pr
   if(action==='sourceMove'){const sources=[...state.sources],at=sources.findIndex(source=>source.id===payload.id),next=at+payload.direction;[sources[at],sources[next]]=[sources[next],sources[at]];state={...state,sources};value=sources;}
   if(action==='exportSourceBundle')value=(window as any).fixture.exportResult||{saved:true,count:state.sources.length};
   if(action==='toggle'){state={...state,playback:{...state.playback,playWhenReady:!state.playback.playWhenReady}};}
-  if(action==='features'){value=payload.operation==='lanStatus'?{listening:false,addresses:[]}:payload.operation==='timerState'?{endsAt:0}:true;}
+  if(action==='sourceDiagnostics'||action==='sourceDiagnosticsConfigure')value={smooth:payload.smooth===true,sources:{}};
+  if(action==='features'){value=payload.operation==='backupInfo'?{undoAvailable:false,backgroundBytes:0}:payload.operation==='lanStatus'?{listening:false,addresses:[]}:payload.operation==='timerState'?{endsAt:0}:true;}
   if(action==='search'){const handler=(window as any).fixture.search;if(handler)return await handler(payload);value={items:songs,nextCursor:''};}
   if(action==='sourceRemove')state={...state,sources:state.sources.filter(source=>source.id!==payload.id)};
   if(action==='artwork')value={};

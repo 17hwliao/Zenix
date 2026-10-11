@@ -17,6 +17,7 @@ class ListeningStore {
   constructor(folder) { this.file = path.join(folder, 'listening-stats.json'); this.data = { startedAt: Date.now(), days: {}, tracks: {} }; this.pending = Promise.resolve(); this.failure = ''; }
   async load() { try { const value = JSON.parse(await fs.readFile(this.file, 'utf8')); if (!value.days || !value.tracks || !Number.isFinite(value.startedAt)) throw Error('格式无效'); this.data = value; } catch(e) { if (e.code !== 'ENOENT') this.failure = '听歌统计文件无法读取，已保留原文件'; } }
   async record(track, seconds, plays, now = Date.now()) {
+    if (this.backupBarrier) await this.backupBarrier;
     if (this.failure) throw Error(this.failure);
     if (!track || typeof track.title !== 'string' || typeof track.artist !== 'string' || !Number.isFinite(seconds) || seconds < 0 || seconds > 20 || ![0,1].includes(plays)) throw Error('聆听记录无效');
     this.pending = this.pending.catch(()=>{}).then(async () => {

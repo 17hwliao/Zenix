@@ -4,6 +4,8 @@
 
 内部构建 34 曾公开为验收探针；清理发行后也不能复用。后续新构建从 35 或更高继续，避免已安装验收版本的客户端无法识别更新。
 
+2026-10-11 本地全量审查补齐了发行前契约校验，记录见 [当前代码审查与后续升级契约](review-current-code.md)。当前下载基线没有变动；本地校验通过不等于已进行下一版本真机覆盖安装。
+
 两端内置更新通道独立于用户音乐源网络权限，限定 GitHub HTTPS 域名与 443 端口，逐跳核验重定向，保留默认 TLS 证书与主机名验证，支持正常系统路由（含 Fake-IP）。清单签名、安装包大小、SHA256、包名、构建号及原发行证书核验继续执行。Android 为不同构建和文件摘要使用独立安装包地址，避免系统安装器复用旧输入；Windows 使用独立 Chromium 会话并显示真实安装器。
 
 **此前测试客户端不承诺均可应用内直升。** 旧版若被已有下载缺陷阻断，可从当前 Release 下载同签名当前包覆盖安装，保留原目录及资料；无需卸载或清空数据。旧 APK 中的代码不能靠服务端清单替换。Android / Windows r27→r28 的实际升级及资料保留证据见 [全量审查记录](review-first-stable.md)，不据此声称 r33 新增完整真机升级验收。
@@ -78,13 +80,13 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
   "notes": "此版本的更新说明",
   "artifacts": {
     "windows": {
-      "version": "1.0.0", "build": 14,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r14-x64.exe",
-      "file": "release/stable-r14/Zenix-Setup-1.0.0-r14-x64.exe"
+      "version": "1.0.0", "build": 35,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r35-x64.exe",
+      "file": "release/stable-r35/Zenix-Setup-1.0.0-r35-x64.exe"
     },
     "android": {
-      "version": "1.0.0", "build": 14,
-      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r14.apk",
+      "version": "1.0.0", "build": 35,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r35.apk",
       "file": "android/app/build/outputs/apk/release/app-release.apk"
     }
   }
@@ -92,6 +94,10 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 ```
 
 `npm run release:manifest -- release-description.json` 计算文件大小和 SHA256，签署清单，输出对应 `updates/*.json`。先上传并核对新文件，再提交签名清单到 main；不要把未验收候选或未上架的 iOS 版本加入正式清单。公开版本按约定维护；稳定修补递增 Windows / Android build，使用新的安装包文件名，保留已有工件与下载地址。Windows 先比较 semver，同版本再比较 build；Android 按 build 比较。预览版使用 preview 通道。
+
+签署前现在核对两个已有通道的原签名、源码版本及实际 APK / EXE 中的身份与更新入口。需要 Android SDK / JDK 和已安装的锁定 npm 依赖；只读取包，不运行安装器。清单必须同时保留 Windows / Android，实际文件不能超过旧客户端的 256 KiB 读取上限；更高 build 也不能降低目标通道的公开版本。同构建号只允许完全相同工件，新的身份至少 35 且不能落后已发行构建。
+
+仅更新 Android 时使用 `npm run release:manifest -- release-description.json --retain-windows`；仅更新 Windows 时使用 `--retain-android`。保留平台必须仍在描述中提供当前 stable 的原版本、原 build、原 URL 和原文件；脚本重新检查实际包及摘要，不允许把不同旧包签成保留工件。该命令仅生成本地清单，不授予上传或正式发布权限。以上 r35 是下一版描述示例，本轮未生成该包。
 
 `.github/workflows/signed-release.yml` 实现手动按 tag 构建签名 Windows / Android、生成签名清单、上传 Release 并更新 main 中的通道文件。它没有定时触发。需要以下 Secrets / Variables：
 
@@ -126,4 +132,4 @@ PC：个人主页的播放器设置 → 选项 → 应用更新。手机：播�
 
 ## 1.0.0 发行基线
 
-首版历史记录见 [首版说明](releases/v1.0.0.md)。当前维护 Windows / Android，内部构建号为 28，第一正式基线为 27；iOS 暂停发行。后续修补沿用当前稳定版与发行身份；仅在作者和测试人员确认可发布后递增公开版本。
+首版历史记录见 [首版说明](releases/v1.0.0.md)。当前维护 Windows / Android，下载基线分别为 r28 / r33，第一正式基线为 r27；iOS 暂停发行。后续新构建至少 r35，沿用当前稳定入口与发行身份；仅在作者和测试人员确认可发布后递增公开版本。

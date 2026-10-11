@@ -5,6 +5,9 @@ import type { AudioCacheStats, InstalledSource, SourcePreview } from '../core/ty
 import { LX_PRESETS, type LxPreset } from './lxPresets';
 import './SourceSettings.css';
 import SourceBundleImport from './SourceBundleImport';
+import SourceDiagnosticsPanel from './SourceDiagnosticsPanel';
+const loadDiagnostics = () => window.yzqxy!.sources.diagnostics();
+const configureDiagnostics = (smooth: boolean) => window.yzqxy!.sources.configureDiagnostics(smooth);
 import SourceBundleExport from './SourceBundleExport';
 import { SourceNetworkOptions, DEFAULT_SOURCE_POLICY, type SourceNetworkPolicy } from './SourceNetworkOptions';
 
@@ -114,7 +117,7 @@ export default function SourceSettings() {
       })}</div>
     </section>
     <SourceBundleExport count={sources.length} disabled={busy || Boolean(preview) || !window.yzqxy?.sources?.exportBundle} onBusy={setBusy} save={() => window.yzqxy!.sources.exportBundle()}/>
-    <SourceBundleImport localScripts disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
+    <SourceDiagnosticsPanel sources={sources} load={loadDiagnostics} configure={configureDiagnostics}/><SourceBundleImport localScripts disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
       const bridge = window.yzqxy!.sources;
       let token = '';
       try {
@@ -139,6 +142,8 @@ export default function SourceSettings() {
         <small className="zenix-source-domains">{source.kind === 'lx' ? `搜索平台：${Object.keys(source.manifest.lxPlatforms || {}).join(' · ')} · 音乐源脚本运行时连接网络` : [...source.manifest.network.apiHosts, ...source.manifest.network.mediaHosts].join(' · ')}</small>
         {source.lastError && <small className="zenix-source-error">最近错误：{source.lastError}</small>}
         <div className="zenix-source-actions">
+          <button disabled={busy||index===0} aria-label={`上移 ${source.manifest.name}`} onClick={()=>void run(()=>window.yzqxy!.sources.move(source.id,-1))}>↑ 上移</button>
+          <button disabled={busy||index===sources.length-1} aria-label={`下移 ${source.manifest.name}`} onClick={()=>void run(()=>window.yzqxy!.sources.move(source.id,1))}>↓ 下移</button>
           {<button onClick={() => void openSettings(source)} disabled={busy}>{editing === source.id ? '收起选项' : '源选项'}</button>}
           <button title="移除" aria-label={`移除 ${source.manifest.name}`} onClick={async () => { if (await confirm({title:"移除音乐源",message:`移除音乐源“${source.manifest.name}”？已收藏的歌曲记录会保留。`,confirmLabel:"移除",danger:true})) void run(() => window.yzqxy!.sources.remove(source.id)); }} disabled={busy}><Trash2 size={14} /></button>
         </div>

@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey } from 'node:crypto';
+import contract from './release-contract.cjs';
 
 // Publishing is explicit: run only after the user has authorized a GitHub release.
 const argumentsList = process.argv.slice(2);
@@ -31,6 +32,25 @@ async function publish() {
     for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
     prepared.push({ file, name: path.basename(file), size, digest: `sha256:${hash.digest('hex')}` });
   }
+  const config = JSON.parse(await fsp.readFile(new URL('../config/distribution.json', import.meta.url), 'utf8'));
+  const key = createPublicKey({ key: Buffer.from(config.publicKeySpki, 'base64'), type: 'spki', format: 'der' });
+  execFileSync('git', ['fetch', 'origin', 'main'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const previous = ['stable', 'preview'].map(channel => contract.verifyRelease(JSON.parse(execFileSync('git', ['show', `origin/main:updates/${channel}.json`], { encoding: 'utf8' })), key, channel));
+  const feeds = [];
+  for (const asset of prepared.filter(asset => ['stable.json', 'preview.json'].includes(asset.name))) {
+    if (asset.size > 256 * 1024) throw new Error('Signed feed exceeds the old client size limit');
+    const document = contract.verifyRelease(JSON.parse(await fsp.readFile(asset.file, 'utf8')), key, asset.name.slice(0, -5));
+    contract.assertForward(document, previous);
+    feeds.push(document);
+    for (const [platform, item] of Object.entries(document.artifacts)) {
+      if (platform === 'ios') continue;
+      const url = new URL(item.url), name = decodeURIComponent(url.pathname.split('/').pop());
+      const local = prepared.find(asset => asset.name === name);
+      if (local && (local.size !== item.size || local.digest !== `sha256:${item.sha256}`)) throw new Error(`Signed installer differs: ${name}`);
+      if (url.pathname === `/17hwliao/Zenix/releases/download/${tag}/${name}` && !local) throw new Error(`Signed installer missing from upload: ${name}`);
+    }
+  }
+  if (!feeds.length && !argumentsList.includes('--draft')) throw new Error('Public publication requires a verified signed update feed');
   let raw;
   try { raw = execFileSync('git', ['credential', 'fill'], { input: 'protocol=https\nhost=github.com\n\n', encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }); }
   catch { throw new Error('GitHub credential unavailable'); }
@@ -43,6 +63,14 @@ async function publish() {
     if (missing && response.status === 404) return null;
     if (!response.ok) throw new Error(`GitHub API HTTP ${response.status}`);
     return response.status === 204 ? null : response.json();
+  }
+  // A retained platform may live in an older Release; prove that exact file still exists.
+  for (const document of feeds) for (const [platform, item] of Object.entries(document.artifacts)) {
+    if (platform === 'ios') continue;
+    const parts = new URL(item.url).pathname.split('/'), assetTag = decodeURIComponent(parts.at(-2)), name = decodeURIComponent(parts.at(-1));
+    if (assetTag === tag) continue;
+    const priorRelease = await api(`${base}/releases/tags/${encodeURIComponent(assetTag)}`);
+    if (!priorRelease.assets.some(asset => asset.name === name && asset.state === 'uploaded' && asset.size === item.size && asset.digest === `sha256:${item.sha256}`)) throw new Error(`Retained download unavailable: ${name}`);
   }
   // Draft staging may precede the version tag, but its source must already be on GitHub.
   if (!remoteTag || stageAssets) await api(`${base}/git/commits/${commit}`);

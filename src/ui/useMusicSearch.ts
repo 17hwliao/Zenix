@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { mergeSearchGroups } from '../core/searchGroups';
 import type { InstalledSource } from '../core/types';
 import type { TrackView } from './types';
 import { sourceRequest } from '../core/sourceDeadline';
@@ -67,14 +68,17 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
 
   const localResults = useMemo(() => keyword ? localTracks.filter(track => `${track.title} ${track.artist} ${track.album ?? ''}`.toLocaleLowerCase().includes(keyword.toLocaleLowerCase())).slice(0, 50) : [], [localTracks, keyword]);
   const selectedSources = enabled.filter(source => selected === 'all' || selected === source.id);
+  const groups = useRef<{key:string;tracks:TrackView[]}>({key:'',tracks:[]});
   const visibleTracks = useMemo(() => {
     if (!keyword) return [];
     const sourceTracks = selected === 'local' || !currentResults ? [] : enabled.filter(source => selected === 'all' || selected === source.id).flatMap(source => results.pages[source.id]?.items ?? []);
     const candidates = selected === 'all' || selected === 'local' ? [...sourceTracks, ...localResults] : sourceTracks;
-    const seen = new Set<string>();
-    return candidates.filter(track => { if (seen.has(track.id)) return false; seen.add(track.id); return true; });
+    const key = `${requestKey}\0${keyword}\0${selected}`;
+    const previous = groups.current.key === key ? groups.current.tracks : [];
+    groups.current = {key, tracks: mergeSearchGroups(previous, candidates)};
+    return groups.current.tracks;
   }, [keyword, selected, currentResults, enabled, results, localResults]);
-  const playableTracks = useMemo(() => visibleTracks.filter(track => track.source !== 'custom' || enabled.some(source => source.id === track.providerId && source.manifest.capabilities.includes('resolvePlayback'))), [enabled, visibleTracks]);
+  const playableTracks = useMemo(() => visibleTracks.filter(track => track.source !== 'custom' || (track.searchAlternatives || [track]).some(candidate => enabled.some(source => source.id === candidate.providerId && source.manifest.capabilities.includes('resolvePlayback')))), [enabled, visibleTracks]);
   const loading = Boolean(active && keyword && selected !== 'local' && (!sourcesLoaded || searchText !== keyword || selectedSources.some(source => !pages[source.id] || pages[source.id].loading)));
 
   const loadMore = (source: InstalledSource) => {

@@ -39,12 +39,15 @@ public final class MobilePlaybackContractCheck {
             check(result.optString("providerId").equals("B")&&result.optString("quality").equals("standard"),"quality downgrade and next source");
             check(ScriptEngine.calls.stream().filter(value->value.startsWith("slowA:resolvePlayback")).count()==1,"transport failure must skip other quality tiers");
             check(android.os.SystemClock.now==10000,"source budget includes all request waits");
-            sources.playbackReady(track("slowA"),result);ScriptEngine.calls.clear();
+            check(sources.diagnostics.state().getJSONObject("sources").getJSONObject("B").optInt("played")==0,"URL resolution is not audible playback");
+            sources.playbackReady(track("slowA"),result);check(sources.diagnostics.state().getJSONObject("sources").getJSONObject("B").optInt("played")==1,"actual playback recorded separately");ScriptEngine.calls.clear();
             sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);
             check(ScriptEngine.calls.get(0).startsWith("B:"),"successful source reused before cold origin");
             check(ScriptEngine.calls.stream().noneMatch(value->value.startsWith("slowA:")),"failed source cooling down");
             sources.playbackFailed(result,false);ScriptEngine.calls.clear();sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(ScriptEngine.calls.get(0).startsWith("B:"),"decoder errors still allow quality downgrade on the same source");
             sources.playbackFailed(result,true);check(sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000).optString("providerId").equals("C"),"failed media transport switches provider");
+            store.set("smoothPlayback",false);ScriptEngine.calls.clear();sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(ScriptEngine.calls.get(0).startsWith("slowA:"),"manual order honored even after a successful fallback");
+            JSONObject chosen=track("slowA");Json.put(chosen,"preferredPlaybackProviderId","C");ScriptEngine.calls.clear();sources.resolve(chosen,new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(ScriptEngine.calls.get(0).startsWith("C:"),"explicit selection starts with that provider without changing configured order");
             JSONArray moved=sources.move("C",-1);check(moved.optJSONObject(1).optString("id").equals("C"),"manual order persists");
         }finally{sources.close();}
         store.sources=new JSONArray();for(String id:List.of("slowA","slowB","slowC","slowD")){store.sources.put(source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
@@ -76,10 +79,13 @@ public final class MobilePlaybackContractCheck {
 }
 
 final class PrivateStore {
-    JSONArray sources=new JSONArray();
+    JSONArray sources=new JSONArray();JSONObject data=Json.obj("smoothPlayback",true);
+    JSONObject object(String key){return data.optJSONObject(key);}
+    JSONObject readKeys(String... keys){JSONObject result=new JSONObject();for(String key:keys)if(data.has(key))Json.put(result,key,data.opt(key));return result;}
+    void enqueue(JSONObject values){for(Iterator<String> keys=values.keys();keys.hasNext();){String key=keys.next();Json.put(data,key,values.opt(key));}}
     JSONArray array(String key){return sources;}
     int integer(String key,int fallback){return fallback;}
-    void set(String key,Object value){if(key.equals("sources"))sources=(JSONArray)value;}
+    void set(String key,Object value){if(key.equals("sources"))sources=(JSONArray)value;else Json.put(data,key,value);}
 }
 final class SourcePolicy {
     static JSONArray hosts(JSONObject source,String kind){return null;}

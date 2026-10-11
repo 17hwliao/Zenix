@@ -4,12 +4,14 @@ import android.content.Context;
 import org.json.*;
 
 final class CompanionTools {
+    final BackupManager backup;
     final PlaylistLan lan;final ListeningStats stats;private final ZenixRuntime runtime;
     private JSONObject pending;private String token;private boolean importing;volatile String statsError="";
-    CompanionTools(Context context,ZenixRuntime runtime){this.runtime=runtime;stats=new ListeningStats(context);lan=new PlaylistLan(bundle->{try{preview(bundle);}catch(Exception e){throw new IllegalArgumentException(e);}});}
+    CompanionTools(Context context,ZenixRuntime runtime){this.runtime=runtime;stats=new ListeningStats(context);backup=new BackupManager(context,runtime,stats);lan=new PlaylistLan(bundle->{try{preview(bundle);}catch(Exception e){throw new IllegalArgumentException(e);}});}
     synchronized JSONObject preview(JSONObject bundle)throws Exception {if(pending!=null)throw new Exception("请先处理当前待接收歌单");pending=bundle;token=java.util.UUID.randomUUID().toString();return status();}
     synchronized JSONObject status(){JSONObject state=lan.status();if(pending==null)Json.put(state,"pending",JSONObject.NULL);else{JSONArray lists=pending.optJSONArray("playlists"),preview=new JSONArray();for(int i=0;i<lists.length();i++){JSONObject list=lists.optJSONObject(i);JSONArray tracks=list.optJSONArray("tracks");int local=0;for(int j=0;j<tracks.length();j++)if(tracks.optJSONObject(j).optString("source").equals("local"))local++;preview.put(Json.obj("name",list.optString("name"),"count",tracks.length(),"localCount",local));}Json.put(state,"pending",Json.obj("token",token,"playlists",preview));}return state;}
     Object invoke(JSONObject args)throws Exception {
+        if(args.optString("operation").startsWith("backup"))return backup.invoke(args);
         switch(args.optString("operation")){
             case "lanStatus":return status();
             case "lanStart":synchronized(this){if(pending!=null)throw new Exception("请先处理当前待接收歌单");}lan.start();return status();

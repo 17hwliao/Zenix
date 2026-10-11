@@ -96,6 +96,8 @@ class PersonalStore {
   }
 
   async toggle(kind, value) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     if (kind !== 'liked' && kind !== 'favorites') throw new Error('不支持的收藏分类');
     const track = cleanTrack(value);
     if (!track) throw new Error('歌曲信息无效');
@@ -105,6 +107,8 @@ class PersonalStore {
   }
 
   async record(value) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     const track = cleanTrack(value);
     if (!track) return this.snapshot();
     const key = historyKey(track);
@@ -114,6 +118,8 @@ class PersonalStore {
   }
 
   async createPlaylist(name, firstTrack) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     const trimmed = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 100);
     if (!trimmed) throw new Error('请输入歌单名称');
     if (this.data.playlists.some(item => item.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase())) throw new Error('已有同名歌单');
@@ -124,6 +130,8 @@ class PersonalStore {
   }
 
   async renamePlaylist(id, name) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     const playlist = this.data.playlists.find(item => item.id === id);
     if (!playlist) throw new Error('歌单不存在');
     const trimmed = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 100);
@@ -134,11 +142,15 @@ class PersonalStore {
   }
 
   async deletePlaylist(id) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     this.data.playlists = this.data.playlists.filter(item => item.id !== id);
     return this.save();
   }
 
   async addToPlaylist(id, value) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     const playlist = this.data.playlists.find(item => item.id === id);
     if (!playlist) throw new Error('歌单不存在');
     const track = cleanTrack(value);
@@ -148,6 +160,8 @@ class PersonalStore {
   }
 
   async removeFromPlaylist(id, trackId) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     const playlist = this.data.playlists.find(item => item.id === id);
     if (!playlist) throw new Error('歌单不存在');
     playlist.tracks = playlist.tracks.filter(item => item.id !== trackId);
@@ -155,6 +169,8 @@ class PersonalStore {
   }
 
   async importPlaylists(lists) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     const imported = [];
     for (const list of lists) {
       const base = list.name; let name = base, index = 1;
@@ -167,6 +183,8 @@ class PersonalStore {
   }
 
   async removeSaved(kind, id) {
+    if (this.backupBarrier) await this.backupBarrier;
+    this.assertWritable();
     if (kind === 'history') this.data.history = this.data.history.filter(entry => entry.id !== id);
     else if (kind === 'liked' || kind === 'favorites') this.data[kind] = this.data[kind].filter(item => item.id !== id);
     else throw new Error('不支持的分类');

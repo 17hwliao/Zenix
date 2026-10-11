@@ -5,9 +5,10 @@ const { readBoundedFile } = require('./bounded-file.cjs');
 const { PlaylistLan } = require('./playlist-lan.cjs');
 const { ListeningStore } = require('./listening-store.cjs');
 class Companion {
-  constructor({ folder, personal, library, dialog, getWindow, broadcast, app, widget }) {
+  constructor({ folder, personal, library, dialog, getWindow, broadcast, app, widget, appearance }) {
     Object.assign(this, {personal,library,dialog,getWindow,broadcast,app,widget}); this.pending = null; this.importing = false; this.timer = null; this.timerState = { endsAt: 0 };
     this.stats = new ListeningStore(folder);
+    this.backup = new (require("./backup-manager.cjs").BackupManager)({ folder, personal, library, appearance, stats: this.stats, dialog, getWindow, broadcast });
     this.lan = new PlaylistLan(bundle => this.preview(bundle));
   }
   preview(bundle) { if (this.pending) throw Error('请先导入或放弃当前待接收歌单'); this.pending = { token: randomUUID(), bundle }; return this.status(); }
@@ -18,6 +19,7 @@ class Companion {
     if (lists.length !== new Set(ids).size) throw Error('歌单已变化，请重新选择'); return createBundle(lists);
   }
   async invoke(args) {
+    if (String(args.operation).startsWith("backup")) return this.backup.invoke(args);
     switch(args.operation) {
       case 'exportFile': {
         const bundle = this.bundle(args.ids); const result = await this.dialog.showSaveDialog(this.getWindow(), { title: '导出 Zenix 歌单', defaultPath: `${bundle.playlists.length===1 ? bundle.playlists[0].name.replace(/[\\/:*?"<>|]/g,'_') : 'Zenix-歌单'}.zenixlist`, filters: [{name:'Zenix 歌单',extensions:['zenixlist']}] });

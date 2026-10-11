@@ -65,6 +65,8 @@ class PlayerController {
     this.audio.addEventListener('play', () => this.update({ playing: true, error: undefined }));
     this.audio.addEventListener('playing', () => {
       this.emitLifecycle('audible');
+      const attempt = this.state.track?.diagnosticAttemptId;
+      if (attempt) void window.yzqxy?.sources?.outcome?.(attempt, true).catch(() => {});
       clearTimeout(this.mediaWaitTimer);
       this.update({ sourceActivity: undefined });
     });
@@ -90,10 +92,12 @@ class PlayerController {
     this.audio.addEventListener('error', () => {
       if (this.state.track?.source === 'custom' && !this.playbackRequested) return;
       if (this.state.track?.source === 'custom' && !this.state.track.audioUrl) return;
+      const attempt = this.state.track?.diagnosticAttemptId;
+      if (attempt) void window.yzqxy?.sources?.outcome?.(attempt, false, this.audio.error?.code === 4 ? '音频格式不支持' : '音频连接失败').catch(() => {});
       if (this.retryMediaSource()) return;
       const error = this.audio.error;
       const message = this.state.track?.source === 'custom'
-        ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
+        ? error?.code === 4 ? '音频格式不受支持，请尝试其他品质或音乐源。' : '音频连接失败，请检查网络后重试。'
         : error ? `无法播放此音频（错误 ${error.code}）` : '无法播放此音频';
       this.failSource(message);
     });
@@ -165,7 +169,7 @@ class PlayerController {
   private failSource(message: string): void {
     this.playbackRequested = false;
     clearTimeout(this.mediaWaitTimer);
-    if (this.state.track?.source === 'custom') this.reportSource({ phase: 'failed', message: /超时|timeout/i.test(message) ? '连接超时，暂时无法播放' : '暂时没有可播放的资源', detail: /没有启用/.test(message) ? '请先添加或启用音乐源，再重新播放' : '可用连接已尝试完毕，请重试或更换音乐源' });
+    if (this.state.track?.source === 'custom') this.reportSource({ phase: 'failed', message: /超时|timeout/i.test(message) ? '连接超时，暂时无法播放' : '暂时没有可播放的资源', detail: /没有启用/.test(message) ? '请先添加或启用音乐源，再重新播放' : message });
     this.update({ playing: false, error: message });
     this.emitLifecycle('failure');
   }

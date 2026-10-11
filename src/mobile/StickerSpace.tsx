@@ -1,6 +1,11 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
 import { Crosshair, Maximize2, Pause, Play } from 'lucide-react';
+import TrackVersions from '../ui/TrackVersions';
+import { containsTrack } from '../core/searchGroups';
+import type { SourceDiagnosticsState } from '../core/types';
+import { command } from './native';
+const loadSourceDiagnostics = () => command<SourceDiagnosticsState>('sourceDiagnostics');
 import { activeLyricIndex, parseLyrics } from '../core/lyrics';
 import type { LyricLine } from '../core/types';
 import type { Track } from '../core/types';
@@ -39,6 +44,7 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
   useEffect(() => () => clearTimeout(cameraTimer.current), []);
   const animations = useRef<ReturnType<typeof animate>[]>([]);
   const [size, setSize] = useState({ width: 390, height: 500 }), [selected, setSelected] = useState(() => Math.max(0,songs.findIndex(song=>song.id===state.playback.track?.id))), [moving, setMoving] = useState(false);
+  const [chosenVariants, setChosenVariants] = useState<Record<string, string>>({});
   const signature = songs.map(song => song.id).join('|'), player = state.playback;
   const previousLayout = useRef({ ids: [] as string[], focusRequest: -1, width: 0, height: 0 });
   const [captionVisible, setCaptionVisible] = useState(true);
@@ -106,17 +112,21 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
       if (drag.moved) { x.set(limit(drag.cx + dx, bounds.left, bounds.right, size.width)); y.set(limit(drag.cy + dy, bounds.top, bounds.bottom, size.height)); }
     }} onPointerUp={event => { gesture.current = null; setMoving(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { gesture.current = null; setMoving(false); }} onClickCapture={event => { if (dragged.current) { event.preventDefault(); event.stopPropagation(); dragged.current = false; } }}>
       <motion.div className="space-plane" style={{ x, y }}>{songs.map((song, index) => {
-        const rect = rects[index], current = song.id === player.track?.id, focused = index === selected;
+        const candidateChoice = song.searchAlternatives?.find(item => item.id === chosenVariants[song.id]) || song.searchAlternatives?.find(candidate=>state.sources.some(source=>source.id===candidate.providerId&&source.enabled&&source.manifest.capabilities.includes('resolvePlayback'))) || song;
+        const choice = chosenVariants[song.id] ? {...candidateChoice, preferredPlaybackProviderId:candidateChoice.providerId} : candidateChoice;
+        const rect = rects[index], current = containsTrack(song, player.track?.id), focused = index === selected;
+        const choiceCurrent = choice.id === player.track?.id || current && !chosenVariants[song.id];
         // Layout still includes the complete finite playlist, while React,
         // motion subscriptions and decoded covers exist only near the viewport.
         const visible = focused || (rect.x * pitch + Math.min(camera.x,camera.toX??camera.x) < size.width + 240 && (rect.x + rect.columns) * pitch + Math.max(camera.x,camera.toX??camera.x) > -240 && rect.y * pitch + Math.min(camera.y,camera.toY??camera.y) < size.height + 240 && (rect.y + rect.rows) * pitch + Math.max(camera.y,camera.toY??camera.y) > -240);
         if (!visible) return null;
         return <MosaicSticker key={song.id} id={song.id} className={`space-sticker ${focused ? 'is-focused is-expanded' : ''} ${current ? 'is-current' : ''}`} reduced={Boolean(reduced)} left={rect.x*pitch} top={rect.y*pitch} width={rect.columns*pitch-STICKER_GAP} height={rect.rows*pitch-STICKER_GAP}>
           <SongPoster song={song} index={index} current={current} focus={()=>focus(index)} longPress={longPress}/>
-          {focused && current && <FocusedLyrics track={song} position={player.position} seek={seek} />}
+          {focused && current && <FocusedLyrics track={player.track || song} position={player.position} seek={seek} />}
           <AnimatePresence initial={false}>{focused && <motion.div className="sticker-toolbar" initial={{ opacity: 0, y: reduced ? 0 : 11 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduced ? 0 : 4 }} transition={{ duration: reduced ? 0 : .3, delay: focused && !reduced ? .19 : 0 }}>
-            {actions(song)}
-            <button aria-label={`${current && (player.playWhenReady ?? player.playing) ? '暂停' : '播放'} ${song.title}`} onClick={()=>play(song)}>{current && (player.playWhenReady ?? player.playing) ? <Pause/> : <Play/>}</button>
+            {actions(choice)}
+            <TrackVersions track={song} selected={choice} sources={state.sources} select={candidate=>setChosenVariants(previous=>({...previous,[song.id]:candidate.id}))} load={loadSourceDiagnostics}/>
+            <button aria-label={`${choiceCurrent && (player.playWhenReady ?? player.playing) ? '暂停' : '播放'} ${song.title}`} onClick={()=>play(choiceCurrent ? player.track || choice : choice)}>{choiceCurrent && (player.playWhenReady ?? player.playing) ? <Pause/> : <Play/>}</button>
             {current && <button aria-label="打开完整播放器" onClick={full}><Maximize2/></button>}
           </motion.div>}</AnimatePresence>
 

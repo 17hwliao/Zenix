@@ -458,6 +458,10 @@ function registerHandlers() {
   handleApp('sources:cancel-request', (event, requestId) => sourceManager.cancelRequest(event.sender.id, requestId));
   handleApp('sources:cached', (_event, track, quality) => sourceManager.cached(track, quality));
   handleApp('sources:cached-best', (_event, track, qualities) => sourceManager.cachedBest(track, qualities));
+  handleApp('sources:move', (_event, id, direction) => sourceManager.move(id, direction));
+  handleApp('sources:diagnostics', () => sourceManager.diagnostics.state());
+  handleApp('sources:diagnosticsConfigure', (_event, smooth) => sourceManager.diagnostics.configure(smooth));
+  handleApp('sources:outcome', (_event, id, played, reason) => sourceManager.diagnostics.outcome(String(id).slice(0, 80), played === true, reason));
   handleApp('sources:resolve', (event, track, quality, cacheAsId, skipCache, requestId) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.resolve(track, quality, cacheAsId, skipCache, signal)));
   handleApp('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   handleApp('cache:stats', async () => ({ ...audioCache.stats(), ...await sourceManager.metadataCache.stats() }));
@@ -554,8 +558,9 @@ if (primaryInstance) app.whenReady().then(async () => {
   const startupResults = await Promise.allSettled([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
   startupResults.forEach((result, i) => { if (result.status === 'rejected') console.error(`Zenix ${startupStores[i]} could not load; original files preserved`); });
   musicWidget = new MusicWidget({ BrowserWindow, command: action => broadcast('media:command', action), showApp: showMainWindow });
-  companion = new Companion({ folder: app.getPath('userData'), personal, library, dialog, getWindow: () => mainWindow, broadcast, app, widget: musicWidget });
+  companion = new Companion({ folder: app.getPath('userData'), personal, library, dialog, getWindow: () => mainWindow, broadcast, app, widget: musicWidget, appearance });
   await companion.stats.load();
+  await companion.backup.load();
   handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');return companion.invoke(args || {}); });
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
   sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;

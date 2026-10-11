@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
+import TrackVersions from './TrackVersions';
+import type { InstalledSource } from '../core/types';
+import { containsTrack } from '../core/searchGroups';
+const loadSourceDiagnostics = () => window.yzqxy!.sources.diagnostics();
 import { Captions, Home, ListMusic, Maximize2, Minimize2, Pause, Play, Repeat1, Repeat2, Search, Settings2, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { playUiSound } from '../core/sounds';
 import { trackCoverUrl } from '../core/trackCover';
@@ -11,6 +15,7 @@ import { STICKER_GAP, expandedStickerLayout, stickerSlotsForCount, type StickerR
 import type { LyricLineView, RepeatMode, TrackView } from './types';
 
 type LatticePlayerProps = {
+  sources?: InstalledSource[];
   track: TrackView;
   hasPlayback?: boolean;
   personal: PersonalState;
@@ -50,7 +55,7 @@ type LatticePlayerProps = {
 };
 
 export default function LatticePlayer({
-  track, hasPlayback = true, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
+  track, sources = [], hasPlayback = true, personal, onToggleSaved, onAddToPlaylist, onCreatePlaylist, queue, queueIndex, displayTracks, onPlayTrack, lyrics, playing, position, duration, volume, muted, shuffle, repeat,
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
   onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onExpandPlayer, expandRequest = 0, onOpenSettings, onOpenSearch, searchAvailable = true, searchRevealed = false, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
@@ -78,11 +83,15 @@ export default function LatticePlayer({
   wallTracksRef.current = wallTracks;
   const focusedTrackIdRef = useRef<string | null>(null);
   const slots = useMemo(() => stickerSlotsForCount(wallTracks.length), [wallTracks.length]);
-  const activeIndex = hasPlayback ? wallTracks.findIndex(item => item.id === track.id) : -1;
+  const activeIndex = hasPlayback ? wallTracks.findIndex(item => containsTrack(item, track.id)) : -1;
   const queueSignature = queue.map(item => item.id).join('|');
   const displaySignature = displayTracks?.map(item => item.id).join('|') ?? '';
   const focusedTrack = wallTracks[selectedSlot] ?? track;
-  const focusedIsCurrent = hasPlayback && focusedTrack.id === track.id;
+  const [chosenVariants, setChosenVariants] = useState<Record<string, string>>({});
+  const candidateChoice = focusedTrack.searchAlternatives?.find(item => item.id === chosenVariants[focusedTrack.id]) || focusedTrack.searchAlternatives?.find(candidate=>sources.some(source=>source.id===candidate.providerId&&source.enabled&&source.manifest.capabilities.includes('resolvePlayback'))) || focusedTrack;
+  const focusedChoice = chosenVariants[focusedTrack.id] ? {...candidateChoice, preferredPlaybackProviderId:candidateChoice.providerId} : candidateChoice;
+  const focusedChoiceIsCurrent = hasPlayback && (focusedChoice.id === track.id || containsTrack(focusedTrack,track.id) && !chosenVariants[focusedTrack.id]);
+  const focusedIsCurrent = hasPlayback && containsTrack(focusedTrack, track.id);
   const cellPitch = Math.max(72, Math.min(112, viewport.width / 14.5, viewport.height / 8.8));
   const total = duration || track.duration || 0;
   const shownPosition = seekDraft ?? position;
@@ -250,7 +259,7 @@ export default function LatticePlayer({
     event.preventDefault();
     event.stopPropagation();
   };
-  const playFocused = () => focusedIsCurrent ? onTogglePlay() : onPlayTrack(focusedTrack);
+  const playFocused = () => focusedChoiceIsCurrent ? onTogglePlay() : onPlayTrack(focusedChoice);
   const commitMiniSeek = () => {
     const seconds = seekDraftRef.current;
     seekDraggingRef.current = false;
@@ -267,7 +276,7 @@ export default function LatticePlayer({
           const item = wallTracks[itemIndex];
           const rect = expandedRects.get(slot) ?? tile;
           const expanded = slot === selectedSlot;
-          const current = hasPlayback && item.id === track.id;
+          const current = hasPlayback && containsTrack(item, track.id);
           // Keep only the camera's visible posters and a small overscan mounted.
           const overscan = cellPitch * (dragging || panning ? 1.5 : 1);
           if (!expanded && (immersive || rect.x * cellPitch + camera.x > viewport.width + overscan || rect.y * cellPitch + camera.y > viewport.height + overscan || (rect.x + rect.columns) * cellPitch + camera.x < -overscan || (rect.y + rect.rows) * cellPitch + camera.y < -overscan)) return null;
@@ -286,7 +295,8 @@ export default function LatticePlayer({
                 {lyrics.length ? lyrics.map((line, index) => <button key={`${line.time}-${index}`} ref={element => { lyricRefs.current[index] = element; }} className={`yz-lattice-lyric ${index === (lyricPreview ?? activeLyric) ? 'is-current' : ''} ${index < (lyricPreview ?? activeLyric) ? 'is-past' : ''}`} onClick={() => { onSeek(line.time); lyricPreviewRef.current = null; setLyricPreview(null); if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); }} title={`跳转到 ${formatTime(line.time)}`}>{line.text}<small>{line.translation}</small></button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
               </div>}
               <div className="yz-sticker-focus-controls">
-                <button onClick={playFocused} title={focusedIsCurrent && playing ? '暂停' : `播放 ${item.title}`} aria-label={focusedIsCurrent && playing ? '暂停' : `播放 ${item.title}`}>{focusedIsCurrent && playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
+                <TrackVersions track={item} selected={focusedChoice} sources={sources} load={loadSourceDiagnostics} select={candidate=>setChosenVariants(previous=>({...previous,[item.id]:candidate.id}))}/>
+                <button onClick={playFocused} title={focusedChoiceIsCurrent && playing ? '暂停' : `播放 ${item.title}`} aria-label={focusedChoiceIsCurrent && playing ? '暂停' : `播放 ${item.title}`}>{focusedChoiceIsCurrent && playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
                 {focusedIsCurrent && <><button onClick={() => { setImmersive(value => !value); setPanning(false); playUiSound(immersive ? 'cancel' : 'enter'); }} title={immersive ? '还原歌曲贴纸' : '放大歌曲至窗口'} aria-label={immersive ? '还原歌曲贴纸' : '放大歌曲至窗口'} aria-pressed={immersive}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={15} />}</button><input type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(position, Math.max(total, 1))} onChange={event => onSeek(Number(event.target.value))} aria-label="播放进度" style={{ '--range-fill': `${total ? Math.min(100, position / total * 100) : 0}%` } as CSSProperties} /></>}
               </div>
             </> : <>

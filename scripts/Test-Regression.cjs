@@ -151,4 +151,11 @@ test('source resolution preserves installation order and falls back quality', as
   window.yzqxy = { sources: { cachedBest: async () => null, list: async () => sources, search: async id => ({ items: [track('1', { providerId: id })] }), resolve: async (song, quality) => { calls.push(`${song.providerId}:${quality}`); if (song.providerId === 'first') throw Error('Unavailable audio'); return { audioUrl: 'https://example.com/audio', actualQuality: quality }; } } };
   localStorage.setItem('zenix.onlineQuality', 'high'); const { resolveCustomTrack } = require('../src/core/sourcePlayback.ts');
   const value = await resolveCustomTrack(track('1'), [], () => {}, new AbortController().signal); assert(value.audioUrl); assert.deepEqual(calls.slice(0, 2), ['first:high', 'first:standard']); assert(calls.indexOf('second:high') > 1);
+  calls.length = 0;
+  window.yzqxy.sources.diagnostics = async () => ({ smooth: true, sources: { second: { lastPlayedAt: Date.now() } } });
+  await resolveCustomTrack(track('1'), [], () => {}, new AbortController().signal);
+  assert.equal(calls[0], 'second:high', 'opt-in recent success changes source order without changing quality');
+  calls.length = 0;
+  await resolveCustomTrack(track('1', { preferredPlaybackProviderId: 'first' }), [], () => {}, new AbortController().signal);
+  assert.equal(calls[0], 'first:high', 'explicit per-song source takes precedence over adaptive order');
 });

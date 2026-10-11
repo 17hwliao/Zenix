@@ -1,6 +1,8 @@
 const {app,BrowserWindow}=require('electron'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path');
 if(!process.env.ZENIX_TEST_USER_DATA||!process.env.ZENIX_TEST_UI_URL)throw Error('Isolated fixture required');
 app.setPath('userData',process.env.ZENIX_TEST_USER_DATA);
+// Stable geometry/interaction fixture; this is not a hardware frame-rate benchmark.
+app.disableHardwareAcceleration();
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
   const window=new BrowserWindow({show:false,width:390,height:820,useContentSize:true,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});
@@ -23,7 +25,7 @@ app.whenReady().then(async()=>{
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'resolving',startedAt:Date.now()-5000,message:'正在获取标准品质音频 · Source B（2/7）'}}})`);
   await wait('document.querySelector(".source-status-copy small")?.textContent.includes("5 秒")');
   const beforeStop=await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length');
-  await click('.mobile-source-status button');
+  await click('.mobile-source-status>button');
   assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length'),beforeStop+1,'stop cancels loading through the playback command');
   assert.equal(await evaluate('window.fixture.state.playback.playWhenReady'),false);
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'failed',startedAt:Date.now(),message:'资源暂不可用',detail:'Source B: HTTP not permitted https://fixture.invalid/audio?token=synthetic-secret'}}})`);
@@ -188,6 +190,17 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('(()=>{const e=document.querySelector(".space-sticker.is-focused"),title=e.querySelector(".space-song").getBoundingClientRect(),index=e.querySelector(".sticker-index").getBoundingClientRect(),toolbar=e.querySelector(".sticker-toolbar").getBoundingClientRect();return title.top>=index.bottom&&title.bottom<=toolbar.top;})()'),true,'compact poster title fits between its index and controls');
   assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),beforeAnimationPlay,'focus and enlargement never control audio');
   await screenshot('mobile-sticker-restored-focus.png');
+  // Consolidation keeps the poster identity/camera while a second provider arrives.
+  await evaluate(`(()=>{const base=window.fixture.state.sources[0];window.fixture.setSnapshot({sources:[{...base,id:'variantA'},{...base,id:'variantB'}]});window.fixture.search=async payload=>({items:[{id:'variant-'+payload.id,title:'银河',artist:'测试歌手',album:'专辑',duration:120,source:'custom',providerId:payload.id,remoteId:'fixture-remote',audioUrl:'',path:''},{id:'live-'+payload.id,title:'银河 (Live)',artist:'测试歌手',duration:122,source:'custom',providerId:payload.id,remoteId:'live-remote',audioUrl:'',path:''}],nextCursor:''});})()`);
+  await submit('Variant contract');await wait(`document.querySelector('.space-sticker[data-song-id=variant-variantA] .sticker-toolbar [aria-label="版本与来源"]')`);await sleep(700);
+  const playbackBeforeVariant=await evaluate('window.fixture.calls.filter(c=>c.action==="play"||c.action==="toggle").length');
+  assert.equal(await evaluate('document.querySelectorAll(".space-sticker").length'),2,'original and live keep separate posters');
+  const focusBeforeVariant=await evaluate('document.querySelector(".space-plane").style.transform');
+  await click('.sticker-toolbar [aria-label="版本与来源"]');await wait('document.querySelectorAll(".version-options button").length===2');
+  await click('.version-options button:nth-child(2)');assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="play"||c.action==="toggle").length'),playbackBeforeVariant,'choosing source never changes playback');
+  await click('[aria-label="关闭版本与来源"]');assert.equal(await evaluate('document.querySelector(".space-plane").style.transform'),focusBeforeVariant,'source chooser preserves collage camera');
+  await click('.sticker-toolbar [aria-label="播放 银河"]');
+  assert.equal(await evaluate('window.fixture.state.playback.track.providerId'),'variantB');assert.equal(await evaluate('window.fixture.state.playback.track.preferredPlaybackProviderId'),'variantB');assert.equal(await evaluate('window.fixture.state.playback.queue.length'),2,'selected source replaces the corresponding queue entry only');
   // Reduced-motion preferences still allow immediate opening and closing.
   if(!window.webContents.debugger.isAttached())window.webContents.debugger.attach('1.3');
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});

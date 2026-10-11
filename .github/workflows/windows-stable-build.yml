@@ -20,6 +20,8 @@ jobs:
       - run: npm ci
       - name: Prepare locked Electron runtime
         run: node node_modules/electron/install.js
+      - name: Reject a reused public build before staging
+        run: node -e "const p=require('./package.json'); const {MIN_NEW_BUILD}=require('./scripts/release-contract.cjs'); if (!Number.isSafeInteger(p.zenixBuild) || p.zenixBuild < MIN_NEW_BUILD) throw Error('New public builds must not reuse an issued identity');"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -50,7 +52,7 @@ jobs:
           gh release upload $tag "release/cloud-staged/$name" --repo $env:GITHUB_REPOSITORY
           if ($LASTEXITCODE -ne 0) { throw 'Release staging upload failed' }
           $uploaded = (gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets" | ConvertFrom-Json) | Where-Object name -eq $name
-          if ($uploaded.state -ne 'uploaded' -or $uploaded.digest -ne "sha256:$digest") { throw 'Uploaded installer digest mismatch' }
+          if ($uploaded.state -ne 'uploaded' -or $uploaded.size -ne (Get-Item -LiteralPath "release/cloud-staged/$name").Length -or $uploaded.digest -ne "sha256:$digest") { throw 'Uploaded installer digest or size mismatch' }
           Write-Output "Staged $name SHA256 $digest"
       - uses: actions/upload-artifact@v4
         with:

@@ -1,3 +1,5 @@
+import PlaybackDetails from './PlaybackDetails';
+import './ReliabilityTools.css';
 import { useEffect, useState } from 'react';
 import { AlertCircle, LoaderCircle, RotateCcw, Settings2, X } from 'lucide-react';
 import type { SourceActivity } from '../core/types';
@@ -18,7 +20,7 @@ export default function SourceCallout({ activity, title, onRetry, onManage, onCa
   const detail = activity.detail || (seconds >= 8 && !failed ? '连接耗时较长，仍在处理；超时会自动尝试备用方案' : title);
   return <div className={`zenix-source-callout${failed ? ' is-failed' : ''}`} role="status" aria-live="polite">
     <span className="zenix-source-callout-icon" aria-hidden="true">{failed ? <AlertCircle size={19} /> : <LoaderCircle size={19} />}</span>
-    <div className="zenix-source-callout-copy"><strong>{activity.message}</strong>{detail && <small>{detail}</small>}</div>
+    <div className="zenix-source-callout-copy"><strong>{activity.message}</strong><PlaybackDetails activity={{...activity, detail}} seconds={seconds}/></div>
     {!failed && <time aria-hidden="true">{seconds}s</time>}
     <div className="zenix-source-callout-actions">{failed ? <>
       <button type="button" onClick={onRetry} title="重新尝试播放" aria-label="重新尝试播放"><RotateCcw size={15} /><span>重试</span></button>

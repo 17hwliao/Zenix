@@ -61,12 +61,12 @@ public final class PlaybackService extends MediaSessionService {
         player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),true);player.setHandleAudioBecomingNoisy(true);player.setWakeMode(C.WAKE_MODE_LOCAL);
         player.addListener(new Player.Listener() {
             @Override public void onPlaybackStateChanged(int state) {
-                if(state==Player.STATE_READY) {finishLoading();runtime.sources.playbackReady(track,resolution);resumePosition=0;activity=null;error=null;if(roaming!=null&&wanted)roaming.ready(track);if(!readyRecorded&&wanted&&track!=null){readyRecorded=true;JSONObject value=Json.copy(track);resolver.execute(() -> {try{runtime.store.personal("record",Json.obj("track",value));runtime.emit();}catch(Exception ignored){}});} }
-                else if(state==Player.STATE_BUFFERING)activity=Json.obj("phase","buffering","message",resolution!=null&&resolution.optString("cacheHit").equals("complete")?"正在读取本地音频缓存":"音频正在缓冲","startedAt",System.currentTimeMillis());
+                if(state==Player.STATE_READY) {finishLoading();resumePosition=0;activity=null;error=null;if(roaming!=null&&wanted)roaming.ready(track);if(!readyRecorded&&wanted&&track!=null){readyRecorded=true;JSONObject value=Json.copy(track);resolver.execute(() -> {try{runtime.store.personal("record",Json.obj("track",value));runtime.emit();}catch(Exception ignored){}});} }
+                else if(state==Player.STATE_BUFFERING)activity=Json.obj("phase","buffering","message",resolution!=null&&resolution.optString("cacheHit").equals("complete")?"正在读取本地音频缓存":"音频正在缓冲"+(resolution==null?"":" · "+resolution.optString("providerName")),"startedAt",activityStartedAt());
                 else if(state==Player.STATE_ENDED) {accountListening();flushListening(false);if(roaming!=null&&roaming.isActive())roaming.next(true);else if(repeat.equals("one")){listenSeconds=0;countedPlay=false;player.seekTo(0);player.play();}else advance(1); }
                 runtime.emit();
             }
-            @Override public void onIsPlayingChanged(boolean playing) {accountListening();listening=playing;listenClock=SystemClock.elapsedRealtime();if(!playing)flushListening(false);if(roaming!=null)roaming.playingChanged(playing);MusicWidget.updateAll(PlaybackService.this);runtime.emit();}
+            @Override public void onIsPlayingChanged(boolean playing) {if(playing)runtime.sources.playbackReady(track,resolution);accountListening();listening=playing;listenClock=SystemClock.elapsedRealtime();if(!playing)flushListening(false);if(roaming!=null)roaming.playingChanged(playing);MusicWidget.updateAll(PlaybackService.this);runtime.emit();}
             @Override public void onPlayerError(PlaybackException failure) {
                 if(track!=null&&!track.optString("source").equals("local")&&wanted){runtime.sources.playbackFailed(resolution,failure.errorCode>=2000&&failure.errorCode<3000);if(player.getCurrentPosition()>0)resumePosition=player.getCurrentPosition();if(readyRecorded)resolveDeadline=SystemClock.elapsedRealtime()+PlaybackSourcePlan.TOTAL_MS;else if(resolveDeadline<=SystemClock.elapsedRealtime()){wanted=false;finishLoading();activity=null;error=Json.obj("message","加载已超时，请重试或调整音乐源顺序");runtime.emit();return;}resolveNext(generation);}
                 else {finishLoading();activity=null;error=Json.obj("message","无法播放此音频，请重新导入文件");runtime.emit();}
@@ -111,21 +111,22 @@ public final class PlaybackService extends MediaSessionService {
     void select(int at) {
         if(at>=0&&at<queue.length()&&queue.optJSONObject(at).optString("availability").equals("unavailable")){accountListening();flushListening(false);generation++;cancelResolution();wanted=false;player.stop();index=at;track=queue.optJSONObject(at);error=Json.obj("message","这是对方的本地歌曲，请先导入同名、同歌手的音频，再重新导入歌单");activity=null;runtime.emit();MusicWidget.updateAll(this);return;}
         if(at>=0&&at<queue.length()){accountListening();flushListening(false);listenSeconds=0;countedPlay=false;listenedTrack=Json.copy(queue.optJSONObject(at));listenClock=SystemClock.elapsedRealtime();}
-        if(clearingCache||at<0||at>=queue.length())return;generation++;cancelResolution();if(roaming!=null)roaming.selected(queue.optJSONObject(at));index=at;track=queue.optJSONObject(index);resumePosition=0;attempted=new HashSet<>();resolution=null;error=null;readyRecorded=false;wanted=true;player.stop();rememberShuffle(track.optString("id"));try{persist();}catch(Exception ignored){}
+        if(clearingCache||at<0||at>=queue.length())return;generation++;cancelResolution();if(roaming!=null)roaming.selected(queue.optJSONObject(at));index=at;track=queue.optJSONObject(index);resumePosition=0;attempted=new HashSet<>();resolution=null;error=null;activity=null;readyRecorded=false;wanted=true;player.stop();rememberShuffle(track.optString("id"));try{persist();}catch(Exception ignored){}
         resolveDeadline=SystemClock.elapsedRealtime()+PlaybackSourcePlan.TOTAL_MS;
         if(track.optString("source").equals("local"))start(Json.obj("url",track.optString("audioUrl"),"quality","local"),generation);else resolveNext(generation);
     }
+    private long activityStartedAt(){return activity==null||activity.optString("phase").equals("failed")?System.currentTimeMillis():activity.optLong("startedAt",System.currentTimeMillis());}
     private void resolveNext(long token) {
         if(token!=generation||track==null)return;JSONObject current=Json.copy(track);Set<String> failures=attempted;
-        activity=Json.obj("phase","connecting","message","正在准备音频","startedAt",System.currentTimeMillis());runtime.emit();
+        activity=Json.obj("phase","cache","message","正在查找本地缓存","startedAt",activityStartedAt());runtime.emit();
         beginLoading();
         final String requestedQuality=quality;
         resolutionTask=resolver.submit(() -> {
             try {
                 if(token!=generation||!wanted)return;
-                JSONObject cached=failures.contains("cache")?null:reusableCache(current);if(cached!=null)failures.add("cache");JSONObject result=cached!=null?cached:runtime.sources.resolve(current,failures,requestedQuality,(phase,message)->main.post(() -> {if(token==generation){activity=Json.obj("phase",phase,"message",message,"startedAt",System.currentTimeMillis());runtime.emit();}}),()->token!=generation||!wanted||Thread.currentThread().isInterrupted(),Math.max(1,resolveDeadline-SystemClock.elapsedRealtime()));
+                JSONObject cached=failures.contains("cache")?null:reusableCache(current);if(cached!=null)failures.add("cache");JSONObject result=cached!=null?cached:runtime.sources.resolve(current,failures,requestedQuality,(phase,message)->main.post(() -> {if(token==generation){activity=Json.obj("phase",phase,"message",message,"startedAt",activityStartedAt());runtime.emit();}}),()->token!=generation||!wanted||Thread.currentThread().isInterrupted(),Math.max(1,resolveDeadline-SystemClock.elapsedRealtime()));
                 main.post(() -> {if(token==generation&&wanted)start(result,token);});
-            } catch(Exception e){main.post(() -> {if(token==generation&&wanted){wanted=false;finishLoading();activity=Json.obj("phase","failed","message","资源暂不可用，请更换音乐源或重试","detail",Json.message(e),"startedAt",System.currentTimeMillis());error=Json.obj("message",Json.message(e));if(roaming!=null&&roaming.isActive())roaming.failed();runtime.emit();}});}
+            } catch(Exception e){main.post(() -> {if(token==generation&&wanted){wanted=false;finishLoading();activity=Json.obj("phase","failed","message","资源暂不可用，请更换音乐源或重试","detail",SourceDiagnostics.reason(e),"startedAt",activityStartedAt());error=Json.obj("message",SourceDiagnostics.reason(e)+"，请重试或更换音乐源");if(roaming!=null&&roaming.isActive())roaming.failed();runtime.emit();}});}
         });
     }
     private JSONObject reusableCache(JSONObject track) {
@@ -140,7 +141,7 @@ public final class PlaybackService extends MediaSessionService {
         MediaMetadata metadata=new MediaMetadata.Builder().setTitle(track.optString("title")).setArtist(track.optString("artist")).setAlbumTitle(track.optString("album")).setArtworkUri(cover.isEmpty()?null:cover.startsWith("/")?Uri.fromFile(new File(cover)):Uri.parse(cover)).build();
         MediaItem.Builder item=new MediaItem.Builder().setMediaId(track.optString("id")).setUri(result.optString("url")).setMediaMetadata(metadata);
         if(cacheEnabled&&result.has("cacheKey")&&!result.optString("url").toLowerCase(Locale.ROOT).contains(".m3u8"))item.setCustomCacheKey(result.optString("cacheKey"));
-        Json.put(track,"actualQuality",result.optString("quality"));activity=Json.obj("phase","buffering","message",result.optString("cacheHit").equals("complete")?"正在读取本地音频缓存":result.optString("cacheHit").equals("partial")?"优先读取已缓存片段":"音频正在缓冲","startedAt",System.currentTimeMillis());
+        Json.put(track,"actualQuality",result.optString("quality"));activity=Json.obj("phase","buffering","message",result.optString("cacheHit").equals("complete")?"正在读取本地音频缓存":result.optString("cacheHit").equals("partial")?"优先读取已缓存片段":"音频正在缓冲"+(resolution==null?"":" · "+resolution.optString("providerName")),"startedAt",activityStartedAt());
         DataSource.Factory dataSource=track.optString("source").equals("local")?new DefaultDataSource.Factory(this,http):cacheEnabled?cacheFactory:http;
         DefaultMediaSourceFactory mediaFactory=new DefaultMediaSourceFactory(this).setDataSourceFactory(dataSource);
         player.setMediaSource(mediaFactory.createMediaSource(item.build()));if(resumePosition>0)player.seekTo(resumePosition);player.prepare();if(wanted)player.play();runtime.emit();

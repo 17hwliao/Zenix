@@ -84,6 +84,7 @@ class SourceManager {
     this.lyricFolder = path.join(userDataPath, 'source-cache', 'lyrics');
     this.metadataCache = new (require('./runtime/metadata-cache.cjs').MetadataCache)(path.join(userDataPath, 'source-cache'));
     this.saveQueue = Promise.resolve();
+    this.diagnostics = new (require("./runtime/source-diagnostics.cjs").SourceDiagnostics)(this.folder);
     this.requests = new Map();
     this.broadcast = broadcast; this.records = []; this.runners = new Map(); this.byContents = new Map();
     this.sessions = new BoundedCache({ maxEntries: 48, ttl: 6 * 60 * 60 * 1000 });
@@ -104,6 +105,7 @@ class SourceManager {
   }
   async load() {
     await fs.mkdir(this.folder, { recursive: true });
+    await this.diagnostics.load();
     await fs.mkdir(this.coverFolder, { recursive: true });
     await fs.mkdir(this.lyricFolder, { recursive: true });
     await this.metadataCache.prune({ bestEffort: true });
@@ -126,7 +128,7 @@ class SourceManager {
         migrated = true;
         return { ...record, installedAt: stat?.birthtimeMs || Date.now() + index };
       }));
-      this.records.sort((left, right) => left.installedAt - right.installedAt);
+      this.records.sort((left, right) => (left.manualOrder ?? Number.MAX_SAFE_INTEGER) - (right.manualOrder ?? Number.MAX_SAFE_INTEGER) || left.installedAt - right.installedAt);
       if (migrated) await this.save();
     } catch (error) {
       if (indexRead || error.code !== 'ENOENT') { this.storageError = '音乐源配置无法读取或解密，已保留原文件并停止写入'; this.records = []; this.settings = {}; }
@@ -134,6 +136,9 @@ class SourceManager {
     return this.list();
   }
   list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256, installedAt, networkPolicy }) => ({ networkPolicy, id, kind: kind || 'zenix', manifest, enabled, origin, sha256, installedAt, status: this.errors.has(id) ? 'error' : [...this.runners.values()].some(runner => runner.record.id === id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
+  async move(id, direction) {
+    this.assertWritable(); const before = structuredClone(this.records), at = this.records.findIndex(record => record.id === id); if (at < 0) throw Error("音乐源不存在"); const next = Math.max(0, Math.min(this.records.length - 1, at + (direction < 0 ? -1 : 1))); [this.records[at], this.records[next]] = [this.records[next], this.records[at]]; this.records.forEach((record, index) => {record.manualOrder = index;}); try {await this.save();} catch(error) {this.records = before; throw error;} return this.list();
+  }
   async save() {
     this.assertWritable();
     const task = this.saveQueue.catch(() => {}).then(async () => {
@@ -160,7 +165,7 @@ class SourceManager {
     if (typeof script !== 'string' || !script.includes('zenix.register') || Buffer.byteLength(script, 'utf8') > MAX_PACKAGE) throw new Error('音乐源脚本无效');
     const sha256 = createHash('sha256').update(packageText).digest('hex');
     const index = this.records.findIndex(item => item.id === manifest.id);
-    const next = { id: manifest.id, manifest, enabled: true, networkPolicy: sourcePolicy(permission, this.records[index]?.networkPolicy), origin, sha256, installedAt: this.records[index]?.installedAt || Date.now() };
+    const next = { id: manifest.id, manifest, enabled: true, networkPolicy: sourcePolicy(permission, this.records[index]?.networkPolicy), origin, sha256, manualOrder: this.records[index]?.manualOrder, installedAt: this.records[index]?.installedAt || Date.now() };
     const runner = new SourceRunner(this, next);
     await runner.start(script);
     runner.destroy();
@@ -207,7 +212,7 @@ class SourceManager {
     try { await runner.start(script); manifest = lxManifest(origin, script, runner.lxInfo); }
     finally { runner.destroy(); }
     const index = this.records.findIndex(item => item.id === id);
-    const next = { kind: 'lx', id, manifest, enabled: true, networkPolicy: policy, origin, sha256: createHash('sha256').update(script).digest('hex'), installedAt: this.records[index]?.installedAt || Date.now() };
+    const next = { kind: 'lx', id, manifest, enabled: true, networkPolicy: policy, origin, sha256: createHash('sha256').update(script).digest('hex'), manualOrder: this.records[index]?.manualOrder, installedAt: this.records[index]?.installedAt || Date.now() };
     const target = path.join(this.folder, id, manifest.version);
     await fs.mkdir(target, { recursive: true });
     await fs.writeFile(path.join(target, 'manifest.json'), JSON.stringify(manifest), 'utf8');
@@ -503,6 +508,8 @@ class SourceManager {
     const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     const record = this.record(id);
     quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
+    const started = Date.now();
+    try {
     const result = record.kind === 'lx' ? await this.lxPlayback(id, remoteId, quality, signal) : await this.call(id, 'resolvePlayback', { remoteId, quality }, signal);
     if (!result || typeof result.url !== 'string') throw new Error('音乐源没有返回播放地址');
     if (record.kind === 'lx') await checkLxUrl(result.url, sourcePolicy(record.networkPolicy)); else checkUrl(result.url, record.manifest.network.mediaHosts);
@@ -510,7 +517,8 @@ class SourceManager {
     const token = randomUUID();
     const headers = this.mediaHeaders(result.headers);
     this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
-    return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id };
+    return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id, diagnosticAttemptId: this.diagnostics.record(id, started) };
+    } catch (error) { this.diagnostics.record(id, started, error); throw error; }
   }
   async lxPlayback(id, remoteId, quality, signal) {
     const record = this.record(id);

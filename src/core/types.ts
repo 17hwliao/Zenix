@@ -1,4 +1,9 @@
+export type SourceDiagnosticsState = { smooth: boolean; sources: Record<string, { attempts: number; resolved: number; played: number; averageMs: number; lastPlayedAt: number; lastFailure: string }> };
+
 export interface Track {
+  searchAlternatives?: Track[];
+  preferredPlaybackProviderId?: string;
+  diagnosticAttemptId?: string;
   id: string;
   path: string;
   title: string;
@@ -151,6 +156,10 @@ export interface DesktopBridge {
     onChanged(callback: (state: AppearanceState) => void): () => void;
   };
   sources: {
+    move(id: string, direction: number): Promise<InstalledSource[]>;
+    diagnostics(): Promise<SourceDiagnosticsState>;
+    configureDiagnostics(smooth: boolean): Promise<SourceDiagnosticsState>;
+    outcome(id: string, played: boolean, reason?: string): Promise<void>;
     list(): Promise<InstalledSource[]>;
     importFile(): Promise<SourcePreview | null>;
     importFolder(): Promise<SourcePreview | null>;
@@ -167,7 +176,7 @@ export interface DesktopBridge {
     cancelRequest(requestId: string): Promise<void>;
     cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string } | null>;
     cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string } | null>;
-    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
+    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     openFolder(): Promise<string>;
     onChanged(callback: (sources: InstalledSource[]) => void): () => void;

@@ -53,6 +53,7 @@ type OrbitCard = { id: OrbitCoverKey | 'settings'; label: string; caption: strin
 
 export default function PersonalHome({ personal, tracks, currentTrack, appearanceBackground, appearanceBusy, onPlayTrack, onOpenPlayer, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist, onRoaming, roamingActive }: Props) {
   const [profile, setProfile] = useState<Profile>(readProfile);
+  useEffect(() => { const restore = () => setProfile(readProfile()); window.addEventListener('zenix:profile-restored', restore); return () => window.removeEventListener('zenix:profile-restored', restore); }, []);
   const [draft, setDraft] = useState<Profile>(profile);
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState('');

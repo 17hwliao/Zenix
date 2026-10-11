@@ -33,6 +33,7 @@ public class ZenixNativePlugin extends Plugin {
         }
         if(action.equals("features")){
             String operation=args.optString("operation");
+            if(operation.equals("backupCreate")||operation.equals("backupRead")){Intent intent=new Intent(operation.equals("backupCreate")?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(operation.equals("backupCreate")?"application/octet-stream":"*/*");if(operation.equals("backupCreate"))intent.putExtra(Intent.EXTRA_TITLE,"Zenix-资料.zenixbackup");startActivityForResult(call,intent,"backupFile");return;}
             if(operation.equals("exportFile")||operation.equals("saveImage")){Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(operation.equals("saveImage")?"image/png":"application/octet-stream");intent.putExtra(Intent.EXTRA_TITLE,operation.equals("saveImage")?"Zenix-音乐回忆.png":"Zenix-歌单.zenixlist");startActivityForResult(call,intent,"featureFile");return;}
             if(operation.equals("importFile")){Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("*/*");startActivityForResult(call,intent,"featureFile");return;}
             if(operation.startsWith("timer")||operation.equals("widgetPin")){
@@ -79,6 +80,8 @@ public class ZenixNativePlugin extends Plugin {
         try{worker.execute(() -> {try {
             Object value;
             switch(action){
+                case "sourceDiagnostics":value=runtime.sources.diagnostics.state();break;
+                case "sourceDiagnosticsConfigure":value=runtime.sources.diagnostics.configure(args.optBoolean("smooth"));break;
                 case "search":value=runtime.sources.search(args.getString("id"),args.getString("keyword").trim().substring(0,Math.min(120,args.getString("keyword").trim().length())),args.optString("cursor"));break;
                 case "artwork":value=runtime.sources.artwork(args.getJSONObject("track"));String artUrl=((JSONObject)value).optString("url"),artId=args.getJSONObject("track").optString("id");if(!artUrl.isEmpty()){runtime.store.artwork(artId,artUrl);runtime.main.post(()->{if(runtime.service!=null)runtime.service.artwork(artId,artUrl);});}break;
                 case "lyrics":value=runtime.sources.lyrics(args.getJSONObject("track"));break;
@@ -100,6 +103,7 @@ public class ZenixNativePlugin extends Plugin {
             result(call,value);runtime.emit();
         }catch(Exception e){call.reject(Json.message(e));}});}catch(java.util.concurrent.RejectedExecutionException error){call.reject("音乐资料加载较多，请稍后重试");}
     }
+    @ActivityCallback private void backupFile(PluginCall call,ActivityResult returned){if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null||data.getData()==null){result(call,null);return;}runtime.work.execute(()->{try{JSONObject args=call.getObject("payload",new JSObject());if(args.optString("operation").equals("backupCreate")){String text=runtime.companion.backup.create(args);try(OutputStream output=getContext().getContentResolver().openOutputStream(data.getData(),"wt")){if(output==null)throw new IOException("无法打开备份文件");byte[] bytes=text.getBytes(StandardCharsets.UTF_8);output.write(bytes);}result(call,Json.obj("saved",true,"bytes",text.getBytes(StandardCharsets.UTF_8).length));}else{String text=new String(SourceHttp.bounded(getContext().getContentResolver().openInputStream(data.getData()),BackupFormat.MAX_BYTES),StandardCharsets.UTF_8);result(call,runtime.companion.backup.preview(text));}}catch(Exception e){call.reject(Json.message(e));}});}
     @PermissionCallback private void notificationResult(PluginCall call){result(call,getPermissionState("notifications")==PermissionState.GRANTED);}
     @ActivityCallback private void overlayPermissionReturned(PluginCall call,ActivityResult returned){if(call==null)return;try{if(LyricOverlayService.allowed(getContext()))LyricOverlayService.start(getContext());result(call,runtime.overlayStatus());runtime.emit();}catch(Exception e){call.reject(Json.message(e));}}
     @ActivityCallback private void filePicked(PluginCall call,ActivityResult returned){

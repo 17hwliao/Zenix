@@ -58,15 +58,21 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
     const local = await sourceDeadline(() => bridge.cachedBest(track, qualityOrder(preference)), signal, 4000).catch(() => { signal.throwIfAborted(); return null; });
     if (local) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
   }
-  notify('connecting', '正在连接可用资源');
+  notify('resolving', '正在查找可用资源');
   const sources = (await sourceDeadline(() => bridge.list(), signal, 5000)).filter(source => source.enabled && source.manifest.capabilities.includes('resolvePlayback'));
+  const diagnostics = await sourceDeadline(() => bridge.diagnostics?.() || Promise.resolve(null), signal, 2000)
+    .catch(() => { signal.throwIfAborted(); return null; });
+  if (diagnostics?.smooth) sources.sort((a, b) => (diagnostics.sources[b.id]?.lastPlayedAt || 0) - (diagnostics.sources[a.id]?.lastPlayedAt || 0));
+  if (track.preferredPlaybackProviderId) sources.sort((a,b)=>Number(b.id === track.preferredPlaybackProviderId)-Number(a.id === track.preferredPlaybackProviderId));
   if (!sources.length) throw new Error('没有启用可播放的音乐源；请在音乐源设置中启用至少一个源。');
   let lxPlatform = '';
   try { lxPlatform = JSON.parse(atob((track.remoteId || '').replace(/-/g, '+').replace(/_/g, '/'))).source || ''; } catch {}
   const attempted: string[] = [];
   for (const source of sources) {
-    notify(attempted.length ? 'switching' : 'connecting', attempted.length ? '正在换用备用连接' : '正在连接播放服务');
+    notify(attempted.length ? 'switching' : 'resolving', attempted.length ? '正在换用备用连接' : '正在连接播放服务');
     attempted.push(source.manifest.name);
+    const sourceLabel = `${source.manifest.name} · ${attempted.length}/${sources.length}`;
+    notify('resolving', `正在查找资源 · ${sourceLabel}`);
     const direct = source.id === track.providerId
       ? track
       : source.kind === 'lx' && lxPlatform && source.manifest.lxPlatforms?.[lxPlatform]
@@ -83,9 +89,10 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
         if (failedAttempts.includes(`${source.id}:${tier}`)) continue;
         try {
           const qualityName = { lossless24: '高解析无损', lossless: '无损', high: '高品质', standard: '标准' }[tier];
-          notify('resolving', `正在获取${qualityName}音频`);
+          notify('resolving', `正在获取${qualityName}音频 · ${sourceLabel}`);
           const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId), signal);
           if (resolved.audioUrl) {
+            notify('connecting', `地址已取得，正在连接音频 · ${sourceLabel}`);
             return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id, playbackQuality: tier };
           }
           failures.push(`${source.manifest.name}的${tier}音质无法播放`);
