@@ -30,8 +30,8 @@ android {
         applicationId "com.zenix.musicplayer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 33
-        versionName "1.0.0"
+        versionCode 35
+        versionName "1.0.1"
         if (project.hasProperty('zenixAcceptance')) {
             testInstrumentationRunner 'com.zenix.acceptance.UpdateAcceptanceInstrumentation'
         }

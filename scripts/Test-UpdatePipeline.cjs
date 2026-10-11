@@ -42,7 +42,7 @@ test('official update transport validates every redirect and uses the Electron s
   const abort = new AbortController(); abort.abort(); await assert.rejects(fetchUpdate(apkUrl, { signal: abort.signal }, async () => { throw Error('must not connect'); }), { name: 'AbortError' });
 });
 
-async function updater(t, mutate = value => value, packaged = false, currentBuild = 19) {
+async function updater(t, mutate = value => value, packaged = false, currentBuild = 19, currentVersion = '1.0.0') {
   const directory = await fsp.mkdtemp(path.join(os.tmpdir(), 'zenix-update-pipeline-')); t.after(() => fsp.rm(directory, { recursive: true, force: true }));
   const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const bytes = Buffer.from('synthetic-installer-fixture');
@@ -59,7 +59,7 @@ async function updater(t, mutate = value => value, packaged = false, currentBuil
       if (id === 'node:child_process') return {spawn,execFile:require('node:child_process').execFile};
       if (id === './update-network.cjs') return { updateUrl, fetchUpdate: (url, opts) => fetchUpdate(url, opts, official) }; return realRequire(id); },
   }, { filename: source });
-  const app = { getVersion: () => '1.0.0', getPath: () => directory, isPackaged: packaged,quit:()=>quits++ };
+  const app = { getVersion: () => currentVersion, getPath: () => directory, isPackaged: packaged,quit:()=>quits++ };
   return { update: new module.exports.Updates(app), bytes, item, corrupt: () => { corrupt = true; }, contacts: () => contacts, envelope, launches,quits:()=>quits };
 }
 
@@ -119,4 +119,17 @@ test('automatic updater bounds failure retries and stops timers on disposal', as
   let calls = 0; const f = clockFixture({ check: async () => { calls++; throw Error('offline'); } });
   await f.advance(15000); assert.equal(calls, 1); f.scheduler.wake(); await flush(); assert.equal(calls, 1);
   await f.advance(15 * 60 * 1000); assert.equal(calls, 2); f.scheduler.stop(); await f.advance(24 * 60 * 60 * 1000); assert.equal(calls, 2);
+});
+
+
+test('production Windows updater recognizes v1.0.1 from v1.0.0 and the subsequent public version', async t => {
+  for (const installed of [27, 28, 32, 33]) {
+    const fixture = await updater(t, item => ({ ...item, version: '1.0.1', build: 35, url: 'https://github.com/17hwliao/Zenix/releases/download/v1.0.1/fixture-r35.exe' }), false, installed);
+    const state = await fixture.update.check('stable');
+    assert.equal(state.status, 'available'); assert.equal(state.version, '1.0.1'); assert.equal(state.build, 35);
+    assert.equal((await fixture.update.download()).status, 'ready');
+  }
+  const next = await updater(t, item => ({ ...item, version: '1.0.2', build: 36 }), false, 35, '1.0.1');
+  assert.equal((await next.update.check('stable')).status, 'available');
+  assert.equal((await next.update.download()).status, 'ready');
 });

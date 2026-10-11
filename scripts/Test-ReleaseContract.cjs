@@ -105,3 +105,10 @@ test('production CI publisher rejects invalid candidates before remote access an
   assert.equal(authentication.calls.length, 1);
   assert.equal(authentication.calls[0][0], 'api', 'authentication failure must not trigger release create or upload');
 });
+
+
+test('public v1.0.1 keeps the original dual-platform baseline and supports later versions', () => {
+  const release = { ...baseline, artifacts: Object.fromEntries(['windows', 'android'].map(platform => [platform, { ...artifact(platform, 35), version: '1.0.1', url: `https://github.com/17hwliao/Zenix/releases/download/v1.0.1/package-r35.${platform === 'windows' ? 'exe' : 'apk'}` }])) };
+  assert.doesNotThrow(() => assertForward(release, [baseline]));
+  assert.doesNotThrow(() => assertForward({ ...release, artifacts: Object.fromEntries(['windows', 'android'].map(platform => [platform, { ...release.artifacts[platform], version: '1.0.2', build: 36, url: release.artifacts[platform].url.replace('v1.0.1', 'v1.0.2').replace('r35', 'r36') }])) }, [baseline, release]));
+});

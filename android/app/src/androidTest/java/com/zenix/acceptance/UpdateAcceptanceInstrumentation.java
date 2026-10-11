@@ -52,6 +52,7 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             .put("favorites",mainPersonal.getJSONArray("favorites").length()).put("playlists",mainPersonal.getJSONArray("playlists").length())
             .put("history",mainPersonal.getJSONArray("history").length())
             .put("sha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(mainPersonal).getBytes(StandardCharsets.UTF_8)))));
+        out.put("configurationSha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(new JSONObject().put("sources",mainData.opt("sources")).put("profile",mainData.opt("profile")).put("appearance",mainData.opt("appearance"))).getBytes(StandardCharsets.UTF_8))));
         if (mode.equals("uiPerformance")) {
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
             launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
