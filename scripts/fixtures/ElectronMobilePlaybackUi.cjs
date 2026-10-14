@@ -59,6 +59,8 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('window.fixture.state.playback.queue.length'),3,'saved playlist removal must not alter active queue');
   await wait('document.querySelectorAll(".swipe-track-row").length===4');await click('[aria-label="播放 Fixture 2"]');await sleep(400);assert.equal(await evaluate('!!document.querySelector(".zenix-mobile")&&!!document.querySelector(".space-viewport")'),true,'partial native play response must preserve sources and personal state');assert.equal(await evaluate('window.fixture.state.playback.track.id'),'fixture-2');
   await click('[aria-label="设置"]');await wait('!!document.querySelector(".settings-card")');
+  await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,quality:'lossless'}})`);
+  await wait(`document.querySelector('.settings-card label select')?.value==='lossless'`);
   // Native personal updates must reach tools while the memoized settings page stays open.
   const settingsPersonal=await evaluate('window.fixture.state.personal');
   await evaluate(`window.fixture.setSnapshot({personal:{...window.fixture.state.personal,playlists:[...window.fixture.state.personal.playlists,{id:'fresh-settings-list',name:'新收到的歌单',tracks:[]}]}})`);
@@ -88,6 +90,21 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),controlsBefore);
   const afterDimensions=await evaluate('Object.fromEntries([...document.querySelectorAll(".space-sticker")].map(e=>[e.dataset.songId,{w:e.style.width,h:e.style.height}]))');
   assert.ok(Object.keys(dimensions).some(id=>afterDimensions[id]&&afterDimensions[id].w!==dimensions[id].w),'poster focus rearranges the mosaic');
+  const interrupted=await evaluate(`new Promise(resolve=>{
+    document.querySelector('.space-sticker:not(.is-focused) .space-poster').click();
+    setTimeout(()=>{
+      const old=document.querySelector('.space-sticker.is-focused'),before=old.getBoundingClientRect();
+      const active=old.getAnimations().some(animation=>animation.playState==='running');
+      document.querySelector('.space-sticker:not(.is-focused) .space-poster').click();
+      queueMicrotask(()=>{const after=old.getBoundingClientRect();resolve({active,retained:old.isConnected,delta:Math.max(...['x','y','width','height'].map(key=>Math.abs(after[key]-before[key]))),expanded:document.querySelectorAll('.space-sticker.is-expanded').length});});
+    },120);
+  })`);
+  assert.equal(interrupted.active,true,'rapid switch actually interrupts a running poster projection');
+  assert.equal(interrupted.retained,true,'outgoing poster stays mounted through its flight');
+  assert.ok(interrupted.delta<3,'retarget starts at the visible interrupted geometry: '+interrupted.delta);
+  assert.equal(interrupted.expanded,1);
+  await sleep(700);
+  assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),controlsBefore,'rapid focus switching never changes playback');
   await pointer('.is-focused .space-poster');await pointer('.is-focused .space-poster');await sleep(350);
   assert.equal(await evaluate('!!document.querySelector(".mobile-full-player")'),false,'double tap does not open full-screen');
   await pointer('.is-focused .space-poster',0,0,550);await wait('!!document.querySelector(".song-quick-actions")');await click('.sheet-close');await sleep(300);
@@ -101,12 +118,16 @@ app.whenReady().then(async()=>{
   const detailCamera=await evaluate('document.querySelector(".space-plane").style.transform');
   const detailFocus=await evaluate('document.querySelector(".space-sticker.is-focused").dataset.songId');
   const detailHeight=await evaluate('document.querySelector(".space-viewport").clientHeight');
+  await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,track:{...window.fixture.state.playback.track,source:'custom',providerId:'Source A',remoteId:'art-fixture'}}})`);await sleep(100);
+  await evaluate('window.fixture.artReads=[]');
   await evaluate(`window.fixture.lyrics={text:Array.from({length:240},(_,i)=>'['+Math.floor(i/60).toString().padStart(2,'0')+':'+(i%60).toString().padStart(2,'0')+']Stress lyric '+i).join(String.fromCharCode(10)),format:'lrc',source:'custom'};window.fixture.lyricReads=[];window.fixture.playbackTicks=setInterval(()=>window.fixture.setSnapshot({playback:{...window.fixture.state.playback,position:window.fixture.state.playback.position+.04}}),40)`);
   const opening=await evaluate(`new Promise((resolve,reject)=>{const start=performance.now(),samples=[];document.querySelector('.is-focused [aria-label="打开完整播放器"]').click();const frame=()=>{const el=document.querySelector('.mobile-full-player'),top=el?.getBoundingClientRect().top;samples.push({ms:performance.now()-start,top});if(el&&top<=1&&el.querySelector('.full-player-art .mobile-art'))return resolve({ms:performance.now()-start,samples,reads:window.fixture.lyricReads});if(performance.now()-start>1000)return reject(Error('Player entrance did not settle'));requestAnimationFrame(frame);};requestAnimationFrame(frame);})`);
   assert.ok(opening.ms<400,'player entrance settles promptly: '+opening.ms);
   assert.ok(opening.samples.some(s=>s.top>20&&s.top<700),'entrance still slides upwards');
   assert.ok(opening.reads.length>0&&opening.reads.every(r=>r.panelTop<=1),'full lyrics are fetched after the slide, not during it');
   await wait('document.querySelectorAll(".mobile-full-player [data-line]").length===240');
+  const coverReads=await evaluate('window.fixture.artReads.filter(row=>row.panelTop!==undefined)');
+  assert.ok(coverReads.length>0&&coverReads.every(row=>row.panelTop<=1),'native cover reads wait for entrance completion');
   assert.equal(await evaluate('document.querySelector(".space-viewport").clientHeight'),detailHeight,'opening never resizes/reflows the sticker viewport');
   assert.equal(await evaluate('document.querySelector(".mobile-space").classList.contains("is-suspended")'),true);
   const closing=await evaluate(`new Promise((resolve,reject)=>{const start=performance.now(),samples=[];document.querySelector('.mobile-full-player [aria-label="收起"]').click();const frame=()=>{const el=document.querySelector('.mobile-full-player');if(!el)return resolve({ms:performance.now()-start,samples});samples.push({ms:performance.now()-start,top:el.getBoundingClientRect().top,suspended:document.querySelector('.mobile-space').classList.contains('is-suspended')});if(performance.now()-start>1000)return reject(Error('Player exit did not finish'));requestAnimationFrame(frame);};requestAnimationFrame(frame);})`);
@@ -127,6 +148,13 @@ app.whenReady().then(async()=>{
   await click('[aria-label="收起"]');await wait('!document.querySelector(".mobile-full-player")&&!document.querySelector(".mobile-space.is-suspended")');
   await evaluate('clearInterval(window.fixture.playbackTicks);window.fixture.lyrics=null');
   assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),detailControls);
+  await evaluate(`window.fixture.artReads=[];window.fixture.setSnapshot({playback:{...window.fixture.state.playback,track:{...window.fixture.state.playback.track,coverUrl:'/scripts/fixtures/local-cover.svg'}}})`);
+  await click('.is-focused [aria-label="打开完整播放器"]');await sleep(350);
+  await wait('document.querySelector(".full-song img.mobile-art")?.naturalWidth===64');
+  assert.equal(await evaluate('window.fixture.artReads.filter(row=>row.panelTop!==undefined).length'),0,'valid native local cover survives remount without a bridge read');
+  await evaluate(`document.querySelector('.full-song img.mobile-art').dispatchEvent(new Event('error'))`);await sleep(200);
+  assert.equal(await evaluate('window.fixture.artReads.filter(row=>row.panelTop!==undefined).length'),1,'failed local image retries native once');
+  await click('[aria-label="收起"]');await wait('!document.querySelector(".mobile-full-player")');
   process.stdout.write('DETAIL_TRANSITION '+JSON.stringify({openMs:opening.ms,closeMs:closing.ms,lyricLines:240,playbackTickMs:40})+'\n');
   // Search stays in the poster space; lists belong to queue/playlist management.
   await click('[aria-label="搜索歌曲"]');await wait('!!document.querySelector(".mobile-search")');

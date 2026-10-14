@@ -28,7 +28,7 @@ public final class MobilePlaybackContractCheck {
         }finally{release.countDown();playback.cancel();browse.cancel();workers.shutdownNow();}
     }
     static JSONObject source(String id){return Json.obj("id",id,"kind","zenix","enabled",true,"settings",new JSONObject(),"manifest",Json.obj("name",id,"qualities",Json.array("high","standard","lossless")));}
-    static JSONObject track(String origin){return Json.obj("id","fixture-track","providerId",origin,"remoteId","fixture-remote","title","Fixture","artist","Artist","source","custom");}
+    static JSONObject track(String origin){return Json.obj("id","fixture-track","providerId",origin,"remoteId","fixture-remote","title","Fixture","artist","Artist","source","custom","duration",90);}
     static void sources(File folder)throws Exception {
         File packs=new File(folder,"sources");packs.mkdirs();PrivateStore store=new PrivateStore();
         for(String id:List.of("slowA","B","C")){store.sources.put(source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
@@ -75,7 +75,16 @@ public final class MobilePlaybackContractCheck {
         check(personal.getJSONArray("liked").length()==1&&personal.getJSONArray("favorites").length()==1,"one-tap save idempotent, never toggles off");
         try{PersonalCollections.add(personal,song,Json.array("liked","unknown"));throw new AssertionError("invalid collection accepted");}catch(Exception expected){check(personal.getJSONArray("liked").length()==1,"invalid batch did not change collections");}
     }
-    public static void main(String[] args)throws Exception{lanes();sources(new File(args[0]));cacheAndCollections();System.out.println("MOBILE_PLAYBACK_CONTRACT_PASS");}
+    static void matchingAndBackgrounds(File folder)throws Exception{
+        JSONObject original=track("A"),exact=track("B");check(MusicSources.sameRecordingMetadata(original,exact),"exact recording matches");
+        for(JSONObject patch:List.of(Json.obj("artist","Artist & Guest"),Json.obj("title","Fix-ture"),Json.obj("title","Fixture (Live)"),Json.obj("duration",0),Json.obj("duration",95),Json.obj("artist",""))){JSONObject candidate=Json.copy(exact);for(Iterator<String> keys=patch.keys();keys.hasNext();){String key=keys.next();Json.put(candidate,key,patch.opt(key));}check(!MusicSources.sameRecordingMetadata(original,candidate),"ambiguous fallback rejected: "+patch);}
+        Json.put(original,"album","Studio");Json.put(exact,"album","Live");check(!MusicSources.sameRecordingMetadata(original,exact),"different known album rejected");
+        File backgrounds=new File(folder,"background");backgrounds.mkdirs();File before=new File(backgrounds,"backdrop-before.png"),after=new File(backgrounds,"backdrop-after.png"),current=new File(backgrounds,"backdrop-current.png"),unused=new File(backgrounds,"backdrop-unused.png"),other=new File(backgrounds,"unrelated.txt");for(File file:List.of(before,after,current,unused,other))Files.writeString(file.toPath(),"fixture");
+        JSONObject journal=Json.obj("before",Json.obj("appearance",Json.obj("background",Json.obj("url",before.getAbsolutePath()))),"after",Json.obj("appearance",Json.obj("background",Json.obj("url",after.getAbsolutePath()))));
+        BackgroundFiles.prune(backgrounds,current,journal);check(before.isFile()&&after.isFile()&&current.isFile()&&other.isFile()&&!unused.exists(),"journal/current files survive normal replacement cleanup");
+        BackgroundFiles.prune(backgrounds,current,null);check(!before.exists()&&!after.exists()&&current.isFile(),"completed journal releases old backgrounds");
+    }
+    public static void main(String[] args)throws Exception{lanes();sources(new File(args[0]));cacheAndCollections();matchingAndBackgrounds(new File(args[0]));System.out.println("MOBILE_PLAYBACK_CONTRACT_PASS");}
 }
 
 final class PrivateStore {
@@ -108,7 +117,7 @@ final class ScriptEngine implements AutoCloseable {
     Object call(String method,Object payload,JSONObject settings)throws Exception{return call(method,payload,settings,20000);}
     Object call(String method,Object payload,JSONObject settings,long timeout)throws Exception {
         String quality=payload instanceof JSONObject?((JSONObject)payload).optString("quality"):"";calls.add(script+":"+method+":"+quality);if(timeout>10000&&method.equals("resolvePlayback"))throw new AssertionError("source request budget exceeded");
-        if(method.equals("search"))return Json.obj("items",Json.array(Json.obj("remoteId","match-"+script,"title","Fixture","artist","Artist")));
+        if(method.equals("search"))return Json.obj("items",Json.array(Json.obj("remoteId","match-"+script,"title","Fixture","artist","Artist","duration",90)));
         if(script.startsWith("slow")){android.os.SystemClock.now+=timeout;throw new TimeoutException("timeout");}
         if(script.equals("B")&&quality.equals("high"))throw new Exception("quality unavailable");
         return Json.obj("url","https://audio.example.test/fixture.mp3");

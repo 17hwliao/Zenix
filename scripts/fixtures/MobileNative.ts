@@ -1,6 +1,6 @@
 import type {MobileSnapshot,MobileUpdate} from '../../src/mobile/native';
 export type {MobileSnapshot,MobileUpdate,MobileSearchPage} from '../../src/mobile/native';
-export const isNativeMobile=true,isAndroid=false,isIOS=false,mobilePlatform='Android',supportsOverlay=false;
+export const isNativeMobile=true,isAndroid=true,isIOS=false,mobilePlatform='Android',supportsOverlay=false;
 const songs=Array.from({length:5},(_,i)=>({id:`fixture-${i}`,title:i===1?'很长的歌曲标题，用于验证手机布局和滑动手势':'Fixture '+i,artist:'测试歌手',source:'local' as const,path:'',audioUrl:'',duration:120}));
 const source=(id:string)=>({id,kind:'zenix' as const,enabled:true,status:'ready' as const,manifest:{id,name:id,version:'1',schemaVersion:1 as const,capabilities:['search','resolvePlayback'] as ('search'|'resolvePlayback')[],qualities:['high'],settings:[],network:{apiHosts:[],mediaHosts:[],artworkHosts:[]}},origin:{kind:'file' as const,label:'fixture'},installedAt:1,sha256:'fixture',lastError:''});
 export const initialSnapshot:MobileSnapshot={playback:{track:songs[0],playing:false,playWhenReady:true,cacheStatus:'complete',position:0,duration:120,volume:.75,muted:false,shuffle:false,repeat:'all',queue:songs,queueIndex:0},personal:{liked:[],favorites:[],history:[],playlists:[{id:'list-fixture',name:'测试歌单',tracks:songs}]},sources:[source('Source A'),source('Source B')],cache:{usedBytes:123456,limitMiB:512,enabled:true},appearance:{completed:true,background:null},profile:{name:'Fixture',bio:'隔离界面测试'}};
@@ -12,12 +12,13 @@ export async function command<T>(action:string,payload:Record<string,any>={}):Pr
   if(action==='removeQueue'){state={...state,playback:{...state.playback,queue:state.playback.queue.filter(song=>song.id!==payload.id)}};}
   if(action==='sourceMove'){const sources=[...state.sources],at=sources.findIndex(source=>source.id===payload.id),next=at+payload.direction;[sources[at],sources[next]]=[sources[next],sources[at]];state={...state,sources};value=sources;}
   if(action==='exportSourceBundle')value=(window as any).fixture.exportResult||{saved:true,count:state.sources.length};
+  if(action==='mode'){state={...state,playback:{...state.playback,...payload}};}
   if(action==='toggle'){state={...state,playback:{...state.playback,playWhenReady:!state.playback.playWhenReady}};}
   if(action==='sourceDiagnostics'||action==='sourceDiagnosticsConfigure')value={smooth:payload.smooth===true,sources:{}};
   if(action==='features'){value=payload.operation==='backupInfo'?{undoAvailable:false,backgroundBytes:0}:payload.operation==='lanStatus'?{listening:false,addresses:[]}:payload.operation==='timerState'?{endsAt:0}:true;}
   if(action==='search'){const handler=(window as any).fixture.search;if(handler)return await handler(payload);value={items:songs,nextCursor:''};}
   if(action==='sourceRemove')state={...state,sources:state.sources.filter(source=>source.id!==payload.id)};
-  if(action==='artwork')value={};
+  if(action==='artwork'){((window as any).fixture.artReads??=[]).push({panelTop:document.querySelector('.mobile-full-player')?.getBoundingClientRect().top});value={};}
   if(action==='lyrics')value=null;
   if(action==='play')state={...state,playback:{...state.playback,queue:payload.tracks,track:payload.tracks[payload.index],queueIndex:payload.index,playWhenReady:true}};
   for(const listener of listeners)listener(state);if(action==='removeQueue'||action==='play'||action==='toggle')value={playback:state.playback,cache:state.cache};return value;

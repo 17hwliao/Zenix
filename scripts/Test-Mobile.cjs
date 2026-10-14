@@ -19,6 +19,32 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const StickerSpace = require('../src/mobile/StickerSpace.tsx').default;
 const { mergeMobileSnapshot } = require('../src/mobile/snapshot.ts');
+const { projectStickerLayout } = require('../src/mobile/stickerMotion.ts');
+
+test('sticker interruption batches reads before writes and releases completed projections', t => {
+  const previousMatrix=globalThis.DOMMatrixReadOnly,previousStyle=globalThis.getComputedStyle;
+  t.after(()=>{if(previousMatrix===undefined)delete globalThis.DOMMatrixReadOnly;else globalThis.DOMMatrixReadOnly=previousMatrix;if(previousStyle===undefined)delete globalThis.getComputedStyle;else globalThis.getComputedStyle=previousStyle;});
+  globalThis.DOMMatrixReadOnly=class { constructor(value){Object.assign(this,value?JSON.parse(value):{m41:0,m42:0,m11:1,m22:1});} };
+  const events=[],frames=new Map();
+  globalThis.getComputedStyle=element=>{events.push('read:'+element.id);return {transform:JSON.stringify({m41:8,m42:6,m11:.8,m22:.9})};};
+  const active=id=>({playState:'running',cancel(){events.push('cancel:'+id);},onfinish:null,oncancel:null});
+  const elements=new Map(['a','b'].map(id=>[id,{id,animate(keyframes,options){events.push('animate:'+id);frames.set(id,{keyframes,options});return active(id);}}]));
+  const animations=new Map(['a','b'].map(id=>[id,active(id)]));
+  const before=new Map(['a','b'].map(id=>[id,{left:10,top:20,width:100,height:80}]));
+  const after=new Map(['a','b'].map(id=>[id,{left:30,top:40,width:200,height:160}]));
+  projectStickerLayout(elements,before,after,animations,true);
+  assert.deepEqual(events.slice(0,2),['read:a','read:b'],'no animation write between style reads');
+  assert.equal(frames.get('a').keyframes[0].transform,'translate(-12px,-14px) scale(0.4,0.45)','interrupted position/size is continuous');
+  assert.equal(frames.get('a').options.duration,580,'preserves original poster duration');
+  const old=animations.get('a');
+  projectStickerLayout(elements,after,before,animations,true);
+  const replacement=animations.get('a');old.onfinish();assert.equal(animations.get('a'),replacement,'late finish cannot release a newer flight');
+  replacement.onfinish();assert.equal(animations.has('a'),false,'completed animation releases its handle');
+  animations.get('b').playState='finished';events.length=0;
+  projectStickerLayout(elements,before,after,animations,true);
+  assert.equal(events.some(value=>value.startsWith('read:')),false,'no style reads for finished flights');
+  projectStickerLayout(elements,after,before,animations,false);assert.equal(animations.size,0,'suspension cancels all flights');
+});
 test('mobile progress preserves presentation references, full playback clears stale loading/errors', () => {
   const previous={playback:{track:{id:'one'},queue:[{id:'one'}],position:0,playing:false,sourceActivity:{phase:'resolving'},error:'old'},personal:{liked:[{id:'one'}],favorites:[],history:[],playlists:[]},sources:[{id:'source',manifest:{name:'Source'}}],cache:{enabled:true,usedBytes:0}};
   const progress=mergeMobileSnapshot(previous,{playback:{position:1},cache:{enabled:true,usedBytes:0}});

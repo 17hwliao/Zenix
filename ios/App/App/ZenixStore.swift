@@ -21,8 +21,16 @@ final class ZenixStore {
         directory = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("Zenix", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         file = directory.appendingPathComponent("inventory.json")
-        if let bytes = try? Data(contentsOf: file), let saved = try? JSONSerialization.jsonObject(with: bytes) as? JSONObject { data = saved }
-        else { data = ["personal": ["liked": [], "favorites": [], "history": [], "playlists": []], "sources": [], "queue": [], "localTracks": [], "profile": ["name": "Zenix", "bio": "你的音乐，自成宇宙。"], "cacheLimitMiB": 512, "cacheEnabled": true, "appearance": ["completed": false, "background": NSNull()]] }
+        if FileManager.default.fileExists(atPath: file.path) {
+            // A damaged existing inventory is not a first launch. Refuse writes
+            // rather than replacing the user's saved collections with defaults.
+            do {
+                let bytes = try Data(contentsOf: file)
+                guard let saved = try JSONSerialization.jsonObject(with: bytes) as? JSONObject,
+                      saved["personal"] is JSONObject, saved["sources"] is [JSONObject] else { throw failure("资料结构无效") }
+                data = saved
+            } catch { throw failure("资料无法读取，已保留原文件并停止初始化：" + error.localizedDescription) }
+        } else { data = ["personal": ["liked": [], "favorites": [], "history": [], "playlists": []], "sources": [], "queue": [], "localTracks": [], "profile": ["name": "Zenix", "bio": "你的音乐，自成宇宙。"], "cacheLimitMiB": 512, "cacheEnabled": true, "appearance": ["completed": false, "background": NSNull()]] }
         var location = directory
         var values = URLResourceValues(); values.isExcludedFromBackup = true
         try location.setResourceValues(values)

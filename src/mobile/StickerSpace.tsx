@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
 import { Crosshair, Maximize2, Pause, Play } from 'lucide-react';
 import TrackVersions from '../ui/TrackVersions';
@@ -13,6 +13,7 @@ import { STICKER_GAP, expandedStickerLayout, focusedStickerRect, stickerSlotsFor
 import { Art } from './Player';
 import { isNativeMobile, readLyrics, type MobileSnapshot } from './native';
 import { useSongGesture } from './useSongGesture';
+import { projectStickerLayout, type StickerGeometry } from './stickerMotion';
 
 /** Uses the desktop mosaic algorithm, finite posters and a touch camera. */
 const layouts = new Map<string, ReturnType<typeof expandedStickerLayout>>();
@@ -58,6 +59,17 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
   const expanded = useMemo(() => mobileLayout(songs.length,Math.min(selected, songs.length - 1),slots), [selected, slots, songs.length]);
   const pitch = Math.max(39, Math.min(85, (size.width - 32) / 6));
   const rects = useMemo(() => slots.map((slot, index) => expanded.get(index) || slot), [slots, expanded]);
+  const stickerElements = useRef(new Map<string, HTMLElement>()), stickerAnimations = useRef(new Map<string, Animation>());
+  const layoutGeometry = useRef(new Map<string, StickerGeometry>()), transitionGeometry = useRef(layoutGeometry.current);
+  const geometry = useMemo(() => new Map(songs.map((song,index) => { const rect=rects[index];return [song.id,{left:rect.x*pitch,top:rect.y*pitch,width:rect.columns*pitch-STICKER_GAP,height:rect.rows*pitch-STICKER_GAP}]; })), [songs,rects,pitch]);
+  const registerSticker = useCallback((id: string, element: HTMLElement | null) => {
+    if(element)stickerElements.current.set(id,element);
+    else{stickerElements.current.delete(id);stickerAnimations.current.get(id)?.cancel();stickerAnimations.current.delete(id);}
+  },[]);
+  useLayoutEffect(()=>{
+    projectStickerLayout(stickerElements.current,layoutGeometry.current,geometry,stickerAnimations.current,!suspended&&!reduced);
+    layoutGeometry.current=geometry;
+  },[geometry,suspended,reduced]);
   const bounds = rects.length ? { left: Math.min(...rects.map(rect => rect.x)) * pitch, top: Math.min(...rects.map(rect => rect.y)) * pitch, right: Math.max(...rects.map(rect => rect.x + rect.columns)) * pitch, bottom: Math.max(...rects.map(rect => rect.y + rect.rows)) * pitch } : { left: 0, top: 0, right: 0, bottom: 0 };
   function limit(value: number, start: number, end: number, extent: number) {
     if (end - start < extent - 32) return (extent - (end - start)) / 2 - start;
@@ -69,7 +81,7 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
     else {showCaption();hideCaptionLater();}
   }, [suspended]);
   function focus(index: number) {
-    if (!songs.length) return; setSelected(index); stop();
+    if (!songs.length) return; transitionGeometry.current=layoutGeometry.current;setSelected(index); stop();
     const rect = focusedStickerRect(index, slots) || slots[index];
     const options = reduced ? { duration: 0 } : { duration: .62, ease: [.22, 1, .36, 1] as [number, number, number, number] };
     // Focus is centered deliberately; empty space is filled by the personal background.
@@ -118,11 +130,13 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
         const choiceCurrent = choice.id === player.track?.id || current && !chosenVariants[song.id];
         // Layout still includes the complete finite playlist, while React,
         // motion subscriptions and decoded covers exist only near the viewport.
-        const visible = focused || (rect.x * pitch + Math.min(camera.x,camera.toX??camera.x) < size.width + 240 && (rect.x + rect.columns) * pitch + Math.max(camera.x,camera.toX??camera.x) > -240 && rect.y * pitch + Math.min(camera.y,camera.toY??camera.y) < size.height + 240 && (rect.y + rect.rows) * pitch + Math.max(camera.y,camera.toY??camera.y) > -240);
+        const inView = (left:number,top:number,width:number,height:number) => left+Math.min(camera.x,camera.toX??camera.x)<size.width+240 && left+width+Math.max(camera.x,camera.toX??camera.x)>-240 && top+Math.min(camera.y,camera.toY??camera.y)<size.height+240 && top+height+Math.max(camera.y,camera.toY??camera.y)>-240;
+        const from=camera.toX===undefined?undefined:transitionGeometry.current.get(song.id);
+        const visible = focused || inView(rect.x*pitch,rect.y*pitch,rect.columns*pitch,rect.rows*pitch) || Boolean(from&&inView(from.left,from.top,from.width,from.height));
         if (!visible) return null;
-        return <MosaicSticker key={song.id} id={song.id} className={`space-sticker ${focused ? 'is-focused is-expanded' : ''} ${current ? 'is-current' : ''}`} reduced={Boolean(reduced)} left={rect.x*pitch} top={rect.y*pitch} width={rect.columns*pitch-STICKER_GAP} height={rect.rows*pitch-STICKER_GAP}>
-          <SongPoster song={song} index={index} current={current} focus={()=>focus(index)} longPress={longPress}/>
-          {focused && current && <FocusedLyrics track={player.track || song} position={player.position} seek={seek} />}
+        return <MosaicSticker key={song.id} id={song.id} register={registerSticker} className={`space-sticker ${focused ? 'is-focused is-expanded' : ''} ${current ? 'is-current' : ''}`} left={rect.x*pitch} top={rect.y*pitch} width={rect.columns*pitch-STICKER_GAP} height={rect.rows*pitch-STICKER_GAP}>
+          <SongPoster song={song} index={index} current={current} defer={camera.toX!==undefined} focus={()=>focus(index)} longPress={longPress}/>
+          {focused && current && <FocusedLyrics track={player.track || song} position={player.position} seek={seek} suspended={suspended} reduced={Boolean(reduced)} />}
           <AnimatePresence initial={false}>{focused && <motion.div className="sticker-toolbar" initial={{ opacity: 0, y: reduced ? 0 : 11 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduced ? 0 : 4 }} transition={{ duration: reduced ? 0 : .3, delay: focused && !reduced ? .19 : 0 }}>
             {actions(choice)}
             <TrackVersions track={song} selected={choice} sources={state.sources} select={candidate=>setChosenVariants(previous=>({...previous,[song.id]:candidate.id}))} load={loadSourceDiagnostics}/>
@@ -136,35 +150,29 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
   </section>;
 }, (previous,next) => Boolean(previous.suspended && next.suspended));
 
-function MosaicSticker({id,className,left,top,width,height,reduced,children}:{id:string;className:string;left:number;top:number;width:number;height:number;reduced:boolean;children:ReactNode}){
-  const ref=useRef<HTMLElement>(null), previous=useRef<{left:number;top:number;width:number;height:number}|undefined>(undefined), animation=useRef<Animation|undefined>(undefined);
-  useLayoutEffect(()=>{
-    const element=ref.current, before=previous.current;
-    previous.current={left,top,width,height};
-    if(!element||!before)return;
-    // Continue from the visible intermediate transform if focus changes quickly.
-    // One measurement per layout change; the browser composites the following frames.
-    const matrix=animation.current?new DOMMatrixReadOnly(getComputedStyle(element).transform):new DOMMatrixReadOnly();
-    animation.current?.cancel();animation.current=undefined;
-    if(reduced)return;
-    const dx=before.left+matrix.m41-left,dy=before.top+matrix.m42-top,sx=before.width*matrix.m11/width,sy=before.height*matrix.m22/height;
-    if(Math.abs(dx)<.01&&Math.abs(dy)<.01&&Math.abs(sx-1)<.001&&Math.abs(sy-1)<.001)return;
-    animation.current=element.animate([{transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`},{transform:'none'}],{duration:580,easing:'cubic-bezier(.22,1,.36,1)'});
-  },[left,top,width,height,reduced]);
-  useEffect(()=>()=>animation.current?.cancel(),[]);
+function MosaicSticker({id,className,left,top,width,height,register,children}:{id:string;className:string;left:number;top:number;width:number;height:number;register:(id:string,element:HTMLElement|null)=>void;children:ReactNode}){
+  const ref=useCallback((element:HTMLElement|null)=>register(id,element),[id,register]);
   return <article ref={ref} className={className} data-song-id={id} data-compact={height<150||undefined} style={{left,top,width,height,transformOrigin:'0 0'}}>{children}</article>;
 }
 
-function SongPoster({song,index,current,focus,longPress}:{song:Track;index:number;current:boolean;focus:()=>void;longPress?:(song:Track)=>void}){
+function SongPoster({song,index,current,focus,longPress,defer}:{song:Track;index:number;current:boolean;focus:()=>void;longPress?:(song:Track)=>void;defer:boolean}){
   const gesture=useSongGesture(longPress?()=>longPress(song):undefined);
-  return <button className="space-poster" {...gesture.handlers} onClick={focus} aria-label={`聚焦查看 ${song.title}`}><Art track={song}/><span className="sticker-index">{current?'正在播放 · ':''}{String(index+1).padStart(2,'0')}</span><span className="space-song"><strong>{song.title}</strong><small>{song.artist}</small></span></button>;
+  return <button className="space-poster" {...gesture.handlers} onClick={focus} aria-label={`聚焦查看 ${song.title}`}><Art track={song} defer={defer}/><span className="sticker-index">{current?'正在播放 · ':''}{String(index+1).padStart(2,'0')}</span><span className="space-song"><strong>{song.title}</strong><small>{song.artist}</small></span></button>;
 }
 
-function FocusedLyrics({ track, position, seek }: { track: Track; position: number; seek: (seconds: number) => void }) {
+function FocusedLyrics({ track, position, seek, suspended, reduced }: { track: Track; position: number; seek: (seconds: number) => void; suspended: boolean; reduced: boolean }) {
   const [lines, setLines] = useState<LyricLine[]>([]), [preview, setPreview] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), touch = useRef<number | null>(null);
   const active = activeLyricIndex(lines, position), center = preview ?? Math.max(0, active);
-  useEffect(() => { let cancelled = false; setLines([]); setPreview(null); clearTimeout(timer.current); if (isNativeMobile) void readLyrics(track).then(raw => { if (!cancelled) setLines(raw ? parseLyrics(raw) : []); }).catch(() => {}); return () => { cancelled = true; clearTimeout(timer.current); }; }, [track.id]);
+  useEffect(()=>setLines([]),[track.id]);
+  useEffect(() => {
+    if(suspended)return;
+    let cancelled=false;setPreview(null);clearTimeout(timer.current);
+    // Source WebView creation, bridge reads and LRC parsing must wait until the
+    // camera and poster transition finish, and be canceled if the panel opens.
+    const load=setTimeout(()=>{if(isNativeMobile)void readLyrics(track).then(raw=>{if(!cancelled)setLines(raw?parseLyrics(raw):[]);}).catch(()=>{});},reduced?0:640);
+    return()=>{cancelled=true;clearTimeout(load);clearTimeout(timer.current);};
+  },[track.id,suspended,reduced]);
   function browse(direction: number) { setPreview(value => Math.max(0, Math.min(lines.length - 1, (value ?? Math.max(0, active)) + direction))); clearTimeout(timer.current); timer.current = setTimeout(() => setPreview(null), 3000); }
   if (!lines.length) return null;
   return <div className="focused-lyrics" onWheel={event => { event.stopPropagation(); browse(event.deltaY > 0 ? 1 : -1); }} onPointerDown={event => { touch.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); clearTimeout(timer.current); }} onPointerMove={event => { if (touch.current === null) return; const delta = event.clientY - touch.current; if (Math.abs(delta) >= 28) { touch.current = event.clientY; browse(delta < 0 ? 1 : -1); } }} onPointerUp={event => { touch.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); clearTimeout(timer.current); timer.current = setTimeout(() => setPreview(null), 3000); }} onPointerCancel={() => { touch.current = null; timer.current = setTimeout(() => setPreview(null), 3000); }}>

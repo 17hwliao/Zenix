@@ -39,5 +39,17 @@ app.whenReady().then(async () => {
   await evaluate('document.querySelector(".yz-playerbar-track").click()'); await wait('!!document.querySelector(".yz-lattice")'); await sleep(450);
   assert.equal(await evaluate('!!document.querySelector(".yz-lattice.is-immersive")'), false);
   await evaluate('document.querySelector(".yz-lattice-mini-focus").click()'); await sleep(70); await evaluate('document.querySelector(".yz-lattice-mini-focus").click()'); await wait('!!document.querySelector(".yz-lattice.is-immersive")');
+  // Progressive search results extend the collage after the user pans it.
+  process.stdout.write('PLAYER_UI_APPEND_BEGIN\n');
+  await evaluate('window.fixture.renderWall(12)'); await wait('document.querySelectorAll(".yz-sticker").length===12'); await sleep(400);
+  const originalCamera=await evaluate('document.querySelector(".yz-sticker-world").style.transform');
+  await evaluate(`document.querySelector('.yz-sticker-viewport').dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaX:60,deltaY:40}))`);await sleep(400);
+  const beforeAppend=await evaluate('document.querySelector(".yz-sticker-world").style.transform');
+  const beforeSize=await evaluate('document.querySelector(".yz-sticker-world").style.width+":"+document.querySelector(".yz-sticker-world").style.height');
+  process.stdout.write(`PLAYER_UI_APPEND_CAMERA ${beforeAppend} SIZE ${beforeSize}\n`);
+  assert.notEqual(beforeAppend,originalCamera,'fixture actually pans before appending');
+  await evaluate('window.fixture.renderWall(24)');await wait(`document.querySelector(".yz-sticker-world").style.width+":"+document.querySelector(".yz-sticker-world").style.height!==${JSON.stringify(beforeSize)}`);await sleep(400);
+  assert.equal(await evaluate('document.querySelector(".yz-sticker-world").style.transform'),beforeAppend,'append preserves user camera');
+  assert.match(await evaluate('document.querySelector(".yz-sticker.is-expanded h1").textContent'),/Fixture 0/);
   process.stdout.write('PLAYER_UI_INTEGRATION_PASS\n'); app.exit(0);
 }).catch(error => { console.error(error); app.exit(1); });

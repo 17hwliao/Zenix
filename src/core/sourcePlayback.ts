@@ -1,15 +1,6 @@
 import type { Track, InstalledSource, SourceProgress } from './types';
 import { sourceDeadline, sourceRequest } from './sourceDeadline';
-
-function sameSong(original: Track, candidate: Track): boolean {
-  const key = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-  const artist = key(original.artist);
-  const otherArtist = key(candidate.artist);
-  const sameArtist = artist === otherArtist || Math.min(artist.length, otherArtist.length) >= 2 && (artist.includes(otherArtist) || otherArtist.includes(artist));
-  return key(original.title) === key(candidate.title)
-    && sameArtist
-    && (!original.duration || !candidate.duration || Math.abs(original.duration - candidate.duration) <= 8);
-}
+import { sameRecordingMetadata } from './searchGroups';
 
 type QualityTier = 'lossless24' | 'lossless' | 'high' | 'standard';
 
@@ -40,6 +31,7 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
   const bridge = window.yzqxy?.sources;
   if (!bridge) throw new Error('音乐源只在桌面版中可用');
   const preference = localStorage.getItem('zenix.onlineQuality') || 'auto';
+  const deadline = performance.now() + 30000;
   const failures: string[] = [];
   let lastIssue = '';
   const notify = (phase: SourceProgress['phase'], message: string, detail = lastIssue || undefined) => {
@@ -68,7 +60,13 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
   let lxPlatform = '';
   try { lxPlatform = JSON.parse(atob((track.remoteId || '').replace(/-/g, '+').replace(/_/g, '/'))).source || ''; } catch {}
   const attempted: string[] = [];
-  for (const source of sources) {
+  for (const [sourceIndex, source] of sources.entries()) {
+    const remaining = deadline - performance.now();
+    if (remaining <= 0) break;
+    // Like Android, share one total wait across providers. A stalled first
+    // source must not consume repeated 18-second waits ahead of healthy ones.
+    const budget = Math.min(remaining, 10000, Math.max(2000, Math.ceil(remaining / (sources.length - sourceIndex))));
+    const sourceDeadlineAt = performance.now() + budget;
     notify(attempted.length ? 'switching' : 'resolving', attempted.length ? '正在换用备用连接' : '正在连接播放服务');
     attempted.push(source.manifest.name);
     const sourceLabel = `${source.manifest.name} · ${attempted.length}/${sources.length}`;
@@ -79,18 +77,17 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
         ? { ...track, id: `source:${encodeURIComponent(source.id)}:${encodeURIComponent(track.remoteId || '')}`, providerId: source.id, audioUrl: '' }
         : null;
     const seen = new Set<string>();
-    const sourceStarted = performance.now();
     let unavailable = false;
     const tryCandidate = async (candidate: Track): Promise<Track | null> => {
       if (!candidate.remoteId || seen.has(candidate.remoteId)) return null;
       seen.add(candidate.remoteId);
       for (const tier of availableQualities(source, candidate, preference)) {
-        if (unavailable || performance.now() - sourceStarted > 22000) break;
+        if (unavailable || performance.now() >= sourceDeadlineAt) break;
         if (failedAttempts.includes(`${source.id}:${tier}`)) continue;
         try {
           const qualityName = { lossless24: '高解析无损', lossless: '无损', high: '高品质', standard: '标准' }[tier];
           notify('resolving', `正在获取${qualityName}音频 · ${sourceLabel}`);
-          const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId), signal);
+          const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId), signal, Math.max(1, sourceDeadlineAt - performance.now()));
           if (resolved.audioUrl) {
             notify('connecting', `地址已取得，正在连接音频 · ${sourceLabel}`);
             return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id, playbackQuality: tier };
@@ -109,11 +106,11 @@ export async function resolveCustomTrack(track: Track, failedAttempts: readonly 
       const playable = await tryCandidate(direct);
       if (playable) return playable;
     }
-    if (unavailable || performance.now() - sourceStarted > 22000 || !source.manifest.capabilities.includes('search')) continue;
+    if (unavailable || performance.now() >= sourceDeadlineAt || !source.manifest.capabilities.includes('search')) continue;
     try {
       notify('switching', '正在寻找同一首歌的备用资源');
-      const page = await sourceRequest(requestId => bridge.search(source.id, track.title, null, 50, requestId), signal, 15000);
-      const matches = page.items.filter(candidate => sameSong(track, candidate))
+      const page = await sourceRequest(requestId => bridge.search(source.id, track.title, null, 50, requestId), signal, Math.max(1, sourceDeadlineAt - performance.now()));
+      const matches = page.items.filter(candidate => sameRecordingMetadata(track, candidate))
         .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
       for (const candidate of matches.slice(0, 2)) {
         if (unavailable) break;

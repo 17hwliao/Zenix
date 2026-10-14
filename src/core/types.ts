@@ -87,6 +87,7 @@ export interface RoamingStatus {
 }
 
 export interface PlayerState {
+  quality?: string;
   track?: Track;
   playing: boolean;
   playWhenReady?: boolean;

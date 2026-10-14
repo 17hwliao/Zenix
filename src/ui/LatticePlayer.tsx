@@ -82,6 +82,7 @@ export default function LatticePlayer({
   const wallTracksRef = useRef(wallTracks);
   wallTracksRef.current = wallTracks;
   const focusedTrackIdRef = useRef<string | null>(null);
+  const displayedIdsRef = useRef<string[]>([]);
   const slots = useMemo(() => stickerSlotsForCount(wallTracks.length), [wallTracks.length]);
   const activeIndex = hasPlayback ? wallTracks.findIndex(item => containsTrack(item, track.id)) : -1;
   const queueSignature = queue.map(item => item.id).join('|');
@@ -146,10 +147,15 @@ export default function LatticePlayer({
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => { focusSlot(selectedSlot, false); }, [focusSlot]);
+  // Recenter on an actual viewport change, not on every appended source reply.
+  useEffect(() => { focusSlot(selectedSlot, false); }, [cellPitch, viewport.width, viewport.height]);
   useEffect(() => { if (displayTracks === undefined) focusSlot(Math.max(0, queueIndex >= 0 ? queueIndex : activeIndex)); }, [queueSignature, displayTracks === undefined]);
   useEffect(() => {
-    if (displayTracks === undefined || !slots.length) return;
+    if (displayTracks === undefined) { displayedIdsRef.current = []; return; }
+    const ids = wallTracks.map(item => item.id), previousIds = displayedIdsRef.current;
+    displayedIdsRef.current = ids;
+    const appended = previousIds.length > 0 && previousIds.length <= ids.length && previousIds.every((id, index) => id === ids[index]);
+    if (!slots.length || appended) return;
     const previous = wallTracks.findIndex(item => item.id === focusedTrackIdRef.current);
     focusSlot(previous >= 0 ? previous : 0);
   }, [displayTracks === undefined, displaySignature, slots.length]);

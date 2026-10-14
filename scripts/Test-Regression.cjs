@@ -136,6 +136,68 @@ test('shuffle previous navigation has bounded history', async () => {
   for (let i = 0; i < 600; i++) await player.next();
   assert.equal(player.history.length, 300); player.setShuffle(false); player.setQueue([]);
 });
+test('removing the selected queue item preserves paused, playing and pending playback intent', async () => {
+  const songs = ['a', 'b'].map(id => track(id, { source: 'local', audioUrl: 'file://fixture.wav' }));
+  player.setQueue(songs); player.removeFromQueue(0);
+  assert.equal(player.snapshot.track.id, 'b'); assert.equal(player.snapshot.playing, false);
+  player.setQueue(songs); await player.play(); player.removeFromQueue(0); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(player.snapshot.track.id, 'b'); assert.equal(player.snapshot.playing, true); player.pause();
+  const jobs = [];
+  player.setTrackResolver((song, _failed, _report, signal) => new Promise(resolve => jobs.push({ song, signal, resolve })));
+  player.setQueue(['pending-a', 'pending-b'].map(id => track(id, { audioUrl: '' })));
+  const first = player.play(); await Promise.resolve(); player.removeFromQueue(0); await Promise.resolve();
+  assert.equal(jobs.length, 2); assert.equal(jobs[0].signal.aborted, true);
+  jobs[1].resolve({ ...jobs[1].song, audioUrl: 'https://example.com/b' }); await new Promise(resolve => setImmediate(resolve));
+  jobs[0].resolve({ ...jobs[0].song, audioUrl: 'https://example.com/a' }); await first;
+  assert.equal(player.snapshot.track.id, 'pending-b'); assert.equal(player.snapshot.playing, true);
+  player.setTrackResolver(undefined); player.setQueue([]);
+});
+test('toggle during source resolution cancels the actual request and rejects its late result', async () => {
+  let job;
+  player.setTrackResolver((song, _failed, _report, signal) => new Promise(resolve => { job = { song, signal, resolve }; }));
+  player.setQueue([track('pending-toggle', { audioUrl: '' })]); const pending = player.play(); await Promise.resolve();
+  player.toggle(); assert.equal(job.signal.aborted, true);
+  job.resolve({ ...job.song, audioUrl: 'https://example.com/late' }); await pending;
+  assert.equal(player.snapshot.playing, false); assert.equal(player.snapshot.track.audioUrl, '');
+  player.setTrackResolver(undefined); player.setQueue([]);
+});
+test('fallback search resolves only a complete matching recording and rejects covers/versions/unknown timing', async () => {
+  const { resolveCustomTrack } = require('../src/core/sourcePlayback.ts'), candidates = [
+    track('cover', { artist: 'Artist & Guest', providerId: 'fallback' }),
+    track('punctuation', { title: 'Fix-ture', providerId: 'fallback' }),
+    track('timing', { duration: 95, providerId: 'fallback' }),
+    track('unknown', { duration: 0, providerId: 'fallback' }),
+    track('album', { album: 'Live', providerId: 'fallback' }),
+    track('match', { album: 'Studio', providerId: 'fallback', duration: 92 })
+  ]; const attempted = [];
+  window.yzqxy = { sources: { cachedBest: async () => null, list: async () => [{ id: 'fallback', enabled: true, kind: 'zenix', manifest: { name: 'Fallback', qualities: ['high'], capabilities: ['search', 'resolvePlayback'] } }], search: async () => ({ items: candidates }), resolve: async song => { attempted.push(song.remoteId); return { audioUrl: 'https://example.com/match' }; } } };
+  await resolveCustomTrack(track('original', { album: 'Studio' }), [], () => {}, new AbortController().signal);
+  assert.deepEqual(attempted, ['match']);
+});
+test('a stalled desktop provider releases its native request and leaves time for the next provider', async t => {
+  const { resolveCustomTrack } = require('../src/core/sourcePlayback.ts');
+  let now = 0; t.mock.method(performance, 'now', () => now);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const cancelled = [], requests = [];
+  window.yzqxy = { sources: {
+    cachedBest: async () => null,
+    list: async () => ['first','second','third'].map(id => ({ id, enabled: true, kind: 'zenix', manifest: { name: id, qualities: ['high'], capabilities: ['search', 'resolvePlayback'] } })),
+    cancelRequest: async id => { cancelled.push(id); },
+    search: async id => ({ items: [track('same', { providerId: id })] }),
+    resolve: async (song, _quality, _id, _allow, requestId) => {
+      requests.push({ provider: song.providerId, requestId });
+      if (song.providerId === 'first') return new Promise(() => {});
+      return { audioUrl: 'https://example.com/healthy' };
+    }
+  } };
+  const result = resolveCustomTrack(track('original'), [], () => {}, new AbortController().signal);
+  for (let i=0;i<30&&!requests.length;i++) await Promise.resolve();
+  assert.equal(requests[0]?.provider, 'first');
+  now=10000;t.mock.timers.tick(10000);
+  const value=await result;assert.equal(value.audioUrl,'https://example.com/healthy');
+  assert.deepEqual(requests.map(row=>row.provider),['first','second']);
+  assert.ok(cancelled.includes(requests[0].requestId),'underlying stalled request is cancelled');
+});
 test('rapid selection cancels stale source results', async () => {
   const jobs = [];
   player.setTrackResolver((song, _failed, _report, signal) => new Promise(resolve => jobs.push({ song, signal, resolve })));

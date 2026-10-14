@@ -400,7 +400,7 @@ class PlayerController {
   }
 
   toggle(): void {
-    if (this.state.playing) this.pause();
+    if (this.state.playing || this.playbackRequested) this.pause();
     else void this.play();
   }
 
@@ -546,10 +546,11 @@ class PlayerController {
     const queue = [...this.state.queue];
     queue.splice(index, 1);
     if (index === this.state.queueIndex) {
+      const resume = this.state.playing || this.playbackRequested;
       if (queue.length === 0) this.setQueue([]);
       else {
         this.setQueue(queue, Math.min(index, queue.length - 1));
-        void this.play();
+        if (resume) void this.play();
       }
       return;
     }

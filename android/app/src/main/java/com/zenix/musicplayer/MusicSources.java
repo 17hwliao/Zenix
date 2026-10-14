@@ -173,7 +173,7 @@ final class MusicSources implements AutoCloseable {
                     String matchKey=track.optString("id")+":"+id; synchronized(matched){candidate=matched.get(matchKey);}
                     if(candidate==null){if(attempted.contains(id+":match"))continue;attempted.add(id+":match");
                     JSONArray matches=search(id,track.optString("title")+" "+track.optString("artist"),"",true,remaining(sourceDeadline)).getJSONArray("items");
-                    for(int j=0;j<matches.length();j++){JSONObject match=matches.getJSONObject(j);if(key(match.optString("title")).equals(key(track.optString("title")))&&key(match.optString("artist")).equals(key(track.optString("artist")))){candidate=match;break;}}
+                    for(int j=0;j<matches.length();j++){JSONObject match=matches.getJSONObject(j);if(sameRecordingMetadata(track,match)){candidate=match;break;}}
                     if(candidate!=null)synchronized(matched){if(matched.size()>=32)matched.remove(matched.keySet().iterator().next());matched.put(matchKey,candidate);}}
                     if(candidate==null)continue;
                 }
@@ -208,7 +208,13 @@ final class MusicSources implements AutoCloseable {
     JSONObject cachedNetwork(JSONObject saved)throws Exception {JSONObject source=find(saved.getString("providerId"));if(!source.optBoolean("enabled"))throw new Exception("原音乐源已关闭");JSONObject copy=Json.copy(saved);JSONArray hosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(copy.getString("url"),hosts,SourcePolicy.allowHttp(source));Json.put(copy,"mediaHosts",hosts==null?JSONObject.NULL:hosts);Json.put(copy,"allowHttp",SourcePolicy.allowHttp(source));return copy;}
     synchronized JSONArray move(String id,int direction)throws Exception {JSONArray current=list();int at=-1;for(int i=0;i<current.length();i++)if(current.optJSONObject(i).optString("id").equals(id))at=i;if(at<0)throw new Exception("音乐源不存在");int next=Math.max(0,Math.min(current.length()-1,at+(direction<0?-1:1)));JSONArray result=new JSONArray();for(int i=0;i<current.length();i++)result.put(current.opt(i==at?next:i==next?at:i));store.set("sources",result);return result;}
     private static int parsePage(String text){try{return Integer.parseInt(text);}catch(Exception e){return 1;}}
-    private static String key(String s){return s.replaceAll("[\\s\\p{Punct}]","").toLowerCase(Locale.ROOT);}
+    private static String recordingText(String value){return java.text.Normalizer.normalize(value,java.text.Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("[\\u200b-\\u200d\\ufeff]","").trim().replaceAll("\\s+"," ");}
+    static boolean sameRecordingMetadata(JSONObject original,JSONObject candidate){
+        String title=recordingText(original.optString("title")),artist=recordingText(original.optString("artist")),album=recordingText(original.optString("album")),otherAlbum=recordingText(candidate.optString("album"));
+        double duration=original.optDouble("duration",0),otherDuration=candidate.optDouble("duration",0);
+        return !title.isEmpty()&&!artist.isEmpty()&&title.equals(recordingText(candidate.optString("title")))&&artist.equals(recordingText(candidate.optString("artist")))
+            &&(album.isEmpty()||otherAlbum.isEmpty()||album.equals(otherAlbum))&&Double.isFinite(duration)&&Double.isFinite(otherDuration)&&duration>0&&otherDuration>0&&Math.abs(duration-otherDuration)<=3;
+    }
     private static JSONObject readInfo(JSONObject track) throws JSONException { return new JSONObject(new String(Base64.decode(track.getString("remoteId"),Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING),StandardCharsets.UTF_8)); }
     static String sha(String text) throws Exception { StringBuilder b=new StringBuilder();for(byte value:MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)))b.append(String.format("%02x",value&255));return b.toString(); }
     private static JSONObject metadata(String script) { JSONObject info=new JSONObject();for(String field:List.of("name","author","description","version","homepage")){Matcher m=Pattern.compile("^\\s*\\*\\s*@"+field+"\\s+(.+)$",Pattern.MULTILINE|Pattern.CASE_INSENSITIVE).matcher(script);Json.put(info,field,m.find()?m.group(1).trim():field.equals("name")?"自定义音乐源":field.equals("version")?"1":"");}Json.put(info,"rawScript",script);return info; }

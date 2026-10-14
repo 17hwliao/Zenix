@@ -63,12 +63,29 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             while(!evaluate(view,"!!document.querySelector('.mobile-nav')&&!document.querySelector('.mobile-boot')").equals("true")) {
                 if(android.os.SystemClock.elapsedRealtime()-started>20000)throw new IOException("Mobile UI did not become ready");Thread.sleep(200);
             }
-            String script;try(InputStream stream=getContext().getAssets().open("mobile-performance.js")){script=new String(stream.readAllBytes(),StandardCharsets.UTF_8);}
+            String asset=arguments.getString("scenario","").equals("stickerSwitch")?"mobile-sticker-switch.js":"mobile-performance.js";
+            String script;try(InputStream stream=getContext().getAssets().open(asset)){script=new String(stream.readAllBytes(),StandardCharsets.UTF_8);}
             boolean trace=arguments.getString("trace","false").equals("true");
             try {
                 if(trace){runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(true));Thread.sleep(3000);}
                 evaluate(view,script);started=android.os.SystemClock.elapsedRealtime();String report;
                 while((report=evaluate(view,"JSON.stringify(window.__zenixMobilePerf?.report||null)")).equals("\"null\"")) {
+                    if(asset.equals("mobile-sticker-switch.js")){
+                        String request=evaluate(view,"JSON.stringify(window.__zenixMobilePerf?.swipe||null)");
+                        if(!request.equals("\"null\"")){
+                            JSONObject swipe=new JSONObject(String.valueOf(new org.json.JSONTokener(request).nextValue()));
+                            double scale=view.getWidth()/Double.parseDouble(evaluate(view,"innerWidth"));
+                            long down=android.os.SystemClock.uptimeMillis();
+                            for(int step=0;step<=16;step++){
+                                int action=step==0?android.view.MotionEvent.ACTION_DOWN:step==16?android.view.MotionEvent.ACTION_UP:android.view.MotionEvent.ACTION_MOVE;
+                                float px=(float)((swipe.getDouble("x")+(swipe.getDouble("toX")-swipe.getDouble("x"))*step/16)*scale),py=(float)((swipe.getDouble("y")+(swipe.getDouble("toY")-swipe.getDouble("y"))*step/16)*scale);
+                                android.view.MotionEvent event=android.view.MotionEvent.obtain(down,android.os.SystemClock.uptimeMillis(),action,px,py,0);
+                                try{runOnMainSync(()->view.dispatchTouchEvent(event));}finally{event.recycle();}
+                                Thread.sleep(12);
+                            }
+                            evaluate(view,"window.__zenixMobilePerf.swipe=null");
+                        }
+                    }
                     if(android.os.SystemClock.elapsedRealtime()-started>90000)throw new IOException("Mobile performance probe timed out");Thread.sleep(250);
                 }
                 Object decoded=new org.json.JSONTokener(report).nextValue();out.put("uiPerformance",new JSONObject(String.valueOf(decoded)));
@@ -135,6 +152,18 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                 }finally{item.put("elapsedMs",android.os.SystemClock.elapsedRealtime()-begin);if(engine!=null)call(engine,"close",new Class<?>[]{});}
             }}finally{call(sources,"close",new Class<?>[]{});}
             out.put("sourceDiagnostics",summary);
+        } else if(mode.equals("artworkInfo")) {
+            File[] covers=new File(target.getCacheDir(),"source-artwork").listFiles();int count=0,large=0,maxWidth=0,maxHeight=0;long bytes=0;
+            if(covers!=null)for(File cover:covers)if(cover.isFile()){
+                android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();options.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeFile(cover.getAbsolutePath(),options);
+                if(options.outWidth>0){count++;bytes+=cover.length();maxWidth=Math.max(maxWidth,options.outWidth);maxHeight=Math.max(maxHeight,options.outHeight);if(Math.max(options.outWidth,options.outHeight)>1024)large++;}
+            }
+            out.put("artworkInfo",new JSONObject().put("count",count).put("over1024",large).put("maxWidth",maxWidth).put("maxHeight",maxHeight).put("bytes",bytes));
+            JSONObject appearance=mainData.optJSONObject("appearance"),background=appearance==null?null:appearance.optJSONObject("background");
+            if(background!=null&&background.optString("kind").equals("image")){
+                android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();options.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeFile(background.optString("url"),options);
+                out.put("backgroundDimensions",new JSONObject().put("width",options.outWidth).put("height",options.outHeight));
+            }
         } else if (mode.equals("cache")) {
             org.json.JSONArray packages=new org.json.JSONArray();
             File[] files=new File(target.getFilesDir(),"updates").listFiles((dir,name)->name.endsWith(".apk"));

@@ -1,12 +1,14 @@
 function normalized(value) { return String(value || '').normalize('NFKC').toLowerCase().replace(/[\u200b-\u200d\ufeff]/g, '').trim().replace(/\s+/g, ' '); }
-function sameRecording(a, b) {
+function sameRecordingMetadata(a, b) {
   // Keep version qualifiers in the full title. Missing timing/artist is ambiguous.
-  return a.source === 'custom' && b.source === 'custom' && a.providerId !== b.providerId
-    && normalized(a.title) !== '' && normalized(a.artist) !== ''
+  return normalized(a.title) !== '' && normalized(a.artist) !== ''
     && normalized(a.title) === normalized(b.title) && normalized(a.artist) === normalized(b.artist)
     && (!a.album || !b.album || normalized(a.album) === normalized(b.album))
     && Number.isFinite(a.duration) && Number.isFinite(b.duration) && a.duration > 0 && b.duration > 0
     && Math.abs(a.duration - b.duration) <= 3;
+}
+function sameRecording(a, b) {
+  return a.source === 'custom' && b.source === 'custom' && a.providerId !== b.providerId && sameRecordingMetadata(a, b);
 }
 function plain(track) { const { searchAlternatives, ...result } = track; return result; }
 function variants(track) { return track.searchAlternatives?.length ? track.searchAlternatives : [track]; }
@@ -30,7 +32,7 @@ function queueForSelection(groups, selected) {
   if (at < 0) return [plain(selected), ...groups.map(plain)];
   return groups.map((group, index) => plain(index === at ? selected : group));
 }
-const api = { normalized, sameRecording, variants, containsTrack, mergeSearchGroups, queueForSelection };
+const api = { normalized, sameRecordingMetadata, sameRecording, variants, containsTrack, mergeSearchGroups, queueForSelection };
 
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else globalThis.zenixSearchGroups = api;
