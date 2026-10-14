@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">桌面与移动端音乐播放器 · v1.0.0 首版</p>
+<p align="center">桌面与移动端音乐播放器 · v1.0.1</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -47,9 +47,20 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
+### 最新版本 v1.0.1 / r39
+
+[v1.0.1 / r39](https://github.com/17hwliao/Zenix/releases/tag/v1.0.1-r39) 汇总本轮审查与移动动画改进，修复移动源解析过早超时、缓冲预算和错误提示无法关闭的问题。
+
+| 平台 | 下载 |
+| --- | --- |
+| Android | [原签名 APK](https://github.com/17hwliao/Zenix/releases/download/v1.0.1-r39/Zenix-Android-1.0.1-r39.apk) |
+| Windows x64 | [安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.1-r39/Zenix-Setup-1.0.1-r39-x64.exe) |
+
+正式与预览签名清单均指向 r39；旧客户端重新检查更新即可读取新构建，旧下载地址继续保留。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.1-r39/SHA256SUMS-1.0.1-r39.txt)，自动检查和实测边界见 [修复说明](docs/releases/v1.0.1-r39.md)。本次按用户指令未操作实机；第三方源在线可用性、各设备实际播放和系统安装未重新验收。
+
 ### 首版 v1.0.0
 
-当前安装入口统一为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 保留当前稳定构建 28。移动端包含页面切换、贴纸聚焦及播放器展开 / 收起的性能优化；切歌和全屏仍由明确按钮触发。iOS 暂停发行，工程保留。
+首版历史入口为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 构建 28。旧安装包保留供既有清单及历史下载使用；当前更新使用上方 r39。iOS 暂停发行，工程保留。
 
 | 平台 | 当前下载 | 安装与更新 |
 | --- | --- | --- |
