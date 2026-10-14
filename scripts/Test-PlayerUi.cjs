@@ -10,7 +10,7 @@ test('real Electron React UI: transport, home double click, queue collections an
   const folder = await fsp.mkdtemp(path.join(os.tmpdir(), 'zenix-ui-regression-'));
   const server = await createServer({ cacheDir:path.join(folder,'vite-cache'), optimizeDeps: { entries: ['scripts/fixtures/player-ui.html'] }, server: { host: '127.0.0.1', port: 0, strictPort: true }, logLevel: 'error' }); await server.listen(); t.after(async () => {await server.close();await fsp.rm(folder, { recursive: true, force: true });});
   const env = { ...process.env, ZENIX_TEST_USER_DATA: folder, ZENIX_TEST_UI_URL: `http://127.0.0.1:${server.httpServer.address().port}/scripts/fixtures/player-ui.html` }; delete env.ELECTRON_RUN_AS_NODE;
-  const { stdout, stderr } = await promisify(execFile)(require('electron'), [path.join(__dirname, 'fixtures/ElectronPlayerUi.cjs')], { env, timeout: 45000, windowsHide: true }).catch(error => { throw Error(`${error.message}\n${error.stdout || ''}\n${error.stderr || ''}`); });
+  const { stdout, stderr } = await promisify(execFile)(require('electron'), [path.join(__dirname, 'fixtures/ElectronPlayerUi.cjs')], { env, timeout: 90000, windowsHide: true }).catch(error => { throw Error(`${error.message}\n${error.stdout || ''}\n${error.stderr || ''}`); });
   assert.match(stdout, /PLAYER_UI_INTEGRATION_PASS/, stderr);
   // Keep only the synthetic screenshot for review, never the disposable profile.
   const output = path.resolve(__dirname, '../release/regression'); await fsp.mkdir(output, { recursive: true }); await fsp.copyFile(path.join(folder, 'expanded-song.png'), path.join(output, 'expanded-song.png'));

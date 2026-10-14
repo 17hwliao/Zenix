@@ -22,6 +22,10 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'),false,'animation fixture must run with motion enabled');
   await wait('window.fixture&&document.querySelector(".mobile-mini")&&!document.querySelector(".mobile-boot")');
   const initialPlayback=await evaluate('window.fixture.state.playback');
+  await evaluate('window.fixture.failAction="next"');
+  await click('.mobile-mini [aria-label="下一首"]');await wait('!!document.querySelector("[aria-label=关闭提示]")');
+  await click('[aria-label="关闭提示"]');await wait('!document.querySelector(".mobile-toast")');
+  await evaluate('delete window.fixture.failAction');
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'resolving',startedAt:Date.now()-5000,message:'正在获取标准品质音频 · Source B（2/7）'}}})`);
   await wait('document.querySelector(".source-status-copy small")?.textContent.includes("5 秒")');
   const beforeStop=await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length');
@@ -32,6 +36,14 @@ app.whenReady().then(async()=>{
   await wait('!!document.querySelector(".mobile-source-status details")');await click('.mobile-source-status summary');
   assert.match(await evaluate('document.querySelector(".mobile-source-status details").textContent'),/HTTP not permitted/);
   assert.equal(await evaluate('document.querySelector(".mobile-source-status details").textContent.includes("synthetic-secret")'),false,'resource URLs are not displayed in diagnostics');
+  const beforeDismiss=await evaluate('window.fixture.calls.filter(c=>c.action==="toggle"||c.action==="play").length');
+  await click('[aria-label="关闭播放错误"]');await wait('!document.querySelector(".mobile-source-status")');
+  await evaluate('window.fixture.setSnapshot({playback:{...window.fixture.state.playback,position:1}})');await sleep(100);
+  assert.equal(await evaluate('!!document.querySelector(".mobile-source-status")'),false,'progress snapshots cannot resurrect a dismissed error');
+  assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="toggle"||c.action==="play").length'),beforeDismiss,'dismiss never pauses or retries audio');
+  await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'failed',startedAt:Date.now(),message:'新的失败'}}})`);
+  await wait('!!document.querySelector("[aria-label=关闭播放错误]")');
+  await click('[aria-label="关闭播放错误"]');
   await evaluate(`window.fixture.setSnapshot({playback:${JSON.stringify(initialPlayback)}});window.fixture.calls.length=0`);
   assert.equal(await evaluate('!!document.querySelector(".mobile-mini [aria-label=暂停]")'),true,'loading intent must show pause, not play');
   assert.match(await evaluate('document.querySelector(".cache-playback-badge").textContent'),/完整缓存/);await evaluate('window.fixture.events=[];["pointerdown","pointermove","pointerup","pointercancel"].forEach(type=>document.addEventListener(type,e=>{window.fixture.events.push({type,x:e.clientX,y:e.clientY,button:e.button,buttons:e.buttons,target:e.target.className});},true));');

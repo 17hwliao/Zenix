@@ -35,33 +35,51 @@ public final class MobilePlaybackContractCheck {
         MusicSources sources=new MusicSources(new android.content.Context(folder),store);
         try {
             ScriptEngine.calls.clear();android.os.SystemClock.now=0;
-            JSONObject result=sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);
+            JSONObject result=sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);
             check(result.optString("providerId").equals("B")&&result.optString("quality").equals("standard"),"quality downgrade and next source");
             check(ScriptEngine.calls.stream().filter(value->value.startsWith("slowA:resolvePlayback")).count()==1,"transport failure must skip other quality tiers");
-            check(android.os.SystemClock.now==10000,"source budget includes all request waits");
+            check(android.os.SystemClock.now==45000,"source budget includes all request waits");
             check(sources.diagnostics.state().getJSONObject("sources").getJSONObject("B").optInt("played")==0,"URL resolution is not audible playback");
             sources.playbackReady(track("slowA"),result);check(sources.diagnostics.state().getJSONObject("sources").getJSONObject("B").optInt("played")==1,"actual playback recorded separately");ScriptEngine.calls.clear();
-            sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);
+            sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);
             check(ScriptEngine.calls.get(0).startsWith("B:"),"successful source reused before cold origin");
             check(ScriptEngine.calls.stream().noneMatch(value->value.startsWith("slowA:")),"failed source cooling down");
-            sources.playbackFailed(result,false);ScriptEngine.calls.clear();sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(ScriptEngine.calls.get(0).startsWith("B:"),"decoder errors still allow quality downgrade on the same source");
-            sources.playbackFailed(result,true);check(sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000).optString("providerId").equals("C"),"failed media transport switches provider");
-            store.set("smoothPlayback",false);ScriptEngine.calls.clear();sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(ScriptEngine.calls.get(0).startsWith("slowA:"),"manual order honored even after a successful fallback");
-            JSONObject chosen=track("slowA");Json.put(chosen,"preferredPlaybackProviderId","C");ScriptEngine.calls.clear();sources.resolve(chosen,new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(ScriptEngine.calls.get(0).startsWith("C:"),"explicit selection starts with that provider without changing configured order");
+            sources.playbackFailed(result,false);ScriptEngine.calls.clear();sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);check(ScriptEngine.calls.get(0).startsWith("B:"),"decoder errors still allow quality downgrade on the same source");
+            sources.playbackFailed(result,true);check(sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS).optString("providerId").equals("C"),"failed media transport switches provider");
+            store.set("smoothPlayback",false);ScriptEngine.calls.clear();sources.resolve(track("slowA"),new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);check(ScriptEngine.calls.get(0).startsWith("slowA:"),"manual order honored even after a successful fallback");
+            JSONObject chosen=track("slowA");Json.put(chosen,"preferredPlaybackProviderId","C");ScriptEngine.calls.clear();sources.resolve(chosen,new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);check(ScriptEngine.calls.get(0).startsWith("C:"),"explicit selection starts with that provider without changing configured order");
             JSONArray moved=sources.move("C",-1);check(moved.optJSONObject(1).optString("id").equals("C"),"manual order persists");
         }finally{sources.close();}
         store.sources=new JSONArray();for(String id:List.of("slowA","slowB","slowC","slowD")){store.sources.put(source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
         MusicSources allSlow=new MusicSources(new android.content.Context(folder),store);ScriptEngine.calls.clear();android.os.SystemClock.now=0;
-        try{allSlow.resolve(track("slowA"),new HashSet<>(),"lossless",(phase,message)->{},()->false,30000);throw new AssertionError("slow sources succeeded");}catch(Exception expected){check(android.os.SystemClock.now==30000,"global wait capped at 30 seconds");check(ScriptEngine.calls.stream().anyMatch(value->value.startsWith("slowD:")),"fair budget reaches fourth source before deadline");}finally{allSlow.close();}
+        try{allSlow.resolve(track("slowA"),new HashSet<>(),"lossless",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);throw new AssertionError("slow sources succeeded");}catch(Exception expected){check(android.os.SystemClock.now==180000,"global resolution cap remains finite");check(ScriptEngine.calls.stream().anyMatch(value->value.startsWith("slowD:")),"global budget reaches fourth stalled source");}finally{allSlow.close();}
         store.sources=new JSONArray();for(String id:List.of("slow1","slow2","healthy","extra1","extra2","extra3","extra4")){store.sources.put(source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
         MusicSources fair=new MusicSources(new android.content.Context(folder),store);ScriptEngine.calls.clear();android.os.SystemClock.now=0;
-        try{JSONObject result=fair.resolve(track("slow1"),new HashSet<>(),"high",(phase,message)->{},()->false,30000);check(result.optString("providerId").equals("healthy"),"healthy source after two stalled providers");check(android.os.SystemClock.now<9000,"seven-source fallback does not wait 20 seconds for first two providers");}finally{fair.close();}
+        try{JSONObject result=fair.resolve(track("slow1"),new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);check(result.optString("providerId").equals("healthy"),"healthy source after two stalled providers");check(android.os.SystemClock.now==90000,"stalled providers receive full allowance before healthy fallback");}finally{fair.close();}
         store.sources=new JSONArray();for(String id:List.of("unsupported","broken","supported")){JSONObject source=source(id);source.put("kind","lx");if(!id.equals("broken"))source.getJSONObject("manifest").put("lxPlatforms",id.equals("unsupported")?Json.obj("tx",Json.obj("qualitys",Json.array("320k"))):Json.obj("wy",Json.obj("qualitys",Json.array("128k"))));store.sources.put(source);Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
         JSONObject lxTrack=track("unsupported");lxTrack.put("remoteId",android.util.Base64.encodeToString(Json.obj("source","wy").toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING));
         MusicSources supported=new MusicSources(new android.content.Context(folder),store);List<String> phases=new ArrayList<>();ScriptEngine.calls.clear();android.os.SystemClock.now=0;
-        try{JSONObject result=supported.resolve(lxTrack,new HashSet<>(),"high",(phase,message)->phases.add(message),()->false,30000);check(result.optString("providerId").equals("supported"),"compatible catalog reused");check(ScriptEngine.calls.stream().noneMatch(value->value.startsWith("unsupported:")||value.startsWith("broken:")),"unsupported or incomplete platform never triggers a search or script call");check(phases.stream().noneMatch(value->value.contains("高品质")||value.contains("无损")),"no progress claim for unsupported quality");check(phases.stream().anyMatch(value->value.contains("标准品质")&&value.contains("supported")),"progress names the source and real quality");}finally{supported.close();}
+        try{JSONObject result=supported.resolve(lxTrack,new HashSet<>(),"high",(phase,message)->phases.add(message),()->false,PlaybackSourcePlan.TOTAL_MS);check(result.optString("providerId").equals("supported"),"compatible catalog reused");check(ScriptEngine.calls.stream().noneMatch(value->value.startsWith("unsupported:")||value.startsWith("broken:")),"unsupported or incomplete platform never triggers a search or script call");check(phases.stream().noneMatch(value->value.contains("高品质")||value.contains("无损")),"no progress claim for unsupported quality");check(phases.stream().anyMatch(value->value.contains("标准品质")&&value.contains("supported")),"progress names the source and real quality");}finally{supported.close();}
         check(PlaybackSourcePlan.sourceBudget(1,7)==1&&PlaybackSourcePlan.sourceBudget(0,7)==0,"tiny deadline cannot be extended by minimum budget");
         java.util.concurrent.atomic.AtomicLong clock=new java.util.concurrent.atomic.AtomicLong();PlaybackSourcePlan plan=new PlaybackSourcePlan(clock::get);JSONArray order=Json.array(source("A"),source("B"));plan.failure("A");check(plan.order(order,"family","A").get(0).optString("id").equals("B"),"cooldown avoids A");clock.set(60001);check(plan.order(order,"family","A").get(0).optString("id").equals("A"),"cooldown expires");
+    }
+    static void patientSongs(File folder)throws Exception {
+        PrivateStore store=new PrivateStore();File packs=new File(folder,"sources");
+        for(String id:List.of("patient","extra1","extra2","extra3","extra4","extra5","extra6")){store.sources.put(source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
+        MusicSources sources=new MusicSources(new android.content.Context(folder),store);
+        try{
+            for(JSONObject song:List.of(Json.obj("title","你不知道的事","artist","王力宏","duration",280),Json.obj("title","像风一样","artist","薛之谦","duration",255))){
+                JSONObject chosen=track("patient");for(Iterator<String> keys=song.keys();keys.hasNext();){String key=keys.next();Json.put(chosen,key,song.opt(key));}
+                android.os.SystemClock.now=0;ScriptEngine.calls.clear();
+                JSONObject result=sources.resolve(chosen,new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);
+                check(result.optString("providerId").equals("patient")&&android.os.SystemClock.now==30000,"cold initialization plus slow lookup survives a seven-source queue: "+song.optString("title"));
+                check(ScriptEngine.calls.size()==1,"slow success is not prematurely cancelled or replaced");
+                android.os.SystemClock.now=0;
+                try{sources.resolve(chosen,new HashSet<>(),"high",(phase,message)->{},()->android.os.SystemClock.now>=30000,PlaybackSourcePlan.TOTAL_MS);throw new AssertionError("cancelled result was published");}catch(CancellationException expected){}
+            }
+        }finally{sources.close();}
+        check(PlaybackSourcePlan.sourceBudget(180000,7)==45000,"adding sources cannot shrink cold allowance");
+        check(PlaybackSourcePlan.sourceBudget(1200,7)==1200,"remaining global deadline wins");
     }
     static void cacheAndCollections()throws Exception {
         check(PlaybackSourcePlan.transportFailure(new Exception("HTTP 503"))&&!PlaybackSourcePlan.transportFailure(new Exception("HTTP 404 quality unavailable")),"connection failures skip quality loops; unavailable quality still downgrades");
@@ -84,7 +102,7 @@ public final class MobilePlaybackContractCheck {
         BackgroundFiles.prune(backgrounds,current,journal);check(before.isFile()&&after.isFile()&&current.isFile()&&other.isFile()&&!unused.exists(),"journal/current files survive normal replacement cleanup");
         BackgroundFiles.prune(backgrounds,current,null);check(!before.exists()&&!after.exists()&&current.isFile(),"completed journal releases old backgrounds");
     }
-    public static void main(String[] args)throws Exception{lanes();sources(new File(args[0]));cacheAndCollections();matchingAndBackgrounds(new File(args[0]));System.out.println("MOBILE_PLAYBACK_CONTRACT_PASS");}
+    public static void main(String[] args)throws Exception{lanes();sources(new File(args[0]));patientSongs(new File(args[0]));cacheAndCollections();matchingAndBackgrounds(new File(args[0]));System.out.println("MOBILE_PLAYBACK_CONTRACT_PASS");}
 }
 
 final class PrivateStore {
@@ -116,8 +134,9 @@ final class ScriptEngine implements AutoCloseable {
     JSONObject ready(){return new JSONObject();}
     Object call(String method,Object payload,JSONObject settings)throws Exception{return call(method,payload,settings,20000);}
     Object call(String method,Object payload,JSONObject settings,long timeout)throws Exception {
-        String quality=payload instanceof JSONObject?((JSONObject)payload).optString("quality"):"";calls.add(script+":"+method+":"+quality);if(timeout>10000&&method.equals("resolvePlayback"))throw new AssertionError("source request budget exceeded");
+        String quality=payload instanceof JSONObject?((JSONObject)payload).optString("quality"):"";calls.add(script+":"+method+":"+quality);if(timeout>PlaybackSourcePlan.SOURCE_MS&&method.equals("resolvePlayback"))throw new AssertionError("source request budget exceeded");
         if(method.equals("search"))return Json.obj("items",Json.array(Json.obj("remoteId","match-"+script,"title","Fixture","artist","Artist","duration",90)));
+        if(script.equals("patient")){if(timeout<30000){android.os.SystemClock.now+=timeout;throw new TimeoutException("cold startup plus resource lookup");}android.os.SystemClock.now+=30000;}
         if(script.startsWith("slow")){android.os.SystemClock.now+=timeout;throw new TimeoutException("timeout");}
         if(script.equals("B")&&quality.equals("high"))throw new Exception("quality unavailable");
         return Json.obj("url","https://audio.example.test/fixture.mp3");

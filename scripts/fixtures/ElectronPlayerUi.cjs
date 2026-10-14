@@ -6,14 +6,18 @@ if (!process.env.ZENIX_TEST_USER_DATA || !process.env.ZENIX_TEST_UI_URL) throw E
 app.setPath('userData', process.env.ZENIX_TEST_USER_DATA);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 app.whenReady().then(async () => {
+  const checkpoint = label => console.log(`PLAYER_UI_CHECKPOINT ${Date.now()} ${label}`);
+  checkpoint('Electron ready');
   const window = new BrowserWindow({ show: false, width: 1200, height: 800, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
   window.webContents.on('console-message', event => { if (event.level === 'error') console.error('Renderer:', event.message); });
   const evaluate = script => window.webContents.executeJavaScript(script, true).catch(error => { throw Error(script + '\n' + error.message); });
   const wait = async script => { for (let i = 0; i < 100; i++) { if (await evaluate(script)) return; await sleep(50); } throw Error('UI assertion timeout: ' + script); };
   await window.loadURL(process.env.ZENIX_TEST_UI_URL);
+  checkpoint('fixture loaded');
   await wait('!!document.querySelector(".yz-playerbar-track")');
   await evaluate('document.querySelector(".yz-playerbar [aria-label=播放]").click()'); await sleep(400);
   assert.equal(await evaluate('window.fixture.toggles'), 1); assert.equal(await evaluate('!!document.querySelector(".yz-shell--home")'), true);
+  checkpoint('transport');
   // Actual React state and DOM: double-click survives the home/player mount.
   await evaluate('document.querySelector(".yz-playerbar-track").click()'); await sleep(70); await evaluate('document.querySelector(".yz-playerbar-track").click()');
   await wait('!!document.querySelector(".yz-lattice.is-immersive")'); await sleep(450);
@@ -34,6 +38,7 @@ app.whenReady().then(async () => {
   window.showInactive(); await sleep(800);
   await fs.writeFile(path.join(app.getPath('userData'), 'expanded-song.png'), (await window.webContents.capturePage()).toPNG());
   window.hide();
+  checkpoint('queue and capture');
   // Going home and singly entering must not replay an old expansion request.
   await evaluate('document.querySelector("[aria-label=个人主页]").click()'); await wait('!!document.querySelector(".yz-playerbar-track")');
   await evaluate('document.querySelector(".yz-playerbar-track").click()'); await wait('!!document.querySelector(".yz-lattice")'); await sleep(450);
@@ -42,6 +47,7 @@ app.whenReady().then(async () => {
   // Progressive search results extend the collage after the user pans it.
   process.stdout.write('PLAYER_UI_APPEND_BEGIN\n');
   await evaluate('window.fixture.renderWall(12)'); await wait('document.querySelectorAll(".yz-sticker").length===12'); await sleep(400);
+  checkpoint('progressive wall');
   const originalCamera=await evaluate('document.querySelector(".yz-sticker-world").style.transform');
   await evaluate(`document.querySelector('.yz-sticker-viewport').dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaX:60,deltaY:40}))`);await sleep(400);
   const beforeAppend=await evaluate('document.querySelector(".yz-sticker-world").style.transform');

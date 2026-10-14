@@ -6,17 +6,17 @@ import java.util.function.LongSupplier;
 
 /** Recent successful sources first, with bounded waits and temporary failure cooldown. */
 final class PlaybackSourcePlan {
-    static final long TOTAL_MS = 30000, SOURCE_MS = 10000, COOLDOWN_MS = 60000;
+    static final long TOTAL_MS = 180000, SOURCE_MS = 45000, COOLDOWN_MS = 60000;
     private final LongSupplier clock;
     private final Map<String, Long> failed = new HashMap<>();
     private final Map<String, String> winners = new LinkedHashMap<>();
     PlaybackSourcePlan(LongSupplier clock) { this.clock = clock; }
-    // Share the remaining wait among sources, instead of letting the first three
-    // slow providers consume the whole deadline before later providers are tried.
+    // A cold engine may initialize and then issue several HTTP requests. Adding
+    // sources must not shorten a working provider's allowance below that cost.
+    // The overall cap still bounds fallback, and explicit cancellation is immediate.
     static long sourceBudget(long remaining,int candidates) {
         if(remaining<=0)return 0;
-        long fair=(remaining+Math.max(1,candidates)-1)/Math.max(1,candidates);
-        return Math.min(remaining,Math.min(SOURCE_MS,Math.max(2000,fair)));
+        return Math.min(remaining,SOURCE_MS);
     }
     synchronized void success(String family, String id) {
         failed.remove(id);

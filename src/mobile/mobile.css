@@ -154,3 +154,9 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .source-status-copy small{display:block;font-size:10px;line-height:1.5;opacity:.75;margin-top:4px}
 .source-status-copy summary{font-size:10px;opacity:.85;margin-top:5px;cursor:pointer}
 .mobile-source-status>button{flex-shrink:0;min-height:32px}
+.mobile-source-status .source-status-close{width:44px;min-width:44px;height:44px;min-height:44px;border-radius:50%;padding:0;display:grid;place-items:center}
+.mobile-toast{display:flex;gap:8px;align-items:center}
+.mobile-toast>span{flex:1;min-width:0}
+.mobile-toast>button{pointer-events:auto;flex-shrink:0;min-width:44px;min-height:44px;padding:0;border-radius:50%;display:grid;place-items:center}
+.mobile-toast>button svg{width:18px;height:18px}
+.sheet-close{width:44px;height:44px;min-height:44px;z-index:2}
