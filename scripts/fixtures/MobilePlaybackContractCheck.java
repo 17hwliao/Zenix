@@ -60,6 +60,8 @@ public final class MobilePlaybackContractCheck {
         JSONObject lxTrack=track("unsupported");lxTrack.put("remoteId",android.util.Base64.encodeToString(Json.obj("source","wy").toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING));
         MusicSources supported=new MusicSources(new android.content.Context(folder),store);List<String> phases=new ArrayList<>();ScriptEngine.calls.clear();android.os.SystemClock.now=0;
         try{JSONObject result=supported.resolve(lxTrack,new HashSet<>(),"high",(phase,message)->phases.add(message),()->false,PlaybackSourcePlan.TOTAL_MS);check(result.optString("providerId").equals("supported"),"compatible catalog reused");check(ScriptEngine.calls.stream().noneMatch(value->value.startsWith("unsupported:")||value.startsWith("broken:")),"unsupported or incomplete platform never triggers a search or script call");check(phases.stream().noneMatch(value->value.contains("高品质")||value.contains("无损")),"no progress claim for unsupported quality");check(phases.stream().anyMatch(value->value.contains("标准品质")&&value.contains("supported")),"progress names the source and real quality");}finally{supported.close();}
+        lxTrack.put("providerId","lx.playlist:catalog");MusicSources imported=new MusicSources(new android.content.Context(folder),store);ScriptEngine.calls.clear();
+        try{JSONObject result=imported.resolve(lxTrack,new HashSet<>(),"high",(phase,message)->{},()->false,PlaybackSourcePlan.TOTAL_MS);check(result.optString("providerId").equals("supported"),"imported playlist catalogue identity uses an installed compatible provider");check(ScriptEngine.calls.stream().noneMatch(value->value.contains("search")),"imported exact ID must not be replaced by a title search");}finally{imported.close();}
         check(PlaybackSourcePlan.sourceBudget(1,7)==1&&PlaybackSourcePlan.sourceBudget(0,7)==0,"tiny deadline cannot be extended by minimum budget");
         java.util.concurrent.atomic.AtomicLong clock=new java.util.concurrent.atomic.AtomicLong();PlaybackSourcePlan plan=new PlaybackSourcePlan(clock::get);JSONArray order=Json.array(source("A"),source("B"));plan.failure("A");check(plan.order(order,"family","A").get(0).optString("id").equals("B"),"cooldown avoids A");clock.set(60001);check(plan.order(order,"family","A").get(0).optString("id").equals("A"),"cooldown expires");
     }
@@ -102,10 +104,18 @@ public final class MobilePlaybackContractCheck {
         BackgroundFiles.prune(backgrounds,current,journal);check(before.isFile()&&after.isFile()&&current.isFile()&&other.isFile()&&!unused.exists(),"journal/current files survive normal replacement cleanup");
         BackgroundFiles.prune(backgrounds,current,null);check(!before.exists()&&!after.exists()&&current.isFile(),"completed journal releases old backgrounds");
     }
-    public static void main(String[] args)throws Exception{lanes();sources(new File(args[0]));patientSongs(new File(args[0]));cacheAndCollections();matchingAndBackgrounds(new File(args[0]));System.out.println("MOBILE_PLAYBACK_CONTRACT_PASS");}
+    static void queueAndBatch()throws Exception {
+        JSONObject a=Json.obj("id","a","title","A","artist","Artist","audioUrl","","source","local"),b=Json.obj("id","b","title","B","artist","Artist","audioUrl","","source","local");JSONArray tracks=Json.array(a,b);
+        JSONArray moved=QueueEdits.apply(tracks,"a",Json.obj("operation","move","from",1,"to",0,"expected",Json.array("a","b")));check(moved.getJSONObject(1).getString("id").equals("a"),"native queue preserves current identity");
+        try{QueueEdits.apply(moved,"a",Json.obj("operation","remove","ids",Json.array("a"),"expected",Json.array("a","b")));throw new AssertionError("stale queue accepted");}catch(JSONException unexpected){throw unexpected;}catch(Exception expected){}
+        JSONObject personal=Json.obj("playlists",Json.array(Json.obj("id","one","tracks",tracks),Json.obj("id","two","tracks",new JSONArray())));
+        PlaylistBatch.apply(personal,Json.obj("id","one","target","two","edit","move","ids",Json.array("b"),"expected",Json.array("a","b")));check(personal.getJSONArray("playlists").getJSONObject(0).getJSONArray("tracks").length()==1,"native batch removes selected only");check(personal.getJSONArray("playlists").getJSONObject(1).getJSONArray("tracks").getJSONObject(0).getString("id").equals("b"),"native batch writes destination");
+    }
+    public static void main(String[] args)throws Exception{queueAndBatch();lanes();sources(new File(args[0]));patientSongs(new File(args[0]));cacheAndCollections();matchingAndBackgrounds(new File(args[0]));System.out.println("MOBILE_PLAYBACK_CONTRACT_PASS");}
 }
 
 final class PrivateStore {
+    static JSONObject cleanTrack(JSONObject track){return Json.copy(track);}
     JSONArray sources=new JSONArray();JSONObject data=Json.obj("smoothPlayback",true);
     JSONObject object(String key){return data.optJSONObject(key);}
     JSONObject readKeys(String... keys){JSONObject result=new JSONObject();for(String key:keys)if(data.has(key))Json.put(result,key,data.opt(key));return result;}
@@ -120,6 +130,7 @@ final class SourcePolicy {
     static JSONObject validate(JSONObject policy){return policy;}
 }
 final class SourceHttp {
+    static void configure(android.content.Context context){}
     static final int MAX_BYTES=4*1024*1024;
     static byte[] bounded(InputStream input,int limit)throws Exception{try(input){byte[] bytes=input.readAllBytes();if(bytes.length>limit)throw new IOException("oversize");return bytes;}}
     static JSONObject request(String url,JSONObject options,JSONArray hosts,Object observer,boolean allowHttp)throws Exception{throw new IOException("fixture performs no HTTP");}

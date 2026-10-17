@@ -1,3 +1,4 @@
+import {playableTrack} from './types';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Heart, ListPlus, Star, X } from 'lucide-react';
@@ -57,7 +58,7 @@ export default function TrackQuickActions({ track, personal, onToggleSaved, onAd
     <button ref={anchor} type="button" title="加入歌单" aria-label="加入歌单" aria-expanded={open} onClick={toggleMenu}><ListPlus size={compact ? 16 : 18} /></button>
     {open && createPortal(<div ref={menu} className="yz-track-actions-menu" style={placement}>
       <div className="yz-track-actions-menu-head"><strong>加入歌单</strong><button type="button" onClick={() => setOpen(false)} aria-label="关闭"><X size={15} /></button></div>
-      <div className="yz-track-actions-menu-list">{personal.playlists.map(list => <button type="button" key={list.id} onClick={() => { onAddToPlaylist?.(list.id, track); setOpen(false); }}>{list.name}<small>{list.tracks.length} 首</small></button>)}</div>
+      <div className="yz-track-actions-menu-list"><button type="button" onClick={async () => {const {player}=await import('../core/player');player.playNext(playableTrack(track));setOpen(false);}}>下一首播放</button><button type="button" onClick={async () => {const {player}=await import('../core/player');player.enqueue(playableTrack(track));setOpen(false);}}>加入播放队列</button>{personal.playlists.map(list => <button type="button" key={list.id} onClick={() => { onAddToPlaylist?.(list.id, track); setOpen(false); }}>{list.name}<small>{list.tracks.length} 首</small></button>)}</div>
       <form onSubmit={event => { event.preventDefault(); create(); }}><input value={name} onChange={event => setName(event.target.value)} placeholder="新歌单名称" aria-label="新歌单名称" /><button type="submit" disabled={!name.trim()}>新建</button></form>
     </div>, document.body)}
   </div>;

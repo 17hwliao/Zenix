@@ -1,3 +1,4 @@
+import {AudioGraph,defaultAudioSettings,validateAudio,type AudioSettings} from './audioSettings';
 import type { MediaCommand, PlayerState, RepeatMode, SourceProgress, Track } from './types';
 
 type Listener = (state: PlayerState) => void;
@@ -23,6 +24,9 @@ function savePreference(key: string, value: unknown): void {
 class PlayerController {
   private audio: HTMLAudioElement;
   private state: PlayerState;
+  private audioGraph: AudioGraph;
+  private deviceChanged = () => {void this.restoreOutput(true);};
+  private sound: AudioSettings = defaultAudioSettings;
   private listeners = new Set<Listener>();
   private lifecycleListeners = new Set<(event: PlaybackLifecycle) => void>();
   private navigation?: (reason: 'next' | 'ended' | 'previous') => Promise<void>;
@@ -43,6 +47,8 @@ class PlayerController {
 
   constructor() {
     this.audio = new Audio();
+    this.audioGraph=new AudioGraph(this.audio);
+    try{this.sound=validateAudio(readPreference('zenix.audio',defaultAudioSettings));}catch{}
     this.audio.preload = 'metadata';
     const volume = readPreference<number>('yzqxy.volume', 0.75);
     const muted = readPreference<boolean>('yzqxy.muted', false);
@@ -64,6 +70,7 @@ class PlayerController {
 
     this.audio.addEventListener('play', () => this.update({ playing: true, error: undefined }));
     this.audio.addEventListener('playing', () => {
+      this.audioGraph.resume();
       this.emitLifecycle('audible');
       const attempt = this.state.track?.diagnosticAttemptId;
       if (attempt) void window.yzqxy?.sources?.outcome?.(attempt, true).catch(() => {});
@@ -109,6 +116,8 @@ class PlayerController {
       });
     }
     this.setupMediaSession();
+    void this.restoreOutput();
+    navigator.mediaDevices?.addEventListener?.('devicechange',this.deviceChanged);
   }
 
   get snapshot(): PlayerState {
@@ -349,7 +358,10 @@ class PlayerController {
   }
 
   private setAudioSource(audioUrl: string): void {
-    if (audioUrl) this.audio.src = audioUrl;
+    if (audioUrl) {
+      if(this.sound.enabled&&/^(yzqxy:|blob:)/.test(audioUrl)){this.audio.crossOrigin='anonymous';void this.audioGraph.apply(this.sound).catch(()=>{});}
+      this.audio.src=audioUrl;
+    }
     else this.audio.removeAttribute('src');
     this.audio.load();
   }
@@ -525,21 +537,49 @@ class PlayerController {
     this.setRepeat(next[this.state.repeat]);
   }
 
-  enqueue(track: Track): void {
-    this.update({ queue: [...this.state.queue, track] });
-    this.shufflePool.clear();
-    this.persistQueue();
+  editQueue(operation: string, args: { expected?: string[]; track?: Track; tracks?: Track[]; ids?: string[]; from?: number; to?: number }): void {
+    const previous=this.state.queue, current=this.state.track;
+    if(args.expected && JSON.stringify(args.expected)!==JSON.stringify(previous.map(song=>song.id)))throw Error('队列已变化，请重新操作');
+    let queue=[...previous];
+    if(operation==='next'||operation==='enqueue'){
+      const track=args.track;if(!track?.id)throw Error('歌曲无效');
+      if(track.id===current?.id)return;
+      queue=queue.filter(song=>song.id!==track.id);
+      const at=operation==='next'?Math.max(0,queue.findIndex(song=>song.id===current?.id)+1):queue.length;
+      queue.splice(at,0,track);
+    }else if(operation==='move'){
+      const from=args.from!,to=args.to!;if(!Number.isInteger(from)||!Number.isInteger(to)||from<0||to<0||from>=queue.length||to>=queue.length)throw Error('队列位置无效');
+      queue.splice(to,0,...queue.splice(from,1));
+    }else if(operation==='remove')queue=queue.filter(song=>!args.ids?.includes(song.id));
+    else if(operation==='restore'){if(!Array.isArray(args.tracks))throw Error('队列无效');queue=args.tracks;}
+    else throw Error('未知队列操作');
+    if(new Set(queue.map(song=>song.id)).size!==queue.length)throw Error('队列包含重复歌曲');
+    const at=queue.findIndex(song=>song.id===current?.id);
+    if(current&&at<0){const resume=this.state.playing||this.playbackRequested;this.setQueue(queue,Math.min(this.state.queueIndex,queue.length-1));if(resume&&queue.length)void this.play();return;}
+    this.update({queue,queueIndex:at});this.history=[];this.shufflePool.clear();this.persistQueue();
   }
-
-  playNext(track: Track): void {
-    const queue = [...this.state.queue];
-    const index = Math.max(0, this.state.queueIndex + 1);
-    queue.splice(index, 0, track);
-    this.update({ queue });
-    this.shufflePool.clear();
-    this.persistQueue();
-    if (!this.state.track) void this.playTrack(track);
+  private async restoreOutput(check=false){
+    const audio=this.audio as HTMLAudioElement & {setSinkId?:(id:string)=>Promise<void>};if(!audio.setSinkId)return;
+    try{if(check&&this.sound.output!=='default'&&!(await this.outputDevices()).some(device=>device.deviceId===this.sound.output)){this.sound={...this.sound,output:'default'};savePreference('zenix.audio',this.sound);window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:'音频设备已断开，已跟随系统默认输出'}));}await audio.setSinkId(this.sound.output==='default'?'':this.sound.output);await this.audioGraph.output(this.sound.output);}catch{this.sound={...this.sound,output:'default'};await audio.setSinkId('').catch(()=>{});await this.audioGraph.output('default').catch(()=>{});}
   }
+  audioSettings(): AudioSettings { return {...this.sound,gains:[...this.sound.gains]}; }
+  async testOutput(){
+    const context=new AudioContext();try{const output=this.sound.output;if(output!=='default'){const target=context as AudioContext&{setSinkId?:(id:string)=>Promise<void>};if(!target.setSinkId)throw Error('当前环境无法测试指定设备');await target.setSinkId(output);}await context.resume();const tone=context.createOscillator(),gain=context.createGain();gain.gain.value=.08;tone.frequency.value=440;tone.connect(gain);gain.connect(context.destination);await new Promise<void>(resolve=>{tone.onended=()=>resolve();tone.start();tone.stop(context.currentTime+.25);});}finally{await context.close();}
+  }
+  async outputDevices(){if(!navigator.mediaDevices?.enumerateDevices)throw Error('当前环境不支持输出设备选择');return (await navigator.mediaDevices.enumerateDevices()).filter(item=>item.kind==='audiooutput').map(({deviceId,label})=>({deviceId,label}));}
+  async configureAudio(value:AudioSettings):Promise<AudioSettings>{
+    const next=validateAudio(value),previous=this.sound;
+    const audio=this.audio as HTMLAudioElement & {setSinkId?:(id:string)=>Promise<void>};
+    if(next.enabled&&audio.src&&!/^(yzqxy:|blob:)/.test(audio.src))throw Error('此直接链接不支持安全接入均衡器，请使用已导入的音乐源或本地音频');
+    if(next.output!==previous.output){if(!audio.setSinkId)throw Error('当前系统不支持应用内选择输出设备');await audio.setSinkId(next.output==='default'?'':next.output);}
+    if(next.enabled&&audio.src&&audio.crossOrigin!=='anonymous'){
+      const position=audio.currentTime,resume=!audio.paused;audio.crossOrigin='anonymous';this.pendingSeek={token:this.selectionToken,seconds:position};audio.load();if(resume)await audio.play();
+    }
+    try{await this.audioGraph.apply(next);}catch(error){if(next.output!==previous.output)await audio.setSinkId?.(previous.output==='default'?'':previous.output).catch(()=>{});await this.audioGraph.apply(previous).catch(()=>{});throw error;}
+    this.sound=next;savePreference('zenix.audio',next);return this.audioSettings();
+  }
+  enqueue(track: Track): void { this.editQueue('enqueue',{track}); }
+  playNext(track: Track): void { this.editQueue('next',{track});if(!this.state.track)void this.playTrack(track); }
 
   removeFromQueue(index: number): void {
     if (index < 0 || index >= this.state.queue.length) return;
@@ -621,6 +661,8 @@ class PlayerController {
     this.invalidateSelection();
     this.unlistenMedia?.();
     this.unlistenMediaSeek?.();
+    navigator.mediaDevices?.removeEventListener?.('devicechange',this.deviceChanged);
+    this.audioGraph.close();
     this.audio.pause();
     this.audio.removeAttribute('src');
     this.audio.load();

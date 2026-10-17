@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import { Dithering, MeshGradient } from '@paper-design/shaders-react';
 
-// Public Paper shaders are composed here with Zenix's own monochrome surface treatment.
-const meshColors = ['#71717a', '#f4f4f5', '#71717a', '#f4f4f5', '#09090b', '#f4f4f5'];
+// A quiet blue/violet backdrop; custom user media is rendered separately.
+const meshColors = ['#15253a', '#485474', '#15253a', '#54445e', '#0a101b', '#2b4355'];
 
 type ShaderBackdropProps = {
   surface: 'home' | 'player';
@@ -17,7 +17,7 @@ function ShaderBackdrop({ surface, playing, reduceMotion }: ShaderBackdropProps)
 
   return <div className={`yz-shader-background yz-shader-background--${surface}`} aria-hidden="true">
     <MeshGradient className="yz-shader-mesh" colors={meshColors} distortion={.8} swirl={.1} speed={meshSpeed} maxPixelCount={409_600} />
-    <Dithering className="yz-shader-dither" colorBack="#09090b" colorFront="#71717a" shape="warp" type="4x4" size={2.5} speed={ditherSpeed} maxPixelCount={409_600} />
+    <Dithering className="yz-shader-dither" colorBack="#090f1b" colorFront="#50647f" shape="warp" type="4x4" size={2.5} speed={ditherSpeed} maxPixelCount={409_600} />
     <div className="yz-shader-veil" />
   </div>;
 }

@@ -72,12 +72,43 @@ app.whenReady().then(async()=>{
   await wait('document.querySelectorAll(".swipe-track-row").length===4');await click('[aria-label="播放 Fixture 2"]');await sleep(400);assert.equal(await evaluate('!!document.querySelector(".zenix-mobile")&&!!document.querySelector(".space-viewport")'),true,'partial native play response must preserve sources and personal state');assert.equal(await evaluate('window.fixture.state.playback.track.id'),'fixture-2');
   await click('[aria-label="设置"]');await wait('!!document.querySelector(".settings-card")');
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,quality:'lossless'}})`);
-  await wait(`document.querySelector('.settings-card label select')?.value==='lossless'`);
+  await wait(`document.querySelector('[aria-label="播放品质"]')?.textContent.includes('无损')`);
+  if(await evaluate('!!document.querySelector("[aria-label=关闭提示]")'))await click('[aria-label="关闭提示"]');
+  await screenshot('mobile-settings-playback.png');
+  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='设备连接').click()`);
+  await wait('!!document.querySelector("[aria-label=电脑遥控地址]")');
+  for(const width of [320,390,430]){window.setContentSize(width,820);await sleep(60);assert.equal(await evaluate('document.querySelector(".mobile-content").scrollWidth<=document.querySelector(".mobile-content").clientWidth+1'),true,'categorized settings fit mobile width '+width);}
+  window.setContentSize(390,820);await screenshot('mobile-settings-devices.png');
+  const localBeforeRemote=await evaluate('JSON.stringify(window.fixture.state.playback)');
+  await evaluate(`(()=>{for(const [label,value]of [['电脑遥控地址','192.168.1.20:12345'],['电脑配对码','123456']]){const input=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+  await evaluate('document.querySelector(".mobile-remote form").requestSubmit()');await wait('document.querySelector(".mobile-remote-status")?.textContent.includes("等待电脑")');
+  assert.equal(await evaluate('window.fixture.calls.some(call=>call.action==="openRemote")'),false,'mobile remote stays inside the application');
+  await evaluate('window.fixture.remoteApproved=true');await wait('!!document.querySelector("[aria-label=遥控播放]")');
+  await click('[aria-label="遥控播放"]');await wait('!!document.querySelector("[aria-label=遥控暂停]")');await click('[aria-label="遥控下一首"]');await wait('document.querySelector(".mobile-remote-player")?.textContent.includes("电脑下一首")');
+  assert.equal(await evaluate('JSON.stringify(window.fixture.state.playback)'),localBeforeRemote,'remote controls do not replace local playback');await screenshot('mobile-remote-connected.png');
+  await evaluate('[...document.querySelectorAll(".mobile-remote button")].find(button=>button.textContent==="断开连接").click()');await wait('!!document.querySelector(".mobile-remote form")');
+  await evaluate(`(()=>{const input=document.querySelector('[aria-label="搜索设置"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'歌词校正');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait('!!document.querySelector(".yz-settings-result-list")');await screenshot('mobile-settings-search.png');
+  await evaluate('document.querySelector(".yz-settings-result-list>button").click()');await wait('!!document.querySelector("[data-mobile-setting=lyric-display] details[open]")');
+  await wait('!!document.querySelector(".mobile-settings input[aria-label=搜索设置]")');
+  await evaluate(`(()=>{const input=document.querySelector('.mobile-settings input[aria-label="搜索设置"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'全局快捷键');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait('!!document.querySelector(".yz-settings-empty")');await click('[aria-label="清空设置搜索"]');
+  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='播放').click()`);await wait('!!document.querySelector(".settings-card")');
   // Native personal updates must reach tools while the memoized settings page stays open.
   const settingsPersonal=await evaluate('window.fixture.state.personal');
   await evaluate(`window.fixture.setSnapshot({personal:{...window.fixture.state.personal,playlists:[...window.fixture.state.personal.playlists,{id:'fresh-settings-list',name:'新收到的歌单',tracks:[]}]}})`);
   await click('.tool-actions .zenix-tools-launch');
   await wait('document.querySelector(".tool-playlists")?.textContent.includes("新收到的歌单")');
+  await evaluate(`(()=>{const input=document.querySelector('.playlist-link-import textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'分享 https://y.qq.com/n/ryqq/playlist/123');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='解析歌单').click()`);
+  await wait(`document.querySelector('.playlist-link-preview')?.textContent.includes('2 首可导入 / 原歌单 3 首')`);
+  assert.equal(await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='导入为新歌单').disabled`),true,'partial results require an explicit acknowledgement');
+  assert.equal(await evaluate('window.fixture.calls.filter(c=>c.payload.operation==="playlistPreview").length'),0,'parsing cannot save a playlist');
+  for(const width of [320,390,430]){window.setContentSize(width,820);await sleep(50);assert.equal(await evaluate('document.querySelector(".zenix-tools-body").scrollWidth<=document.querySelector(".zenix-tools-body").clientWidth+1'),true,'playlist link preview fits mobile width '+width);}
+  window.setContentSize(390,820);await sleep(80);
+  assert.equal(await evaluate(`(()=>{const input=document.querySelector('.playlist-link-import textarea');return input.getBoundingClientRect().width>=input.parentElement.getBoundingClientRect().width-1;})()`),true,'share text field uses the whole card width');
+  await screenshot('mobile-playlist-links-preview.png');await click('.playlist-partial input');
+  await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='导入为新歌单').click()`);
+  await wait('window.fixture.state.personal.playlists.some(list=>list.name==="平台导入测试"&&list.tracks.length===2)');
+  await wait('!document.querySelector(".playlist-link-preview")');await screenshot('mobile-playlist-links.png');
   await click('[aria-label="关闭音乐工具"]');
   await evaluate(`window.fixture.setSnapshot({personal:${JSON.stringify(settingsPersonal)}})`);
   await evaluate('[...document.querySelectorAll(".settings-card button")].find(el=>el.textContent.includes("管理音乐源")).click()');await wait('!!document.querySelector(".source-priority")');
@@ -86,6 +117,26 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="exportSourceBundle").length'),1);
   await evaluate('window.fixture.exportResult={saved:false,count:0}');await click('.zenix-bundle-export button');
   assert.equal(await evaluate('!!document.querySelector(".zenix-bundle-export [role=status]")'),false,'cancelled save does not claim success');
+  // Primary confirmation alone grants HTTP for a new mobile compatibility source.
+  const originalSources=await evaluate('window.fixture.state.sources');
+  await evaluate(`window.fixture.importPreview={...window.fixture.state.sources[0],kind:'lx',token:'http-import',manifest:{...window.fixture.state.sources[0].manifest,id:'new-http',name:'HTTP fixture'}}`);
+  const importSource=async()=>{await evaluate(`(()=>{const input=document.querySelector('[aria-label="音乐源地址"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'http://fixture.invalid/source.js');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait('!document.querySelector(".source-import button").disabled');await click('.source-import button');await wait('!!document.querySelector(".mobile-sheet details")');};
+  await importSource();
+  assert.equal(await evaluate('document.querySelector(".mobile-sheet input[type=checkbox]").checked'),true);
+  assert.equal(await evaluate('document.querySelector(".mobile-sheet details").open'),false,'network options require no extra interaction');
+  await click('.mobile-sheet .pill');await wait('!document.querySelector(".mobile-sheet")');
+  assert.deepEqual(await evaluate('window.fixture.calls.filter(c=>c.action==="install").at(-1).payload.networkPolicy'),{allowHttp:true,hosts:null});
+  // Reimport does not silently broaden a user's existing HTTPS-only/domain policy.
+  await evaluate(`window.fixture.setSnapshot({sources:window.fixture.state.sources.map(s=>s.id==='new-http'?{...s,networkPolicy:{allowHttp:false,hosts:['api.example.test']}}:s)});window.fixture.importPreview.token='restricted-import'`);
+  await importSource();await click('.mobile-sheet .pill');await wait('!document.querySelector(".mobile-sheet")');
+  assert.deepEqual(await evaluate('window.fixture.calls.filter(c=>c.action==="install").at(-1).payload.networkPolicy'),{allowHttp:false,hosts:['api.example.test']});
+  // Batch import uses the same default under its existing primary confirmation.
+  await evaluate(`window.fixture.importPreview={...window.fixture.importPreview,token:'batch-import',manifest:{...window.fixture.importPreview.manifest,id:'batch-http'}};window.fixture.sourceBundleFile={name:'fixture.zenixsources',base64:btoa(JSON.stringify({format:'zenix-source-bundle',schemaVersion:1,name:'HTTP batch',sources:[{name:'HTTP fixture',url:'http://fixture.invalid/source.js'}]}))}`);
+  await click('[aria-label="音乐源分享包"]>.zenix-bundle-pick');await wait('!!document.querySelector(".zenix-bundle-preview footer")');
+  await click('.zenix-bundle-preview footer button:last-child');await wait('document.querySelector(".zenix-bundle-preview [role=status]")?.textContent.includes("已成功 1 个")');
+  assert.deepEqual(await evaluate('window.fixture.calls.filter(c=>c.action==="install").at(-1).payload.networkPolicy'),{allowHttp:true,hosts:null});
+  await click('.zenix-bundle-preview footer button:first-child');
+  await evaluate(`window.fixture.setSnapshot({sources:${JSON.stringify(originalSources)}})`);
   // Destructive actions use the glass top-layer dialog; cancel and Android Back are inert.
   await click('.source-delete');await wait('!!document.querySelector(".zenix-glass-dialog[open]")');
   assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="sourceRemove").length'),0);

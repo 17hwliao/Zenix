@@ -19,15 +19,18 @@ import java.nio.charset.StandardCharsets;
 public class ZenixNativePlugin extends Plugin {
     private ZenixRuntime runtime;
     private AppUpdates updates;
+    private final RemoteClient remoteClient=new RemoteClient();
+    private final java.util.concurrent.ExecutorService remoteWork=new java.util.concurrent.ThreadPoolExecutor(1,1,0L,java.util.concurrent.TimeUnit.MILLISECONDS,new java.util.concurrent.ArrayBlockingQueue<>(4));
     @Override public void load(){runtime=ZenixRuntime.get(getContext());runtime.ensureService();runtime.observe(this,true);}
     @Override protected void handleOnResume(){runtime.observe(this,true);}
     @Override protected void handleOnPause(){runtime.observe(this,false);}
-    @Override protected void handleOnDestroy(){runtime.removeObserver(this);if(updates!=null){updates.cancel();updates.worker.shutdown();}}
+    @Override protected void handleOnDestroy(){runtime.removeObserver(this);remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
     void publish(JSONObject state){try{notifyListeners("snapshot",new JSObject(state.toString()));}catch(Exception ignored){}}
     void publishPrepared(JSObject state){notifyListeners("snapshot",state);}
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("remote")){try{remoteWork.execute(()->{try{result(call,remoteClient.invoke(args));}catch(Exception error){call.reject(Json.message(error));}});}catch(java.util.concurrent.RejectedExecutionException error){call.reject("遥控正在处理请求，请稍后重试");}return;}
         if(action.equals("exportSourceBundle")) {
             Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/octet-stream");intent.putExtra(Intent.EXTRA_TITLE,"Zenix-音乐源.zenixsources");startActivityForResult(call,intent,"sourceBundleSaved");return;
         }
@@ -39,7 +42,7 @@ public class ZenixNativePlugin extends Plugin {
             if(operation.startsWith("timer")||operation.equals("widgetPin")){
                 runtime.main.post(()->{try{PlaybackService service=runtime.service;if(service==null)throw new Exception("播放器正在启动，请稍后重试");Object value;if(operation.equals("timerSet"))value=service.setSleepTimer(args.optDouble("minutes"));else if(operation.equals("timerCancel"))value=service.setSleepTimer(0);else if(operation.equals("timerState"))value=service.sleepTimerState();else if(operation.equals("widgetPin"))value=MusicWidget.requestPin(getContext(),args.optString("size","3x3"));else throw new Exception("未知定时操作");result(call,value);}catch(Exception e){call.reject(Json.message(e));}});return;
             }
-            runtime.work.execute(()->{try{result(call,runtime.companion.invoke(args));}catch(Exception e){call.reject(Json.message(e));}});return;
+            (operation.equals("playlistRequest")?runtime.sourceWork:runtime.work).execute(()->{try{result(call,runtime.companion.invoke(args));}catch(Exception e){call.reject(Json.message(e));}});return;
         }
         if(action.equals("updates")) {
             try { if(updates==null)updates=new AppUpdates(getContext());
@@ -49,7 +52,11 @@ public class ZenixNativePlugin extends Plugin {
                 updates.worker.execute(()->{try{Object value;switch(operation){case "check":value=updates.check(args.optString("channel","stable"));break;case "download":value=updates.download();break;case "install":value=updates.install(getActivity());break;case "sourceBundle":value=updates.sourceBundle(args.optString("url"));break;default:throw new Exception("无效更新操作");}result(call,value);}catch(Exception e){call.reject(Json.message(e));}});
             }catch(Exception e){call.reject(Json.message(e));}return;
         }
+        if(action.equals("openRemote")){
+            try{String address=args.getString("address");if(!address.matches("[0-9.]+:[0-9]{1,5}"))throw new Exception("请填写电脑显示的 IP:端口");java.net.URI uri=new java.net.URI("http://"+address);String host=uri.getHost();if(host==null||uri.getPort()<1||uri.getPort()>65535)throw new Exception("遥控地址无效");String[] parts=host.split("\\.");if(parts.length!=4)throw new Exception("遥控地址无效");int[] octets=new int[4];for(int i=0;i<4;i++){octets[i]=Integer.parseInt(parts[i]);if(octets[i]<0||octets[i]>255)throw new Exception("遥控地址无效");}if(!(octets[0]==10||octets[0]==192&&octets[1]==168||octets[0]==172&&octets[1]>=16&&octets[1]<=31))throw new Exception("只能连接电脑的局域网地址");getActivity().startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(uri.toString())));result(call,true);}catch(Exception error){call.reject(Json.message(error));}return;
+        }
         if(action.equals("exit")){getActivity().moveTaskToBack(true);result(call,true);return;}
+        if(action.equals("systemSoundSettings")){try{getActivity().startActivity(new Intent(android.provider.Settings.ACTION_SOUND_SETTINGS));result(call,true);}catch(Exception error){call.reject("请从手机系统设置打开声音与输出选项");}return;}
         if(action.equals("overlayEnable")) {
             if (!args.optBoolean("enabled",true)) { getContext().stopService(new Intent(getContext(),LyricOverlayService.class)); result(call,runtime.overlayStatus());runtime.emit();return; }
             if (!LyricOverlayService.allowed(getContext())) {
@@ -69,10 +76,10 @@ public class ZenixNativePlugin extends Plugin {
             if(action.equals("pickLocal"))intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
             startActivityForResult(call,intent,"filePicked");return;
         }
-        if(java.util.Set.of("play","toggle","seek","next","previous","mode","removeQueue","cacheConfigure","cacheClear","snapshot","roamingStart","roamingStop","roamingRetry","roamingPlay").contains(action)) {
+        if(java.util.Set.of("play","toggle","seek","next","previous","mode","removeQueue","queueEdit","lyricsConfigure","audioConfigure","cacheConfigure","cacheClear","snapshot","roamingStart","roamingStop","roamingRetry","roamingPlay").contains(action)) {
             getActivity().runOnUiThread(() -> {try {
                 PlaybackService player=runtime.service;if(player==null){runtime.ensureService();call.reject("播放器正在启动，请稍后重试");return;}
-                switch(action){case "roamingStart":case "roamingStop":case "roamingRetry":case "roamingPlay":player.roamingCommand(action,args);break;case "play":player.setQueue(args.getJSONArray("tracks"),args.optInt("index",0));break;case "toggle":player.toggle();break;case "seek":player.seek(args.optDouble("seconds"));break;case "next":player.advance(1);break;case "previous":player.advance(-1);break;case "mode":player.mode(args);break;case "removeQueue":player.remove(args.getString("id"));break;case "cacheConfigure":player.configureCache(args);break;case "cacheClear":player.clearCache(error->{if(error!=null)call.reject(Json.message(error));else result(call,runtime.dynamicSnapshot());});return;case "snapshot":runtime.snapshot(value->result(call,value),error->call.reject(Json.message(error)));return;}
+                switch(action){case "roamingStart":case "roamingStop":case "roamingRetry":case "roamingPlay":player.roamingCommand(action,args);break;case "play":player.setQueue(args.getJSONArray("tracks"),args.optInt("index",0));break;case "toggle":player.toggle();break;case "seek":player.seek(args.optDouble("seconds"));break;case "next":player.advance(1);break;case "previous":player.advance(-1);break;case "mode":player.mode(args);break;case "queueEdit":player.editQueue(args);break;case "lyricsConfigure":player.configureLyrics(args);break;case "audioConfigure":player.configureAudio(args);break;case "removeQueue":player.remove(args.getString("id"));break;case "cacheConfigure":player.configureCache(args);break;case "cacheClear":player.clearCache(error->{if(error!=null)call.reject(Json.message(error));else result(call,runtime.dynamicSnapshot());});return;case "snapshot":runtime.snapshot(value->result(call,value),error->call.reject(Json.message(error)));return;}
                 result(call,runtime.dynamicSnapshot());runtime.emit();
             }catch(Exception e){call.reject(Json.message(e));}});return;
         }

@@ -221,3 +221,41 @@ test('source resolution preserves installation order and falls back quality', as
   await resolveCustomTrack(track('1', { preferredPlaybackProviderId: 'first' }), [], () => {}, new AbortController().signal);
   assert.equal(calls[0], 'first:high', 'explicit per-song source takes precedence over adaptive order');
 });
+
+
+test('queue edits preserve the playing decoder, selected identity and clock; stale undo cannot erase later additions',async()=>{
+  const songs=['edit-a','edit-b','edit-c'].map(id=>track(id,{source:'local',audioUrl:'file://fixture.wav'}));player.setShuffle(false);player.setQueue(songs);await player.play();player.seek(23);
+  const audio=player.audio,source=audio.src;let playEvents=0;const played=()=>playEvents++;audio.addEventListener('play',played);
+  player.editQueue('move',{expected:songs.map(song=>song.id),from:2,to:0});assert.equal(player.snapshot.track.id,'edit-a');assert.equal(player.snapshot.queueIndex,1);assert.equal(player.snapshot.position,23);assert.equal(audio.src,source);assert.equal(playEvents,0);
+  player.playNext(songs[2]);assert.deepEqual(player.snapshot.queue.map(song=>song.id),['edit-a','edit-c','edit-b']);assert.equal(player.snapshot.track.id,'edit-a');assert.equal(player.snapshot.position,23);
+  const before=player.snapshot.queue;player.editQueue('remove',{ids:['edit-b'],expected:before.map(song=>song.id)});player.enqueue(track('later',{source:'local',audioUrl:'file://fixture.wav'}));
+  assert.throws(()=>player.editQueue('restore',{tracks:before,expected:['edit-a','edit-c']}),/已变化/);assert.equal(player.snapshot.queue.at(-1).id,'later');assert.equal(playEvents,0);audio.removeEventListener('play',played);player.setQueue([]);
+});
+
+test('next-play on an idle queue selects and starts while enqueue alone stays idle',async()=>{
+  player.setQueue([]);player.enqueue(track('queued-idle',{source:'local',audioUrl:'yzqxy://audio/queued-idle'}));
+  assert.equal(player.snapshot.track,undefined);assert.equal(player.snapshot.playing,false);
+  player.playNext(track('next-idle',{source:'local',audioUrl:'yzqxy://audio/next-idle'}));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(player.snapshot.track?.id,'next-idle');assert.equal(player.snapshot.playing,true);
+  assert.deepEqual(player.snapshot.queue.map(song=>song.id),['next-idle','queued-idle']);player.setQueue([]);
+  player.playNext(track('first-idle',{source:'local',audioUrl:'yzqxy://audio/first-idle'}));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(player.snapshot.track?.id,'first-idle');assert.equal(player.snapshot.playing,true);player.setQueue([]);
+});
+
+test('existing large desktop queues can move, shrink and undo without restarting playback',async()=>{
+  const songs=Array.from({length:1500},(_,index)=>track('bulk-'+index,{source:'local',audioUrl:'yzqxy://audio/bulk-'+index}));
+  player.setQueue(songs);await player.play();player.seek(23);const audio=player.audio,source=audio.src;let starts=0;const started=()=>starts++;audio.addEventListener('play',started);
+  try{
+    player.editQueue('move',{expected:songs.map(song=>song.id),from:1499,to:0});
+    assert.equal(player.snapshot.queue.length,1500);assert.equal(player.snapshot.track.id,'bulk-0');assert.equal(player.snapshot.queueIndex,1);
+    const before=player.snapshot.queue;player.editQueue('remove',{expected:before.map(song=>song.id),ids:['bulk-100']});
+    assert.equal(player.snapshot.queue.length,1499);assert(!player.snapshot.queue.some(song=>song.id==='bulk-100'));
+    const expected=player.snapshot.queue.map(song=>song.id);player.editQueue('restore',{expected,tracks:before});
+    assert.deepEqual(player.snapshot.queue.map(song=>song.id),before.map(song=>song.id));
+    assert.equal(player.snapshot.track.id,'bulk-0');assert.equal(player.snapshot.position,23);assert.equal(audio.src,source);assert.equal(starts,0);
+    assert.throws(()=>player.editQueue('restore',{tracks:[...before,before[0]]}),/重复/);
+    assert.throws(()=>player.editQueue('restore',{tracks:before,expected:songs.map(song=>song.id)}),/已变化/);
+  }finally{audio.removeEventListener('play',started);player.setQueue([]);}
+});

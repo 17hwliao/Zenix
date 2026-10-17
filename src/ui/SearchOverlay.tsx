@@ -1,3 +1,5 @@
+import SearchAssist from './SearchAssist';
+import { rememberSearch } from '../core/listening';
 import { Search, X } from 'lucide-react';
 import CoverArt from './CoverArt';
 import { formatTime } from './library';
@@ -31,13 +33,13 @@ export default function SearchOverlay({ query, onQueryChange, search, onPlayTrac
     <div className="yz-search-overlay" role="dialog" aria-label="搜索音乐">
       <PersonalBackdrop background={background ?? null} scene="search" />
       <div className="yz-search-top">
-        <form onSubmit={event => { event.preventDefault(); if (keyword) onShowResults(); }} className="yz-search-large"><Search size={20} />
+        <form onSubmit={event => { event.preventDefault(); rememberSearch(query); if (keyword) onShowResults(); }} className="yz-search-large"><Search size={20} />
           <input autoFocus value={query} onChange={event => onQueryChange(event.target.value)} placeholder="搜索音乐" aria-label="搜索音乐" />
           <button type="submit" title="查看搜索结果" aria-label="搜索"><Search size={18} /></button>
         </form>
         <button className="yz-search-close" onClick={onClose} title="关闭搜索" aria-label="关闭搜索"><X size={20} /></button>
       </div>
-      <div className="yz-search-sources" role="tablist" aria-label="搜索来源">
+      <SearchAssist keyword={query} tracks={[...localResults, ...playableTracks]} choose={onQueryChange}/><div className="yz-search-sources" role="tablist" aria-label="搜索来源">
         <button role="tab" aria-selected={selected === 'all'} className={selected === 'all' ? 'is-active' : ''} onClick={() => setSelected('all')}>全部音乐源</button>
         {enabled.map(source => <button key={source.id} role="tab" aria-selected={selected === source.id} className={selected === source.id ? 'is-active' : ''} onClick={() => setSelected(source.id)}>{source.manifest.name}</button>)}
         <button role="tab" aria-selected={selected === 'local'} className={selected === 'local' ? 'is-active' : ''} onClick={() => setSelected('local')}>本地</button>

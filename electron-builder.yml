@@ -17,6 +17,7 @@ files:
   - electron/desktop-lyrics.html
   - electron/lyrics-lock.html
   - electron/music-widget.html
+  - electron/remote-control.html
   - assets/zenix-icon.ico
   - assets/zenix-icon.png
   - LICENSE

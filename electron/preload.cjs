@@ -7,6 +7,7 @@ function subscribe(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld('yzqxy', {
+  desktop: {invoke: args => ipcRenderer.invoke('desktop:invoke',args), onCommand: callback => subscribe('desktop:command',callback)},
   companion: { invoke: args => ipcRenderer.invoke('companion:invoke', args) },
   updates: { invoke: (args) => ipcRenderer.invoke('updates:invoke', args) },
   desktopLyrics: {
@@ -16,6 +17,7 @@ contextBridge.exposeInMainWorld('yzqxy', {
     onVisibleChanged: (callback) => subscribe('lyrics:visible', callback),
   },
   personal: {
+    batch: args => ipcRenderer.invoke('personal:batch',args),
     load: () => ipcRenderer.invoke('personal:load'),
     toggle: (kind, track) => ipcRenderer.invoke('personal:toggle', kind, track),
     record: (track) => ipcRenderer.invoke('personal:record', track),

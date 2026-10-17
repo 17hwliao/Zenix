@@ -5,9 +5,9 @@ import './SourceBundleImport.css';
 import { invokeUpdate, updateSupported } from '../core/updates';
 
 type Result = { name: string; url: string; error?: string };
-type Props = { disabled?: boolean; install(entry: SourceBundleEntry): Promise<void>; onBusy?(busy: boolean): void; pickFile?(): Promise<{ name: string; base64: string } | null>; digest?(text: string): Promise<string>; localScripts?: boolean };
+type Props = { disabled?: boolean; install(entry: SourceBundleEntry): Promise<void>; onBusy?(busy: boolean): void; pickFile?(): Promise<{ name: string; base64: string } | null>; digest?(text: string): Promise<string>; localScripts?: boolean; importNotice?: string };
 
-export default function SourceBundleImport({ disabled, install, onBusy, pickFile, digest, localScripts = false }: Props) {
+export default function SourceBundleImport({ disabled, install, onBusy, pickFile, digest, localScripts = false, importNotice }: Props) {
   const input = useRef<HTMLInputElement>(null), stopped = useRef(false), mounted = useRef(true), running = useRef(false);
   const [bundle, setBundle] = useState<SourceBundle | null>(null), [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Result[]>([]), [active, setActive] = useState(''), [error, setError] = useState('');
@@ -78,6 +78,7 @@ export default function SourceBundleImport({ disabled, install, onBusy, pickFile
     {!bundle && <small>{localScripts ? '选择源包、ZIP 或单个脚本，自动识别；ZIP 内多份脚本一次全部添加，无需解压。' : '直接选择收到的 .zenixsources、JSON 或分享 ZIP，无需解压；单个 .js 脚本使用上方文件入口。'}</small>}
     {bundle && <div className="zenix-bundle-preview"><strong>{bundle.name} · {bundle.sources.length} 个音乐源</strong>
       <p>确认后会运行包内脚本；缺少脚本的条目将从原始地址获取。仅添加你信任的分享包。</p>
+      {importNotice && <p>{importNotice}</p>}
       <ol>{bundle.sources.map((entry, index) => <li key={entry.url}><span>{String(index + 1).padStart(2, '0')} · {entry.name}</span><small>{entry.local ? '本地脚本，无需下载' : `${entry.script ? '内含脚本' : '联网获取'} · ${new URL(entry.url).hostname}`}</small></li>)}</ol>
       <div role="status" aria-live="polite">{busy ? <><LoaderCircle size={15} className="zenix-bundle-spin" />正在添加 {active} · {results.length}/{bundle.sources.length}</> : results.length > 0 ? `已成功 ${results.length - failures} 个，失败 ${failures} 个${results.length < bundle.sources.length ? '，剩余未处理' : ''}` : '按上述顺序添加；已有同地址的源更新后保留原顺序。'}</div>
       {failures > 0 && <ul className="zenix-bundle-errors">{results.filter(result => result.error).map(result => <li key={result.url}>{result.name}：{result.error}</li>)}</ul>}

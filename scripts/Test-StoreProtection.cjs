@@ -36,6 +36,8 @@ test('legacy optional local-library arrays retain compatibility', async t => {
 test('production player survives damaged preferences and restores a usable paused queue', async () => {
   const vm = require('node:vm'), ts = require('typescript');
   const source = ts.transpileModule(await fs.readFile(path.resolve(__dirname, '../src/core/player.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const audioSource=ts.transpileModule(await fs.readFile(path.resolve(__dirname,'../src/core/audioSettings.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const audioExports={};vm.runInNewContext(audioSource,{exports:audioExports});
   class Audio {
     set volume(value) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) throw Error('Invalid Audio.volume'); this.value = value; }
     get volume() { return this.value; }
@@ -43,7 +45,7 @@ test('production player survives damaged preferences and restores a usable pause
   }
   for (const volume of ['wrong', {}, null, -1, 5, .4]) {
     const saved = { 'yzqxy.volume': JSON.stringify(volume), 'yzqxy.muted': '"false"', 'yzqxy.shuffle': '{}', 'yzqxy.queue': JSON.stringify({ ids: ['fixture'], index: .5 }) }, exports = {};
-    vm.runInNewContext(source, { exports, Audio, navigator: {}, window: {}, localStorage: { getItem: key => saved[key] ?? null, setItem: () => {} }, clearTimeout, setTimeout, AbortController });
+    vm.runInNewContext(source, { exports, require: name=>{if(name==='./audioSettings')return audioExports;throw Error('Unexpected player dependency: '+name);}, Audio, navigator: {}, window: {}, localStorage: { getItem: key => saved[key] ?? null, setItem: () => {} }, clearTimeout, setTimeout, AbortController });
     const player = exports.player; player.restoreQueue([song]);
     assert.equal(player.snapshot.track.id, song.id); assert.equal(player.snapshot.queueIndex, 0); assert.equal(player.snapshot.playing, false);
     assert.equal(player.snapshot.muted, false); assert.equal(player.snapshot.shuffle, false); assert.equal(player.snapshot.volume, typeof volume === 'number' ? Math.max(0, Math.min(1, volume)) : .75); player.dispose();

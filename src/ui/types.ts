@@ -94,3 +94,5 @@ export interface ZenixShellProps {
   onClose?: () => void;
   onReplayIntro?: () => void;
 }
+
+export function playableTrack(track:TrackView):import('../core/types').Track{return {...track,audioUrl:track.audioUrl||'',searchAlternatives:track.searchAlternatives?.slice(0,100).map(({searchAlternatives,...candidate})=>({...candidate,audioUrl:candidate.audioUrl||''}))};}

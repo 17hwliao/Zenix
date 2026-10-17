@@ -19,6 +19,7 @@
     }
   };
   class PortableBuffer extends Uint8Array {
+    static isBuffer(value) { return value instanceof PortableBuffer; }
     static from(value, encoding) { return new PortableBuffer(buffer.from(value, encoding)); }
     static byteLength(value) { return bytes(value).length; }
     toString(encoding) { return buffer.bufToString(this, encoding); }

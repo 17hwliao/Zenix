@@ -56,7 +56,8 @@ final class PrivateStore {
     private JSONObject mutatePersonal(String action,JSONObject args) throws Exception {
         JSONObject personal=data.getJSONObject("personal"); personal=Json.copy(personal);
         String kind=args.optString("kind"), id=args.optString("id"); JSONObject track=args.optJSONObject("track");
-        if(action.equals("addToCollections")) {
+        if(action.equals("batchPlaylist")){PlaylistBatch.apply(personal,args);}
+        else if(action.equals("addToCollections")) {
             PersonalCollections.add(personal,cleanTrack(track),args.optJSONArray("kinds"));
         } else if(action.equals("toggle")) {
             if(!kind.equals("liked")&&!kind.equals("favorites")) throw new Exception("无效收藏类型");

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, protocol, screen, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, protocol, screen, shell, Tray, Menu, globalShortcut } = require('electron');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -12,6 +12,9 @@ const { LyricsHoverTracker } = require('./runtime/lyrics-hover.cjs');
 const { Updates } = require('./runtime/updates.cjs');
 const { Companion } = require('./runtime/companion.cjs');
 const { MusicWidget } = require('./runtime/music-widget.cjs');
+const {DesktopTray} = require('./runtime/desktop-tray.cjs');
+const {DesktopControls}=require('./runtime/desktop-controls.cjs');
+let desktopTray,desktopControls;
 let companion, musicWidget;
 let updates;
 
@@ -131,6 +134,7 @@ function createWindow() {
   mainWindow.on('enter-full-screen', () => broadcast('window:fullscreen-changed', true));
   mainWindow.on('leave-full-screen', () => broadcast('window:fullscreen-changed', false));
   mainWindow.on('focus', () => maintainLyricsZOrder(true));
+  mainWindow.on('close', event => desktopTray?.close(event, win));
   mainWindow.on('closed', () => {
     musicWidget?.close();
     mainWindow = null;
@@ -146,6 +150,7 @@ function createWindow() {
   });
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
+    if(desktopControls?.handleInput(event,input))return;
     if (input.key === 'F11' && !input.alt && !input.control && !input.meta) {
       event.preventDefault();
       if (!input.isAutoRepeat) toggleMainFullscreen();
@@ -401,6 +406,7 @@ function registerHandlers() {
     publishLyrics();
     return state;
   });
+  handleApp('personal:batch', async (_event,args) => {const value=await personal.batch(args);broadcast('personal:changed',value);return value;});
   handleApp('personal:load', () => personal.snapshot());
   personalAction('personal:toggle', (kind, track) => personal.toggle(kind, track));
   personalAction('personal:record', track => personal.record(track));
@@ -557,16 +563,19 @@ if (primaryInstance) app.whenReady().then(async () => {
   const startupStores = ['library', 'appearance', 'personal', 'sources', 'cache'];
   const startupResults = await Promise.allSettled([library.load(), appearance.load(), personal.load(), sourceManager.load(), audioCache.load()]);
   startupResults.forEach((result, i) => { if (result.status === 'rejected') console.error(`Zenix ${startupStores[i]} could not load; original files preserved`); });
-  musicWidget = new MusicWidget({ BrowserWindow, command: action => broadcast('media:command', action), showApp: showMainWindow });
+  musicWidget = new MusicWidget({ BrowserWindow,folder:app.getPath('userData'),screen, command: action => broadcast('media:command', action), showApp: showMainWindow });
   companion = new Companion({ folder: app.getPath('userData'), personal, library, dialog, getWindow: () => mainWindow, broadcast, app, widget: musicWidget, appearance });
   await companion.stats.load();
   await companion.backup.load();
-  handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');return companion.invoke(args || {}); });
+  handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');if(args?.operation==='widgetUpdate'){desktopTray?.update(args);desktopControls?.update(args);}return companion.invoke(args || {}); });
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
   sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;
   await sourceManager.metadataCache.prune({ bestEffort: true });
   registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance });
   registerHandlers();
+  desktopControls=new DesktopControls({folder:app.getPath('userData'),globalShortcut,show:showMainWindow,command:(action,value)=>broadcast('desktop:command',{action,value})});
+  handleApp('desktop:invoke', (event,args)=>{if(event.sender!==mainWindow?.webContents)throw Error('无权调用桌面设置');return desktopControls.invoke(args||{});});
+  try{desktopTray = new DesktopTray({app, Tray, Menu, show: showMainWindow, command: action => broadcast('media:command',action)});}catch(error){console.error('System tray unavailable; window remains the app exit fallback');}
   createWindow();
   app.on('activate', () => {
     showMainWindow();
@@ -576,4 +585,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => { companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
+app.on('before-quit', () => { desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });

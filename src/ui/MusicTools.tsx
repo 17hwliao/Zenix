@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowDownToLine, ArrowUpFromLine, ChartNoAxesCombined, Clock3, Copy, MonitorSmartphone, Radio, Sparkles, X } from 'lucide-react';
 import type { PersonalState } from '../core/types';
 import './MusicTools.css';
+import PlaylistLinkImport from './PlaylistLinkImport';
 
 export type ToolInvoke = <T>(args: Record<string, unknown>) => Promise<T>;
 export const desktopTool: ToolInvoke = async args => { if(!window.yzqxy?.companion)throw Error('请使用 Zenix 桌面应用打开此功能');return await window.yzqxy.companion.invoke(args) as never; };
@@ -46,6 +47,7 @@ export default function MusicTools({personal,invoke=desktopTool,platform='Window
     <nav aria-label="音乐工具分类">{([{id:'share',label:'歌单分享',icon:Radio},{id:'stats',label:'音乐回忆',icon:ChartNoAxesCombined},{id:'timer',label:'睡眠定时',icon:Clock3},{id:'widget',label:'桌面组件',icon:MonitorSmartphone}] as const).map(item=><button key={item.id} aria-pressed={tab===item.id} onClick={()=>{setTab(item.id);setMessage('');}}><item.icon size={17}/>{item.label}</button>)}</nav>
     <div className="zenix-tools-body">
       {tab==='share'&&<><h1>把歌单带到另一片宇宙</h1><p>分享歌曲清单，不包含音频、本机文件路径或音源授权设置。接收方使用自己的音乐源播放。</p>
+        <PlaylistLinkImport invoke={invoke} disabled={busy||!!transfer.pending} onPreview={setTransfer}/>
         <section><div className="tool-heading"><h3>选择要分享的歌单</h3><button onClick={()=>setSelected(selected.length===lists.length?[]:lists.map(list=>list.id))}>{selected.length===lists.length?'取消全选':'全选'}</button></div><div className="tool-playlists">{lists.map(list=><label key={list.id}><input type="checkbox" checked={selected.includes(list.id)} onChange={event=>setSelected(ids=>event.target.checked?[...ids,list.id]:ids.filter(id=>id!==list.id))}/><span>{list.name}</span><small>{list.tracks.length} 首</small></label>)}{!lists.length&&<p>还没有自定义歌单，可以先导入他人的歌单。</p>}</div>
         <div className="tool-actions"><button disabled={busy||!selected.length} onClick={()=>void act({operation:'exportFile',ids:selected},'.zenixlist 歌单文件已导出。')}><ArrowUpFromLine size={16}/>导出歌单文件</button><button disabled={busy||!!transfer.pending} onClick={()=>void transferAction('importFile')}><ArrowDownToLine size={16}/>导入歌单文件</button></div></section>
         <section><h3>局域网直接迁移</h3><p>两端连接同一 Wi-Fi 或局域网。先在接收端开启接收，再在发送端填写接收地址与配对码。</p><div className="tool-actions"><button disabled={busy||!!transfer.pending} onClick={()=>void transferAction(transfer.listening?'lanStop':'lanStart')}>{transfer.listening?'结束接收':'开启接收 / 查看本机 IP'}</button></div>

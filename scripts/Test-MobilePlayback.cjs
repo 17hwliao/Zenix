@@ -8,11 +8,22 @@ test('Android production source lanes, resolver budgets, priority, cache decisio
   if(fs.existsSync(cached))for(const child of fs.readdirSync(cached)){const candidate=path.join(cached,child,'json-20250517.jar');if(fs.existsSync(candidate)){jar=candidate;break;}}
   if(!jar){jar=path.join(folder,'json.jar');const response=await fetch('https://repo.maven.apache.org/maven2/org/json/json/20250517/json-20250517.jar');if(!response.ok)throw Error('JSON test runtime unavailable');await fsp.writeFile(jar,Buffer.from(await response.arrayBuffer()));}
   const root=path.resolve(__dirname,'../android/app/src/main/java/com/zenix/musicplayer');
-  const sources=['Json','SourceShare','SourceEngineLane','PlaybackSourcePlan','AudioCachePlan','PersonalCollections','SourceDiagnostics','MusicSources','BackgroundFiles'].map(name=>path.join(root,name+'.java'));
+  const service=await fsp.readFile(path.join(root,'PlaybackService.java'),'utf8'),signature='private void select(int at,boolean autoPlay)';
+  const begin=service.indexOf(signature);assert(begin>=0,'production selection method missing');
+  const open=service.indexOf('{',begin);let depth=1,end=open+1;
+  // Ignore strings/comments while finding the method boundary; execute its body verbatim.
+  const scan=service.slice(end).replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,value=>' '.repeat(value.length));
+  for(let index=0;index<scan.length&&depth;index++,end++){if(scan[index]==='{')depth++;else if(scan[index]==='}')depth--;}
+  assert.equal(depth,0,'production selection method is unbalanced');
+  const template=await fsp.readFile(path.join(__dirname,'fixtures/PlaybackSelectionCheck.java'),'utf8');
+  const selection=path.join(folder,'PlaybackSelectionCheck.java');await fsp.writeFile(selection,template.replace('/* PRODUCTION_SELECT_METHOD */',service.slice(begin,end)));
+  const sources=['Json','SourceShare','SourceEngineLane','PlaybackSourcePlan','AudioCachePlan','PersonalCollections','SourceDiagnostics','MusicSources','BackgroundFiles','QueueEdits','PlaylistBatch'].map(name=>path.join(root,name+'.java'));
+  sources.push(selection);
   sources.push(path.join(__dirname,'fixtures/MobilePlaybackContractCheck.java'));
   for(const name of ['android/content/Context.java','android/os/SystemClock.java','android/util/Base64.java','android/util/AtomicFile.java'])sources.push(path.join(__dirname,'fixtures/mobile-playback-stubs',name));
   await promisify(execFile)(bin('javac'),['-cp',jar,'-d',folder,...sources],{timeout:30000,windowsHide:true});
   const {stdout}=await promisify(execFile)(bin('java'),['-cp',folder+path.delimiter+jar,'com.zenix.musicplayer.MobilePlaybackContractCheck',folder],{timeout:15000,windowsHide:true});assert.match(stdout,/MOBILE_PLAYBACK_CONTRACT_PASS/);
+  const selected=await promisify(execFile)(bin('java'),['-cp',folder+path.delimiter+jar,'com.zenix.musicplayer.PlaybackSelectionCheck'],{timeout:15000,windowsHide:true});assert.match(selected.stdout,/PLAYBACK_SELECTION_PASS/);
 });
 test('real React mobile UI: queue management, poster search and animated focus/enlargement, saves, sources and cache',{skip:process.platform!=='win32'},async t=>{
   const folder=await temporary(t);const {createServer}=await import('vite'),httpServer=require('node:http').createServer();
@@ -21,5 +32,5 @@ test('real React mobile UI: queue management, poster search and animated focus/e
   const env={...process.env,ZENIX_TEST_USER_DATA:folder,ZENIX_TEST_UI_URL:`http://127.0.0.1:${httpServer.address().port}/scripts/fixtures/mobile-playback-ui.html`};delete env.ELECTRON_RUN_AS_NODE;
   const {stdout,stderr}=await promisify(execFile)(require('electron'),[path.join(__dirname,'fixtures/ElectronMobilePlaybackUi.cjs')],{env,timeout:90000,windowsHide:true});assert.match(stdout,/MOBILE_PLAYBACK_UI_PASS/,stderr);
   const transition=stdout.match(/DETAIL_TRANSITION (.+)/);if(transition)t.diagnostic('Chromium fixture detail transition: '+transition[1]);
-  const output=path.resolve(__dirname,'../release/regression');await fsp.mkdir(output,{recursive:true});for(const name of ['mobile-swipe-playlist.png','mobile-quick-save.png','mobile-save-animation.png','mobile-glass-confirm.png','mobile-sticker-focus-expand.png','mobile-search-keyboard.png','mobile-search-results.png','mobile-sticker-restored-style.png','mobile-sticker-restored-expanded.png','mobile-sticker-restored-focus.png'])await fsp.copyFile(path.join(folder,name),path.join(output,name));
+  const output=path.resolve(__dirname,'../release/regression');await fsp.mkdir(output,{recursive:true});for(const name of ['mobile-remote-connected.png','mobile-settings-search.png','mobile-playlist-links-preview.png','mobile-playlist-links.png','mobile-settings-playback.png','mobile-settings-devices.png','mobile-swipe-playlist.png','mobile-quick-save.png','mobile-save-animation.png','mobile-glass-confirm.png','mobile-sticker-focus-expand.png','mobile-search-keyboard.png','mobile-search-results.png','mobile-sticker-restored-style.png','mobile-sticker-restored-expanded.png','mobile-sticker-restored-focus.png'])await fsp.copyFile(path.join(folder,name),path.join(output,name));
 });

@@ -95,6 +95,11 @@ class PersonalStore {
     return this.snapshot();
   }
 
+  async batch(args) {
+    if(this.backupBarrier)await this.backupBarrier;this.assertWritable();
+    const previous=this.data,next=require('./runtime/playlist-batch.cjs').batchPlaylists(previous,args);this.data=next;const signature=JSON.stringify(next);
+    try{return await this.save();}catch(error){if(this.data===next&&JSON.stringify(this.data)===signature)this.data=previous;throw error;}
+  }
   async toggle(kind, value) {
     if (this.backupBarrier) await this.backupBarrier;
     this.assertWritable();

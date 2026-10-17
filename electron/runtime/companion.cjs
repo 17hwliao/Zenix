@@ -21,6 +21,8 @@ class Companion {
   async invoke(args) {
     if (String(args.operation).startsWith("backup")) return this.backup.invoke(args);
     switch(args.operation) {
+      case 'playlistRequest': return require('./playlist-http.cjs').playlistRequest(args);
+      case 'playlistPreview': return this.preview(require('../playlist-format.cjs').validateBundle(args.bundle));
       case 'exportFile': {
         const bundle = this.bundle(args.ids); const result = await this.dialog.showSaveDialog(this.getWindow(), { title: '导出 Zenix 歌单', defaultPath: `${bundle.playlists.length===1 ? bundle.playlists[0].name.replace(/[\\/:*?"<>|]/g,'_') : 'Zenix-歌单'}.zenixlist`, filters: [{name:'Zenix 歌单',extensions:['zenixlist']}] });
         if (result.canceled || !result.filePath) return false; await fs.writeFile(result.filePath, JSON.stringify(bundle), 'utf8'); return true;

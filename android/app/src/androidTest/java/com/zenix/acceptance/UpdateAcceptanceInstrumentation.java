@@ -15,7 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Locale;
 
-/** Opt-in, original-signed device test. Reports hashes, never personal configuration contents. */
+/** Opt-in original-signed test. Source comparison includes only the selected song,
+ * source hashes and redacted transport results; never exports the complete store or scripts. */
 public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     private Bundle arguments;
     private volatile Activity foregroundActivity;
@@ -91,6 +92,24 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                 Object decoded=new org.json.JSONTokener(report).nextValue();out.put("uiPerformance",new JSONObject(String.valueOf(decoded)));
             } finally { if(trace)runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(false)); }
             out.put("configurationSha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(new JSONObject().put("sources",mainData.opt("sources")).put("profile",mainData.opt("profile")).put("appearance",mainData.opt("appearance"))).getBytes(StandardCharsets.UTF_8))));
+        } else if (mode.equals("playbackCheck")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target);
+            long until=android.os.SystemClock.elapsedRealtime()+15000;Object service;
+            while((service=field(runtime,"service"))==null&&android.os.SystemClock.elapsedRealtime()<until)Thread.sleep(100);
+            if(service==null)throw new IOException("Playback service not available");Object player=service;
+            JSONObject before=playbackSnapshot(player);boolean wasWanted=before.optBoolean("playWhenReady");
+            JSONObject selected=before.optJSONObject("track");if(selected!=null)out.put("title",selected.optString("title")).put("artist",selected.optString("artist"));
+            try{
+                runOnMainSync(()->{try{call(player,"resume",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});
+                double first=-1;until=android.os.SystemClock.elapsedRealtime()+120000;
+                while(android.os.SystemClock.elapsedRealtime()<until){Thread.sleep(400);JSONObject state=playbackSnapshot(player);
+                    if(state.optBoolean("playing")){if(first<0)first=state.optDouble("position");if(state.optDouble("position")>=first+1.2){out.put("playingObserved",true).put("positionBefore",first).put("positionAfter",state.optDouble("position")).put("cacheStatus",state.optString("cacheStatus"));JSONObject resolution=(JSONObject)field(player,"resolution");if(resolution!=null)out.put("provider",resolution.optString("providerName")).put("quality",resolution.optString("quality"));break;}}
+                    JSONObject activity=state.optJSONObject("sourceActivity");if(activity!=null&&activity.optString("phase").equals("failed")){out.put("failure",activity);break;}
+                    if(state.has("error")&&!state.optBoolean("playWhenReady")){out.put("failure",state.optString("error"));break;}
+                }
+                if(!out.optBoolean("playingObserved"))out.put("ok",false);
+            }finally{if(!wasWanted)runOnMainSync(()->{try{call(player,"pausePlayback",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});}
         } else if (mode.equals("sourceDiagnostic")) {
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
             launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
@@ -103,12 +122,14 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             org.json.JSONArray queue=mainData.optJSONArray("queue");int index=mainData.optInt("queueIndex",-1);
             JSONObject track=queue!=null&&index>=0&&index<queue.length()?queue.optJSONObject(index):null;
             out.put("queueCount",queue==null?0:queue.length()).put("queueIndex",index);
+            if(track!=null){JSONObject selected=new JSONObject();for(String key:new String[]{"id","source","providerId","remoteId","title","artist","duration"})if(track.has(key))selected.put(key,track.opt(key));out.put("diagnosedTrack",selected);}
             JSONObject info=null;if(track!=null&&track.optString("source").equals("custom"))try{
                 info=new JSONObject(new String(android.util.Base64.decode(track.getString("remoteId"),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING),StandardCharsets.UTF_8));
                 out.put("catalogPlatform",info.optString("source"));
             }catch(Exception ignored){}
             try {for(int i=0;i<records.length();i++){
                 JSONObject record=new JSONObject(records.getJSONObject(i).toString()),policy=record.optJSONObject("networkPolicy"),settings=record.optJSONObject("settings");
+                String only=arguments.getString("sourceName","");if(!only.isEmpty()&&!record.getJSONObject("manifest").optString("name").equals(only))continue;
                 boolean httpProbe=arguments.getString("allowHttpProbe","false").equals("true");
                 if(httpProbe){if(policy==null)policy=new JSONObject();policy.put("allowHttp",true);record.put("networkPolicy",policy);}
                 JSONObject item=new JSONObject().put("id",record.optString("id")).put("name",record.getJSONObject("manifest").optString("name")).put("sha256",record.optString("sha256"))
@@ -123,12 +144,18 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                 long begin=android.os.SystemClock.elapsedRealtime();Object engine=null;
                 try{
                     engine=call(sources,"engine",new Class<?>[]{JSONObject.class},record);
+                    call(engine,"ready",new Class<?>[]{});
+                    Object activeEngine=engine;
+                    String shim=arguments.getString("bufferProbe","false").equals("true")?"Buffer.isBuffer=value=>value instanceof Buffer;":"";
+                    runOnMainSync(()->{try{call(activeEngine,"evaluate",new Class<?>[]{String.class},shim+"globalThis.__sourceEvents=[];const originalNetworkResult=globalThis.__networkResult;globalThis.__networkResult=(id,data,error)=>{__sourceEvents.push({status:data?.status,type:data?.headers?.['content-type'],encoding:data?.headers?.['content-encoding'],bytes:data?.data?.length,error:error?String(error).replace(/https?:\\/\\/\\S+/g,'[URL]'):null});return originalNetworkResult(id,data,error);};");}catch(Exception failure){throw new RuntimeException(failure);}});
                     String quality=platform.getJSONArray("qualitys").toString().contains("320k")?"320k":platform.getJSONArray("qualitys").getString(0);
                     JSONObject request=new JSONObject().put("source",info.getString("source")).put("action","musicUrl")
                         .put("info",new JSONObject().put("type",quality).put("musicInfo",info));
-                    Object resolved=call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"lx",request,settings,12000L);
+                    Object resolved=call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"lx",request,settings,45000L);
                     String url=resolved instanceof JSONObject?((JSONObject)resolved).optString("url"):String.valueOf(resolved);
                     java.net.URL parsed=new java.net.URL(url);item.put("resolvedScheme",parsed.getProtocol()).put("resolvedHost",parsed.getHost());
+                    org.json.JSONArray dns=new org.json.JSONArray();for(java.net.InetAddress address:java.net.InetAddress.getAllByName(parsed.getHost()))dns.put(address.getHostAddress());item.put("resolvedAddresses",dns);
+                    if(arguments.getString("networkDns","false").equals("true")){getUiAutomation().adoptShellPermissionIdentity("android.permission.ACCESS_NETWORK_STATE");try{android.net.ConnectivityManager cm=(android.net.ConnectivityManager)target.getSystemService(Context.CONNECTIVITY_SERVICE);org.json.JSONArray networks=new org.json.JSONArray();for(android.net.Network network:cm.getAllNetworks()){android.net.NetworkCapabilities caps=cm.getNetworkCapabilities(network);if(caps==null||!caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET))continue;JSONObject result=new JSONObject().put("vpn",caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN));try{org.json.JSONArray answers=new org.json.JSONArray();for(java.net.InetAddress address:network.getAllByName(parsed.getHost()))answers.put(address.getHostAddress());result.put("addresses",answers);}catch(Exception failure){result.put("error",failure.getClass().getSimpleName());}networks.put(result);}item.put("networkDns",networks);}finally{getUiAutomation().dropShellPermissionIdentity();}}
                     Class<?> policyClass=target.getClassLoader().loadClass("com.zenix.musicplayer.SourcePolicy");
                     Method hosts=policyClass.getDeclaredMethod("hosts",JSONObject.class,String.class);hosts.setAccessible(true);
                     org.json.JSONArray allowed=(org.json.JSONArray)hosts.invoke(null,record,"mediaHosts");
@@ -149,7 +176,7 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                 }catch(Throwable failure){Throwable cause=failure;while(cause instanceof InvocationTargetException||cause instanceof java.util.concurrent.ExecutionException){Throwable next=cause.getCause();if(next==null)break;cause=next;}
                     String message=String.valueOf(cause.getMessage()).replaceAll("https?://\\S+","[URL]").replaceAll("(?i)(token|password|authorization|api[-_]?key)[=: ]+\\S+","[REDACTED]");
                     item.put("result","failed").put("errorType",cause.getClass().getSimpleName()).put("message",message);
-                }finally{item.put("elapsedMs",android.os.SystemClock.elapsedRealtime()-begin);if(engine!=null)call(engine,"close",new Class<?>[]{});}
+                }finally{item.put("elapsedMs",android.os.SystemClock.elapsedRealtime()-begin);if(engine!=null){try{Object events=new org.json.JSONTokener(evaluate((android.webkit.WebView)field(engine,"view"),"JSON.stringify(globalThis.__sourceEvents||[])")).nextValue();if(events instanceof String)item.put("httpEvents",new org.json.JSONArray((String)events));}catch(Exception ignored){}call(engine,"close",new Class<?>[]{});}}
             }}finally{call(sources,"close",new Class<?>[]{});}
             out.put("sourceDiagnostics",summary);
         } else if(mode.equals("artworkInfo")) {
@@ -232,6 +259,11 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     }
     private static Object create(Context target,String name,Context context)throws Exception {
         Class<?> type=target.getClassLoader().loadClass("com.zenix.musicplayer."+name);Constructor<?> constructor=type.getDeclaredConstructor(Context.class);constructor.setAccessible(true);return constructor.newInstance(context);
+    }
+    private JSONObject playbackSnapshot(Object player)throws Exception {
+        java.util.concurrent.atomic.AtomicReference<JSONObject> snapshot=new java.util.concurrent.atomic.AtomicReference<>();java.util.concurrent.atomic.AtomicReference<Exception> failure=new java.util.concurrent.atomic.AtomicReference<>();
+        runOnMainSync(()->{try{snapshot.set((JSONObject)call(player,"state",new Class<?>[]{}));}catch(Exception error){failure.set(error);}});
+        if(failure.get()!=null)throw failure.get();return snapshot.get();
     }
     private static Object call(Object receiver,String name,Class<?>[] types,Object... args)throws Exception {Method method=receiver.getClass().getDeclaredMethod(name,types);method.setAccessible(true);return method.invoke(receiver,args);}
     private static Object field(Object receiver,String name)throws Exception {Field field=receiver.getClass().getDeclaredField(name);field.setAccessible(true);return field.get(receiver);}

@@ -171,6 +171,6 @@ test('metadata disk-full state survives cleanup and resumes only after a success
 test('Android production address policy: compile and execute 18 IP boundary fixtures on JVM', async t => {
   const folder = await temporary(t), windowsJbr = 'C:/Program Files/Android/Android Studio/jbr', home = process.env.JAVA_HOME || (fs.existsSync(windowsJbr) ? windowsJbr : '');
   const binary = name => home ? path.join(home, 'bin', name + (process.platform === 'win32' ? '.exe' : '')) : name;
-  execFileSync(binary('javac'), ['-d', folder, path.join(root, 'android/app/src/main/java/com/zenix/musicplayer/SourceAddressPolicy.java'), path.join(__dirname, 'fixtures/SourceAddressPolicyCheck.java')], { timeout: 30000, stdio: 'pipe' });
+  execFileSync(binary('javac'), ['-d', folder, path.join(root, 'android/app/src/main/java/com/zenix/musicplayer/SourceAddressPolicy.java'), path.join(root, 'android/app/src/main/java/com/zenix/musicplayer/SourceDnsPlan.java'), path.join(__dirname, 'fixtures/SourceAddressPolicyCheck.java')], { timeout: 30000, stdio: 'pipe' });
   const output = execFileSync(binary('java'), ['-cp', folder, 'com.zenix.musicplayer.SourceAddressPolicyCheck'], { timeout: 30000, encoding: 'utf8' }); assert.match(output, /18 cases passed/);
 });

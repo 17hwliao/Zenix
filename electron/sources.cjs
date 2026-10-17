@@ -588,7 +588,7 @@ class SourceManager {
     const epoch = this.metadataCache.epoch;
     if (!track?.providerId || !track?.remoteId) return null;
     const file = path.join(this.lyricFolder, `${createHash('sha256').update(`${track.providerId}:${track.remoteId}`).digest('hex')}.json`);
-    const record = this.records.find(item => item.id === track.providerId);
+    const record = this.records.find(item => item.id === track.providerId) || (track.providerId === 'lx.playlist:catalog' ? { kind: 'lx', enabled: true } : null);
     if (record?.kind === 'lx') {
       try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch {}
     }
@@ -623,7 +623,7 @@ class SourceManager {
         const [data, type] = await Promise.all([readBoundedFile(path.join(this.coverFolder, `${hash}.bin`), 5 * 1024 * 1024), readBoundedFile(path.join(this.coverFolder, `${hash}.type`), 256, 'utf8')]);
         if (data.length && data.length <= 5 * 1024 * 1024 && type.startsWith('image/')) { const value = { data, type }; if (epoch === this.metadataCache.epoch) this.coverCache.set(key, value); return value; }
       } catch {}
-      const record = this.record(id);
+      const record = id === 'lx.playlist:catalog' ? { kind: 'lx', networkPolicy: { allowHttp: false, hosts: null } } : this.record(id);
       const url = this.coverHints.get(key) || (record.kind === 'lx' ? await lxCatalog.artwork(lxCatalog.readInfo(remoteId)) : (await this.call(id, 'artwork', { remoteId }))?.url);
       if (record.kind === 'lx') await checkLxUrl(url, sourcePolicy(record.networkPolicy)); else checkUrl(url, record.manifest.network.artworkHosts);
       const response = await fetchAllowed(url, record.kind === 'lx' ? null : record.manifest.network.artworkHosts, { ...policyOptions(record), signal: AbortSignal.timeout(10000) });

@@ -13,6 +13,8 @@ final class CompanionTools {
     Object invoke(JSONObject args)throws Exception {
         if(args.optString("operation").startsWith("backup"))return backup.invoke(args);
         switch(args.optString("operation")){
+            case "playlistRequest":return PlaylistLinksHttp.request(args);
+            case "playlistPreview":return preview(PlaylistExchange.validate(args.getJSONObject("bundle")));
             case "lanStatus":return status();
             case "lanStart":synchronized(this){if(pending!=null)throw new Exception("请先处理当前待接收歌单");}lan.start();return status();
             case "lanStop":lan.stop();return status();

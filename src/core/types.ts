@@ -87,6 +87,7 @@ export interface RoamingStatus {
 }
 
 export interface PlayerState {
+  audioSettings?: import('./audioSettings').AudioSettings;
   quality?: string;
   track?: Track;
   playing: boolean;
@@ -124,6 +125,7 @@ export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number; metadataBytes?: number; metadataLimitMiB?: number; metadataError?: string };
 
 export interface DesktopBridge {
+  desktop: {invoke<T=unknown>(args:Record<string,unknown>):Promise<T>;onCommand(callback:(request:{action:string;value?:number})=>void):()=>void;};
   companion?: { invoke(args: Record<string, unknown>): Promise<unknown> };
   updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };
   cache: {
@@ -138,6 +140,7 @@ export interface DesktopBridge {
     onVisibleChanged(callback: (visible: boolean) => void): () => void;
   };
   personal: {
+    batch(args: Record<string, unknown>): Promise<PersonalState>;
     load(): Promise<PersonalState>;
     toggle(kind: 'liked' | 'favorites', track: Track): Promise<PersonalState>;
     record(track: Track): Promise<PersonalState>;

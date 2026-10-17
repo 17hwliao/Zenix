@@ -115,7 +115,7 @@ public final class LyricOverlayService extends Service {
             }return true;
         });
         rows.setOnClickListener(v->reveal());
-        jump=text(12);jump.setTextColor(lyricColor);jump.setOnClickListener(v->{if(previewing&&previewIndex<timeline.size()&&runtime.service!=null)runtime.service.seek(timeline.get(previewIndex).time);previewing=false;main.removeCallbacks(returnToCurrent);render();reveal();});root.addView(jump);
+        jump=text(12);jump.setTextColor(lyricColor);jump.setOnClickListener(v->{if(previewing&&previewIndex<timeline.size()&&runtime.service!=null)runtime.service.seek(timeline.get(previewIndex).time+runtime.service.lyricOffset());previewing=false;main.removeCallbacks(returnToCurrent);render();reveal();});root.addView(jump);
         footer=column();progress=new SeekBar(this);progress.setMax(1000);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(lyricColor));progress.setThumbTintList(android.content.res.ColorStateList.valueOf(lyricColor));
         progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar bar){updatingSeek=true;main.removeCallbacks(collapse);}public void onProgressChanged(SeekBar bar,int value,boolean user){}public void onStopTrackingTouch(SeekBar bar){if(runtime.service!=null)runtime.service.seek(bar.getProgress()/1000.0*runtime.service.progress().optDouble("duration"));updatingSeek=false;reveal();}});footer.addView(progress,new LinearLayout.LayoutParams(-1,dp(26)));
         LinearLayout playback=new LinearLayout(this);playback.setGravity(Gravity.CENTER);
@@ -134,7 +134,7 @@ public final class LyricOverlayService extends Service {
         root.addOnLayoutChangeListener((v,a,b,c,d,e,f,g,h)->{if(c-a!=g-e||d-b!=h-f){clamp();updateWindow();}});
     }
     private void saved(String kind) { if(lastTrack==null)return;JSONObject track=Json.copy(lastTrack);runtime.work.execute(()->{try{runtime.store.personal("toggle",Json.obj("kind",kind,"track",track));runtime.emit();}catch(Exception ignored){}}); }
-    private double position(){return runtime.service==null?0:runtime.service.progress().optDouble("position");}
+    private double position(){return runtime.service==null?0:runtime.service.progress().optDouble("position")-runtime.service.lyricOffset();}
     private final Runnable returnToCurrent=()->{previewing=false;shown=Integer.MIN_VALUE;render();};
     private final Runnable collapse=()->{if(!updatingSeek){expanded=false;resize();}};
     private void reveal(){if(locked)return;expanded=true;resize();main.removeCallbacks(collapse);main.postDelayed(collapse,3500);}

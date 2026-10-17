@@ -21,6 +21,16 @@ const StickerSpace = require('../src/mobile/StickerSpace.tsx').default;
 const { mergeMobileSnapshot } = require('../src/mobile/snapshot.ts');
 const { projectStickerLayout } = require('../src/mobile/stickerMotion.ts');
 
+test('Android real source host supports Buffer checks on JSON responses and encoded buffers', async () => {
+  const vm = require('node:vm'), results=[];
+  const host=vm.createContext({TextEncoder,TextDecoder,atob,btoa,NativeHost:{ready(){},result(raw){results.push(JSON.parse(raw));}},__scriptInfo:{}});
+  vm.runInContext(fs.readFileSync(require('node:path').resolve(__dirname,'../android/app/src/main/assets/zenix/host.js'),'utf8'),host);
+  vm.runInContext(`lx.on(lx.EVENT_NAMES.request,()=>{const json={code:200,data:{url:'https://audio.example.test/track.mp3'}};if(Buffer.isBuffer(json))throw Error('JSON classified as binary');return json.data.url;});lx.send(lx.EVENT_NAMES.inited,{});`,host);
+  await vm.runInContext(`__invoke(1,'lx',{},{});`,host);
+  assert.equal(results[0].error,undefined);assert.equal(results[0].value,'https://audio.example.test/track.mp3');
+  assert.equal(vm.runInContext(`Buffer.isBuffer(Buffer.from('歌曲')) && !Buffer.isBuffer(new Uint8Array([1,2])) && Buffer.from('歌曲').toString()==='歌曲'`,host),true);
+});
+
 test('sticker interruption batches reads before writes and releases completed projections', t => {
   const previousMatrix=globalThis.DOMMatrixReadOnly,previousStyle=globalThis.getComputedStyle;
   t.after(()=>{if(previousMatrix===undefined)delete globalThis.DOMMatrixReadOnly;else globalThis.DOMMatrixReadOnly=previousMatrix;if(previousStyle===undefined)delete globalThis.getComputedStyle;else globalThis.getComputedStyle=previousStyle;});

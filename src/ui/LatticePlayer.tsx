@@ -1,3 +1,6 @@
+import {BrowseLinks} from './CatalogBrowser';
+import LyricControls from './LyricControls';
+import {useLyricDisplay} from '../core/listening';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import TrackVersions from './TrackVersions';
 import type { InstalledSource } from '../core/types';
@@ -96,7 +99,8 @@ export default function LatticePlayer({
   const cellPitch = Math.max(72, Math.min(112, viewport.width / 14.5, viewport.height / 8.8));
   const total = duration || track.duration || 0;
   const shownPosition = seekDraft ?? position;
-  const activeLyric = lyrics.reduce((found, line, index) => position >= line.time ? index : found, -1);
+  const [lyricDisplay,changeLyricDisplay]=useLyricDisplay(track);
+  const activeLyric = lyrics.reduce((found, line, index) => position >= line.time + lyricDisplay.offset ? index : found, -1);
   const expandedRects = useMemo(() => expandedStickerLayout(selectedSlot, slots), [selectedSlot, slots]);
   const layoutBounds = useCallback((layout: Map<number, StickerRect>) => {
     const rects = slots.map((slot, index) => layout.get(index) ?? slot);
@@ -296,11 +300,11 @@ export default function LatticePlayer({
             <span className="yz-sticker-shade" />
             {expanded ? <>
               <div className="yz-sticker-focus-shade" />
-              <div className="yz-sticker-focus-meta"><small>{focusedIsCurrent ? '正在播放 · ' : itemIndex < activeIndex ? '此前播放 · ' : ''}{String(itemIndex + 1).padStart(2, '0')}</small><h1>{item.title}</h1><p>{item.artist || '未知艺术家'}</p></div>
-              {focusedIsCurrent && <div className="yz-lattice-lyrics" ref={lyricsContainerRef}>
-                {lyrics.length ? lyrics.map((line, index) => <button key={`${line.time}-${index}`} ref={element => { lyricRefs.current[index] = element; }} className={`yz-lattice-lyric ${index === (lyricPreview ?? activeLyric) ? 'is-current' : ''} ${index < (lyricPreview ?? activeLyric) ? 'is-past' : ''}`} onClick={() => { onSeek(line.time); lyricPreviewRef.current = null; setLyricPreview(null); if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); }} title={`跳转到 ${formatTime(line.time)}`}>{line.text}<small>{line.translation}</small></button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
+              <div className="yz-sticker-focus-meta"><small>{focusedIsCurrent ? '正在播放 · ' : itemIndex < activeIndex ? '此前播放 · ' : ''}{String(itemIndex + 1).padStart(2, '0')}</small><h1>{item.title}</h1><BrowseLinks track={item}/></div>
+              {focusedIsCurrent && <div className={`yz-lattice-lyrics${lyricDisplay.focus?' listening-lyric-focus':''}`} data-custom-size={lyricDisplay.customSize} data-custom-height={lyricDisplay.customLineHeight} data-custom-weight={lyricDisplay.customWeight} style={{fontSize:lyricDisplay.customSize?lyricDisplay.fontSize:undefined,lineHeight:lyricDisplay.customLineHeight?lyricDisplay.lineHeight:undefined,fontWeight:lyricDisplay.customWeight?lyricDisplay.weight:undefined}} ref={lyricsContainerRef}>
+                {lyrics.length ? lyrics.map((line, index) => <button key={`${line.time}-${index}`} ref={element => { lyricRefs.current[index] = element; }} className={`yz-lattice-lyric ${index === (lyricPreview ?? activeLyric) ? 'is-current' : ''} ${index < (lyricPreview ?? activeLyric) ? 'is-past' : ''}`} onClick={() => { onSeek(Math.max(0,line.time+lyricDisplay.offset)); lyricPreviewRef.current = null; setLyricPreview(null); if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); }} title={`跳转到 ${formatTime(line.time)}`}>{line.text}{lyricDisplay.translation&&<small>{line.translation}</small>}</button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
               </div>}
-              <div className="yz-sticker-focus-controls">
+              {focusedIsCurrent&&immersive&&<LyricControls value={lyricDisplay} change={changeLyricDisplay}/>}<div className="yz-sticker-focus-controls">
                 <TrackVersions track={item} selected={focusedChoice} sources={sources} load={loadSourceDiagnostics} select={candidate=>setChosenVariants(previous=>({...previous,[item.id]:candidate.id}))}/>
                 <button onClick={playFocused} title={focusedChoiceIsCurrent && playing ? '暂停' : `播放 ${item.title}`} aria-label={focusedChoiceIsCurrent && playing ? '暂停' : `播放 ${item.title}`}>{focusedChoiceIsCurrent && playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
                 {focusedIsCurrent && <><button onClick={() => { setImmersive(value => !value); setPanning(false); playUiSound(immersive ? 'cancel' : 'enter'); }} title={immersive ? '还原歌曲贴纸' : '放大歌曲至窗口'} aria-label={immersive ? '还原歌曲贴纸' : '放大歌曲至窗口'} aria-pressed={immersive}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={15} />}</button><input type="range" min={0} max={Math.max(total, 1)} step={0.1} value={Math.min(position, Math.max(total, 1))} onChange={event => onSeek(Number(event.target.value))} aria-label="播放进度" style={{ '--range-fill': `${total ? Math.min(100, position / total * 100) : 0}%` } as CSSProperties} /></>}

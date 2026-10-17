@@ -1,3 +1,4 @@
+import {useLyricDisplay} from './core/listening';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ZenixShell } from './ui';
 import ZenixIntro from './ui/ZenixIntro';
@@ -26,17 +27,26 @@ export default function App() {
   const [roamingStatus, setRoamingStatus] = useState<RoamingStatus>(roaming.snapshot);
   const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [playerViewRequestKey, setPlayerViewRequestKey] = useState(0);
+  const [lyricDisplay]=useLyricDisplay(playback.track);
   const lastHistoryEvent = useRef('');
-  const lyricsDelivery = useRef<{ lyrics: LyricLine[]; track: Track | undefined } | null>(null);
+  const lyricsDelivery = useRef<{ lyrics: LyricLine[]; track: Track | undefined; offset:number } | null>(null);
 
   useEffect(() => {
     const bridge=window.yzqxy?.companion;if(!bridge)return;
     const tracker=new ListeningTracker((track,seconds,plays)=>bridge.invoke({operation:'statsRecord',track,seconds,plays}),undefined,error=>setNotice(error instanceof Error?error.message:'听歌统计保存失败'));
     const stop=player.subscribeLifecycle(event=>tracker.handle({...event,track:event.track?{...event.track,duration:event.track.duration||player.snapshot.duration}:undefined}));const timer=setInterval(()=>tracker.tick(),1000);
-    let previous='';const stopWidget=player.subscribe(value=>{const key=`${value.track?.id}|${value.playing}|${value.track?.title}`;if(key===previous)return;previous=key;void bridge.invoke({operation:'widgetUpdate',title:value.track?.title,artist:value.track?.artist,playing:value.playing}).catch(()=>{});});
+    let previous='';const stopWidget=player.subscribe(value=>{const key=`${value.track?.id}|${value.playing}|${value.track?.title}|${Math.floor(value.position)}|${value.volume}`;if(key===previous)return;previous=key;void bridge.invoke({operation:'widgetUpdate',title:value.track?.title,artist:value.track?.artist,playing:value.playing,position:value.position,duration:value.duration,volume:value.volume}).catch(()=>{});});
     return()=>{clearInterval(timer);stop();stopWidget();tracker.close();};
   },[]);
 
+  useEffect(()=>{const show=(event:Event)=>setNotice(String((event as CustomEvent).detail));window.addEventListener('zenix-audio-notice',show);return()=>window.removeEventListener('zenix-audio-notice',show);},[]);
+  useEffect(()=>window.yzqxy?.desktop?.onCommand(({action,value})=>{
+    if(action==='seek')player.seek(value||0);else if(action==='volume')player.setVolume(value||0);
+    else if(action==='volume-up')player.setVolume(player.snapshot.volume+.05);else if(action==='volume-down')player.setVolume(player.snapshot.volume-.05);
+    else if(action==='search')window.dispatchEvent(new Event('zenix-open-search'));
+    else if(action==='lyrics')void window.yzqxy?.desktopLyrics.toggle();
+    else if(action==='play-pause')player.toggle();else if(action==='next')void player.next();else if(action==='previous')void player.previous();
+  }),[]);
   useEffect(() => {
     const disconnect = roaming.connect();
     const unsubscribe = roaming.subscribe(setRoamingStatus);
@@ -86,14 +96,14 @@ export default function App() {
     if (!desktopLyricsVisible) { lyricsDelivery.current = null; return; }
     const bridge = window.yzqxy?.desktopLyrics;
     if (!bridge) return;
-    const active = lyrics.reduce((index, line, i) => playback.position >= line.time ? i : index, -1);
+    const active = lyrics.reduce((index, line, i) => playback.position >= line.time+lyricDisplay.offset ? i : index, -1);
     const previous = lyrics[active - 1];
     const current = lyrics[active];
     const following = lyrics[active + 1];
-    const full = lyricsDelivery.current?.lyrics !== lyrics || lyricsDelivery.current?.track !== playback.track;
-    lyricsDelivery.current = { lyrics, track: playback.track };
-    void bridge.update({ previous: previous?.text || '', line: current?.text || (lyrics.length ? '即将开始' : playback.track?.title || ''), next: following?.text || (lyrics.length ? '' : playback.track ? '暂无同步歌词' : ''), title: playback.track?.title || '', trackId: playback.track?.id || '', playing: playback.playing, position: playback.position, duration: playback.duration, ...(full ? { track: playback.track ?? null, lines: lyrics.map(line => ({ time: line.time, text: line.text })) } : {}) });
-  }, [desktopLyricsVisible, lyrics, playback.position, playback.duration, playback.playing, playback.track?.id, playback.track?.title]);
+    const full = lyricsDelivery.current?.lyrics !== lyrics || lyricsDelivery.current?.track !== playback.track || lyricsDelivery.current?.offset !== lyricDisplay.offset;
+    lyricsDelivery.current = { lyrics, track: playback.track,offset:lyricDisplay.offset };
+    void bridge.update({ previous: previous?.text || '', line: current?.text || (lyrics.length ? '即将开始' : playback.track?.title || ''), next: following?.text || (lyrics.length ? '' : playback.track ? '暂无同步歌词' : ''), title: playback.track?.title || '', trackId: playback.track?.id || '', playing: playback.playing, position: playback.position, duration: playback.duration, ...(full ? { track: playback.track ?? null, lines: lyrics.map(line => ({ time: Math.max(0,line.time+lyricDisplay.offset), text: line.text })) } : {}) });
+  }, [desktopLyricsVisible, lyrics, playback.position, playback.duration, playback.playing, playback.track?.id, playback.track?.title, lyricDisplay.offset]);
 
   const toggleDesktopLyrics = () => {
     const bridge = window.yzqxy?.desktopLyrics;

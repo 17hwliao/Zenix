@@ -125,4 +125,12 @@ async function readLimited(response, maxBytes) {
   return Buffer.concat(chunks, length);
 }
 
-module.exports = { checkUrl, checkLxUrl, fetchAllowed, readLimited, closeNetwork };
+// One validated public connection, without redirects or cookies. Callers must
+// validate each subsequent Location before issuing another request.
+async function fetchPublicOnce(raw, patterns, options = {}) {
+  const url = checkUrl(raw, patterns);
+  const addresses = await resolveAddresses(url.hostname);
+  options.signal?.throwIfAborted();
+  return fetch(url, { ...options, dispatcher: pinnedPool(url, addresses), redirect: 'manual' });
+}
+module.exports = { checkUrl, checkLxUrl, fetchAllowed, fetchPublicOnce, readLimited, closeNetwork };

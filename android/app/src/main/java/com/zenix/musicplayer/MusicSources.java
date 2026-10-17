@@ -20,7 +20,7 @@ final class MusicSources implements AutoCloseable {
     private final Map<String,JSONObject> previews=new HashMap<>();
     private final Map<String,JSONObject> matched=new LinkedHashMap<>();
     private static final Set<String> PLATFORMS=Set.of("kw","kg","wy","tx","mg");
-    MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();this.store=store;diagnostics=new SourceDiagnostics(context,store);directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
+    MusicSources(Context context,PrivateStore store) { this.context=context.getApplicationContext();SourceHttp.configure(this.context);this.store=store;diagnostics=new SourceDiagnostics(context,store);directory=new File(context.getFilesDir(),"sources");directory.mkdirs(); }
     JSONArray list() { return store.array("sources"); }
     synchronized JSONObject shareBundle() throws Exception {
         return SourceShare.bundle(list(),source -> {
@@ -95,7 +95,12 @@ final class MusicSources implements AutoCloseable {
         for(int i=0;i<current.length();i++){JSONObject item=current.getJSONObject(i);if(item.optString("id").equals(id)){found=true;if(action.equals("remove")){new File(directory,id+".json").delete();continue;}if(action.equals("enable"))Json.put(item,"enabled",args.optBoolean("enabled"));else if(action.equals("configure")){if(args.has("networkPolicy"))Json.put(item,"networkPolicy",SourcePolicy.validate(args.getJSONObject("networkPolicy")));if(args.has("values")){JSONObject values=args.getJSONObject("values"),clean=new JSONObject();JSONArray fields=item.getJSONObject("manifest").getJSONArray("settings");for(int f=0;f<fields.length();f++){JSONObject field=fields.getJSONObject(f);String value=values.optString(field.getString("key"),field.optString("default"));if(value.length()>200)throw new IOException("源选项内容过长");if(field.optString("type").equals("select")&&!field.getJSONArray("options").toString().contains(JSONObject.quote(value)))throw new IOException("源选项无效");Json.put(clean,field.getString("key"),value);}Json.put(item,"settings",clean);}}else throw new Exception("未知音乐源操作");}next.put(item);}
         if(!found)throw new Exception("音乐源不存在");store.set("sources",next);invalidate(id);return next;
     }
-    private JSONObject find(String id) throws Exception { JSONArray sources=list();for(int i=0;i<sources.length();i++)if(sources.getJSONObject(i).optString("id").equals(id))return sources.getJSONObject(i);throw new Exception("请先配置音乐源"); }
+    private JSONObject find(String id) throws Exception {
+        // Metadata identity for imported public playlists. Never listed or used
+        // as a playback service: resolution still iterates installed providers.
+        if(id.equals("lx.playlist:catalog"))return Json.obj("id",id,"kind","lx","enabled",true,"settings",new JSONObject(),"manifest",Json.obj("lxPlatforms",Json.obj("tx",new JSONObject(),"wy",new JSONObject(),"kw",new JSONObject())),"networkPolicy",Json.obj("allowHttp",false,"hosts",JSONObject.NULL));
+        JSONArray sources=list();for(int i=0;i<sources.length();i++)if(sources.getJSONObject(i).optString("id").equals(id))return sources.getJSONObject(i);throw new Exception("请先配置音乐源");
+    }
     JSONObject search(String id,String keyword,String cursor) throws Exception {
         return search(id,keyword,cursor,false,20000);
     }
