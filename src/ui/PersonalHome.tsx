@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type PointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Check, ChevronDown, Compass, Disc3, FolderOpen, Heart, History, ImagePlus, ListMusic, Music2, Pencil, Plus, RotateCcw, Settings2, Star, Trash2, Upload, X } from 'lucide-react';
 import { version as appVersion } from '../../package.json';
@@ -57,6 +57,7 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const [draft, setDraft] = useState<Profile>(profile);
   const [editing, setEditing] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [songsRevealed, setSongsRevealed] = useState(false);
   const documentVisible = useDocumentVisible();
   const [goldBehind, setGoldBehind] = useState(() => { try { return localStorage.getItem(GOLD_LAYER_KEY) === 'behind'; } catch { return false; } });
   const [goldDragging, setGoldDragging] = useState(false);
@@ -67,6 +68,19 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const scrollRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLElement>(null), songSectionRef = useRef<HTMLElement>(null), ringRef = useRef<HTMLDivElement>(null), holoRef = useRef<HTMLButtonElement>(null);
   const subjectInputRef = useRef<HTMLInputElement>(null), backgroundInputRef = useRef<HTMLInputElement>(null);
   const rotation = useRef(0), velocity = useRef(0);
+  const stageScale = useRef(1);
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const fit = () => {
+      const scale = Math.min(1.2, Math.max(.25, stage.clientWidth / 900), Math.max(.25, (stage.clientHeight - 300) / 460));
+      stageScale.current = scale;
+      stage.style.setProperty('--space-scale', String(scale));
+    };
+    fit();
+    const observer = new ResizeObserver(fit); observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
   const pointer = useRef<{ id: number; x: number; distance: number; target: HTMLElement } | null>(null);
   const goldPointer = useRef<{ id: number; x: number; y: number; dx: number; dy: number } | null>(null);
   const goldTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -75,8 +89,8 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   const inOrbitInteraction = (x: number, y: number) => {
     const bounds = stageRef.current?.getBoundingClientRect();
     if (!bounds) return false;
-    const horizontalReach = Math.min(400, (bounds.width - 8) / 2);
-    const verticalReach = Math.min(300, horizontalReach * .76, (bounds.height - 8) / 2);
+    const horizontalReach = Math.min(400 * stageScale.current, (bounds.width - 8) / 2);
+    const verticalReach = Math.min(300 * stageScale.current, horizontalReach * .76, (bounds.height - 8) / 2);
     const verticalOffset = y - (bounds.top + bounds.height * .46);
     return Math.abs(x - (bounds.left + bounds.width / 2)) <= horizontalReach && verticalOffset >= -verticalReach && verticalOffset <= verticalReach * (2 / 3);
   };
@@ -235,12 +249,14 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
   };
   const handleOrbitClick = (action: () => void) => { if (suppressClick.current) { suppressClick.current = false; return; } action(); };
   const scrollToSongs = () => {
+    if (!songsRevealed) { setSongsRevealed(true); return; }
     const scroll = scrollRef.current;
     const section = songSectionRef.current;
     if (!scroll || !section) return;
     const top = scroll.scrollTop + section.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
     scroll.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   };
+  useEffect(() => { if (songsRevealed) scrollToSongs(); }, [songsRevealed]);
 
   return <div className="zenix-home-space">
     <header className="zenix-home-top"><span className="zenix-home-logo">Zenix<span>.</span></span><div>{onRoaming && <button className="zenix-home-roaming" onClick={onRoaming}><Compass size={18} />{roamingActive ? '继续音乐漫游' : '开始音乐漫游'}</button>}<button onClick={onOpenPlayer} title="进入贴纸播放器"><Disc3 size={18} />进入音乐空间<ArrowRight size={16} /></button></div></header>
@@ -257,12 +273,14 @@ export default function PersonalHome({ personal, tracks, currentTrack, appearanc
         <div className={`zenix-card-center${goldBehind ? ' is-behind' : ''}${goldDragging ? ' is-dragging' : ''}${goldTossing ? ' is-tossing' : ''}`} style={{ '--gold-drag-y': `${goldDragY}px`, '--gold-toss-from': `${goldTossFrom}px` } as CSSProperties}><button ref={holoRef} className="zenix-holo-card" type="button" draggable={false} onDragStart={event => event.preventDefault()} onPointerDown={onGoldDown} onPointerMove={onGoldMove} onPointerUp={event => finishGold(event)} onPointerCancel={event => finishGold(event, true)} onClick={event => { if (suppressGoldClick.current) { suppressGoldClick.current = false; event.preventDefault(); return; } openEditor(); }} onKeyDown={event => { if (event.shiftKey && event.key === 'ArrowUp') { event.preventDefault(); suppressGoldClick.current = true; tossGold(-85); } }} aria-label="编辑个人名片，向上拖动可切换前后层" title="向上拖动金卡切换前后层；点击编辑名片">
           {profile.background && <img className="zenix-holo-background" src={profile.background} alt="" />}<span className="zenix-holo-grid" aria-hidden="true" /><span className="zenix-holo-head"><span>ZENIX / v{appVersion}</span><span>{profile.cardNumber}</span></span><span className="zenix-holo-subject">{profile.subject ? <img src={profile.subject} alt="个人名片主体图" /> : <span className="zenix-holo-monogram">{profile.name.slice(0, 1).toUpperCase() || 'Z'}</span>}</span><span className="zenix-holo-info"><small>{profile.cardLine}</small><strong>{profile.name}</strong><span>{profile.tagline}</span>{profile.about && <p>{profile.about}</p>}{profile.tags && <em>{profile.tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean).slice(0, 3).join(' · ')}</em>}{profile.contact && <i>{profile.contact}</i>}</span><span className="zenix-holo-foil" aria-hidden="true" /><span className="zenix-holo-glare" aria-hidden="true" /><span className="zenix-holo-edge" aria-hidden="true" />
         </button><div className="zenix-card-shadow" aria-hidden="true" /><button type="button" className="zenix-card-edit" onClick={openEditor}><Pencil size={13} />编辑个人名片</button></div>
-        <div className="zenix-stage-scroll-hint"><span>下滑管理自己的歌曲</span><button type="button" onClick={scrollToSongs} title="下滑到歌曲管理" aria-label="下滑到歌曲管理"><ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" /></button></div>
+        <div className="zenix-stage-scroll-hint"><button type="button" onPointerDown={event => event.stopPropagation()} onClick={scrollToSongs} title="下滑到歌曲管理" aria-label="下滑到歌曲管理" aria-expanded={songsRevealed} aria-controls="zenix-home-songs"><span>下滑管理自己的歌曲</span><ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" /></button></div>
       </section>
+      <div id="zenix-home-songs" hidden={!songsRevealed}>
       <section ref={songSectionRef} className="zenix-home-section"><div className="zenix-home-section-head"><div><h2>你的收藏，随时继续</h2></div><button onClick={() => onOpenManager('playlists')}>管理歌曲与歌单<ArrowRight size={15} /></button></div>
         {historyTracks.length ? <div className="zenix-recent-strip">{historyTracks.slice(0, 8).map((track, index) => <button key={`${track.id}-${index}`} onClick={() => { onPlayTrack(track, historyTracks); onOpenPlayer(); }}><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><strong>{track.title}</strong><small>{track.artist}</small></button>)}</div> : <div className="zenix-home-empty"><Music2 size={25} /><span>听过的歌曲会出现在这里</span>{currentTrack && <button onClick={onOpenPlayer}>继续播放</button>}</div>}
       </section>
       <div className="zenix-home-foot"><div><button onClick={() => void onImportFolder()}><Upload size={13} />导入文件夹</button>{onAddFiles && <button onClick={() => void onAddFiles()}><Plus size={13} />添加音乐文件</button>}{onImportPlaylist && <button onClick={() => void onImportPlaylist()}>导入 M3U 歌单</button>}</div></div>
+      </div>
     </div>
     {editing && createPortal(<div className="zenix-profile-editor-mask" onPointerDown={event => { if (event.target === event.currentTarget) setEditing(false); }}><form className="zenix-profile-editor" onSubmit={save}>
       <header><div><span>IDENTITY CARD / EDIT</span><h2>编辑个人名片</h2><p>名片与空间设置保存在本机，点击中心卡片可以随时修改。</p></div><button type="button" className="zenix-editor-close" onClick={() => setEditing(false)} aria-label="关闭编辑"><X size={17} /></button></header>

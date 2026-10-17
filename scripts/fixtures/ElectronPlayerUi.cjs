@@ -15,6 +15,27 @@ app.whenReady().then(async () => {
   await window.loadURL(process.env.ZENIX_TEST_UI_URL);
   checkpoint('fixture loaded');
   await wait('!!document.querySelector(".yz-playerbar-track")');
+  const homeSizes=[];
+  for(const [width,height]of [[960,640],[1200,800],[1920,1080],[2560,1600]]){
+    window.setContentSize(width,height);await wait(`innerWidth===${width}&&innerHeight===${height}`);
+    await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))');await sleep(300);
+    const layout=await evaluate(`(()=>{const scroll=document.querySelector('.zenix-home-scroll'),stage=document.querySelector('.zenix-space-stage'),songs=document.querySelector('#zenix-home-songs');const rect=node=>{const r=node.getBoundingClientRect();return{top:r.top,bottom:r.bottom,left:r.left,right:r.right};};scroll.scrollTop=500;return{width:innerWidth,height:innerHeight,stage:rect(stage),scroll:rect(scroll),scrollTop:scroll.scrollTop,hidden:songs.hidden,detailRects:songs.getClientRects().length,hint:rect(document.querySelector('.zenix-stage-scroll-hint button')),card:rect(document.querySelector('.zenix-card-center')),bar:rect(document.querySelector('.yz-playerbar'))};})()`);
+    assert(layout.hidden&&layout.detailRects===0,'management content starts collapsed at every size');
+    assert.equal(layout.scrollTop,0,'wheel/scroll cannot reveal unopened management content');
+    assert(Math.abs(layout.stage.bottom-layout.scroll.bottom)<2,'stage fills available height after resize');
+    assert(layout.card.bottom<layout.hint.top,'card and management button do not overlap: '+JSON.stringify(layout));
+    assert(layout.hint.bottom<layout.bar.top,'management button stays above the playback bar');
+    assert(layout.card.left>=layout.scroll.left&&layout.card.right<=layout.scroll.right,'identity card stays inside the viewport');
+    homeSizes.push(layout);
+  }
+  await fs.writeFile(path.join(app.getPath('userData'),'home-maximized.png'),(await window.webContents.capturePage({stayHidden:true,stayAwake:true})).toPNG());
+  window.setContentSize(1200,800);await sleep(200);
+  const hint=await evaluate(`(()=>{const r=document.querySelector('.zenix-stage-scroll-hint button').getBoundingClientRect();return{x:Math.round(r.left+35),y:Math.round(r.top+r.height/2)};})()`);
+  window.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...hint});window.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...hint});
+  await wait(`document.querySelector('.zenix-stage-scroll-hint button').getAttribute('aria-expanded')==='true'&&document.querySelector('.zenix-home-scroll').scrollTop>100`);
+  assert.equal(await evaluate(`document.querySelector('#zenix-home-songs').hidden`),false);
+  await fs.writeFile(path.join(app.getPath('userData'),'home-layout.json'),JSON.stringify(homeSizes,null,2));
+  checkpoint('home responsive layout and explicit management reveal');
   await evaluate('document.querySelector(".yz-playerbar [aria-label=播放]").click()'); await sleep(400);
   assert.equal(await evaluate('window.fixture.toggles'), 1); assert.equal(await evaluate('!!document.querySelector(".yz-shell--home")'), true);
   checkpoint('transport');

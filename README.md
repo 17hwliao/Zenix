@@ -47,20 +47,20 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.0.2 / r41
+### 最新版本 v1.0.2 / r42
 
-[v1.0.2 / r41](https://github.com/17hwliao/Zenix/releases/tag/v1.0.2) 增加搜索建议与历史、队列和歌单批量整理、歌词校正、均衡器、平台歌单迁移和手机遥控 PC；完善设置分类与搜索、桌面托盘和音乐小窗，并补齐 Android 入口与音源兼容。
+[v1.0.2 / r42](https://github.com/17hwliao/Zenix/releases/tag/v1.0.2-r42) 增加搜索建议与历史、队列和歌单批量整理、歌词校正、均衡器、平台歌单迁移和手机遥控 PC；完善设置分类与搜索、桌面托盘和音乐小窗，并补齐 Android 入口与音源兼容。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK](https://github.com/17hwliao/Zenix/releases/download/v1.0.2/Zenix-Android-1.0.2-r41.apk) |
-| Windows x64 | [安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.2/Zenix-Setup-1.0.2-r41-x64.exe) |
+| Android | [原签名 APK](https://github.com/17hwliao/Zenix/releases/download/v1.0.2-r42/Zenix-Android-1.0.2-r42.apk) |
+| Windows x64 | [安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.2-r42/Zenix-Setup-1.0.2-r42-x64.exe) |
 
-正式与预览签名清单均提供 r41；旧客户端重新检查更新可获取新版本，旧下载地址继续保留。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.2/SHA256SUMS-1.0.2-r41.txt)，功能和验证边界见 [发行说明](docs/releases/v1.0.2.md)。本次按用户约定跳过后续用户层面测试；第三方源在线可用性、各设备实际播放和系统覆盖安装未重新验收，不将自动检查表述为真机通过。
+正式与预览签名清单均提供 r42；旧客户端重新检查更新可获取新版本，旧下载地址继续保留。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.2-r42/SHA256SUMS-1.0.2-r42.txt)，功能和验证边界见 [发行说明](docs/releases/v1.0.2.md)。本次按用户约定跳过后续用户层面测试；第三方源在线可用性、各设备实际播放和系统覆盖安装未重新验收，不将自动检查表述为真机通过。
 
 ### 首版 v1.0.0
 
-首版历史入口为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 构建 28。旧安装包保留供既有清单及历史下载使用；当前更新使用上方 r41。iOS 暂停发行，工程保留。
+首版历史入口为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 构建 28。旧安装包保留供既有清单及历史下载使用；当前更新使用上方 r42。iOS 暂停发行，工程保留。
 
 | 平台 | 当前下载 | 安装与更新 |
 | --- | --- | --- |

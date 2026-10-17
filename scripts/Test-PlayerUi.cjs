@@ -13,7 +13,7 @@ test('real Electron React UI: transport, home double click, queue collections an
   const { stdout, stderr } = await promisify(execFile)(require('electron'), [path.join(__dirname, 'fixtures/ElectronPlayerUi.cjs')], { env, timeout: 90000, windowsHide: true }).catch(error => { throw Error(`${error.message}\n${error.stdout || ''}\n${error.stderr || ''}`); });
   assert.match(stdout, /PLAYER_UI_INTEGRATION_PASS/, stderr);
   // Keep only the synthetic screenshot for review, never the disposable profile.
-  const output = path.resolve(__dirname, '../release/regression'); await fsp.mkdir(output, { recursive: true }); await fsp.copyFile(path.join(folder, 'expanded-song.png'), path.join(output, 'expanded-song.png'));
+  const output = path.resolve(__dirname, '../release/regression'); await fsp.mkdir(output, { recursive: true });for(const name of ['expanded-song.png','home-maximized.png','home-layout.json'])await fsp.copyFile(path.join(folder,name),path.join(output,name));
 });
 test('real Electron React UI: persistent update dismissal, next release and mobile search geometry', { skip: process.platform !== 'win32' ? 'Electron DOM fixture runs on Windows CI' : false }, async t => {
   const { createServer } = await import('vite');
