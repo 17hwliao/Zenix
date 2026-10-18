@@ -4,6 +4,7 @@ copyright: Copyright © 2026 17hwliao
 electronDist: node_modules/electron/dist
 asar: true
 npmRebuild: false
+beforePack: scripts/Prepare-WindowsInstaller.cjs
 directories:
   output: release
   buildResources: assets
@@ -14,6 +15,7 @@ files:
   - electron/**/*.cjs
   - src/core/backupFormat.cjs
   - src/core/sourceDiagnostics.cjs
+  - src/core/platformReplacement.cjs
   - electron/desktop-lyrics.html
   - electron/lyrics-lock.html
   - electron/music-widget.html

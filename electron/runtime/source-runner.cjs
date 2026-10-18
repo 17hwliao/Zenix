@@ -57,7 +57,7 @@ class SourceRunner {
       if (this.record.kind === 'lx') this.lxInfo = data;
       resolveReady();
     };
-    const timer = setTimeout(() => rejectReady(new Error('音乐源初始化超时')), this.record.kind === 'lx' ? 15000 : 6000);
+    const timer = this.stateDriven?undefined:setTimeout(() => rejectReady(new Error('音乐源初始化超时')), this.record.kind === 'lx' ? 15000 : 6000);
     try {
       await this.window.loadURL('data:text/html;charset=utf-8,<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-eval\'; connect-src \'none\'; img-src \'none\'">');
       await Promise.race([contents.executeJavaScript(script), this.ready.then(() => undefined)]);
@@ -70,7 +70,7 @@ class SourceRunner {
     if (this.pending.size >= 8) throw new Error('音乐源调用并发过多');
     const id = randomUUID();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} 请求超时`)); this.destroy(); }, method === 'search' ? 11000 : 15000);
+      const timer = this.stateDriven?undefined:setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} 请求超时`)); this.destroy(); }, method === 'search' ? 11000 : 15000);
       this.pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
       this.window.webContents.send('source:invoke', { id, method, payload, settings });
     });

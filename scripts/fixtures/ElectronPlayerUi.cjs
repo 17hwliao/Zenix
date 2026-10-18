@@ -19,6 +19,9 @@ app.whenReady().then(async () => {
   for(const [width,height]of [[960,640],[1200,800],[1920,1080],[2560,1600]]){
     window.setContentSize(width,height);await wait(`innerWidth===${width}&&innerHeight===${height}`);
     await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))');await sleep(300);
+    // Check the settled responsive layout, not an intermediate resize scale.
+    // Keep the strict card/button non-overlap assertion below unchanged.
+    await wait(`!document.querySelector('.zenix-card-center').getAnimations().some(animation=>animation.playState==='running'||animation.pending)`);
     const layout=await evaluate(`(()=>{const scroll=document.querySelector('.zenix-home-scroll'),stage=document.querySelector('.zenix-space-stage'),songs=document.querySelector('#zenix-home-songs');const rect=node=>{const r=node.getBoundingClientRect();return{top:r.top,bottom:r.bottom,left:r.left,right:r.right};};scroll.scrollTop=500;return{width:innerWidth,height:innerHeight,stage:rect(stage),scroll:rect(scroll),scrollTop:scroll.scrollTop,hidden:songs.hidden,detailRects:songs.getClientRects().length,hint:rect(document.querySelector('.zenix-stage-scroll-hint button')),card:rect(document.querySelector('.zenix-card-center')),bar:rect(document.querySelector('.yz-playerbar'))};})()`);
     assert(layout.hidden&&layout.detailRects===0,'management content starts collapsed at every size');
     assert.equal(layout.scrollTop,0,'wheel/scroll cannot reveal unopened management content');

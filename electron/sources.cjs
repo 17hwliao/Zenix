@@ -278,26 +278,26 @@ class SourceManager {
   }
   retireSource(id) { for (const runner of this.runners.values()) if (runner.record.id === id) runner.destroy(); }
   close() { this.stopping = true; for (const request of this.requests.values()) request.abort(new Error('应用正在退出')); for (const runner of this.runners.values()) runner.destroy(); }
-  runner(id) {
+  runner(id,stateDriven=false) {
     if (this.stopping) throw new Error('应用正在退出');
     const record = this.record(id);
     // Each active operation owns its renderer. Cancellation must never kill a
     // different search/lyric/playback request sharing the same provider.
-    for (const runner of this.runners.values()) if (runner.record.id === id && !runner.destroyed && !runner.leases && !runner.pending.size) return runner;
+    for (const runner of this.runners.values()) if (runner.record.id === id && Boolean(runner.stateDriven)===stateDriven && !runner.destroyed && !runner.leases && !runner.pending.size) return runner;
     for (const runner of this.runners.values()) if (!runner.leases && !runner.pending.size && !runner.starting) runner.destroy();
     if (this.runners.size >= 8) throw new Error('音乐源任务并发过多，请稍后重试');
     const key = this.runners.has(id) ? `${id}:${randomUUID()}` : id;
-    const runner = new SourceRunner(this, record, key);
+    const runner = new SourceRunner(this, record, key);runner.stateDriven=stateDriven;
     this.runners.set(key, runner);
     runner.startTask = fs.readFile(path.join(this.folder, id, record.manifest.version, 'index.js'), 'utf8').then(script => runner.start(script));
     return runner;
   }
-  async request(sender, requestId, operation) {
+  async request(sender, requestId, operation,stateDriven=false) {
     if (!requestId) return operation(undefined);
     if (!/^[a-f0-9-]{36}$/i.test(requestId) || this.requests.size >= 64) throw new Error('请求令牌无效或并发过多');
     const key = `${sender}:${requestId}`; if (this.requests.has(key)) throw new Error('请求令牌已使用');
     const controller = new AbortController();this.requests.set(key, controller);
-    const timer = setTimeout(() => controller.abort(new Error('连接超时')), 25000);timer.unref();
+    controller.signal.zenixStateDriven=stateDriven;const timer=stateDriven?undefined:setTimeout(()=>controller.abort(new Error('连接超时')),25000);timer?.unref();
     try { return await operation(controller.signal); }
     finally { clearTimeout(timer);this.requests.delete(key); }
   }
@@ -309,7 +309,7 @@ class SourceManager {
     const cancel = () => runner?.destroy();
     signal?.throwIfAborted();signal?.addEventListener('abort', cancel, { once: true });
     try {
-      runner = this.runner(id);
+      runner = this.runner(id,signal?.zenixStateDriven===true);
       runner.acquire();
       await runner.startTask;
       signal?.throwIfAborted();
@@ -342,7 +342,7 @@ class SourceManager {
     }
     const body = method === 'POST' ? String(options?.body ?? '').slice(0, 256 * 1024) : undefined;
     const { response, data } = await runner.network(async signal => {
-      const response = await fetchAllowed(url, record.manifest.network.apiHosts, { method, headers, body, signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
+      const response = await fetchAllowed(url, record.manifest.network.apiHosts, { method, headers, body, stateDriven:runner.stateDriven,signal:runner.stateDriven?signal:AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
       return { response, data: await readLimited(response, 2 * 1024 * 1024) };
     });
     const text = data.toString('utf8');
@@ -424,7 +424,7 @@ class SourceManager {
     let response, data;
     try {
       ({ response, data } = await runner.network(async signal => {
-        const response = await fetchAllowed(request?.url, null, { ...policyOptions(runner.record), method, headers, body, signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
+        const response = await fetchAllowed(request?.url, null, { ...policyOptions(runner.record), method, headers, body, stateDriven:runner.stateDriven,signal:runner.stateDriven?signal:AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
         return { response, data: await readLimited(response, 4 * 1024 * 1024) };
       }));
     }
@@ -497,7 +497,7 @@ class SourceManager {
     for (let index = 0; index < tiers.length; index += 1) { const result = await this.cached(track, tiers[index]); if (result) return { ...result, playbackQuality: tiers[index] }; }
     return null;
   }
-  async resolve(track, quality = 'high', cacheAsId = '', skipCache = false, signal) {
+  async resolve(track, quality = 'high', cacheAsId = '', skipCache = false, signal,replacement=false) {
     const id = track?.providerId, remoteId = track?.remoteId;
     if (!id || !remoteId) throw new Error('歌曲缺少来源 ID');
     const coverUrl = id.startsWith('lx.') ? this.makeCoverUrl(id, remoteId) : track.coverUrl;
@@ -505,7 +505,9 @@ class SourceManager {
       const local = await this.cached(track, quality, cacheAsId);
       if (local) return local;
     }
-    const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
+    // A replacement has its own recording identity. Never alias its bytes to
+    // the original song: restoring the original must not return this cache.
+    const cacheId = !replacement && typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     const record = this.record(id);
     quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
     const started = Date.now();
@@ -516,7 +518,7 @@ class SourceManager {
     signal?.throwIfAborted();
     const token = randomUUID();
     const headers = this.mediaHeaders(result.headers);
-    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
+    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers,replacement, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
     return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id, diagnosticAttemptId: this.diagnostics.record(id, started) };
     } catch (error) { this.diagnostics.record(id, started, error); throw error; }
   }
@@ -545,21 +547,32 @@ class SourceManager {
     }
     return headers;
   }
+  async probe(audioUrl,signal){
+    const cached=String(audioUrl).match(/^yzqxy:\/\/cached-audio\/([a-f0-9]{64})$/);
+    if(cached){
+      signal?.throwIfAborted();const entry=this.audioCache?.entries.get(cached[1]);if(!entry)throw Error('本地缓存不存在');
+      const handle=await fs.open(this.audioCache.file(cached[1]),'r');try{const stat=await handle.stat();if(!stat.isFile()||stat.size!==entry.size)throw Error('本地缓存不完整');const bytes=Buffer.alloc(64),read=await handle.read(bytes,0,64,0);signal?.throwIfAborted();if(!require('./runtime/audio-probe.cjs').audioPrefix(bytes.subarray(0,read.bytesRead)))throw Error('本地缓存不是可识别的音频');return;}finally{await handle.close();}
+    }
+    const token=String(audioUrl).startsWith('yzqxy://stream/')?String(audioUrl).slice('yzqxy://stream/'.length):'',session=this.sessions.get(token);
+    if(!session)throw Error('替代音频会话无效');const record=this.record(session.id);
+    const response=await fetchAllowed(session.url,record.kind==='lx'?null:record.manifest.network.mediaHosts,{...policyOptions(record),stateDriven:true,signal,headers:{...session.headers,Range:'bytes=0-4095'}});
+    await require('./runtime/audio-probe.cjs').checkResponse(response,signal);
+  }
   async stream(request, token) {
     const session = this.sessions.get(token); if (!session) return new Response('音频会话已过期', { status: 404 });
     const record = this.record(session.id);
-    if (session.expiresAt && Date.now() >= session.expiresAt - 15000) await this.refresh(session);
+    if (!session.replacement&&session.expiresAt && Date.now() >= session.expiresAt - 15000) await this.refresh(session);
     const headers = { ...session.headers };
     if (request.headers.has('range')) headers.Range = request.headers.get('range');
     const fetchMedia = async requestHeaders => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(new Error('音频连接超时')), 8000);
-      try { return await fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), headers: requestHeaders, signal: AbortSignal.any([request.signal, controller.signal]) }); }
+      const timer=undefined;
+      try { return await fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), stateDriven:true,headers: requestHeaders, signal: AbortSignal.any([request.signal, controller.signal]) }); }
       finally { clearTimeout(timer); }
     };
     let response;
     try { response = await fetchMedia(headers); } catch { return new Response(null, { status: 504 }); }
-    if ([401, 403, 410].includes(response.status) && session.refreshes < 1) {
+    if (!session.replacement&&[401, 403, 410].includes(response.status) && session.refreshes < 1) {
       await response.body?.cancel().catch(() => {});
       await this.refresh(session);
       try { response = await fetchMedia({ ...session.headers, ...(headers.Range ? { Range: headers.Range } : {}) }); } catch { return new Response(null, { status: 504 }); }

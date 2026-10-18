@@ -406,7 +406,17 @@ function registerHandlers() {
     publishLyrics();
     return state;
   });
-  handleApp('personal:batch', async (_event,args) => {const value=await personal.batch(args);broadcast('personal:changed',value);return value;});
+  const personalRequests=new Map();
+  handleApp('personal:batch', async (event,args,requestId) => {
+    if(requestId!==undefined&&(typeof requestId!=='string'||!/^[-\w]{1,80}$/.test(requestId)))throw Error('资料请求编号无效');
+    const key=requestId?`${event.sender.id}:${requestId}`:undefined,controller=new AbortController();
+    if(key&&(personalRequests.has(key)||personalRequests.size>=32))throw Error('资料请求过多，请稍后重试');
+    const cancel=()=>controller.abort();
+    if(key){personalRequests.set(key,controller);event.sender.once('destroyed',cancel);}
+    try{const value=await personal.batch(args,controller.signal);broadcast('personal:changed',value);return value;}
+    finally{if(key){personalRequests.delete(key);event.sender.removeListener('destroyed',cancel);}}
+  });
+  handleApp('personal:cancel-batch',(event,id)=>{personalRequests.get(`${event.sender.id}:${id}`)?.abort();});
   handleApp('personal:load', () => personal.snapshot());
   personalAction('personal:toggle', (kind, track) => personal.toggle(kind, track));
   personalAction('personal:record', track => personal.record(track));
@@ -460,7 +470,8 @@ function registerHandlers() {
   handleApp('sources:configure', (_event, id, values) => sourceManager.configure(String(id || ''), values));
   handleApp('sources:get-settings', (_event, id) => sourceManager.getSettings(String(id || '')));
   handleApp('sources:remove', (_event, id) => sourceManager.remove(String(id || '')));
-  handleApp('sources:search', (event, id, keyword, cursor, pageSize, requestId) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.search(String(id || ''), keyword, cursor, pageSize, signal)));
+  handleApp('sources:search', (event, id, keyword, cursor, pageSize, requestId, stateDriven) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.search(String(id || ''), keyword, cursor, pageSize, signal),stateDriven===true));
+  handleApp('sources:probe',(event,url,id)=>sourceManager.request(event.sender.id,id,signal=>sourceManager.probe(url,signal),true));
   handleApp('sources:cancel-request', (event, requestId) => sourceManager.cancelRequest(event.sender.id, requestId));
   handleApp('sources:cached', (_event, track, quality) => sourceManager.cached(track, quality));
   handleApp('sources:cached-best', (_event, track, qualities) => sourceManager.cachedBest(track, qualities));
@@ -468,7 +479,7 @@ function registerHandlers() {
   handleApp('sources:diagnostics', () => sourceManager.diagnostics.state());
   handleApp('sources:diagnosticsConfigure', (_event, smooth) => sourceManager.diagnostics.configure(smooth));
   handleApp('sources:outcome', (_event, id, played, reason) => sourceManager.diagnostics.outcome(String(id).slice(0, 80), played === true, reason));
-  handleApp('sources:resolve', (event, track, quality, cacheAsId, skipCache, requestId) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.resolve(track, quality, cacheAsId, skipCache, signal)));
+  handleApp('sources:resolve', (event, track, quality, cacheAsId, skipCache, requestId,replacement) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.resolve(track, quality, cacheAsId, skipCache, signal,replacement===true),true));
   handleApp('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   handleApp('cache:stats', async () => ({ ...audioCache.stats(), ...await sourceManager.metadataCache.stats() }));
   handleApp('cache:configure', async (_event, options) => { const stats = await audioCache.configure(options); sourceManager.metadataCache.limit = Math.max(8, Math.min(64, stats.limitMiB / 8)) * 1024 * 1024; await sourceManager.metadataCache.prune(); return { ...stats, ...await sourceManager.metadataCache.stats() }; });

@@ -58,6 +58,9 @@ final class SourceHttp {
     // DNS is checked inside the actual connection, and the returned addresses are
     // the exact candidates OkHttp connects to. No second system lookup occurs.
     static OkHttpClient client(JSONArray allowed,int timeoutMs){return client(allowed,timeoutMs,false);}
+    // A pending playback operation ends on a result, a real transport error or
+    // user cancellation. Receiving slowly must not expire an absolute/read timer.
+    static OkHttpClient playbackClient(JSONArray allowed,boolean allowHttp){return client(allowed,45000,allowHttp).newBuilder().readTimeout(0,TimeUnit.MILLISECONDS).callTimeout(0,TimeUnit.MILLISECONDS).build();}
     static OkHttpClient client(JSONArray allowed,int timeoutMs,boolean allowHttp){return BASE.newBuilder().connectTimeout(Math.min(15000,timeoutMs),TimeUnit.MILLISECONDS).readTimeout(timeoutMs,TimeUnit.MILLISECONDS).addInterceptor(chain->{
         Request request=chain.request();
         for(int hop=0;hop<=5;hop++){
@@ -89,6 +92,9 @@ final class SourceHttp {
         return request(address,options,allowed,register,false);
     }
     static JSONObject request(String address,JSONObject options,JSONArray allowed,java.util.function.Consumer<Call> register,boolean allowHttp) throws Exception {
+        return request(address,options,allowed,register,allowHttp,false);
+    }
+    static JSONObject request(String address,JSONObject options,JSONArray allowed,java.util.function.Consumer<Call> register,boolean allowHttp,boolean stateDriven) throws Exception {
         URL url=rule(address,allowed,allowHttp); String method=options.optString("method","GET").toUpperCase(Locale.ROOT);
         if(!method.equals("GET")&&!method.equals("POST")) throw new Exception("只支持 GET/POST");
         JSONObject headers=options.optJSONObject("headers");
@@ -101,11 +107,11 @@ final class SourceHttp {
         }
         if(options.optJSONObject("form")!=null) { JSONObject form=options.getJSONObject("form"); StringBuilder s=new StringBuilder(); for(Iterator<String> it=form.keys();it.hasNext();) { String key=it.next(); if(s.length()>0)s.append('&'); s.append(URLEncoder.encode(key,"UTF-8")).append('=').append(URLEncoder.encode(form.optString(key),"UTF-8")); } body=s.toString(); if(headers==null)headers=new JSONObject(); Json.put(headers,"Content-Type","application/x-www-form-urlencoded"); }
         if(body.getBytes(StandardCharsets.UTF_8).length>MAX_BYTES) throw new Exception("请求内容过大");
-        OkHttpClient client=client(allowed,Math.max(2000,Math.min(30000,options.optInt("timeout",30000))),allowHttp);
+        OkHttpClient client=stateDriven?playbackClient(allowed,allowHttp):client(allowed,Math.max(2000,Math.min(30000,options.optInt("timeout",30000))),allowHttp);
         Request.Builder builder=new Request.Builder().url(url.toString()).header("User-Agent","Zenix Android").header("Accept-Encoding","identity");
         if(headers!=null)for(Iterator<String> it=headers.keys();it.hasNext();){String key=it.next();if(key.equalsIgnoreCase("Host")||key.equalsIgnoreCase("Content-Length")||key.contains("\n")||key.contains("\r"))continue;builder.header(key,headers.optString(key));}
         if(method.equals("POST"))builder.post(RequestBody.create(body.getBytes(StandardCharsets.UTF_8),(MediaType)null));
-        Call call=client.newCall(builder.build());call.timeout().timeout(30,TimeUnit.SECONDS);if(register!=null)register.accept(call);
+        Call call=client.newCall(builder.build());if(!stateDriven)call.timeout().timeout(30,TimeUnit.SECONDS);if(register!=null)register.accept(call);
         try(Response response=call.execute()){JSONObject resultHeaders=new JSONObject();for(String key:response.headers().names())Json.put(resultHeaders,key.toLowerCase(Locale.ROOT),String.join(", ",response.headers().values(key)));ResponseBody responseBody=response.body();if(responseBody!=null&&responseBody.contentLength()>MAX_BYTES)throw new IOException("内容超过大小限制");byte[] bytes=responseBody==null?new byte[0]:bounded(responseBody.byteStream(),MAX_BYTES);return Json.obj("status",response.code(),"headers",resultHeaders,"data",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP));}
     }
     static byte[] bounded(InputStream input,int limit) throws IOException {

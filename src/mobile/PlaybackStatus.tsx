@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { LoaderCircle, X } from 'lucide-react';
 import type { PlayerState } from '../core/types';
 
-export default function PlaybackStatus({ activity, stop, retry, sources }: {
+export default function PlaybackStatus({ activity, stop, retry, sources,replace }: {
   activity: NonNullable<PlayerState['sourceActivity']>;
   stop: () => void; retry: () => void; sources: () => void;
+  replace?:()=>void;
 }) {
   const failed = activity.phase === 'failed';
   const [now,setNow] = useState(Date.now());
@@ -24,8 +25,8 @@ export default function PlaybackStatus({ activity, stop, retry, sources }: {
   return <div className={`mobile-source-status glass phase-${activity.phase}`} role="status">
     {failed?<button type="button" className="source-status-close" aria-label="关闭播放错误" onClick={() => setDismissed(failureKey)}><X/></button>:<LoaderCircle className="spin"/>}
     <div className="source-status-copy"><span>{activity.message}</span>
-      {!failed && <small>已等待 {seconds} 秒 · 可随时停止，慢速源请稍候</small>}<PlaybackDetails activity={activity} seconds={seconds}/>
+      {!failed && <small>正在等待当前阶段完成 · 可随时停止</small>}<PlaybackDetails activity={activity} seconds={seconds}/>
     </div>
-    {failed?<><button onClick={retry}>重试</button><button onClick={sources}>换源</button></>:<button onClick={stop}>停止</button>}
+    {failed?<><button onClick={retry}>重试</button><button onClick={sources}>换源</button>{replace&&<button onClick={replace}>寻找替代版本</button>}</>:<button onClick={stop}>停止</button>}
   </div>;
 }

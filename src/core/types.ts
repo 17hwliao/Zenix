@@ -1,6 +1,9 @@
 export type SourceDiagnosticsState = { smooth: boolean; sources: Record<string, { attempts: number; resolved: number; played: number; averageMs: number; lastPlayedAt: number; lastFailure: string }> };
 
 export interface Track {
+  playlistId?: string;
+  replacementPlayback?: string;
+  replacement?: ReplacementState;
   searchAlternatives?: Track[];
   preferredPlaybackProviderId?: string;
   diagnosticAttemptId?: string;
@@ -109,7 +112,8 @@ export type MediaCommand = 'play-pause' | 'play' | 'pause' | 'next' | 'previous'
 
 export type AppearanceBackground = { kind: 'image' | 'video'; name: string; url: string };
 export type AppearanceState = { completed: boolean; background: AppearanceBackground | null };
-export type PersonalPlaylist = { id: string; name: string; tracks: Track[] };
+export type ReplacementState = {status:'pending'|'verified'|'failed'|'needsChoice'|'original';attempts:number;tried:string[];candidates:Track[];target?:Track;message:string};
+export type PersonalPlaylist = { id: string; name: string; tracks: Track[]; autoReplacement?: boolean };
 export type HistoryEntry = { id: string; track: Track; playedAt: number };
 export type PersonalState = { liked: Track[]; favorites: Track[]; history: HistoryEntry[]; playlists: PersonalPlaylist[] };
 
@@ -140,7 +144,8 @@ export interface DesktopBridge {
     onVisibleChanged(callback: (visible: boolean) => void): () => void;
   };
   personal: {
-    batch(args: Record<string, unknown>): Promise<PersonalState>;
+    batch(args: Record<string, unknown>, requestId?:string): Promise<PersonalState>;
+    cancelBatch(requestId:string):Promise<void>;
     load(): Promise<PersonalState>;
     toggle(kind: 'liked' | 'favorites', track: Track): Promise<PersonalState>;
     record(track: Track): Promise<PersonalState>;
@@ -176,11 +181,12 @@ export interface DesktopBridge {
     configure(id: string, values: Record<string, string>): Promise<Record<string, string>>;
     getSettings(id: string): Promise<Record<string, string>>;
     remove(id: string): Promise<InstalledSource[]>;
-    search(id: string, keyword: string, cursor?: string | null, pageSize?: number, requestId?: string): Promise<SourceSearchPage>;
+    search(id: string, keyword: string, cursor?: string | null, pageSize?: number, requestId?: string, stateDriven?: boolean): Promise<SourceSearchPage>;
+    probe(audioUrl:string,requestId:string):Promise<void>;
     cancelRequest(requestId: string): Promise<void>;
     cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string } | null>;
     cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string } | null>;
-    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
+    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string, replacement?:boolean): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     openFolder(): Promise<string>;
     onChanged(callback: (sources: InstalledSource[]) => void): () => void;

@@ -8,8 +8,8 @@ import android.os.SystemClock;
 public final class PlaybackSelectionCheck {
     private JSONArray queue=new JSONArray();private int index=-1;
     private JSONObject track,error,activity,resolution,listenedTrack;
-    private boolean clearingCache,countedPlay,readyRecorded,wanted;
-    private double listenSeconds;private long listenClock,generation,resumePosition,resolveDeadline;
+    private boolean clearingCache,countedPlay,readyRecorded,wanted,playbackEstablished;
+    private double listenSeconds;private long listenClock,generation,resumePosition;
     private Set<String> attempted;
     private final Decoder player=new Decoder();private final Runtime runtime=new Runtime();private Roaming roaming;
     private int localStarts,resolutions,persists;
@@ -49,7 +49,7 @@ public final class PlaybackSelectionCheck {
             PlaybackSelectionCheck remote=fixture("custom",warm);remote.select(0,true);
             check(remote.localStarts==0&&remote.resolutions==1,"network selection reaches resolver");
             check(!remote.player.hasMedia&&remote.player.clears==1,"no stale or empty decoder item during resolution");
-            check(remote.wanted&&remote.resolveDeadline>SystemClock.elapsedRealtime(),"network selection preserves budget and intent");
+            check(remote.wanted&&!remote.playbackEstablished,"network selection waits for explicit playback outcome");
         }
         PlaybackSelectionCheck paused=fixture("custom",true);paused.select(0,false);
         check(!paused.wanted&&paused.localStarts==0&&paused.resolutions==0,"paused selection does not resolve or play");

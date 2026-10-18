@@ -24,6 +24,7 @@ final class ScriptEngine implements AutoCloseable {
     private final ExecutorService network=new ThreadPoolExecutor(3,3,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(8));
     private final JSONArray apiHosts;
     private final boolean allowHttp;
+    private final boolean stateDriven;
     private WebView view; private long sequence; private volatile boolean closed;
     private final java.util.Set<okhttp3.Call> requests=ConcurrentHashMap.newKeySet();
     boolean isClosed(){return closed;}
@@ -34,8 +35,13 @@ final class ScriptEngine implements AutoCloseable {
     }
     @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
     ScriptEngine(Context context,String script,JSONObject info,JSONArray allowed,boolean catalog,boolean allowHttp) {
+        this(context,script,info,allowed,catalog,allowHttp,false);
+    }
+    @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
+    ScriptEngine(Context context,String script,JSONObject info,JSONArray allowed,boolean catalog,boolean allowHttp,boolean stateDriven) {
         apiHosts=allowed;
         this.allowHttp=allowHttp;
+        this.stateDriven=stateDriven;
         main.post(() -> {
             try {
                 if(closed) return;
@@ -64,14 +70,14 @@ final class ScriptEngine implements AutoCloseable {
     }
     private static String asset(Context context,String name) throws IOException { return new String(SourceHttp.bounded(context.getAssets().open("zenix/"+name),2*1024*1024),StandardCharsets.UTF_8); }
     JSONObject ready() throws Exception {return ready(18000);}
-    JSONObject ready(long timeoutMs) throws Exception {try{return ready.get(Math.max(1,timeoutMs),TimeUnit.MILLISECONDS);}catch(TimeoutException error){close();throw new TimeoutException("音乐源初始化等待超时");}catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}}
+    JSONObject ready(long timeoutMs) throws Exception {try{return timeoutMs==0?ready.get():ready.get(Math.max(1,timeoutMs),TimeUnit.MILLISECONDS);}catch(TimeoutException error){close();throw new TimeoutException("音乐源初始化等待超时");}catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}}
     Object call(String method,Object payload,JSONObject settings) throws Exception {return call(method,payload,settings,20000);}
     synchronized Object call(String method,Object payload,JSONObject settings,long timeoutMs) throws Exception {
         long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(Math.max(1,timeoutMs));
         ready(timeoutMs); if(closed)throw new Exception("音乐源运行层已关闭");
         long id=++sequence; CompletableFuture<Object> result=new CompletableFuture<>(); pending.put(id,result);
         main.post(() -> { if(!closed) evaluate("__invoke("+id+","+JSONObject.quote(method)+","+payload+","+settings+")"); });
-        try { return result.get(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS); }
+        try { return timeoutMs==0?result.get():result.get(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS); }
         catch(TimeoutException error){close();throw new TimeoutException("音乐源解析等待超时");}
         catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}
         finally { pending.remove(id); }
@@ -93,7 +99,7 @@ final class ScriptEngine implements AutoCloseable {
                 network.execute(() -> {
                     String result,error;
                     okhttp3.Call[] running=new okhttp3.Call[1];
-                    try { result=SourceHttp.request(request.getString("url"),request.optJSONObject("options")==null ? new JSONObject() : request.getJSONObject("options"),apiHosts,call->{running[0]=call;requests.add(call);if(closed)call.cancel();},allowHttp).toString();error="null"; }
+                    try { result=SourceHttp.request(request.getString("url"),request.optJSONObject("options")==null ? new JSONObject() : request.getJSONObject("options"),apiHosts,call->{running[0]=call;requests.add(call);if(closed)call.cancel();},allowHttp,stateDriven).toString();error="null"; }
                     catch(Exception e) { result="null";error=JSONObject.quote(Json.message(e)); }
                     finally{if(running[0]!=null)requests.remove(running[0]);}
                     String js="__networkResult("+id+","+result+","+error+")"; main.post(() -> evaluate(js));

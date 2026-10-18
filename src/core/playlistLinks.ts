@@ -52,7 +52,7 @@ function song(platform: PlaylistPlatform, raw: any): Track | null {
     songmid = clean(raw.mid || raw.songmid, 80); if (!/^[a-zA-Z0-9]+$/.test(songmid)) return null;
     name = clean(raw.title || raw.name || raw.songname); singer = clean(raw.singer?.map((s: any) => s.name).join('、'));
     albumName = clean(raw.album?.name || raw.albumname); albumId = clean(raw.album?.mid || raw.albummid, 80); seconds = Number(raw.interval) || 0;
-    extra = { songId: raw.id || raw.songid, albumMid: albumId, strMediaMid: clean(raw.file?.media_mid || raw.strMediaMid || songmid, 80) };
+    extra = { songId: raw.id || raw.songid, albumMid: albumId, albumId, strMediaMid: clean(raw.file?.media_mid || raw.strMediaMid || songmid, 80) };
   } else if (platform === 'wy') {
     songmid = numeric(raw.id); name = clean(raw.name); singer = clean((raw.ar || raw.artists)?.map((s: any) => s.name).join('、'));
     albumName = clean((raw.al || raw.album)?.name); albumId = numeric((raw.al || raw.album)?.id); seconds = Number(raw.dt ?? raw.duration ?? 0) / 1000;

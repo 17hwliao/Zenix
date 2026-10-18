@@ -20,16 +20,27 @@ public class ZenixNativePlugin extends Plugin {
     private ZenixRuntime runtime;
     private AppUpdates updates;
     private final RemoteClient remoteClient=new RemoteClient();
+    private final java.util.concurrent.ExecutorService replacementWork=java.util.concurrent.Executors.newSingleThreadExecutor();
+    private java.util.concurrent.FutureTask<Void> replacementTask;private String replacementToken="";
+    private final java.util.Set<String> cancelledReplacements=new java.util.LinkedHashSet<>();
     private final java.util.concurrent.ExecutorService remoteWork=new java.util.concurrent.ThreadPoolExecutor(1,1,0L,java.util.concurrent.TimeUnit.MILLISECONDS,new java.util.concurrent.ArrayBlockingQueue<>(4));
     @Override public void load(){runtime=ZenixRuntime.get(getContext());runtime.ensureService();runtime.observe(this,true);}
     @Override protected void handleOnResume(){runtime.observe(this,true);}
     @Override protected void handleOnPause(){runtime.observe(this,false);}
-    @Override protected void handleOnDestroy(){runtime.removeObserver(this);remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
+    @Override protected void handleOnDestroy(){runtime.removeObserver(this);if(replacementTask!=null)replacementTask.cancel(true);runtime.sources.cancelReplacement();replacementWork.shutdownNow();remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
     void publish(JSONObject state){try{notifyListeners("snapshot",new JSObject(state.toString()));}catch(Exception ignored){}}
     void publishPrepared(JSObject state){notifyListeners("snapshot",state);}
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("replacementCancel")){synchronized(this){String token=args.optString("requestId");if(token.matches("[a-fA-F0-9-]{36}")){cancelledReplacements.add(token);while(cancelledReplacements.size()>32)cancelledReplacements.remove(cancelledReplacements.iterator().next());}if(replacementToken.equals(token)&&replacementTask!=null){replacementTask.cancel(true);runtime.sources.cancelReplacement();}}result(call,true);return;}
+        if(action.equals("replacementRun")||action.equals("replacementEdit")){
+            synchronized(this){
+                if(replacementTask!=null&&!replacementTask.isDone()){call.reject("已有平替任务，请先取消或等待完成");return;}
+                String token=args.optString("requestId");if(!token.matches("[a-fA-F0-9-]{36}")){call.reject("请求标识无效");return;}if(cancelledReplacements.remove(token)){call.reject("已取消");return;}replacementToken=token;
+                replacementTask=new java.util.concurrent.FutureTask<>(()->{try{java.util.function.BooleanSupplier cancel=()->Thread.currentThread().isInterrupted();result(call,action.equals("replacementEdit")?runtime.store.personal("batchPlaylist",args,cancel):runtime.sources.inspectReplacement(args,cancel,song->runtime.service!=null&&runtime.service.completeCachedForInspection(song)));runtime.emit();}catch(Exception error){call.reject(Json.message(error));}return null;});replacementWork.execute(replacementTask);
+            }return;
+        }
         if(action.equals("remote")){try{remoteWork.execute(()->{try{result(call,remoteClient.invoke(args));}catch(Exception error){call.reject(Json.message(error));}});}catch(java.util.concurrent.RejectedExecutionException error){call.reject("遥控正在处理请求，请稍后重试");}return;}
         if(action.equals("exportSourceBundle")) {
             Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("application/octet-stream");intent.putExtra(Intent.EXTRA_TITLE,"Zenix-音乐源.zenixsources");startActivityForResult(call,intent,"sourceBundleSaved");return;

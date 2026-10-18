@@ -1,3 +1,4 @@
+import {markReplacementPlayed} from './desktopReplacement';
 import {AudioGraph,defaultAudioSettings,validateAudio,type AudioSettings} from './audioSettings';
 import type { MediaCommand, PlayerState, RepeatMode, SourceProgress, Track } from './types';
 
@@ -71,6 +72,7 @@ class PlayerController {
     this.audio.addEventListener('play', () => this.update({ playing: true, error: undefined }));
     this.audio.addEventListener('playing', () => {
       this.audioGraph.resume();
+      if(this.state.track?.replacementPlayback)void markReplacementPlayed(this.state.track).catch(()=>{});
       this.emitLifecycle('audible');
       const attempt = this.state.track?.diagnosticAttemptId;
       if (attempt) void window.yzqxy?.sources?.outcome?.(attempt, true).catch(() => {});
@@ -183,16 +185,7 @@ class PlayerController {
     this.emitLifecycle('failure');
   }
 
-  private armMediaWait(request: number): void {
-    clearTimeout(this.mediaWaitTimer);
-    this.mediaWaitTimer = setTimeout(() => {
-      if (request !== this.playbackToken || !this.state.sourceActivity) return;
-      if (this.retryMediaSource('刚才的音频加载超时，正在自动尝试备用方案')) return;
-      this.playbackToken += 1;
-      this.audio.pause();
-      this.failSource('音频加载超时，请重试或更换音乐源。');
-    }, 20000);
-  }
+  private armMediaWait(_request: number): void {clearTimeout(this.mediaWaitTimer);}
 
   private update(patch: Partial<PlayerState>): void {
     this.state = { ...this.state, ...patch };
@@ -343,7 +336,7 @@ class PlayerController {
   private retryMediaSource(detail = '刚才的音频未能加载，正在自动尝试备用方案'): boolean {
     const track = this.state.track;
     const provider = track?.playbackProviderId;
-    const attempt = track?.playbackQuality ? `${provider}:${track.playbackQuality}` : provider;
+    const attempt = track?.replacementPlayback?`replacement:${track.replacementPlayback}`:track?.playbackQuality ? `${provider}:${track.playbackQuality}` : provider;
     if (track?.source !== 'custom' || !attempt || this.failedAttempts.has(attempt)) return false;
     this.failedAttempts.add(attempt);
     this.playbackToken += 1;

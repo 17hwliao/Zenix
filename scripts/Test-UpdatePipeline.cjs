@@ -2,6 +2,7 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os'), vm = require('node:vm');
 const { createRequire } = require('node:module'), { generateKeyPairSync, sign, createHash } = require('node:crypto');
 const ts = require('typescript');
+require('./Test-WindowsInstaller.cjs');
 const { updateUrl, fetchUpdate, createUpdateTransport } = require('../electron/runtime/update-network.cjs');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const apkUrl = 'https://github.com/17hwliao/Zenix/releases/download/v1.0.0/fixture.exe';

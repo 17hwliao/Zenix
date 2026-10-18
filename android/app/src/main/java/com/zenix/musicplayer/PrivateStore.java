@@ -52,8 +52,9 @@ final class PrivateStore {
     String error(){return writeError;}
     synchronized JSONArray array(String key) { JSONArray value=data.optJSONArray(key); if(value==null)return null; try{return new JSONArray(value.toString());}catch(JSONException error){throw new IllegalStateException(error);} }
     synchronized int integer(String key,int fallback){return data.optInt(key,fallback);}
-    JSONObject personal(String action,JSONObject args)throws Exception {JSONObject result;synchronized(this){result=mutatePersonal(action,args);}flush();return result;}
-    private JSONObject mutatePersonal(String action,JSONObject args) throws Exception {
+    JSONObject personal(String action,JSONObject args)throws Exception {return personal(action,args,()->false);}
+    JSONObject personal(String action,JSONObject args,java.util.function.BooleanSupplier cancel)throws Exception {JSONObject result;synchronized(this){PlaylistReplacement.check(cancel);result=mutatePersonal(action,args,cancel);}flush();return result;}
+    private JSONObject mutatePersonal(String action,JSONObject args,java.util.function.BooleanSupplier cancel) throws Exception {
         JSONObject personal=data.getJSONObject("personal"); personal=Json.copy(personal);
         String kind=args.optString("kind"), id=args.optString("id"); JSONObject track=args.optJSONObject("track");
         if(action.equals("batchPlaylist")){PlaylistBatch.apply(personal,args);}
@@ -99,13 +100,14 @@ final class PrivateStore {
             }
             if(!found) throw new Exception("歌单不存在"); Json.put(personal,"playlists",next);
         }
-        apply(Json.obj("personal",personal)); return Json.copy(personal);
+        PlaylistReplacement.check(cancel);apply(Json.obj("personal",personal)); return Json.copy(personal);
     }
     static JSONObject cleanTrack(JSONObject track) {
-        JSONObject value=Json.copy(track);value.remove("searchAlternatives");value.remove("diagnosticAttemptId");
+        JSONObject value=Json.copy(track);value.remove("playlistId");value.remove("replacementPlayback");value.remove("searchAlternatives");value.remove("diagnosticAttemptId");
         if(!value.optString("source").equals("local")) { Json.put(value,"audioUrl",""); value.remove("headers"); value.remove("resolvedUrl"); }
         return value;
     }
+    static JSONObject queueTrack(JSONObject track){JSONObject value=cleanTrack(track);if(!track.optString("playlistId").isEmpty())Json.put(value,"playlistId",track.optString("playlistId"));return value;}
     void artwork(String id,String url)throws IOException {synchronized(this){JSONObject personal=Json.copy(data.optJSONObject("personal"));if(!coverTree(personal,id,url))return;apply(Json.obj("personal",personal));}flush();}
     private static boolean coverTree(Object value,String id,String url){boolean changed=false;if(value instanceof JSONObject){JSONObject object=(JSONObject)value;if(object.has("title")&&object.optString("id").equals(id)&&!object.optString("coverUrl").equals(url)){Json.put(object,"coverUrl",url);changed=true;}for(java.util.Iterator<String> keys=object.keys();keys.hasNext();)changed|=coverTree(object.opt(keys.next()),id,url);}else if(value instanceof JSONArray){JSONArray array=(JSONArray)value;for(int i=0;i<array.length();i++)changed|=coverTree(array.opt(i),id,url);}return changed;}
 }

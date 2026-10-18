@@ -6,17 +6,19 @@ import java.util.function.LongSupplier;
 
 /** Recent successful sources first, with bounded waits and temporary failure cooldown. */
 final class PlaybackSourcePlan {
-    static final long TOTAL_MS = 180000, SOURCE_MS = 45000, COOLDOWN_MS = 60000;
+    static final long COOLDOWN_MS = 60000;
     private final LongSupplier clock;
     private final Map<String, Long> failed = new HashMap<>();
     private final Map<String, String> winners = new LinkedHashMap<>();
     PlaybackSourcePlan(LongSupplier clock) { this.clock = clock; }
-    // A cold engine may initialize and then issue several HTTP requests. Adding
-    // sources must not shorten a working provider's allowance below that cost.
-    // The overall cap still bounds fallback, and explicit cancellation is immediate.
-    static long sourceBudget(long remaining,int candidates) {
-        if(remaining<=0)return 0;
-        return Math.min(remaining,SOURCE_MS);
+    static boolean retryTransient(Throwable error) {
+        for(Throwable value=error;value!=null;value=value.getCause()) {
+            String message=String.valueOf(value.getMessage()).toLowerCase(Locale.ROOT);
+            if(value instanceof java.net.SocketException||value instanceof java.io.EOFException
+                ||value instanceof java.net.SocketTimeoutException
+                ||message.matches("(?s).*(connection reset|连接重置|unexpected end|econnreset|timed out|timeout|超时|(?:http|状态|status)[ :：]*(?:502|503|504)).*"))return true;
+        }
+        return false;
     }
     synchronized void success(String family, String id) {
         failed.remove(id);
@@ -27,6 +29,7 @@ final class PlaybackSourcePlan {
         if (failed.size() >= 100) failed.clear();
         failed.put(id, clock.getAsLong() + COOLDOWN_MS);
     }
+    synchronized boolean cooling(String id){return failed.getOrDefault(id,0L)>clock.getAsLong();}
     synchronized List<JSONObject> order(JSONArray installed, String family, String origin) {
         List<JSONObject> healthy = new ArrayList<>(), cooling = new ArrayList<>();
         for (int i = 0; i < installed.length(); i++) {
@@ -37,9 +40,14 @@ final class PlaybackSourcePlan {
         String winner = winners.get(family);
         // Stable sort preserves the user's order among other healthy sources.
         healthy.sort(Comparator.comparingInt(source -> source.optString("id").equals(winner) ? 0 : source.optString("id").equals(origin) ? 1 : 2));
-        return healthy.isEmpty() ? cooling : healthy;
+        // Cooldown changes priority, not availability. Otherwise an unrelated
+        // healthy source (e.g. QQ-only) can hide every cooling NetEase source
+        // before MusicSources filters unsupported catalogue platforms.
+        healthy.addAll(cooling);
+        return healthy;
     }
     static boolean transportFailure(Throwable error) {
+        if(retryTransient(error))return true;
         for (Throwable value = error; value != null; value = value.getCause()) {
             if (value instanceof java.util.concurrent.TimeoutException || value instanceof java.io.IOException) return true;
             String message = String.valueOf(value.getMessage()).toLowerCase(Locale.ROOT);

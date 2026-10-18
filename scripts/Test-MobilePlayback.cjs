@@ -2,11 +2,18 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),fsp=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 async function temporary(t){const folder=await fsp.mkdtemp(path.join(os.tmpdir(),'zenix-mobile-playback-'));t.after(()=>fsp.rm(folder,{recursive:true,force:true}));return folder;}
-test('Android production source lanes, resolver budgets, priority, cache decisions and idempotent saves on JVM',async t=>{
+test('Android production source lanes, state-driven completion, priority, cache decisions and idempotent saves on JVM',async t=>{
   const folder=await temporary(t),javaHome=process.env.JAVA_HOME||'C:/Program Files/Android/Android Studio/jbr',bin=name=>path.join(javaHome,'bin',name+(process.platform==='win32'?'.exe':''));
   const cached=path.join(os.homedir(),'.gradle/caches/modules-2/files-2.1/org.json/json/20250517');let jar;
   if(fs.existsSync(cached))for(const child of fs.readdirSync(cached)){const candidate=path.join(cached,child,'json-20250517.jar');if(fs.existsSync(candidate)){jar=candidate;break;}}
   if(!jar){jar=path.join(folder,'json.jar');const response=await fetch('https://repo.maven.apache.org/maven2/org/json/json/20250517/json-20250517.jar');if(!response.ok)throw Error('JSON test runtime unavailable');await fsp.writeFile(jar,Buffer.from(await response.arrayBuffer()));}
+  const jars=[jar];
+  for(const [group,name,version]of [['com.squareup.okhttp3','okhttp','4.12.0'],['com.squareup.okio','okio-jvm','3.6.0'],['org.jetbrains.kotlin','kotlin-stdlib','2.2.10']]){
+    const cache=path.join(os.homedir(),'.gradle/caches/modules-2/files-2.1',group,name,version);let found;
+    if(fs.existsSync(cache))for(const child of fs.readdirSync(cache)){const candidate=path.join(cache,child,`${name}-${version}.jar`);if(fs.existsSync(candidate)){found=candidate;break;}}
+    if(!found){found=path.join(folder,name+'.jar');const reply=await fetch(`https://repo.maven.apache.org/maven2/${group.replaceAll('.','/')}/${name}/${version}/${name}-${version}.jar`);assert(reply.ok);await fsp.writeFile(found,Buffer.from(await reply.arrayBuffer()));}jars.push(found);
+  }
+  const classpath=jars.join(path.delimiter);
   const root=path.resolve(__dirname,'../android/app/src/main/java/com/zenix/musicplayer');
   const service=await fsp.readFile(path.join(root,'PlaybackService.java'),'utf8'),signature='private void select(int at,boolean autoPlay)';
   const begin=service.indexOf(signature);assert(begin>=0,'production selection method missing');
@@ -17,17 +24,30 @@ test('Android production source lanes, resolver budgets, priority, cache decisio
   assert.equal(depth,0,'production selection method is unbalanced');
   const template=await fsp.readFile(path.join(__dirname,'fixtures/PlaybackSelectionCheck.java'),'utf8');
   const selection=path.join(folder,'PlaybackSelectionCheck.java');await fsp.writeFile(selection,template.replace('/* PRODUCTION_SELECT_METHOD */',service.slice(begin,end)));
-  const sources=['Json','SourceShare','SourceEngineLane','PlaybackSourcePlan','AudioCachePlan','PersonalCollections','SourceDiagnostics','MusicSources','BackgroundFiles','QueueEdits','PlaylistBatch'].map(name=>path.join(root,name+'.java'));
-  sources.push(selection);
-  sources.push(path.join(__dirname,'fixtures/MobilePlaybackContractCheck.java'));
+  function productionMethod(signature,text=service){const begin=text.indexOf(signature);assert(begin>=0,'production method missing: '+signature);const open=text.indexOf('{',begin);let depth=1,end=open+1;const scan=text.slice(end).replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,value=>' '.repeat(value.length));for(let i=0;i<scan.length&&depth;i++,end++){if(scan[i]==='{')depth++;else if(scan[i]==='}')depth--;}assert.equal(depth,0);return text.slice(begin,end);}
+  let loading=await fsp.readFile(path.join(__dirname,'fixtures/PlaybackLoadingCheck.java'),'utf8');
+  for(const [marker,signature]of [['PLAYER_ERROR','public void onPlayerError(PlaybackException failure)'],['RECOVERY','private void beginRecovery()']])loading=loading.replace('/* PRODUCTION_'+marker+'_METHOD */',productionMethod(signature));
+  const loadingFile=path.join(folder,'PlaybackLoadingCheck.java');await fsp.writeFile(loadingFile,loading);
+  const sources=['Json','SourceShare','SourceEngineLane','PlaybackSourcePlan','AudioCachePlan','PersonalCollections','SourceDiagnostics','MusicSources','BackgroundFiles','QueueEdits','PlaylistBatch','ReplacementRules','PlaylistReplacement'].map(name=>path.join(root,name+'.java'));
+  const privateStore=await fsp.readFile(path.join(root,'PrivateStore.java'),'utf8');
+  const contract=path.join(folder,'MobilePlaybackContractCheck.java');await fsp.writeFile(contract,(await fsp.readFile(path.join(__dirname,'fixtures/MobilePlaybackContractCheck.java'),'utf8')).replace('/* PRODUCTION_TRACK_CLEANING */',productionMethod('static JSONObject cleanTrack(',privateStore)+'\n'+productionMethod('static JSONObject queueTrack(',privateStore)));
+  const replacement=path.join(folder,'ReplacementContractCheck.java');await fsp.writeFile(replacement,(await fsp.readFile(path.join(__dirname,'fixtures/ReplacementContractCheck.java'),'utf8')).replace('/* PRODUCTION_CACHE_METHODS */',productionMethod('private JSONObject reusableCache(')+'\n'+productionMethod('boolean completeCachedForInspection(')).replace('/* PRODUCTION_PERSONAL_METHODS */',productionMethod('JSONObject personal(String action,JSONObject args,java.util.function.BooleanSupplier cancel)',privateStore)+'\n'+productionMethod('private JSONObject mutatePersonal(',privateStore)));
+  sources.push(replacement);
+  sources.push(selection,loadingFile);
+  sources.push(contract);
   for(const name of ['android/content/Context.java','android/os/SystemClock.java','android/util/Base64.java','android/util/AtomicFile.java'])sources.push(path.join(__dirname,'fixtures/mobile-playback-stubs',name));
-  await promisify(execFile)(bin('javac'),['-cp',jar,'-d',folder,...sources],{timeout:30000,windowsHide:true});
-  const {stdout}=await promisify(execFile)(bin('java'),['-cp',folder+path.delimiter+jar,'com.zenix.musicplayer.MobilePlaybackContractCheck',folder],{timeout:15000,windowsHide:true});assert.match(stdout,/MOBILE_PLAYBACK_CONTRACT_PASS/);
-  const selected=await promisify(execFile)(bin('java'),['-cp',folder+path.delimiter+jar,'com.zenix.musicplayer.PlaybackSelectionCheck'],{timeout:15000,windowsHide:true});assert.match(selected.stdout,/PLAYBACK_SELECTION_PASS/);
+  await promisify(execFile)(bin('javac'),['-cp',classpath,'-d',folder,...sources],{timeout:30000,windowsHide:true});
+  const runtime=folder+path.delimiter+classpath;
+  const {stdout}=await promisify(execFile)(bin('java'),['-cp',runtime,'com.zenix.musicplayer.MobilePlaybackContractCheck',folder],{timeout:15000,windowsHide:true});assert.match(stdout,/MOBILE_PLAYBACK_CONTRACT_PASS/);
+  const selected=await promisify(execFile)(bin('java'),['-cp',runtime,'com.zenix.musicplayer.PlaybackSelectionCheck'],{timeout:15000,windowsHide:true});assert.match(selected.stdout,/PLAYBACK_SELECTION_PASS/);
+  const bounded=await promisify(execFile)(bin('java'),['-cp',runtime,'com.zenix.musicplayer.PlaybackLoadingCheck'],{timeout:15000,windowsHide:true});assert.match(bounded.stdout,/PLAYBACK_LOADING_PASS/);
+  const replaced=await promisify(execFile)(bin('java'),['-cp',runtime,'com.zenix.musicplayer.ReplacementContractCheck',folder],{timeout:15000,windowsHide:true});assert.match(replaced.stdout,/REPLACEMENT_CONTRACT_PASS/);
 });
 test('real React mobile UI: queue management, poster search and animated focus/enlargement, saves, sources and cache',{skip:process.platform!=='win32'},async t=>{
   const folder=await temporary(t);const {createServer}=await import('vite'),httpServer=require('node:http').createServer();
-  const server=await createServer({cacheDir:path.join(folder,'vite-cache'),optimizeDeps:{entries:['scripts/fixtures/mobile-playback-ui.html']},plugins:[{name:'mobile-native-fixture',enforce:'pre',resolveId(source,importer){if(importer?.includes('/src/mobile/')&&source==='./native')return path.resolve(__dirname,'fixtures/MobileNative.ts');if(source.endsWith('/ZenixIntro'))return path.resolve(__dirname,'fixtures/MobileIntro.tsx');}}],server:{middlewareMode:true,hmr:{server:httpServer}},logLevel:'error'});
+  // Acceptance drives one fixed page. Development reloads (including dependency
+  // rediscovery or unrelated generated HTML) must not reset its fixture data.
+  const server=await createServer({cacheDir:path.join(folder,'vite-cache'),optimizeDeps:{entries:['scripts/fixtures/mobile-playback-ui.html']},plugins:[{name:'mobile-native-fixture',enforce:'pre',resolveId(source,importer){if(importer?.includes('/src/mobile/')&&source==='./native')return path.resolve(__dirname,'fixtures/MobileNative.ts');if(source.endsWith('/ZenixIntro'))return path.resolve(__dirname,'fixtures/MobileIntro.tsx');}}],server:{middlewareMode:true,hmr:false},logLevel:'error'});
   httpServer.on('request',server.middlewares);await new Promise(resolve=>httpServer.listen(0,'127.0.0.1',resolve));t.after(async()=>{await server.close();await new Promise(resolve=>httpServer.close(resolve));});
   const env={...process.env,ZENIX_TEST_USER_DATA:folder,ZENIX_TEST_UI_URL:`http://127.0.0.1:${httpServer.address().port}/scripts/fixtures/mobile-playback-ui.html`};delete env.ELECTRON_RUN_AS_NODE;
   const {stdout,stderr}=await promisify(execFile)(require('electron'),[path.join(__dirname,'fixtures/ElectronMobilePlaybackUi.cjs')],{env,timeout:90000,windowsHide:true});assert.match(stdout,/MOBILE_PLAYBACK_UI_PASS/,stderr);

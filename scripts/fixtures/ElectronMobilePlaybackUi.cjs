@@ -17,7 +17,12 @@ app.whenReady().then(async()=>{
   const click=async selector=>{await wait(`!!document.querySelector(${JSON.stringify(selector)})`);await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await sleep(100);};
   const bounds=selector=>evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()`);
   const pointer=async(selector,dx=0,dy=0,hold=0)=>{const point=await bounds(selector);window.webContents.sendInputEvent({type:'mouseMove',...point});window.webContents.sendInputEvent({type:'mouseDown',...point,button:'left',clickCount:1});if(hold)await sleep(hold);if(dx||dy){for(let step=1;step<=5;step++){window.webContents.sendInputEvent({type:'mouseMove',x:point.x+Math.round(dx*step/5),y:point.y+Math.round(dy*step/5),modifiers:['leftButtonDown']});await sleep(20);}}window.webContents.sendInputEvent({type:'mouseUp',x:point.x+dx,y:point.y+dy,button:'left',clickCount:1});await sleep(100);};
-  const screenshot=async name=>{await sleep(200);await fs.writeFile(path.join(app.getPath('userData'),name),(await window.webContents.capturePage()).toPNG());};
+  const screenshot=async name=>{await sleep(200);let bytes;try{bytes=(await window.webContents.capturePage()).toPNG();}catch(error){
+    // Readback can fail in offscreen software Viz without a DOM/renderer failure.
+    // Keep every behavioral assertion; use one actual CDP screenshot as fallback.
+    console.error('Offscreen screenshot fallback:',name,String(error));
+    const captured=await window.webContents.debugger.sendCommand('Page.captureScreenshot',{format:'png'});bytes=Buffer.from(captured.data,'base64');
+  }await fs.writeFile(path.join(app.getPath('userData'),name),bytes);};
   await window.loadURL(process.env.ZENIX_TEST_UI_URL);
   assert.equal(await evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'),false,'animation fixture must run with motion enabled');
   await wait('window.fixture&&document.querySelector(".mobile-mini")&&!document.querySelector(".mobile-boot")');
@@ -27,7 +32,8 @@ app.whenReady().then(async()=>{
   await click('[aria-label="关闭提示"]');await wait('!document.querySelector(".mobile-toast")');
   await evaluate('delete window.fixture.failAction');
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'resolving',startedAt:Date.now()-5000,message:'正在获取标准品质音频 · Source B（2/7）'}}})`);
-  await wait('document.querySelector(".source-status-copy small")?.textContent.includes("5 秒")');
+  await wait('document.querySelector(".source-status-copy small")?.textContent.includes("等待当前阶段完成")');
+  await wait('document.querySelector(".playback-details textarea")?.value.includes("等待：5 秒")');
   const beforeStop=await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length');
   await click('.mobile-source-status>button');
   assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length'),beforeStop+1,'stop cancels loading through the playback command');
@@ -51,7 +57,8 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('window.fixture.calls.filter(value=>value.action==="toggle"||value.action==="play").length'),0,'long press did not toggle loading playback');
   await screenshot('mobile-quick-save.png');
   await click('.song-quick-actions .pill');await wait('!!document.querySelector(".song-save-feedback")');await screenshot('mobile-save-animation.png');
-  assert.equal(await evaluate('window.fixture.state.personal.liked.length'),1);assert.equal(await evaluate('window.fixture.state.personal.favorites.length'),1);
+  const savedCollections=await evaluate('({liked:window.fixture.state.personal.liked.length,favorites:window.fixture.state.personal.favorites.length,calls:window.fixture.calls.slice(-8)})');
+  assert.equal(savedCollections.liked,1,JSON.stringify(savedCollections));assert.equal(savedCollections.favorites,1,JSON.stringify(savedCollections));
   await sleep(1100);await pointer('.mini-info',0,0,550);await wait('!!document.querySelector(".song-quick-actions")');await click('.song-quick-actions .pill');
   assert.equal(await evaluate('window.fixture.state.personal.liked.length'),1,'repeat quick-save must not toggle off');
   await wait('!document.querySelector(".song-save-feedback")');await pointer('.mini-info');await pointer('.mini-info');await wait('!!document.querySelector(".mobile-full-player")');await sleep(300);await pointer('.full-song',0,0,550);await wait('!!document.querySelector(".song-quick-actions")');await click('.sheet-close');await click('[aria-label="收起"]');await sleep(400);await click('[aria-label="当前播放列表"]');await wait('document.querySelectorAll(".swipe-track-row").length===5');

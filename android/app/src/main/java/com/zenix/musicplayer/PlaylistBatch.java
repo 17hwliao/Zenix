@@ -7,6 +7,7 @@ final class PlaylistBatch {
         for(int i=0;i<lists.length();i++){JSONObject list=lists.getJSONObject(i);if(list.optString("id").equals(args.optString("id")))source=list;if(list.optString("id").equals(args.optString("target")))target=list;}
         if(source==null)throw new Exception("歌单不存在");JSONArray tracks=source.getJSONArray("tracks");
         if(!QueueEdits.ids(tracks).toString().equals(args.getJSONArray("expected").toString()))throw new Exception("歌单已变化，请重新选择");
+        if(args.optString("edit").startsWith("replacement")){ReplacementRules.edit(source,args);return;}
         Set<String> selected=new HashSet<>();JSONArray ids=args.getJSONArray("ids");if(ids.length()>5000)throw new Exception("选中歌曲过多");for(int i=0;i<ids.length();i++)selected.add(ids.getString(i));
         List<JSONObject> picked=new ArrayList<>(),all=new ArrayList<>();JSONArray remain=new JSONArray();for(int i=0;i<tracks.length();i++){JSONObject track=tracks.getJSONObject(i);all.add(track);if(selected.contains(track.optString("id")))picked.add(track);else remain.put(track);}
         if(picked.size()!=selected.size())throw new Exception("选中歌曲已变化");String edit=args.optString("edit");

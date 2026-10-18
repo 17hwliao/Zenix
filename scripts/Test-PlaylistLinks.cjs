@@ -10,6 +10,8 @@ test('playlist detection handles share text, old/mobile/hash links and exact hos
   assert.equal(detectPlaylist('分享歌单：https://y.qq.com/n/ryqq/playlist/123。').id,'123');
   assert.equal(detectPlaylist('https://i.y.qq.com/n2/m/share/details/taoge.html?id=123&appshare=android_qq').id,'123');
   assert.equal(detectPlaylist('https://i2.y.qq.com/n3/other/pages/details/playlist.html?id=123').id,'123');
+  assert.equal(detectPlaylist('https://i2.y.qq.com/n3/other/pages/details/playlist.html?platform=11&appshare=android_qq&id=9794027351&ADTAG=wxfshare').id,'9794027351');
+  assert.equal(detectPlaylist('https://y.qq.com/n/ryqq_v2/playlist/9712331714?ADTAG=h5_share_playlist').id,'9712331714');
   assert.equal(detectPlaylist('https://y.qq.com/#type=playlist&id=123').id,'123');
   assert.equal(detectPlaylist('http://music.163.com/#/playlist?id=123').url,'https://music.163.com/#/playlist?id=123');
   assert.equal(detectPlaylist('https://www.kuwo.cn/playlist_detail/123').id,'123');
@@ -24,6 +26,7 @@ test('QQ keeps exact catalogue IDs including media MID; exchange roundtrip retai
   const bundle=createBundle([{name:result.name,tracks:result.tracks}]);
   const restored=restoreTracks(bundle,[])[0].tracks;assert.equal(restored[0].providerId,'lx.playlist:catalog');
   const info=readInfo(restored[0].remoteId);assert.equal(info.source,'tx');assert.equal(info.songmid,'MID1');assert.equal(info.strMediaMid,'MEDIA1');assert.equal(info.songId,1);assert.equal(info.name,'测试歌曲 1');assert.equal(restored[0].audioUrl,'');
+  assert.equal(info.albumId,'ALBUM');assert.equal(info.albumMid,'ALBUM');
 });
 
 test('QQ short links and paged fallback keep order and report progress',async()=>{

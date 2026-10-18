@@ -174,11 +174,11 @@ test('fallback search resolves only a complete matching recording and rejects co
   await resolveCustomTrack(track('original', { album: 'Studio' }), [], () => {}, new AbortController().signal);
   assert.deepEqual(attempted, ['match']);
 });
-test('a stalled desktop provider releases its native request and leaves time for the next provider', async t => {
+test('a pending desktop provider survives elapsed time and advances only on explicit failure', async t => {
   const { resolveCustomTrack } = require('../src/core/sourcePlayback.ts');
   let now = 0; t.mock.method(performance, 'now', () => now);
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const cancelled = [], requests = [];
+  const cancelled = [], requests = [];let failFirst;
   window.yzqxy = { sources: {
     cachedBest: async () => null,
     list: async () => ['first','second','third'].map(id => ({ id, enabled: true, kind: 'zenix', manifest: { name: id, qualities: ['high'], capabilities: ['search', 'resolvePlayback'] } })),
@@ -186,17 +186,19 @@ test('a stalled desktop provider releases its native request and leaves time for
     search: async id => ({ items: [track('same', { providerId: id })] }),
     resolve: async (song, _quality, _id, _allow, requestId) => {
       requests.push({ provider: song.providerId, requestId });
-      if (song.providerId === 'first') return new Promise(() => {});
+      if (song.providerId === 'first') return new Promise((resolve,reject) => {failFirst=reject;});
       return { audioUrl: 'https://example.com/healthy' };
     }
   } };
   const result = resolveCustomTrack(track('original'), [], () => {}, new AbortController().signal);
   for (let i=0;i<30&&!requests.length;i++) await Promise.resolve();
   assert.equal(requests[0]?.provider, 'first');
-  now=10000;t.mock.timers.tick(10000);
+  now=300000;t.mock.timers.tick(300000);await Promise.resolve();
+  assert.equal(requests.length,1,'elapsed time cannot discard pending resolution');assert.equal(cancelled.length,0);
+  failFirst(Error('ECONNRESET'));
   const value=await result;assert.equal(value.audioUrl,'https://example.com/healthy');
   assert.deepEqual(requests.map(row=>row.provider),['first','second']);
-  assert.ok(cancelled.includes(requests[0].requestId),'underlying stalled request is cancelled');
+  assert.ok(cancelled.includes(requests[0].requestId),'explicitly failed request is released before fallback');
 });
 test('rapid selection cancels stale source results', async () => {
   const jobs = [];

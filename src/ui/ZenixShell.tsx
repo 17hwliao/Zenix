@@ -211,7 +211,7 @@ export default function ZenixShell(props: ZenixShellProps) {
         {roaming?.active && <button aria-label="结束自动漫游" title="结束自动漫游" onClick={() => { onStopRoaming?.(); enterPlayer('queue'); }}><X size={15} /></button>}
       </div>}
 
-      {sourceActivity && !(view === 'player' && roamingAttention) && <SourceCallout activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
+      {sourceActivity && !(view === 'player' && roamingAttention) && <SourceCallout onReplace={currentTrack?.playlistId?()=>{setManagerSection(currentTrack.playlistId!);setQueueOpen(false);setSearchOpen(false);}:undefined} activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
 
       {playbackError && !sourceActivity && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
         <div><strong>播放失败</strong><span>{playbackError}</span></div>

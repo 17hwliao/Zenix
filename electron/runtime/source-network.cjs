@@ -15,14 +15,17 @@ function checkUrl(raw, patterns) {
 }
 
 async function fetchAllowed(raw, patterns, options = {}) {
-  const { allowHttp = false, allowedHosts = null, ...transport } = options;
+  const { allowHttp = false, allowedHosts = null,stateDriven=false, ...transport } = options;
   const policy = { allowHttp, hosts: allowedHosts };
   let url = patterns === null ? publicPolicyUrl(raw, policy) : checkUrl(raw, patterns);
   let request = { ...transport, headers: new Headers(options.headers || {}) };
   for (let redirects = 0; redirects <= 3; redirects += 1) {
     const addresses = await resolveAddresses(url.hostname);
     options.signal?.throwIfAborted();
-    const dispatcher = pinnedPool(url, addresses);
+    const pool = pinnedPool(url, addresses,stateDriven);
+    // fetch supplies its own default header/body timers. Override those at dispatch
+    // for state-driven calls, while retaining the pinned connection/DNS policy.
+    const dispatcher=stateDriven?{dispatch:(options,handler)=>pool.dispatch({...options,headersTimeout:0,bodyTimeout:0},handler)}:pool;
     const response = await fetch(url, { ...request, dispatcher, redirect: 'manual' });
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get('location');
@@ -90,11 +93,11 @@ async function checkLxUrl(raw, policy) {
   await resolveAddresses(url.hostname);
   return url;
 }
-function pinnedPool(url, addresses) {
-  const key = `${url.origin}|${addresses.map(item => item.address).sort().join(',')}`;
+function pinnedPool(url, addresses,stateDriven=false) {
+  const key = `${url.origin}|${addresses.map(item => item.address).sort().join(',')}|${stateDriven}`;
   const existing = pools.get(key);
   if (existing) { pools.delete(key); pools.set(key, existing); return existing; }
-  const agent = new Agent({ connections: 2, pipelining: 1, headersTimeout: 15000, bodyTimeout: 15000, keepAliveTimeout: 10000, connect: {
+  const agent = new Agent({ connections: 2, pipelining: 1, headersTimeout:stateDriven?0:15000, bodyTimeout:stateDriven?0:15000, keepAliveTimeout: 10000, connect: {
     timeout: 8000,
     lookup: (_host, options, callback) => {
       const filtered = options.family ? addresses.filter(item => item.family === options.family) : addresses;

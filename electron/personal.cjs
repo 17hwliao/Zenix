@@ -5,6 +5,7 @@ const { randomUUID } = require('node:crypto');
 function cleanTrack(value) {
   if (!value || typeof value.id !== 'string' || typeof value.title !== 'string') return null;
   return {
+    ...(value.replacement?{replacement:require('../src/core/platformReplacement.cjs').cleanRecord(value.replacement)}:{}),
     id: value.id,
     path: String(value.path || ''),
     title: value.title,
@@ -67,6 +68,7 @@ class PersonalStore {
         history: uniqueHistory(loadedHistory),
         playlists: (Array.isArray(raw.playlists) ? raw.playlists : []).map(entry => ({
           id: String(entry.id || randomUUID()), name: String(entry.name || '未命名歌单').slice(0, 100),
+          ...(typeof entry.autoReplacement==='boolean'?{autoReplacement:entry.autoReplacement}:{}),
           tracks: (Array.isArray(entry.tracks) ? entry.tracks : []).map(cleanTrack).filter(Boolean),
         })),
       };
@@ -95,8 +97,9 @@ class PersonalStore {
     return this.snapshot();
   }
 
-  async batch(args) {
-    if(this.backupBarrier)await this.backupBarrier;this.assertWritable();
+  async batch(args, signal) {
+    if(this.backupBarrier)await this.backupBarrier;
+    signal?.throwIfAborted();this.assertWritable();
     const previous=this.data,next=require('./runtime/playlist-batch.cjs').batchPlaylists(previous,args);this.data=next;const signature=JSON.stringify(next);
     try{return await this.save();}catch(error){if(this.data===next&&JSON.stringify(this.data)===signature)this.data=previous;throw error;}
   }

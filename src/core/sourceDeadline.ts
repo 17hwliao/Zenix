@@ -5,7 +5,7 @@ export async function sourceDeadline<T>(operation: () => Promise<T>, signal: Abo
   const deadline = new Promise<never>((_, reject) => {
     abort = () => reject(signal.reason || new DOMException('已取消', 'AbortError'));
     signal.addEventListener('abort', abort, { once: true });
-    timer = setTimeout(() => reject(new Error('连接超时')), milliseconds);
+    if(milliseconds>0)timer = setTimeout(() => reject(new Error('连接超时')), milliseconds);
   });
   try { return await Promise.race([operation(), deadline]); }
   finally {

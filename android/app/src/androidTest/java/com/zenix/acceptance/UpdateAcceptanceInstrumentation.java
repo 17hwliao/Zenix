@@ -48,6 +48,7 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
         out.put("retentionMarker",fileDigest(marker));
         Object mainStore=create(target,"PrivateStore",target);
         JSONObject mainData=(JSONObject)call(mainStore,"read",new Class<?>[]{});
+        out.put("playbackPolicy",new JSONObject().put("smoothPlayback",mainData.optBoolean("smoothPlayback")).put("quality",mainData.optString("quality","high")).put("cacheEnabled",mainData.optBoolean("cacheEnabled",true)));
         JSONObject mainPersonal=mainData.getJSONObject("personal");
         out.put("personalSnapshot",new JSONObject().put("liked",mainPersonal.getJSONArray("liked").length())
             .put("favorites",mainPersonal.getJSONArray("favorites").length()).put("playlists",mainPersonal.getJSONArray("playlists").length())
@@ -92,6 +93,99 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                 Object decoded=new org.json.JSONTokener(report).nextValue();out.put("uiPerformance",new JSONObject(String.valueOf(decoded)));
             } finally { if(trace)runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(false)); }
             out.put("configurationSha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(new JSONObject().put("sources",mainData.opt("sources")).put("profile",mainData.opt("profile")).put("appearance",mainData.opt("appearance"))).getBytes(StandardCharsets.UTF_8))));
+        } else if (mode.equals("playbackStateCheck")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target);
+            long until=android.os.SystemClock.elapsedRealtime()+15000;Object active;
+            while((active=field(runtime,"service"))==null&&android.os.SystemClock.elapsedRealtime()<until)Thread.sleep(100);
+            if(active==null)throw new IOException("Playback service missing");Object service=active;
+            JSONObject original=playbackSnapshot(service);if(original.optJSONObject("track")==null)throw new IOException("Select a song before targeted state check");
+            Class<?> http=target.getClassLoader().loadClass("com.zenix.musicplayer.SourceHttp");Method playbackClient=http.getDeclaredMethod("playbackClient",org.json.JSONArray.class,boolean.class);playbackClient.setAccessible(true);
+            okhttp3.OkHttpClient client=(okhttp3.OkHttpClient)playbackClient.invoke(null,null,false);
+            if(client.callTimeoutMillis()!=0||client.readTimeoutMillis()!=0)throw new IOException("Playback still has an elapsed call/read expiry");out.put("playbackCallAndReadTimersDisabled",true);
+            Class<?> engineClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ScriptEngine");Constructor<?> ctor=engineClass.getDeclaredConstructor(Context.class,String.class,JSONObject.class,org.json.JSONArray.class,boolean.class,boolean.class,boolean.class);ctor.setAccessible(true);
+            Object engine=ctor.newInstance(target,"zenix.register({resolvePlayback:()=>new Promise(resolve=>globalThis.releaseSong=resolve)});",new JSONObject(),null,false,false,true);
+            java.util.concurrent.ExecutorService work=java.util.concurrent.Executors.newSingleThreadExecutor();
+            try {
+                call(engine,"ready",new Class<?>[]{long.class},0L);
+                java.util.concurrent.Future<Object> pending=work.submit(()->call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"resolvePlayback",new JSONObject(),new JSONObject(),0L));
+                android.webkit.WebView scriptView=(android.webkit.WebView)field(engine,"view");until=android.os.SystemClock.elapsedRealtime()+5000;
+                while(!evaluate(scriptView,"typeof releaseSong==='function'").equals("true")){if(android.os.SystemClock.elapsedRealtime()>until)throw new IOException("Script request not started");Thread.sleep(50);}
+                Thread.sleep(400);if(pending.isDone())throw new IOException("Pending script was prematurely ended");evaluate(scriptView,"releaseSong({url:'https://fixture.zenix.invalid/audio.mp3'});true");
+                JSONObject resolved=(JSONObject)pending.get(5,java.util.concurrent.TimeUnit.SECONDS);if(!resolved.optString("url").endsWith("audio.mp3"))throw new IOException("Script completion result missing");out.put("explicitScriptCompletionObserved",true);
+                evaluate(scriptView,"globalThis.releaseSong=null;true");java.util.concurrent.Future<Object> cancelled=work.submit(()->call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"resolvePlayback",new JSONObject(),new JSONObject(),0L));
+                until=android.os.SystemClock.elapsedRealtime()+5000;while(!evaluate(scriptView,"typeof releaseSong==='function'").equals("true")){if(android.os.SystemClock.elapsedRealtime()>until)throw new IOException("Cancel request not started");Thread.sleep(50);}
+                call(engine,"close",new Class<?>[]{});try{cancelled.get(5,java.util.concurrent.TimeUnit.SECONDS);throw new IOException("Cancelled script returned a successful result");}catch(java.util.concurrent.ExecutionException expected){out.put("pendingScriptCancellationObserved",true);}
+            }finally{call(engine,"close",new Class<?>[]{});work.shutdownNow();}
+            try {
+                runOnMainSync(()->{try{
+                    setField(service,"wanted",false);call(service,"cancelResolution",new Class<?>[]{});
+                    androidx.media3.exoplayer.ExoPlayer decoder=(androidx.media3.exoplayer.ExoPlayer)field(service,"player");decoder.stop();
+                    setField(service,"generation",((Long)field(service,"generation"))+1);setField(service,"wanted",true);
+                    androidx.media3.datasource.DataSource.Factory waiting=()->new androidx.media3.datasource.BaseDataSource(false){
+                        private volatile boolean closed;private android.net.Uri uri;
+                        @Override public long open(androidx.media3.datasource.DataSpec spec){uri=spec.uri;return androidx.media3.common.C.LENGTH_UNSET;}
+                        @Override public int read(byte[] buffer,int offset,int length)throws IOException{while(!closed){try{Thread.sleep(50);}catch(InterruptedException cancelled){Thread.currentThread().interrupt();throw new java.io.InterruptedIOException("test loader cancelled");}}return androidx.media3.common.C.RESULT_END_OF_INPUT;}
+                        @Override public android.net.Uri getUri(){return uri;}
+                        @Override public void close(){closed=true;}
+                    };
+                    decoder.setMediaSource(new androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(waiting).createMediaSource(androidx.media3.common.MediaItem.fromUri("https://fixture.zenix.invalid/waiting.mp3")));decoder.prepare();decoder.play();
+                }catch(Exception failure){throw new RuntimeException(failure);}});
+                Thread.sleep(3000);JSONObject waiting=playbackSnapshot(service);if(!waiting.optBoolean("playWhenReady")||waiting.has("error"))throw new IOException("Pending decoder was cancelled without a failure");out.put("pendingDecoderPreserved",true);
+                runOnMainSync(()->{try{call(service,"pausePlayback",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});
+                if(playbackSnapshot(service).optBoolean("playWhenReady"))throw new IOException("Explicit stop was not honored");out.put("manualStopObserved",true);
+                runOnMainSync(()->{try{call(service,"resume",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});
+                until=android.os.SystemClock.elapsedRealtime()+90000;double first=-1;
+                while(android.os.SystemClock.elapsedRealtime()<until){Thread.sleep(400);JSONObject state=playbackSnapshot(service);if(state.optBoolean("playing")){if(first<0)first=state.optDouble("position");if(state.optDouble("position")>=first+5){out.put("manualRetryRecovered",true).put("positionBefore",first).put("positionAfter",state.optDouble("position"));break;}}if(state.optJSONObject("sourceActivity")!=null&&state.getJSONObject("sourceActivity").optString("phase").equals("failed"))break;}
+                if(!out.optBoolean("manualRetryRecovered"))out.put("ok",false);
+            }finally{runOnMainSync(()->{try{call(service,"setQueue",new Class<?>[]{org.json.JSONArray.class,int.class},original.getJSONArray("queue"),original.optInt("queueIndex",-1));call(service,"pausePlayback",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});}
+
+        } else if (mode.equals("playbackUiSurvey")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            long until=android.os.SystemClock.elapsedRealtime()+20000;
+            while(foregroundActivity==null&&android.os.SystemClock.elapsedRealtime()<until)Thread.sleep(100);
+            if(foregroundActivity==null)throw new IOException("Target Activity not resumed");
+            android.webkit.WebView view=((com.getcapacitor.BridgeActivity)foregroundActivity).getBridge().getWebView();
+            while(!evaluate(view,"!!document.querySelector('.mobile-nav')&&!document.querySelector('.mobile-boot')&&!document.querySelector('.zenix-intro')").equals("true")){if(android.os.SystemClock.elapsedRealtime()>until)throw new IOException("UI not ready");Thread.sleep(150);}
+            Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target),service=field(runtime,"service");
+            if(service==null)throw new IOException("Playback service missing");
+            JSONObject before=playbackSnapshot(service);org.json.JSONArray originalQueue=new org.json.JSONArray(before.getJSONArray("queue").toString());int originalIndex=before.optInt("queueIndex",-1);boolean originalWanted=before.optBoolean("playWhenReady");double originalPosition=before.optDouble("position");
+            evaluate(view,"window.__zenixPlaybackErrors=[];window.__zenixTouches=[];['pointerdown','pointerup','touchstart','touchend','click'].forEach(type=>document.addEventListener(type,e=>{window.__zenixTouches.push({type,target:e.target?.tagName,classes:String(e.target?.className||'').slice(0,80),x:e.clientX,y:e.clientY});if(window.__zenixTouches.length>50)window.__zenixTouches.shift();},true));window.addEventListener('unhandledrejection',e=>window.__zenixPlaybackErrors.push(String(e.reason).replace(/https?:\\/\\/\\S+/g,'[URL]')));[...document.querySelectorAll('.mobile-nav button')].find(b=>b.textContent.includes('个人')).click();true");
+            until=android.os.SystemClock.elapsedRealtime()+10000;while(!evaluate(view,"!!document.querySelector('.recent-strip button')").equals("true")){if(android.os.SystemClock.elapsedRealtime()>until)throw new IOException("Recent songs unavailable");Thread.sleep(150);}
+            String candidates=evaluate(view,"JSON.stringify([...document.querySelectorAll('.recent-strip button')].map(b=>({title:b.querySelector('strong')?.textContent,artist:b.querySelector('small')?.textContent})).filter((v,i,a)=>a.findIndex(w=>w.title===v.title)===i).slice(0,3))");
+            org.json.JSONArray chosen=new org.json.JSONArray(String.valueOf(new org.json.JSONTokener(candidates).nextValue())),reports=new org.json.JSONArray();out.put("tracks",reports);
+            String requestedTitle=arguments.getString("songTitle","");if(!requestedTitle.isEmpty()){org.json.JSONArray filtered=new org.json.JSONArray();for(int n=0;n<chosen.length();n++)if(chosen.getJSONObject(n).optString("title").equals(requestedTitle))filtered.put(chosen.getJSONObject(n));if(filtered.length()==0)throw new IOException("Requested recent song missing");chosen=filtered;}
+            android.media.AudioManager audio=(android.media.AudioManager)target.getSystemService(Context.AUDIO_SERVICE);
+            org.json.JSONArray routes=new org.json.JSONArray();for(android.media.AudioDeviceInfo device:audio.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS))routes.put(device.getType());
+            out.put("systemAudio",new JSONObject().put("musicVolume",audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)).put("musicMax",audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)).put("mode",audio.getMode()).put("outputTypes",routes));
+            try {
+                for(int n=0;n<chosen.length();n++){
+                    JSONObject chosenTrack=chosen.getJSONObject(n),report=new JSONObject().put("title",chosenTrack.optString("title")).put("artist",chosenTrack.optString("artist"));reports.put(report);
+                    evaluate(view,"[...document.querySelectorAll('.mobile-nav button')].find(b=>b.textContent.includes('个人')).click();true");Thread.sleep(450);
+                    evaluate(view,"(()=>{const b=[...document.querySelectorAll('.recent-strip button')].find(b=>b.querySelector('strong')?.textContent==="+JSONObject.quote(chosenTrack.getString("title"))+"&&b.querySelector('small')?.textContent==="+JSONObject.quote(chosenTrack.getString("artist"))+");b?.scrollIntoView({block:'center',inline:'center',behavior:'instant'});return !!b;})()");Thread.sleep(250);
+                    String point=evaluate(view,"JSON.stringify((()=>{const b=[...document.querySelectorAll('.recent-strip button')].find(b=>b.querySelector('strong')?.textContent==="+JSONObject.quote(chosenTrack.getString("title"))+"&&b.querySelector('small')?.textContent==="+JSONObject.quote(chosenTrack.getString("artist"))+");if(!b)return null;const r=b.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return{x,y,hit:document.elementFromPoint(x,y)?.closest('button')===b};})())");
+                    JSONObject targetPoint=new JSONObject(String.valueOf(new org.json.JSONTokener(point).nextValue()));report.put("touchTargetVisible",targetPoint.optBoolean("hit"));
+                    double scale=view.getWidth()/Double.parseDouble(evaluate(view,"innerWidth"));int[] screenOrigin=new int[2];runOnMainSync(()->view.getLocationOnScreen(screenOrigin));float px=(float)(screenOrigin[0]+targetPoint.getDouble("x")*scale),py=(float)(screenOrigin[1]+targetPoint.getDouble("y")*scale);long down=android.os.SystemClock.uptimeMillis();
+                    for(int touchAction:new int[]{android.view.MotionEvent.ACTION_DOWN,android.view.MotionEvent.ACTION_UP}){android.view.MotionEvent event=android.view.MotionEvent.obtain(down,android.os.SystemClock.uptimeMillis(),touchAction,px,py,0);event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);try{getUiAutomation().injectInputEvent(event,true);}finally{event.recycle();}Thread.sleep(80);}
+                    report.put("actualTouchDispatched",true);
+                    Thread.sleep(300);report.put("touchEvents",evaluate(view,"JSON.stringify(window.__zenixTouches)"));Bundle clickReport=new Bundle();clickReport.putString("zenixTouch",report.toString());sendStatus(0,clickReport);
+                    long began=android.os.SystemClock.elapsedRealtime();double first=-1;org.json.JSONArray samples=new org.json.JSONArray();report.put("samples",samples);
+                    while(android.os.SystemClock.elapsedRealtime()-began<90000){
+                        Thread.sleep(1000);JSONObject state=playbackSnapshot(service),selected=state.optJSONObject("track"),activity=state.optJSONObject("sourceActivity");
+                        JSONObject sample=new JSONObject().put("elapsedMs",android.os.SystemClock.elapsedRealtime()-began).put("selected",selected==null?"":selected.optString("title")).put("playing",state.optBoolean("playing")).put("wanted",state.optBoolean("playWhenReady")).put("position",state.optDouble("position")).put("volume",state.optDouble("volume")).put("systemMusicActive",audio.isMusicActive());
+                        if(activity!=null)sample.put("phase",activity.optString("phase")).put("message",activity.optString("message"));if(state.has("error"))sample.put("error",state.optString("error"));
+                        runOnMainSync(()->{try{androidx.media3.exoplayer.ExoPlayer decoder=(androidx.media3.exoplayer.ExoPlayer)field(service,"player");sample.put("decoderState",decoder.getPlaybackState()).put("suppression",decoder.getPlaybackSuppressionReason());androidx.media3.exoplayer.DecoderCounters counters=decoder.getAudioDecoderCounters();if(counters!=null){counters.ensureUpdated();sample.put("renderedAudioBuffers",counters.renderedOutputBufferCount).put("skippedAudioBuffers",counters.skippedOutputBufferCount);}JSONObject resolved=(JSONObject)field(service,"resolution");if(resolved!=null)sample.put("provider",resolved.optString("providerName")).put("quality",resolved.optString("quality"));}catch(Exception failure){throw new RuntimeException(failure);}});
+                        samples.put(sample);Bundle progress=new Bundle();progress.putString("zenixPlaybackSample",sample.toString());sendStatus(0,progress);
+                        if(android.os.SystemClock.elapsedRealtime()-began>5000&&!state.optBoolean("playWhenReady")&&!state.optBoolean("playing")&&activity==null){report.put("noPlayCommandObserved",true);break;}
+                        if(selected!=null&&selected.optString("title").equals(chosenTrack.optString("title"))&&state.optBoolean("playing")){if(first<0)first=state.optDouble("position");if(state.optDouble("position")>=first+20){report.put("sustainedProgress",true);break;}}
+                        if(activity!=null&&activity.optString("phase").equals("failed")||state.has("error")&&!state.optBoolean("playWhenReady")){report.put("failed",true);break;}
+                    }
+                }
+                out.put("uiErrors",evaluate(view,"JSON.stringify(window.__zenixPlaybackErrors)"));
+                for(int n=0;n<reports.length();n++)if(!reports.getJSONObject(n).optBoolean("sustainedProgress")||!reports.getJSONObject(n).optBoolean("touchTargetVisible"))out.put("ok",false);
+            } finally {
+                runOnMainSync(()->{try{call(service,"setQueue",new Class<?>[]{org.json.JSONArray.class,int.class},originalQueue,originalIndex);call(service,"pausePlayback",new Class<?>[]{});if(originalPosition>0)call(service,"seek",new Class<?>[]{double.class},originalPosition);if(originalWanted)call(service,"resume",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});
+            }
         } else if (mode.equals("playbackCheck")) {
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
             Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target);
@@ -267,6 +361,7 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     }
     private static Object call(Object receiver,String name,Class<?>[] types,Object... args)throws Exception {Method method=receiver.getClass().getDeclaredMethod(name,types);method.setAccessible(true);return method.invoke(receiver,args);}
     private static Object field(Object receiver,String name)throws Exception {Field field=receiver.getClass().getDeclaredField(name);field.setAccessible(true);return field.get(receiver);}
+    private static void setField(Object receiver,String name,Object value)throws Exception {Field field=receiver.getClass().getDeclaredField(name);field.setAccessible(true);field.set(receiver,value);}
     private static JSONObject fileDigest(File file)throws Exception {
         JSONObject info=new JSONObject().put("exists",file.isFile());if(!file.isFile())return info;
         MessageDigest digest=MessageDigest.getInstance("SHA-256");try(InputStream input=new FileInputStream(file)){byte[] bytes=new byte[65536];int n;while((n=input.read(bytes))!=-1)digest.update(bytes,0,n);}

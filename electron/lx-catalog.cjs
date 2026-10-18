@@ -3,7 +3,7 @@ const { inflateSync } = require('node:zlib');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { fetchAllowed, readLimited } = require('./runtime/source-network.cjs');
 const context = new AsyncLocalStorage();
-const fetch = (url, options = {}) => fetchAllowed(url, null, { ...options, signal: context.getStore() ? AbortSignal.any([context.getStore(), options.signal || AbortSignal.timeout(11000)]) : options.signal || AbortSignal.timeout(11000) });
+const fetch = (url,options={})=>{const signal=context.getStore();return fetchAllowed(url,null,{...options,stateDriven:signal?.zenixStateDriven===true,signal:signal?.zenixStateDriven?signal:signal?AbortSignal.any([signal,options.signal||AbortSignal.timeout(11000)]):options.signal||AbortSignal.timeout(11000)});};
 
 const PLATFORMS = { kw: '酷我', kg: '酷狗', tx: 'QQ 音乐', wy: '网易云', mg: '咪咕' };
 const MAX_INFO = 4096;

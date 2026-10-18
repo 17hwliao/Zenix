@@ -4,6 +4,8 @@ import type { PersonalState, SourceActivity } from '../core/types';
 export type RepeatMode = 'off' | 'all' | 'one';
 
 export interface TrackView {
+  playlistId?: string;
+  replacement?: import('../core/types').ReplacementState;
   searchAlternatives?: TrackView[];
   preferredPlaybackProviderId?: string;
   id: string;
