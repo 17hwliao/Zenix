@@ -3,8 +3,62 @@ require.extensions['.ts']=(module,file)=>module._compile(ts.transpileModule(fs.r
 const {detectPlaylist,readLinkedPlaylist}=require('../src/core/playlistLinks.ts');
 const {readInfo}=require('../electron/lx-catalog.cjs');
 const {createBundle,restoreTracks}=require('../electron/playlist-format.cjs');
+const {readTextPlaylist,readPlaylistFile}=require('../src/core/playlistFiles.ts');
 const response=(args,data)=>({url:args.url,status:200,text:JSON.stringify(data)});
 const qq=(id)=>({mid:'MID'+id,id,interval:185,title:'测试歌曲 '+id,singer:[{name:'测试歌手'}],album:{name:'专辑',mid:'ALBUM'},file:{media_mid:'MEDIA'+id}});
+
+test('text import recognizes numbered titles, singer brackets, labelled fields and explicit column order without damaging hyphenated names',()=>{
+  const result=readTextPlaylist('1. 如果的事 - 范玮琪、张韶涵\n2、像风一样-薛之谦\n王力宏《你不知道的事》\n歌名：Ditto 歌手：NewJeans\nAnti-Hero\n如果的事 - 范玮琪、张韶涵');
+  assert.deepEqual(result.lists[0].tracks.map(t=>[t.title,t.artist]),[['如果的事','范玮琪、张韶涵'],['像风一样','薛之谦'],['你不知道的事','王力宏'],['Ditto','NewJeans'],['Anti-Hero','']]);
+  assert.equal(result.duplicates,1);assert.equal(result.lists[0].autoReplacement,true);
+  const reversed=readTextPlaylist('薛之谦 - 像风一样\nNewJeans\tDitto','artist-first');assert.deepEqual(reversed.lists[0].tracks.map(t=>[t.title,t.artist]),[['像风一样','薛之谦'],['Ditto','NewJeans']]);
+  assert(result.lists[0].tracks.every(t=>t.source==='custom'&&t.providerId==='zenix.import:metadata'&&!t.audioUrl&&!t.path));
+});
+
+test('CSV and TSV headers take precedence, preserve quoted commas and report malformed rows',()=>{
+  const parsed=readTextPlaylist('\uFEFF歌手,歌名,专辑\nNewJeans,Ditto,OMG\nArtist,"Hello, world",Album\n"broken quote,track,album');
+  assert.deepEqual(parsed.lists[0].tracks.map(t=>[t.title,t.artist,t.album]),[['Ditto','NewJeans','OMG'],['Hello, world','Artist','Album']]);assert.equal(parsed.skipped,1);
+  const tsv=readTextPlaylist('artist\ttitle\talbum\n王力宏\t你不知道的事\t十八般武艺','title-first');assert.equal(tsv.lists[0].tracks[0].title,'你不知道的事');
+  const file=readPlaylistFile(new TextEncoder().encode('像风一样 - 薛之谦'),'清单.txt');assert.equal(file.lists[0].tracks[0].artist,'薛之谦');
+  assert.throws(()=>readPlaylistFile(Uint8Array.from([255,255]),'清单.txt'),/UTF-8/);assert.throws(()=>readPlaylistFile(new TextEncoder().encode('{}'),'脚本.json'),/文本歌单/);
+  assert.throws(()=>readTextPlaylist('歌曲\n'.repeat(5001)),/5000/);assert.throws(()=>readTextPlaylist('x'.repeat(2*1024*1024+1)),/2 MiB/);
+  assert.deepEqual(readTextPlaylist('title,artist\nName,Artist\n2.0,Other').lists[0].tracks.map(t=>t.title),['Name','2.0'],'song names resembling headers or numeric lists remain intact');
+});
+
+test('metadata imports survive portable exchange and use the real playlist search/three-candidate playback without writes before confirmation',async t=>{
+  const fsp=require('node:fs/promises'),folder=await fsp.mkdtemp(path.join(require('node:os').tmpdir(),'zenix-text-playlist-'));t.after(()=>fsp.rm(folder,{recursive:true,force:true}));
+  const {PersonalStore}=require('../electron/personal.cjs'),{Companion}=require('../electron/runtime/companion.cjs');
+  const store=new PersonalStore(folder);await store.load();await store.createPlaylist('原歌单');const before=store.snapshot();
+  const parsed=readTextPlaylist('如果的事 - 范玮琪、张韶涵\n像风一样 - 薛之谦');
+  const companion=new Companion({folder,personal:store,library:{snapshot:()=>({tracks:[]})},dialog:{},broadcast(){}});t.after(()=>companion.stop());
+  const pending=await companion.invoke({operation:'playlistPreview',bundle:{format:'zenix-playlist',schemaVersion:1,playlists:parsed.lists}});
+  assert.deepEqual(store.snapshot(),before);await companion.invoke({operation:'importConfirm',token:pending.pending.token});
+  const imported=store.snapshot().playlists[1];assert.equal(imported.autoReplacement,true);assert.deepEqual(store.snapshot().playlists[0],before.playlists[0]);
+  const reloaded=new PersonalStore(folder);await reloaded.load();assert.equal(reloaded.snapshot().playlists[1].autoReplacement,true);
+  const {resolveReplacement}=require('../src/core/desktopReplacement.ts');let requests=0,resolves=0;
+  const candidates=['a','b','c','d'].map(id=>({...imported.tracks[0],id,providerId:'source.fixture',remoteId:'remote-'+id}));
+  global.window={yzqxy:{personal:{load:async()=>store.snapshot(),batch:(args)=>store.batch(args)},sources:{list:async()=>[{id:'source.fixture',enabled:true,manifest:{capabilities:['search','resolvePlayback'],qualities:['high']}}],search:async(id,query)=>{requests++;assert.equal(query,'如果的事');return {items:candidates};},resolve:async()=>{resolves++;if(resolves<3)throw Error('HTTP 404');return {audioUrl:'fixture-audio'};},probe:async()=>true}}};t.after(()=>{delete global.window;});
+  const result=await resolveReplacement({...imported.tracks[0],playlistId:imported.id},[],()=>{},new AbortController().signal,()=>{throw Error('must search metadata');});
+  assert.equal(requests,1);assert.equal(resolves,3);assert.equal(result.audioUrl,'fixture-audio');assert.equal(result.id,imported.tracks[0].id);assert.equal(store.snapshot().playlists[1].tracks[0].replacement.attempts,3);
+  assert.deepEqual(store.snapshot().playlists[0],before.playlists[0]);
+  global.localStorage={getItem:()=> 'high'};t.after(()=>{delete global.localStorage;});
+  const {resolveOriginalTrack}=require('../src/core/sourcePlayback.ts');
+  const direct=await resolveOriginalTrack(imported.tracks[0],[],()=>{},new AbortController().signal);
+  assert.equal(direct.audioUrl,'fixture-audio');assert.equal(direct.id,imported.tracks[0].id,'metadata also plays outside its playlist without invented platform IDs');
+});
+
+test('Android text share inbox bounds untrusted input and protects new deliveries from stale consumers',async t=>{
+  const fsp=require('node:fs/promises'),os=require('node:os'),{promisify}=require('node:util'),{execFile}=require('node:child_process');
+  const folder=await fsp.mkdtemp(path.join(os.tmpdir(),'zenix-share-inbox-'));t.after(()=>fsp.rm(folder,{recursive:true,force:true}));
+  const stub=path.join(folder,'android/content');await fsp.mkdir(stub,{recursive:true});await fsp.writeFile(path.join(stub,'Intent.java'),'package android.content; public class Intent { public static final String ACTION_SEND="android.intent.action.SEND",EXTRA_TEXT="android.intent.extra.TEXT";private String action,type,text;public Intent(String action,String type,String text){this.action=action;this.type=type;this.text=text;}public String getAction(){return action;}public String getType(){return type;}public CharSequence getCharSequenceExtra(String key){return text;} }');
+  const home=process.env.JAVA_HOME||'C:/Program Files/Android/Android Studio/jbr',bin=name=>path.join(home,'bin',name+(process.platform==='win32'?'.exe':''));
+  const cached=path.join(os.homedir(),'.gradle/caches/modules-2/files-2.1/org.json/json/20250517');let jar;
+  try{for(const child of await fsp.readdir(cached)){const candidate=path.join(cached,child,'json-20250517.jar');try{await fsp.access(candidate);jar=candidate;break;}catch{}}}catch{}
+  if(!jar){jar=path.join(folder,'json.jar');const response=await fetch('https://repo.maven.apache.org/maven2/org/json/json/20250517/json-20250517.jar');assert(response.ok);await fsp.writeFile(jar,Buffer.from(await response.arrayBuffer()));}
+  const root=path.resolve(__dirname,'../android/app/src/main/java/com/zenix/musicplayer');
+  await promisify(execFile)(bin('javac'),['-cp',jar,'-d',folder,path.join(stub,'Intent.java'),path.join(root,'Json.java'),path.join(root,'PlaylistShareInbox.java'),path.join(__dirname,'fixtures/PlaylistShareCheck.java')],{timeout:30000,windowsHide:true});
+  const {stdout}=await promisify(execFile)(bin('java'),['-cp',folder+path.delimiter+jar,'com.zenix.musicplayer.PlaylistShareCheck'],{timeout:30000,windowsHide:true});assert.match(stdout,/PLAYLIST_SHARE_PASS/);
+});
 
 test('playlist detection handles share text, old/mobile/hash links and exact host boundaries',()=>{
   assert.equal(detectPlaylist('分享歌单：https://y.qq.com/n/ryqq/playlist/123。').id,'123');

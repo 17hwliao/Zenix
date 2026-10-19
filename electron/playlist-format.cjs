@@ -24,7 +24,7 @@ function validateBundle(value) {
     if (!list || !Array.isArray(list.tracks) || typeof list.name !== 'string' || !list.name.trim() || list.name.length > 100) throw Error('歌单名称或歌曲列表无效');
     total += list.tracks.length;
     if (total > MAX_TRACKS) throw Error('一次最多分享 5000 首歌曲');
-    return { name: list.name.trim(), tracks: list.tracks.map(portableTrack) };
+    return { name: list.name.trim(), tracks: list.tracks.map(portableTrack), ...(typeof list.autoReplacement === 'boolean' ? { autoReplacement: list.autoReplacement } : {}) };
   });
   const bundle = { format: 'zenix-playlist', schemaVersion: 1, playlists };
   if (Buffer.byteLength(JSON.stringify(bundle), 'utf8') > MAX_BYTES) throw Error('歌单文件不能超过 2 MiB');
@@ -40,7 +40,7 @@ function restoreTracks(bundle, localTracks) {
   const crypto = require('node:crypto');
   const key = track => `${track.title}\u0000${track.artist}\u0000${track.album || ''}`.normalize('NFKC').toLocaleLowerCase();
   const locals = new Map(localTracks.map(track => [key(track), track]));
-  return bundle.playlists.map(list => ({ name: list.name, tracks: list.tracks.map(track => {
+  return bundle.playlists.map(list => ({ name: list.name, ...(typeof list.autoReplacement === 'boolean' ? { autoReplacement: list.autoReplacement } : {}), tracks: list.tracks.map(track => {
     if (track.source === 'custom') return { ...track, path: '', audioUrl: '' };
     const local = locals.get(key(track));
     if (local && (!track.duration || !local.duration || Math.abs(track.duration - local.duration) <= 3)) return { ...local };

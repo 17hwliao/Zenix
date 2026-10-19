@@ -20,6 +20,32 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const StickerSpace = require('../src/mobile/StickerSpace.tsx').default;
 const { mergeMobileSnapshot } = require('../src/mobile/snapshot.ts');
 const { projectStickerLayout } = require('../src/mobile/stickerMotion.ts');
+const { StickerCameraGesture,MIN_STICKER_SCALE,MAX_STICKER_SCALE } = require('../src/mobile/stickerCamera.ts');
+
+test('sticker pinch keeps the touched world point under its midpoint and clamps zoom',()=>{
+  const gesture=new StickerCameraGesture(),camera={x:-120,y:-180,scale:1},bounds={left:-1000,top:-1000,right:1000,bottom:1000},size={width:390,height:700};
+  gesture.down(1,{x:100,y:100},camera);gesture.down(2,{x:200,y:100},camera);
+  const enlarged=gesture.move(2,{x:300,y:100},bounds,size);
+  assert.equal(enlarged.scale,2);assert.equal((200-enlarged.x)/enlarged.scale,(150-camera.x)/camera.scale);assert.equal((100-enlarged.y)/enlarged.scale,(100-camera.y)/camera.scale);
+  assert.equal(gesture.move(2,{x:1000,y:100},bounds,size).scale,MAX_STICKER_SCALE);
+  assert.equal(gesture.move(2,{x:105,y:100},bounds,size).scale,MIN_STICKER_SCALE);
+  assert.equal(gesture.down(3,{x:180,y:100},enlarged),false);assert.equal(gesture.count,2,'third finger cannot rebase an active pinch');
+});
+
+test('lifting one pinch finger rebases dragging without a jump; cancellation clears active pointers',()=>{
+  const gesture=new StickerCameraGesture(),bounds={left:-1000,top:-1000,right:1000,bottom:1000},size={width:390,height:700};
+  gesture.down(1,{x:100,y:100},{x:0,y:0,scale:1});gesture.down(2,{x:200,y:100},{x:0,y:0,scale:1});
+  const enlarged=gesture.move(2,{x:250,y:100},bounds,size);gesture.up(2,enlarged);
+  const dragged=gesture.move(1,{x:111,y:106},bounds,size);assert.equal(dragged.x,enlarged.x+11);assert.equal(dragged.y,enlarged.y+6);assert.equal(dragged.scale,enlarged.scale);
+  gesture.cancel();assert.equal(gesture.count,0);assert.equal(gesture.move(1,{x:400,y:400},bounds,size),undefined);
+  gesture.down(4,{x:100,y:100},dragged);assert.equal(gesture.move(4,{x:105,y:102},bounds,size),undefined,'fresh taps keep their drag threshold');
+});
+
+test('an edge poster centered by focus can begin panning back into bounds continuously',()=>{
+  const gesture=new StickerCameraGesture();gesture.down(1,{x:100,y:100},{x:0,y:0,scale:1});
+  const moved=gesture.move(1,{x:109,y:110},{left:0,top:0,right:100,bottom:100},{width:390,height:700});
+  assert.equal(moved.x,9);assert.equal(moved.y,10,'first pan frame must not jump to the overall mosaic center');
+});
 
 test('Android real source host supports Buffer checks on JSON responses and encoded buffers', async () => {
   const vm = require('node:vm'), results=[];

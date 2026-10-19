@@ -181,3 +181,16 @@ export async function readLinkedPlaylist(input: string, transport: PlaylistReque
   if (!tracks.length) throw Error(total === 0 ? '这是一个空歌单，没有可导入的歌曲' : '未取得可导入的曲目信息，请检查歌单是否公开');
   return { platform: target.platform, url: target.url, name: name || `${playlistPlatforms[target.platform]}导入歌单`, total, tracks, duplicates, skipped, warnings, complete };
 }
+
+// Metadata-only imports are resolved through the user's own enabled music sources.
+export function metadataTrack(title: string, artist = '', album = ''): Track {
+  const info = { name: clean(title), singer: clean(artist), albumName: clean(album) };
+  if (!info.name) throw Error('歌曲名称不能为空');
+  const remoteId = encodeInfo(info);
+  return { id: `import:${remoteId}`, title: info.name, artist: info.singer, album: info.albumName, duration: 0, source: 'custom', providerId: 'zenix.import:metadata', remoteId, path: '', audioUrl: '' };
+}
+export function matchesImportedMetadata(original: Track, candidate: Track): boolean {
+  const normalized = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+  return original.providerId === 'zenix.import:metadata' && normalized(original.title) === normalized(candidate.title)
+    && (!original.artist || normalized(original.artist) === normalized(candidate.artist));
+}

@@ -301,6 +301,7 @@ final class MusicSources implements AutoCloseable {
     static boolean sameRecordingMetadata(JSONObject original,JSONObject candidate){
         String title=recordingText(original.optString("title")),artist=recordingText(original.optString("artist")),album=recordingText(original.optString("album")),otherAlbum=recordingText(candidate.optString("album"));
         double duration=original.optDouble("duration",0),otherDuration=candidate.optDouble("duration",0);
+        if(original.optString("providerId").equals("zenix.import:metadata"))return !title.isEmpty()&&title.equals(recordingText(candidate.optString("title")))&&(artist.isEmpty()||artist.equals(recordingText(candidate.optString("artist"))));
         return !title.isEmpty()&&!artist.isEmpty()&&title.equals(recordingText(candidate.optString("title")))&&artist.equals(recordingText(candidate.optString("artist")))
             &&(album.isEmpty()||otherAlbum.isEmpty()||album.equals(otherAlbum))&&Double.isFinite(duration)&&Double.isFinite(otherDuration)&&duration>0&&otherDuration>0&&Math.abs(duration-otherDuration)<=3;
     }

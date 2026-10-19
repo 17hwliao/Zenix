@@ -116,6 +116,15 @@ app.whenReady().then(async()=>{
   await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='导入为新歌单').click()`);
   await wait('window.fixture.state.personal.playlists.some(list=>list.name==="平台导入测试"&&list.tracks.length===2)');
   await wait('!document.querySelector(".playlist-link-preview")');await screenshot('mobile-playlist-links.png');
+    await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='粘贴文本').click()`);
+    await evaluate(`(()=>{const input=document.querySelector('.playlist-link-import textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'1. 如果的事 - 范玮琪、张韶涵\\nNewJeans《Ditto》');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='解析歌单').click()`);
+    await wait(`document.querySelector('.playlist-link-preview')?.textContent.includes('2 首可导入')`);
+    assert.equal(await evaluate('document.querySelector(".playlist-link-preview li").textContent.includes("如果的事")'),true);
+    assert.equal(await evaluate('document.querySelector(".playlist-link-preview .playlist-partial input").checked'),true,'metadata import defaults to automatic search playback');
+    for(const width of [320,430,1000]){window.setContentSize(width,820);await sleep(50);assert.equal(await evaluate('document.querySelector(".zenix-tools-body").scrollWidth<=document.querySelector(".zenix-tools-body").clientWidth+1'),true,'text import fits viewport '+width);}
+    window.setContentSize(390,820);await evaluate(`[...document.querySelectorAll('.playlist-link-import button')].find(el=>el.textContent==='导入为新歌单').click()`);
+    await wait('window.fixture.state.personal.playlists.some(list=>list.name==="文本导入歌单"&&list.autoReplacement&&list.tracks.length===2)');
   await click('[aria-label="关闭音乐工具"]');
   await evaluate(`window.fixture.setSnapshot({personal:${JSON.stringify(settingsPersonal)}})`);
   await evaluate('[...document.querySelectorAll(".settings-card button")].find(el=>el.textContent.includes("管理音乐源")).click()');await wait('!!document.querySelector(".source-priority")');
@@ -156,6 +165,30 @@ app.whenReady().then(async()=>{
   await pointer('.mini-info');await sleep(400);await wait('!!document.querySelector(".space-sticker")');await sleep(1000);
   const dimensions=await evaluate('Object.fromEntries([...document.querySelectorAll(".space-sticker")].map(e=>[e.dataset.songId,{w:e.style.width,h:e.style.height}]))');
   const controlsBefore=await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length');
+  // Dispatch real Chromium multi-touch input so pointer capture and generated
+  // click/long-press events are exercised, rather than synthesizing React calls.
+  const pinch=await evaluate(`(()=>{const p=document.querySelector('.is-focused .space-poster').getBoundingClientRect(),v=document.querySelector('.space-viewport').getBoundingClientRect(),m=new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.space-plane')).transform);return{x:p.x+p.width/2,y:Math.max(v.top+28,p.y+Math.min(60,p.height/4)),left:v.left,top:v.top,focus:document.querySelector('.is-focused').dataset.songId,camera:{x:m.m41,y:m.m42,scale:m.m11}};})()`);
+  await window.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});
+  const touch=(type,points)=>window.webContents.debugger.sendCommand('Input.dispatchTouchEvent',{type,touchPoints:points.map(([id,x,y])=>({id,x,y,radiusX:3,radiusY:3,force:1}))});
+  await touch('touchStart',[[1,pinch.x-25,pinch.y]]);await touch('touchStart',[[1,pinch.x-25,pinch.y],[2,pinch.x+25,pinch.y]]);await sleep(520);
+  assert.equal(await evaluate('!!document.querySelector(".song-quick-actions")'),false,'second finger cancels the poster long-press');
+  for(let step=1;step<=4;step++){const half=25+step*4;await touch('touchMove',[[1,pinch.x-half,pinch.y],[2,pinch.x+half,pinch.y]]);await sleep(25);}
+  await sleep(100);
+  const zoomed=await evaluate(`(()=>{const m=new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.space-plane')).transform);return{x:m.m41,y:m.m42,scale:m.m11};})()`);
+  assert(zoomed.scale>1.5&&zoomed.scale<1.8,'spread fingers enlarges the sticker plane');
+  const worldBefore=(pinch.x-pinch.left-pinch.camera.x)/pinch.camera.scale,worldAfter=(pinch.x-pinch.left-zoomed.x)/zoomed.scale;
+  assert(Math.abs(worldBefore-worldAfter)<2,'pinch midpoint keeps the same world point');
+  await touch('touchEnd',[[1,pinch.x-41,pinch.y]]);await touch('touchMove',[[1,pinch.x-31,pinch.y+5]]);await sleep(70);
+  const afterLift=await evaluate(`(()=>{const m=new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.space-plane')).transform);return{x:m.m41,y:m.m42,scale:m.m11};})()`);
+  assert(Math.abs(afterLift.scale-zoomed.scale)<.01&&Math.hypot(afterLift.x-zoomed.x,afterLift.y-zoomed.y)<20,'one-finger continuation keeps zoom without jumping');
+  await touch('touchEnd',[]);await sleep(80);
+  assert.equal(await evaluate('document.querySelector(".is-focused").dataset.songId'),pinch.focus,'pinch does not focus a different song');
+  assert.equal(await evaluate('!!document.querySelector(".mobile-full-player,.song-quick-actions")'),false,'pinch cannot open the player or a song menu');
+  assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),controlsBefore,'pinch never changes playback');
+  await touch('touchStart',[[1,pinch.x-25,pinch.y]]);await touch('touchStart',[[1,pinch.x-25,pinch.y],[2,pinch.x+25,pinch.y]]);
+  await touch('touchMove',[[1,pinch.x-25/afterLift.scale,pinch.y],[2,pinch.x+25/afterLift.scale,pinch.y]]);await touch('touchEnd',[]);await sleep(120);
+  assert(Math.abs(await evaluate('new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".space-plane")).transform).m11')-1)<.03,'pinching fingers together shrinks the plane');
+  await window.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled',{enabled:false});
   await evaluate('[...document.querySelectorAll(".space-sticker")].find(e=>!e.classList.contains("is-current")).querySelector(".space-poster").click()');await sleep(500);
   assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","roamingPlay"].includes(c.action)).length'),controlsBefore);
   const afterDimensions=await evaluate('Object.fromEntries([...document.querySelectorAll(".space-sticker")].map(e=>[e.dataset.songId,{w:e.style.width,h:e.style.height}]))');

@@ -2,6 +2,7 @@ import {resolveReplacement} from './desktopReplacement';
 import type { Track, InstalledSource, SourceProgress } from './types';
 import { sourceDeadline, sourceRequest } from './sourceDeadline';
 import { sameRecordingMetadata } from './searchGroups';
+import { matchesImportedMetadata } from './playlistLinks';
 
 type QualityTier = 'lossless24' | 'lossless' | 'high' | 'standard';
 
@@ -104,7 +105,7 @@ export async function resolveOriginalTrack(track: Track, failedAttempts: readonl
     try {
       notify('switching', '正在寻找同一首歌的备用资源');
       const page = await sourceRequest(requestId => bridge.search(source.id, track.title, null, 50, requestId,true), signal, 0);
-      const matches = page.items.filter(candidate => sameRecordingMetadata(track, candidate))
+      const matches = page.items.filter(candidate => sameRecordingMetadata(track, candidate) || matchesImportedMetadata(track, candidate))
         .sort((left, right) => Math.abs(left.duration - track.duration) - Math.abs(right.duration - track.duration));
       for (const candidate of matches.slice(0, 2)) {
         if (unavailable) break;

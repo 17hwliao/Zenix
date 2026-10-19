@@ -7,6 +7,7 @@ export function useSongGesture(onLongPress?: () => void, onSwipe?: () => void, d
   const hold = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), consumed = useRef(false);
   const cancelHold = () => clearTimeout(hold.current);
   useEffect(() => () => { clearTimeout(hold.current); }, []);
+  useEffect(()=>{if(disabled){cancelHold();gesture.current=null;consumed.current=true;setOffset(0);}},[disabled]);
   const release = (event: ReactPointerEvent<HTMLElement>) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); };
   return {
     offset,
@@ -15,7 +16,7 @@ export function useSongGesture(onLongPress?: () => void, onSwipe?: () => void, d
         if (event.button !== 0 || !event.isPrimary || callbacks.current.disabled || (event.target as Element).closest('.track-actions,.swipe-delete,input')) return;
         cancelHold(); consumed.current = false;
         gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now(), dx: 0, horizontal: false, moved: false };
-        if (callbacks.current.onLongPress) hold.current = setTimeout(() => { if (gesture.current && !gesture.current.moved) { consumed.current = true; callbacks.current.onLongPress?.(); } }, 450);
+        if (callbacks.current.onLongPress) hold.current = setTimeout(() => { if (!callbacks.current.disabled && gesture.current && !gesture.current.moved) { consumed.current = true; callbacks.current.onLongPress?.(); } }, 450);
       },
       onPointerMove: (event: ReactPointerEvent<HTMLElement>) => {
         const value = gesture.current; if (!value || value.id !== event.pointerId) return;

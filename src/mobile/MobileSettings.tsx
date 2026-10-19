@@ -26,7 +26,7 @@ const entries:Entry[]=[
   {title:'歌词校正与显示',category:'歌词',description:'校正当前歌曲时间、字号、行距与翻译',keywords:'歌词 偏移 时间 字重 翻译',key:'lyrics',target:'lyric-display'},
   {title:'悬浮歌词',category:'歌词',description:'跨应用歌词、字体、颜色和布局',keywords:'歌词 授权 锁定 字号',key:'lyrics',target:'overlay',overlay:true},
   {title:'背景与外观',category:'外观',description:'图片、动态视频和首页卡片透明度',keywords:'主题 壁纸 背景 卡片',key:'appearance',target:'appearance'},
-  {title:'歌单分享与迁移',category:'资料与更新',description:'QQ、网易云、酷我歌单链接、歌单文件与局域网迁移',keywords:'转移 歌单 导出 导入 平台 分享 LAN IP',key:'data',target:'tools'},
+  {title:'歌单分享与迁移',category:'资料与更新',description:'QQ、网易云、酷我歌单链接、文本导入、歌单文件与局域网迁移',keywords:'转移 歌单 导出 导入 平台 分享 LAN IP',key:'data',target:'tools'},
   {title:'听歌统计与回忆',category:'资料与更新',description:'聆听时长和音乐回忆卡',keywords:'回忆卡 统计 排行 记录',key:'data',target:'tools'},
   {title:'资料备份与恢复',category:'资料与更新',description:'备份喜欢、收藏、歌单等资料',keywords:'数据 迁移 备份 恢复',key:'data',target:'backup',android:true},
   {title:'应用更新',category:'资料与更新',description:'检查更新、自动下载和安装',keywords:'版本 更新 升级 正式 预览',key:'data',target:'updates'},

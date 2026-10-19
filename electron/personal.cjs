@@ -184,7 +184,7 @@ class PersonalStore {
       const base = list.name; let name = base, index = 1;
       while ([...this.data.playlists, ...imported].some(item => item.name.toLocaleLowerCase() === name.toLocaleLowerCase())) name = `${base.slice(0, 85)}（导入 ${index++}）`;
       const seen = new Set();
-      imported.push({ id: randomUUID(), name, tracks: list.tracks.map(cleanTrack).filter(track => track && !seen.has(track.id) && seen.add(track.id)) });
+      imported.push({ id: randomUUID(), name, tracks: list.tracks.map(cleanTrack).filter(track => track && !seen.has(track.id) && seen.add(track.id)), ...(typeof list.autoReplacement === 'boolean' ? { autoReplacement: list.autoReplacement } : {}) });
     }
     this.data.playlists.push(...imported);
     try { return await this.save(); } catch(error) { const ids=new Set(imported.map(list=>list.id));this.data.playlists=this.data.playlists.filter(list=>!ids.has(list.id));throw error; }

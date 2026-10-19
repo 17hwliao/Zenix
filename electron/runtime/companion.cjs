@@ -23,6 +23,12 @@ class Companion {
     switch(args.operation) {
       case 'playlistRequest': return require('./playlist-http.cjs').playlistRequest(args);
       case 'playlistPreview': return this.preview(require('../playlist-format.cjs').validateBundle(args.bundle));
+      case 'playlistReadFile': {
+        const result = await this.dialog.showOpenDialog(this.getWindow(), { title: '导入文本歌单', properties: ['openFile'], filters: [{ name: '文本歌单', extensions: ['txt', 'csv', 'tsv'] }] });
+        if (result.canceled || !result.filePaths?.[0]) return null;
+        const file = result.filePaths[0];
+        return { name: require('node:path').basename(file), base64: (await readBoundedFile(file, MAX_BYTES)).toString('base64') };
+      }
       case 'exportFile': {
         const bundle = this.bundle(args.ids); const result = await this.dialog.showSaveDialog(this.getWindow(), { title: '导出 Zenix 歌单', defaultPath: `${bundle.playlists.length===1 ? bundle.playlists[0].name.replace(/[\\/:*?"<>|]/g,'_') : 'Zenix-歌单'}.zenixlist`, filters: [{name:'Zenix 歌单',extensions:['zenixlist']}] });
         if (result.canceled || !result.filePath) return false; await fs.writeFile(result.filePath, JSON.stringify(bundle), 'utf8'); return true;

@@ -2,6 +2,7 @@ package com.zenix.musicplayer;
 
 import com.getcapacitor.BridgeActivity;
 import android.os.Bundle;
+import android.content.Intent;
 import android.os.Build;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -75,5 +76,12 @@ public class MainActivity extends BridgeActivity {
         ViewCompat.requestApplyInsets(content);
         new WindowInsetsControllerCompat(getWindow(),getWindow().getDecorView()).setAppearanceLightStatusBars(false);
         getOnBackPressedDispatcher().addCallback(this,new OnBackPressedCallback(true){@Override public void handleOnBackPressed(){if(bridge!=null)bridge.getWebView().evaluateJavascript("document.dispatchEvent(new Event('zenix-back'))",null);}});
+    }
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);setIntent(intent);
+        if(PlaylistShareInbox.receive(intent)){
+            setIntent(new Intent(this,MainActivity.class).setAction(Intent.ACTION_MAIN));
+            if(bridge!=null)bridge.getWebView().post(()->bridge.getWebView().evaluateJavascript("window.dispatchEvent(new Event('zenix-playlist-share'))",null));
+        }
     }
 }

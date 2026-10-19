@@ -10,6 +10,7 @@ public class PlaylistContractCheck {
     public static void main(String[] args)throws Exception{
         String wire=Files.readString(Path.of(args[0])),code=args[1],nodeAddress=args[2];JSONObject bundle=PlaylistExchange.decode(PlaylistLan.unseal(wire,code));
         if(!bundle.getJSONArray("playlists").getJSONObject(0).getString("name").equals("测试歌单"))throw new Exception("UTF-8 exchange failed");
+        if(!bundle.getJSONArray("playlists").getJSONObject(0).optBoolean("autoReplacement")||!PlaylistExchange.restore(bundle,new JSONArray()).getJSONObject(0).optBoolean("autoReplacement"))throw new Exception("Automatic import policy lost");
         if(bundle.toString().contains("fixture-secret")||bundle.toString().contains("C:\\private"))throw new Exception("Unsafe fields leaked");
         PlaylistLan sender=new PlaylistLan(value->{});boolean rejected=false;try{sender.send(nodeAddress,"ffffffffffffffff",bundle);}catch(Exception expected){rejected=true;}if(!rejected)throw new Exception("Wrong code accepted");sender.send(nodeAddress,code,bundle);sender.close();
         CountDownLatch received=new CountDownLatch(1);PlaylistLan receiver=new PlaylistLan(value->{if(value.toString().equals(bundle.toString()))received.countDown();});JSONObject state=receiver.start();

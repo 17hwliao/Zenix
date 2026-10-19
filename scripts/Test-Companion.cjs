@@ -8,7 +8,7 @@ const {ListeningStore}=require('../electron/runtime/listening-store.cjs');
 const {ListeningTracker}=require('../src/core/listeningTracker.ts');
 const {Companion}=require('../electron/runtime/companion.cjs');
 const song={id:'source:fixture:1',source:'custom',remoteId:'catalog-fixture-1',providerId:'fixture-source',title:'星空 / Fixture',artist:'合成测试',album:'测试专辑',duration:90,path:'C:\\private\\music.wav',audioUrl:'https://example.com/audio?secret=fixture-secret',coverUrl:'file:///private',headers:{Authorization:'fixture-secret'}};
-const bundle=()=>createBundle([{name:'测试歌单',tracks:[song,{...song,id:'local-fixture',source:'local',title:'本地 Fixture'}]}]);
+const bundle=()=>createBundle([{name:'测试歌单',autoReplacement:true,tracks:[song,{...song,id:'local-fixture',source:'local',title:'本地 Fixture'}]}]);
 async function temporary(t){const folder=await fsp.mkdtemp(path.join(os.tmpdir(),'zenix-companion-'));t.after(()=>fsp.rm(folder,{recursive:true,force:true}));return folder;}
 test('playlist file exchange preserves order and identifiers, strips private fields, rejects invalid/oversize input',()=>{
   const text=JSON.stringify(bundle());assert(!text.includes('fixture-secret'));assert(!text.includes('private'));assert(!text.includes('audioUrl'));assert.equal(decodeBundle(text).playlists[0].tracks[0].remoteId,song.remoteId);
