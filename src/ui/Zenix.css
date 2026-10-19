@@ -43,13 +43,13 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
 .yz-grain { position: absolute; inset: -12%; z-index: -1; pointer-events: none; opacity: .035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 
 .yz-page { position: absolute; inset: 0; }
-.yz-window-controls-zone { position: fixed; z-index: 90; top: 0; right: 0; width: 178px; height: 36px; -webkit-app-region: no-drag; }
+.yz-window-controls-zone { position: fixed; z-index: 20001; top: 0; right: 0; width: 178px; height: 36px; -webkit-app-region: no-drag; }
 .yz-window-controls { position: absolute; z-index: 90; top: 3px; right: 12px; display: flex; align-items: center; width: 150px; height: 29px; gap: 2px; padding: 2px 3px; overflow: hidden; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: rgba(35,39,47,.28); box-shadow: 0 3px 12px rgba(0,0,0,.12); backdrop-filter: blur(22px) saturate(120%); -webkit-backdrop-filter: blur(22px) saturate(120%); opacity: 0; pointer-events: none; transform: translateY(-5px); transition: opacity .2s ease, transform .24s ease; }
 .yz-window-controls.is-revealed, .yz-window-controls:focus-within { opacity: 1; pointer-events: auto; transform: translateY(0); }
 .yz-window-controls button { position: relative; flex: 1; height: 23px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,.9); display: grid; place-items: center; transition: background .18s ease, color .18s ease; }
 .yz-window-controls button:hover, .yz-window-controls button:focus-visible { background: rgba(255,255,255,.16); color: #fff; }
 .yz-window-controls button:last-child:hover, .yz-window-controls button:last-child:focus-visible { background: rgba(185,62,70,.32); }
-.yz-titlebar-drag { position: fixed; z-index: 80; top: 0; left: 0; right: 178px; height: 32px; -webkit-app-region: drag; }
+.yz-titlebar-drag { position: fixed; z-index: 20000; top: 0; left: 0; right: 178px; height: 32px; -webkit-app-region: drag; }
 .yz-window-controls, .yz-window-controls button, .yz-header button, .yz-header input, .yz-lattice-back, .yz-lattice-settings { -webkit-app-region: no-drag; }
 /* The hover wrappers must not mask the titlebar drag strip above the actual controls. */
 .yz-home-search-dock { position: absolute; z-index: 85; top: 0; left: 50%; display: flex; align-items: center; width: min(440px, calc(100% - 360px)); height: 76px; transform: translateX(-50%); }
@@ -515,3 +515,9 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
 .yz-roaming-strip{position:fixed;left:50%;bottom:132px;transform:translateX(-50%);z-index:28;max-width:min(660px,calc(100vw - 150px));display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid #ffffff29;border-radius:999px;background:#1b202680;backdrop-filter:blur(18px);color:#edf1f6;font-size:12px;box-shadow:0 4px 16px #0002}
 .yz-roaming-strip>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.yz-roaming-strip>svg{flex-shrink:0}.yz-roaming-strip>button{min-height:30px;padding:4px 10px;border-radius:999px;white-space:nowrap;background:#ffffff12}.yz-roaming-strip>button:disabled{opacity:.5}.yz-roaming-spin{animation:yz-roaming-turn 1s linear infinite}@keyframes yz-roaming-turn{to{transform:rotate(360deg)}}
 .zenix-home-top>div{display:flex;align-items:center;gap:10px}.zenix-home-top button.zenix-home-roaming{background:#22283180;color:#f5f6fa;border:1px solid #ffffff36;backdrop-filter:blur(14px)}
+
+/* Error copy scrolls independently; dismiss actions remain reachable. */
+.yz-playback-error{box-sizing:border-box;max-height:calc(100dvh - 100px)}
+.yz-playback-error>div:first-child,.yz-runtime-notice>span{min-width:0;max-height:40vh;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap}
+.yz-playback-error-actions{flex-wrap:wrap}.yz-runtime-notice{display:flex;align-items:flex-start;gap:12px;box-sizing:border-box;cursor:default;pointer-events:auto}
+.yz-runtime-notice>button{flex:none;display:grid;place-items:center;width:36px;height:36px;border:1px solid #ffffff26;border-radius:50%;background:#ffffff0d;color:inherit;cursor:pointer;-webkit-app-region:no-drag}

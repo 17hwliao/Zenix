@@ -261,3 +261,49 @@ test('existing large desktop queues can move, shrink and undo without restarting
     assert.throws(()=>player.editQueue('restore',{tracks:before,expected:songs.map(song=>song.id)}),/已变化/);
   }finally{audio.removeEventListener('play',started);player.setQueue([]);}
 });
+
+
+test('automatic replacement skips unavailable queue entries once and stops when the whole queue fails',async()=>{
+ const calls=[];const songs=['auto-a','auto-b','auto-c'].map(id=>track(id,{source:'custom',audioUrl:'',playlistId:'fixture-list'}));
+ player.setShuffle(false);player.setRepeat('all');
+ player.setTrackResolver(async song=>{calls.push(song.id);if(song.id!=='auto-c')throw Object.assign(Error('3 candidates failed'),{code:'AUTOMATIC_REPLACEMENT_UNAVAILABLE'});return{...song,audioUrl:'file://fixture.wav'};});
+ player.setQueue(songs);await player.play();for(let i=0;i<20&&!player.snapshot.playing;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(calls,['auto-a','auto-b','auto-c']);assert.equal(player.snapshot.track.id,'auto-c');assert.equal(player.snapshot.playing,true);
+ player.pause();calls.length=0;player.setTrackResolver(async song=>{calls.push(song.id);throw Object.assign(Error('3 candidates failed'),{code:'AUTOMATIC_REPLACEMENT_UNAVAILABLE'});});
+ player.setQueue(songs);await player.play();for(let i=0;i<20&&!player.snapshot.error;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(calls,['auto-a','auto-b','auto-c']);assert.equal(player.snapshot.playing,false);assert.match(player.snapshot.error,/没有可播放/);await new Promise(resolve=>setImmediate(resolve));assert.equal(calls.length,3,'repeat-all must not loop through failing songs forever');
+ player.setTrackResolver(undefined);player.setQueue([]);
+});
+
+
+test('roaming replay window retains exactly three prior heard songs and preserves the forward sequence',()=>{
+ const {RoamingHistory}=require('../src/core/roamingHistory.ts'),history=new RoamingHistory();assert.equal(history.previous(''),undefined);
+ for(let i=1;i<=5;i++){history.record(track('heard-'+i));assert.equal(history.before('heard-'+i).length,Math.min(3,i-1));}
+ assert.deepEqual(history.before('heard-5').map(song=>song.id),['heard-2','heard-3','heard-4']);
+ for(let i=4;i>=2;i--){const previous=history.previous('heard-'+(i+1));assert.equal(previous.id,'heard-'+i);history.record(previous);}
+ assert.equal(history.previous('heard-2'),undefined);assert.equal(history.has('heard-1'),false);
+ for(let i=3;i<=5;i++){const next=history.next('heard-'+(i-1));assert.equal(next.id,'heard-'+i);history.record(next);}
+ assert.equal(history.next('heard-5'),undefined);history.record(track('heard-6'));assert.deepEqual(history.before('heard-6').map(song=>song.id),['heard-3','heard-4','heard-5']);
+ assert.equal(history.previous('pending-unheard').id,'heard-6');history.clear();assert.equal(history.previous(''),undefined);
+});
+
+test('production desktop roaming previous replays heard tracks without restarting recommendations or leaving roaming',async()=>{
+ const vm=require('node:vm'),ts=require('typescript'),engine=require('../electron/roaming-engine.cjs'),{RoamingHistory}=require('../src/core/roamingHistory.ts');
+ const candidates=Array.from({length:30},(_,i)=>track('roam-'+i,{title:'漫游歌曲 '+i,artist:'漫游歌手',duration:120})),lifecycle=new Set(),updates=new Set(),seen=new Set();
+ let navigation,resumeHandler;const fake={snapshot:{repeat:'all',playing:false,position:0,duration:120,queue:[],queueIndex:-1},subscribeLifecycle(fn){lifecycle.add(fn);return()=>lifecycle.delete(fn);},subscribe(fn){updates.add(fn);return()=>updates.delete(fn);},setNavigationHandler(fn){navigation=fn;},setResumeHandler(fn){resumeHandler=fn;},setRepeat(value){this.snapshot.repeat=value;},pause(internal){this.snapshot.playing=false;for(const fn of lifecycle)fn({type:internal?'pause':'pause-request',track:this.snapshot.track});},retainCurrentTrack(){this.snapshot.queue=this.snapshot.track?[this.snapshot.track]:[];},syncRoamingQueue(upcoming,previous=[]){const current=this.snapshot.track,ids=new Set([...previous.map(s=>s.id),current?.id]);this.snapshot.queue=current?[...previous,current,...upcoming.filter(s=>!ids.has(s.id))]:upcoming;this.snapshot.queueIndex=previous.length;},async playTrack(song,queue,origin){assert.equal(origin,'roaming');this.snapshot={...this.snapshot,track:song,queue,playing:true,error:undefined};for(const fn of lifecycle)fn({type:'audible',track:song});for(const fn of updates)fn(this.snapshot);},async play(){this.snapshot.playing=true;},toggle(){this.snapshot.playing=!this.snapshot.playing;}};
+ class Ledger {async load(){return engine.createState();}async save(state){Object.keys(state.seen).forEach(id=>seen.add(id));}async unseen(rows){return rows.filter(s=>!seen.has(engine.identity(s)));}}
+ const module={exports:{}},file=path.resolve(__dirname,'../src/core/roaming.ts'),compiled=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ let searchPages=0;const sources={list:async()=>[{id:'fixture',enabled:true,manifest:{capabilities:['search']}}],search:async()=>({items:candidates,nextCursor:searchPages++===0?'page2':null})};
+ vm.runInNewContext(compiled,{module,exports:module.exports,require:name=>{if(name==='./player')return{player:fake};if(name==='./roamingHistory')return{RoamingHistory};if(name==='./roamingStore')return{RoamingStore:Ledger};if(name==='./roamingEngine')return engine;if(name==='./sourceDeadline')return{sourceDeadline:async op=>op(),sourceRequest:async(op,signal)=>{signal.throwIfAborted();return op('fixture');}};throw Error(name);},window:{yzqxy:{sources}},performance,AbortController,Set,Map,console},{filename:file});
+ const roaming=module.exports.roaming,disconnect=roaming.connect();
+ try{roaming.setPersonal({liked:[track('seed',{title:'种子',artist:'漫游歌手'})],favorites:[],history:[],playlists:[]});await roaming.start();await new Promise(resolve=>setImmediate(resolve));const heard=[fake.snapshot.track.id];
+ for(let i=0;i<4;i++){await navigation('next');await new Promise(resolve=>setImmediate(resolve));heard.push(fake.snapshot.track.id);}assert.equal(new Set(heard).size,5);assert.deepEqual(fake.snapshot.queue.slice(0,fake.snapshot.queueIndex).map(s=>s.id),heard.slice(1,4));const discovered=roaming.snapshot.discovered;
+ for(let i=3;i>=1;i--){await navigation('previous');assert.equal(fake.snapshot.track.id,heard[i]);assert.equal(roaming.snapshot.active,true);}
+ await navigation('previous');assert.equal(fake.snapshot.track.id,heard[1],'first retained song stays playing');
+ for(let i=2;i<5;i++){await navigation('next');assert.equal(fake.snapshot.track.id,heard[i]);}assert.equal(roaming.snapshot.discovered,discovered,'replays are not new recommendations');assert.equal(fake.snapshot.repeat,'all','replay does not change the ordinary repeat preference');
+ const beforeFailure=fake.snapshot.track.id,playTrack=fake.playTrack.bind(fake);let failedId='';
+ fake.playTrack=async(song,queue,origin)=>{if(!failedId){failedId=song.id;fake.snapshot={...fake.snapshot,track:song,queue,playing:false,error:'explicit source failure'};for(const fn of lifecycle)fn({type:'failure',track:song});return;}return playTrack(song,queue,origin);};
+ await navigation('next');for(let i=0;i<20&&!fake.snapshot.playing;i++)await new Promise(resolve=>setImmediate(resolve));assert.notEqual(fake.snapshot.track.id,failedId);const replayContext={heard,beforeFailure,failedId,current:fake.snapshot.track.id,queue:fake.snapshot.queue.map(s=>s.id),index:fake.snapshot.queueIndex,phase:roaming.snapshot.phase};await navigation('previous');assert.equal(fake.snapshot.track.id,beforeFailure,'a song that failed before audible playback never occupies the replay window: '+JSON.stringify(replayContext));
+
+ }finally{disconnect();}
+});

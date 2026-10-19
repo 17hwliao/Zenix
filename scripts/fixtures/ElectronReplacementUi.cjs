@@ -4,7 +4,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const window=new BrowserWindow({show:false,width:1000,height:800,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}});
  const evaluate=code=>window.webContents.executeJavaScript(code,true),wait=async code=>{for(let n=0;n<100;n++){if(await evaluate(code))return;await sleep(40);}throw Error('UI timeout '+code);},click=async selector=>{await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await sleep(80);};
- await window.loadURL(process.env.ZENIX_TEST_UI_URL);await wait('!!document.querySelector(".platform-replacement")');await click('.platform-replacement summary');
+ await window.loadURL(process.env.ZENIX_TEST_UI_URL);await wait('!!document.querySelector(".platform-replacement")');await evaluate(`document.querySelector('.platform-replacement').open=true;document.querySelector('.replacement-manual').open=true`);
  await click('.replacement-policy input');await wait('window.replacementFixture.state.playlists[0].autoReplacement===true');
  await click('.replacement-buttons button');await wait('document.querySelector(".replacement-row em")?.textContent.includes("需要选择")');assert.equal(await evaluate('window.replacementFixture.state.playlists[0].tracks[0].replacement.attempts'),0);
  await evaluate('[...document.querySelectorAll("button")].find(button=>button.textContent.includes("查看／选择版本")).click()');await wait('!!document.querySelector(".replacement-candidate button")');await click('.replacement-candidate button');await wait('document.querySelector(".replacement-row em")?.textContent.includes("待播放验证")');assert.equal(await evaluate('window.replacementFixture.state.playlists[0].tracks[0].id'),'original');
@@ -19,5 +19,22 @@ app.whenReady().then(async()=>{
  assert.equal(await evaluate('JSON.stringify(window.replacementFixture.state)'),binding,'cancel during reset preserves existing mapping');
  await evaluate('delete window.replacementFixture.releaseReset;[...document.querySelectorAll("button")].find(b=>b.textContent==="重新匹配").click()');await wait('!!window.replacementFixture.releaseReset');
  await evaluate('[...document.querySelectorAll("button")].find(b=>b.textContent==="离开歌单").click();window.replacementFixture.releaseReset()');await sleep(80);assert.equal(await evaluate('window.replacementFixture.inspections'),count,'leaving during reset cannot start a new inspector');
+ await evaluate('window.replacementFixture.showShell()');await wait('!!document.querySelector(".zenix-source-callout")');await click('.zenix-source-callout summary');
+ for(const width of [1000,390,320]){window.setContentSize(width,800);await wait(`Math.abs(innerWidth-${width})<=1`);await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  const geometry=await evaluate(`(()=>{const panel=document.querySelector('.zenix-source-callout'),close=panel.querySelector('[aria-label="关闭播放错误"]'),r=panel.getBoundingClientRect(),b=close.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:panel.scrollWidth,width:panel.clientWidth,hit:document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('button')===close};})()`);
+  assert(geometry.left>=0&&geometry.right<=width+1&&geometry.top>=0&&geometry.bottom<=800,'long diagnostics stay inside viewport '+JSON.stringify(geometry));assert(geometry.scroll<=geometry.width+1,'copy cannot overflow error panel');assert(geometry.hit,'close button is actually hittable');
+ }
+ await click('[aria-label="关闭播放错误"]');await wait('!document.querySelector(".zenix-source-callout")');await evaluate('window.replacementFixture.showShell()');await sleep(80);assert.equal(await evaluate('!!document.querySelector(".zenix-source-callout")'),false,'same failure stays dismissed');
+ await evaluate('window.replacementFixture.showShell(8)');await wait('!!document.querySelector(".zenix-source-callout")');await click('[aria-label="关闭播放错误"]');window.setContentSize(1000,800);
+ await wait('Math.abs(innerWidth-1000)<=1');await evaluate(`document.querySelector('.yz-home-search-dock input').focus()`);await sleep(300);
+ assert.equal(await evaluate(`(()=>{const f=document.querySelector('.yz-home-search-dock form'),r=f.getBoundingClientRect();return !!document.elementFromPoint(r.x+r.width/2,r.y+2)?.closest('.yz-home-search-dock');})()`),true,'drag region must end above search form');
+ await evaluate(`[...document.querySelectorAll('.zenix-orbit-card')].find(b=>b.textContent.includes('自定义歌单')).click()`);await wait('!!document.querySelector(".zenix-manager")');
+ assert.equal(await evaluate(`document.elementFromPoint(20,12)?.className`),'yz-titlebar-drag','playlist manager cannot cover global drag strip');
+ assert.equal(await evaluate(`getComputedStyle(document.querySelector('.yz-titlebar-drag')).getPropertyValue('-webkit-app-region')`),'drag');
+ assert.equal(await evaluate(`getComputedStyle(document.querySelector('.yz-window-controls-zone')).getPropertyValue('-webkit-app-region')`),'no-drag');
+ await evaluate(`[...document.querySelectorAll('.zenix-manager nav button')].find(b=>b.textContent.includes('QQ 导入')).click()`);await wait('!!document.querySelector(".platform-replacement")');assert.equal(await evaluate('document.elementFromPoint(20,12)?.className'),'yz-titlebar-drag','playlist detail preserves drag strip');
+ await click('.zenix-manager header>button');await click('[aria-label="播放队列"]');await wait('!!document.querySelector(".zenix-queue .replacement-policy input")');
+ assert.equal(await evaluate('!!document.querySelector(".zenix-queue .replacement-manual")'),false,'playing playlist exposes automatic switch without manual maintenance');
+ assert.equal(await evaluate('document.elementFromPoint(20,12)?.className'),'yz-titlebar-drag','queue keeps top drag strip');
  process.stdout.write('REPLACEMENT_UI_PASS\n');app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});

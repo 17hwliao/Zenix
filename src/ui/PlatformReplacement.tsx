@@ -4,7 +4,7 @@ import {replacement} from '../core/platformReplacement';
 import {desktopReplacementAdapter} from '../core/desktopReplacement';
 import {resolveOriginalTrack} from '../core/sourcePlayback';
 import './PlatformReplacement.css';
-type Props={list:PersonalPlaylist;apply:(args:Record<string,unknown>,signal?:AbortSignal)=>Promise<PersonalState>;inspect?:(song:Track,signal:AbortSignal,candidate?:Track)=>Promise<PersonalState>;reload?:()=>Promise<PersonalState>;changed?:(state:PersonalState)=>void};
+type Props={list:PersonalPlaylist;apply:(args:Record<string,unknown>,signal?:AbortSignal)=>Promise<PersonalState>;inspect?:(song:Track,signal:AbortSignal,candidate?:Track)=>Promise<PersonalState>;reload?:()=>Promise<PersonalState>;changed?:(state:PersonalState)=>void;policyChanged?:(enabled:boolean)=>void|Promise<void>;autoOnly?:boolean};
 function platformLabel(song:Track){try{const info=JSON.parse(atob(song.remoteId!.replace(/-/g,'+').replace(/_/g,'/')));return ({tx:'QQ 音乐',wy:'网易云音乐',kw:'酷我音乐',kg:'酷狗音乐',mg:'咪咕音乐'} as Record<string,string>)[info.source]||'自定义音源';}catch{return '自定义音源';}}
 export async function inspectDesktop(list:PersonalPlaylist,song:Track,signal:AbortSignal,candidate?:Track){
   const adapter=desktopReplacementAdapter(list,song);
@@ -12,7 +12,7 @@ export async function inspectDesktop(list:PersonalPlaylist,song:Track,signal:Abo
   await replacement.run(song,song.replacement,adapter,signal,()=>{},candidate);
   return window.yzqxy!.personal.load();
 }
-export default function PlatformReplacement({list,apply,inspect,reload,changed}:Props){
+export default function PlatformReplacement({list,apply,inspect,reload,changed,policyChanged,autoOnly=false}:Props){
   const [selected,setSelected]=useState<string[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[limit,setLimit]=useState(30),[versions,setVersions]=useState('');
   const control=useRef<AbortController|undefined>(undefined),stop=useRef(false),skip=useRef(false),mounted=useRef(true),latest=useRef(list);latest.current=list;
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;stop.current=true;control.current?.abort();};},[list.id]);
@@ -39,15 +39,18 @@ export default function PlatformReplacement({list,apply,inspect,reload,changed}:
     }}catch(error){outcome=error instanceof Error?error.message:'任务未完成，请重试';}finally{control.current=undefined;if(mounted.current){setBusy(false);setMessage(stop.current?'已取消，已完成结果和已用次数保留':outcome);}}
   }
   const labels={pending:'待播放验证',verified:'播放验证通过',failed:'未找到可用替代',needsChoice:'需要选择版本',original:'原曲响应正常'};
-  return <details className="platform-replacement" aria-label="歌单平台平替"><summary>平台平替 <small>原曲保留 · 每首每轮最多3次</small></summary>
-    <label className="replacement-policy"><input type="checkbox" checked={list.autoReplacement===true} disabled={busy} onChange={event=>void mutate({edit:'replacementPolicy',enabled:event.target.checked}).catch(error=>setMessage(String(error)))}/><span>自动平替不可播放歌曲<small>播放明确失败后寻找同名、同歌手版本；有版本差异时由你选择。</small></span></label>
+  return <details open className="platform-replacement" aria-label="歌单平台平替"><summary>歌单自动平替 <small>原曲保留 · 每首最多尝试前三个搜索结果</small></summary>
+    <label className="replacement-policy"><input type="checkbox" checked={list.autoReplacement===true} disabled={busy} onChange={event=>{const enabled=event.target.checked;void mutate({edit:'replacementPolicy',enabled}).then(()=>policyChanged?.(enabled)).catch(error=>setMessage(String(error)));}}/><span>播放此歌单时自动平替<small>按歌名搜索，依次尝试前三个结果，成功即播放；三个都失败则继续下一首。不需要逐首勾选或扫描。</small></span></label>
+    <p role="status">{message||'仅在播放本歌单时生效；歌曲结束后继续队列。解析和缓冲按状态等待，可通过暂停或切歌取消。'}</p>
+    {!autoOnly&&<details className="replacement-manual"><summary>高级：手动检查与恢复原曲</summary>
     <div className="replacement-buttons"><button disabled={busy||!list.tracks.some(song=>song.source==='custom')} onClick={()=>void run(list.tracks.filter(song=>song.source==='custom'&&!song.replacement?.target&&song.replacement?.status!=='original').map(song=>song.id))}>扫描／继续当前歌单</button><button disabled={busy||!selected.length} onClick={()=>void run(selected)}>处理选中 {selected.length||''}</button><button disabled={busy||!list.tracks.some(song=>song.replacement)} onClick={()=>void mutate({edit:'replacementClear'}).catch(error=>setMessage(String(error)))}>全部恢复原曲</button>{busy&&<><button onClick={()=>{skip.current=true;control.current?.abort();}}>跳过当前候选</button><button onClick={()=>{stop.current=true;control.current?.abort();}}>取消任务</button></>}</div>
-    <p role="status">{message||'只使用已启用的音乐源。解析、接收和缓冲按状态等待，不按时间强制中断。扫描不会播放声音或打断当前歌曲。'}</p>
+    <p>手动检查不会播放声音或打断当前歌曲；自动平替无需执行这里的操作。</p>
     <div className="replacement-rows">{list.tracks.slice(0,limit).map(song=><div className="replacement-row" key={song.id}>
       <label><input type="checkbox" disabled={busy||song.source!=='custom'} checked={selected.includes(song.id)} onChange={event=>setSelected(event.target.checked?[...selected,song.id]:selected.filter(id=>id!==song.id))}/><span><strong>{song.title}</strong><small>{song.artist}</small><em>{song.replacement?`${labels[song.replacement.status]} · ${song.replacement.attempts}/3`:'尚未检查'}</em></span></label>
       {song.replacement?.target&&<p>原曲：{song.title} · {song.artist}<br/>替代：{song.replacement.target.title} · {song.replacement.target.artist}<br/>{platformLabel(song.replacement.target)} · {song.replacement.target.album||'专辑信息未知'} · {song.replacement.target.duration}秒</p>}
       {song.source==='custom'&&<div className="replacement-buttons"><button disabled={busy} onClick={()=>void run([song.id],true)}>重新匹配</button>{song.replacement&&<button disabled={busy} onClick={()=>void mutate({edit:'replacement',trackId:song.id,expectedReplacement:JSON.stringify(song.replacement),state:null}).catch(error=>setMessage(String(error)))}>恢复原曲</button>}{!!song.replacement?.candidates.length&&<button onClick={()=>setVersions(versions===song.id?'':song.id)}>查看／选择版本</button>}</div>}
       {versions===song.id&&song.replacement?.candidates.map(candidate=><div className="replacement-candidate" key={replacement.candidateKey(candidate)}><span>{candidate.title} · {candidate.artist}<small>{platformLabel(candidate)} · {candidate.album||'专辑未知'} · {candidate.duration}秒</small></span><button disabled={busy||song.replacement!.attempts>=3} onClick={()=>void run([song.id],false,candidate)}>确认尝试此版本</button></div>)}
     </div>)}</div>{limit<list.tracks.length&&<button onClick={()=>setLimit(value=>value+30)}>继续显示 · 共 {list.tracks.length} 首</button>}
+    </details>}
   </details>;
 }

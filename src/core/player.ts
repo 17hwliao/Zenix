@@ -40,6 +40,7 @@ class PlayerController {
   private sourceAbort?: AbortController;
   private mediaWaitTimer?: ReturnType<typeof setTimeout>;
   private failedAttempts = new Set<string>();
+  private skippedReplacements = new Set<string>();
   private selectionToken = 0;
   private playbackToken = 0;
   private playbackRequested = false;
@@ -71,6 +72,7 @@ class PlayerController {
 
     this.audio.addEventListener('play', () => this.update({ playing: true, error: undefined }));
     this.audio.addEventListener('playing', () => {
+      this.skippedReplacements.clear();
       this.audioGraph.resume();
       if(this.state.track?.replacementPlayback)void markReplacementPlayed(this.state.track).catch(()=>{});
       this.emitLifecycle('audible');
@@ -152,9 +154,10 @@ class PlayerController {
     this.persistQueue();
   }
 
-  syncRoamingQueue(upcoming: Track[]): void {
+  syncRoamingQueue(upcoming: Track[],previous:Track[]=[]): void {
     const track = this.state.track;
-    this.update({ queue: track ? [track, ...upcoming.filter(item => item.id !== track.id)] : upcoming, queueIndex: track ? 0 : -1 });
+    const past=previous.filter(item=>item.id!==track?.id).slice(-3),used=new Set([...past.map(song=>song.id),track?.id]);
+    this.update({ queue: track ? [...past,track, ...upcoming.filter(item => !used.has(item.id))] : upcoming, queueIndex: track ? past.length : -1 });
     this.persistQueue();
   }
 
@@ -238,6 +241,7 @@ class PlayerController {
   }
 
   setQueue(queue: Track[], startIndex = 0): void {
+    this.skippedReplacements.clear();
     const entries = queue.map(track => track.source === 'custom' ? { ...track, audioUrl: '', playbackProviderId: undefined, playbackQuality: undefined } : track);
     this.history = [];
     this.shufflePool.clear();
@@ -325,6 +329,16 @@ class PlayerController {
       }
     } catch (error) {
       if (request !== this.playbackToken) return;
+      if(error&&typeof error==='object'&&'code'in error&&error.code==='AUTOMATIC_REPLACEMENT_UNAVAILABLE'){
+        this.skippedReplacements.add(this.state.track?.id||'');
+        const queue=this.state.queue,start=this.state.queueIndex;
+        for(let step=1;step<queue.length;step++){
+          const next=start+step;if(next>=queue.length&&this.state.repeat==='off')break;
+          const at=next%queue.length;if(this.skippedReplacements.has(queue[at].id))continue;
+          this.select(at);void this.play();return;
+        }
+        this.failSource('当前队列没有可播放的歌曲；每首最多尝试3个结果，可更换音乐源后重试');return;
+      }
       if (this.retryMediaSource()) return;
       const message = this.state.track?.source === 'custom' && error instanceof DOMException && error.name === 'NotSupportedError'
         ? '音乐源返回的音频无法加载。请重试或更换音乐源。'
@@ -398,6 +412,7 @@ class PlayerController {
   }
 
   pause(internal = false): void {
+    this.skippedReplacements.clear();
     if (!internal) this.emitLifecycle('pause-request');
     this.playbackToken += 1;
     this.invalidateSelection();

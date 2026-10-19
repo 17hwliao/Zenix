@@ -11,6 +11,7 @@ public final class PlaybackSelectionCheck {
     private boolean clearingCache,countedPlay,readyRecorded,wanted,playbackEstablished;
     private double listenSeconds;private long listenClock,generation,resumePosition;
     private Set<String> attempted;
+    private final Set<String> skippedReplacements=new HashSet<>();private String repeat="all";
     private final Decoder player=new Decoder();private final Runtime runtime=new Runtime();private Roaming roaming;
     private int localStarts,resolutions,persists;
     private void accountListening(){}private void flushListening(boolean count){}private void cancelResolution(){}
@@ -19,6 +20,9 @@ public final class PlaybackSelectionCheck {
     private void resolveNext(long token){check(token==generation&&wanted,"resolution owns the active selection");resolutions++;}
 
     /* PRODUCTION_SELECT_METHOD */
+    private void select(int at){select(at,true);}
+    /* PRODUCTION_SKIP_METHOD */
+    /* PRODUCTION_POLICY_METHOD */
 
     private static final class Decoder {
         boolean hasMedia;int clears,stops;
@@ -54,6 +58,16 @@ public final class PlaybackSelectionCheck {
         PlaybackSelectionCheck paused=fixture("custom",true);paused.select(0,false);
         check(!paused.wanted&&paused.localStarts==0&&paused.resolutions==0,"paused selection does not resolve or play");
         check(!paused.player.hasMedia&&paused.player.clears==1,"paused selection clears old decoder metadata");
+        PlaybackSelectionCheck unavailable=fixture("custom",false);unavailable.queue.put(Json.obj("id","second","source","custom")).put(Json.obj("id","third","source","custom"));unavailable.select(0);
+        check(unavailable.skipUnavailableReplacement()&&unavailable.index==1,"automatic failure advances to next song");
+        check(unavailable.skipUnavailableReplacement()&&unavailable.index==2,"second failure advances once");
+        check(!unavailable.skipUnavailableReplacement()&&unavailable.resolutions==3,"repeat-all cannot loop endlessly through unavailable queue");
+        PlaybackSelectionCheck end=fixture("custom",false);end.repeat="off";end.select(0);check(!end.skipUnavailableReplacement(),"end of nonrepeating queue stops");
+        PlaybackSelectionCheck policy=fixture("custom",false);Json.put(policy.queue.optJSONObject(0),"playlistId","policy-list");policy.select(0);policy.activity=Json.obj("phase","resolving");
+        JSONObject refresh=Json.obj("id","policy-list","trackId","next","selectionRevision",policy.generation,"enabled",true);int before=policy.resolutions;
+        policy.generation++;policy.wanted=false;policy.activity=null;policy.refreshReplacementPolicy(refresh);check(policy.resolutions==before&&!policy.wanted,"late policy save cannot restart a paused request");
+        policy.queue.put(Json.obj("id","new-song","source","custom","playlistId","other-list"));policy.select(1);before=policy.resolutions;policy.refreshReplacementPolicy(refresh);check(policy.index==1&&policy.resolutions==before,"late save cannot overwrite a new selection or its queue");
+        Json.put(refresh,"id","other-list");Json.put(refresh,"trackId","new-song");Json.put(refresh,"selectionRevision",policy.generation);policy.activity=Json.obj("phase","resolving");policy.refreshReplacementPolicy(refresh);check(policy.resolutions==before+1&&policy.queue.length()==2,"matching pending selection refreshes using the native current queue");
         System.out.println("PLAYBACK_SELECTION_PASS");
     }
 }

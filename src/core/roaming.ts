@@ -1,6 +1,7 @@
 import type { PersonalState, RoamingStatus, Track, InstalledSource } from './types';
 import { player, type PlaybackLifecycle } from './player';
 import { RoamingStore } from './roamingStore';
+import {RoamingHistory} from './roamingHistory';
 import { sourceRequest, sourceDeadline } from './sourceDeadline';
 import { createState, queries, rank, consume, identity, feedback, prune, type RoamingState, type RoamingReason } from './roamingEngine';
 
@@ -18,6 +19,7 @@ class RoamingController {
   private listeners = new Set<(status: RoamingStatus) => void>();
   private pending: Track[] = [];
   private viewed: Track[] = [];
+  private replay=new RoamingHistory();
   private generation = 0;
   private abort?: AbortController;
   private advancing = false;
@@ -116,6 +118,7 @@ class RoamingController {
       }
       this.elapsed(); this.session!.audible = true;
       if (this.status.active) {
+        this.replay.record(event.track);this.wall();
         this.consecutiveFailures = 0;
         this.update({ phase: 'playing', message: '正在漫游，继续发现新音乐' });
         if (this.pending.length < 5) void this.fill().catch(() => {});
@@ -143,10 +146,10 @@ class RoamingController {
     this.consecutiveFailures = 0;
     this.cursors.clear(); this.completed.clear();
     this.searchFailures = 0; this.successfulSearches = 0;
-    if (!this.status.active) { this.previousRepeat = player.snapshot.repeat; this.pending = []; this.viewed = []; }
+    if (!this.status.active) { this.previousRepeat = player.snapshot.repeat; this.pending = []; this.viewed = [];this.replay.clear(); }
     this.update({ active: true, phase: 'searching', message: '正在根据你的收听习惯寻找新歌曲', tracks: [] });
     player.setNavigationHandler(async reason => {
-      if (reason === 'previous') { player.seek(0); return; }
+      if (reason === 'previous') {const previous=this.replay.previous(player.snapshot.track?.id);if(previous)await this.playAgain(previous);return;}
       await this.advance(reason);
     });
     player.setResumeHandler(async () => {
@@ -180,7 +183,7 @@ class RoamingController {
       player.retainCurrentTrack();
       player.setRepeat(manual ? this.previousRepeat : 'off');
     }
-    this.pending = []; this.viewed = [];
+    this.pending = []; this.viewed = [];this.replay.clear();
     this.update({ active: false, phase: 'idle', message: '' });
     this.persist();
   }
@@ -189,20 +192,22 @@ class RoamingController {
     const tracks = [...this.viewed, ...this.pending];
     if (current && !tracks.some(track => track.id === current.id)) tracks.unshift(current);
     this.update({ tracks: tracks.slice(-45) });
-    player.syncRoamingQueue(this.pending);
+    player.syncRoamingQueue([...this.replay.after(current?.id),...this.pending],this.replay.before(current?.id));
   }
   async playCandidate(track: Track): Promise<void> {
     if (!this.status.active) { await player.playTrack(track); return; }
     if (track.id === player.snapshot.track?.id) { player.toggle(); return; }
     // Explicitly revisiting a visible poster is allowed; automatic delivery remains unique.
-    const allowed = this.pending.find(item => item.id === track.id) || this.viewed.find(item => item.id === track.id);
+    const allowed = this.replay.get(track.id)||this.pending.find(item => item.id === track.id) || this.viewed.find(item => item.id === track.id);
     if (!allowed || this.advancing) return;
+    if(this.replay.has(allowed.id)){await this.playAgain(allowed);return;}
     this.finish('skip');
     this.pending = this.pending.filter(item => identity(item) !== identity(allowed));
     await this.advance('selection', allowed);
   }
   private async advance(reason: 'start' | 'next' | 'ended' | 'failure' | 'selection', chosen?: Track): Promise<void> {
     if (!this.status.active || this.advancing || this.status.phase === 'failed' && reason === 'failure') return;
+    if(!chosen&&(reason==='next'||reason==='ended')){const next=this.replay.next(player.snapshot.track?.id);if(next){await this.playAgain(next);return;}}
     this.advancing = true;
     const generation = this.generation;
     if (reason === 'next' || reason === 'ended') this.finish(reason === 'ended' ? 'played' : 'skip');
@@ -238,6 +243,17 @@ class RoamingController {
         if (this.failureQueued && this.status.phase !== 'failed') { this.failureQueued = false; void this.advance('failure'); }
       }
     }
+  }
+  private async playAgain(track:Track):Promise<void>{
+    if(!this.status.active)return;
+    this.finish('played');this.generation++;this.abort?.abort();this.abort=new AbortController();
+    this.filling=undefined;this.failureQueued=false;this.advancing=true;this.resumeAdvance=false;
+    const generation=this.generation;player.pause(true);
+    this.session={track,seconds:0,clock:performance.now(),audible:false};
+    this.update({phase:'searching',message:'正在重听最近的漫游歌曲'});
+    try{const queue=[...this.replay.before(track.id),track,...this.replay.after(track.id),...this.pending];await player.playTrack(track,queue,'roaming');if(generation===this.generation)this.wall();}
+    catch(error){if(generation===this.generation)this.update({phase:'failed',message:error instanceof Error?error.message:'这首歌曲暂时无法重新播放'});}
+    finally{if(generation===this.generation){this.advancing=false;if(this.failureQueued&&this.status.phase!=='failed'){this.failureQueued=false;void this.advance('failure');}}}
   }
   private fill(foreground = false): Promise<void> {
     if (foreground) this.foregroundRequested = true;

@@ -1,6 +1,7 @@
 import {createRoot} from 'react-dom/client';
 import {useState} from 'react';
 import PlatformReplacement from '../../src/ui/PlatformReplacement';
+import ZenixShell from '../../src/ui/ZenixShell';
 import {replacement} from '../../src/core/platformReplacement';
 import type {PersonalState,Track} from '../../src/core/types';
 const original:Track={id:'original',title:'你不知道的事',artist:'王力宏',album:'专辑',duration:280,source:'custom',providerId:'lx.playlist:catalog',remoteId:'original',path:'',audioUrl:''};
@@ -16,4 +17,5 @@ function App(){const [personal,update]=useState(state),[visible,setVisible]=useS
  };
  return <main style={{maxWidth:900,margin:'auto',padding:12,boxSizing:'border-box'}}><button onClick={()=>setVisible(false)}>离开歌单</button>{visible&&<PlatformReplacement list={personal.playlists[0]} apply={apply} inspect={inspect} reload={async()=>state} changed={update}/>}</main>;
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+const root=createRoot(document.getElementById('root')!);root.render(<App/>);
+fixture.showShell=(startedAt=7)=>{const noop=()=>{};root.render(<ZenixShell tracks={[original]} queue={[original]} currentTrack={{...original,playlistId:'list-fixture'}} personal={state} playing={false} position={0} duration={280} volume={.5} onPlayTrack={noop} onTogglePlay={noop} onPrevious={noop} onNext={noop} onSeek={noop} onVolumeChange={noop} onImportFolder={noop} onMinimize={noop} onClose={noop} sourceActivity={{phase:'failed',startedAt,message:'加载失败：'+ '很长的错误信息'.repeat(100),detail:'unbroken_error_'.repeat(400)}}/>);};

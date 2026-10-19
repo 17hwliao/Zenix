@@ -1,3 +1,4 @@
+import {X} from 'lucide-react';
 import {useLyricDisplay} from './core/listening';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ZenixShell } from './ui';
@@ -336,7 +337,7 @@ export default function App() {
       setPlaylistsOpen(false);
       setPlayerViewRequestKey(value => value + 1);
     }} />}
-    {notice && <div className="yz-runtime-notice" role="alert" onClick={() => setNotice('')}>{notice}</div>}
+    {notice && <div className="yz-runtime-notice" role="alert"><span>{notice}</span><button type="button" aria-label="关闭提示" onClick={() => setNotice('')}><X size={18}/></button></div>}
     {appearanceLoaded && !introVisible && !appearance.completed && <AppearanceOnboarding busy={appearanceBusy} onChoose={chooseBackground} onSkip={completeAppearance} />}
     {introVisible && <ZenixIntro background={appearance.background} onFinish={finishIntro} />}
   </>;

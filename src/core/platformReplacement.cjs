@@ -25,8 +25,9 @@ function cleanRecord(value){
   const statuses=['pending','verified','failed','needsChoice','original'];
   if(!statuses.includes(value.status)||!Number.isInteger(value.attempts)||value.attempts<0||value.attempts>LIMIT)throw Error('平替状态无效');
   const candidates=(Array.isArray(value.candidates)?value.candidates:[]).slice(0,12).map(cleanTarget);
-  return {status:value.status,attempts:value.attempts,tried:(Array.isArray(value.tried)?value.tried:[]).slice(0,LIMIT).map(v=>String(v).slice(0,34000)),candidates,...(value.target?{target:cleanTarget(value.target)}:{}),message:String(value.message||'').slice(0,300)};
+  return {status:value.status,attempts:value.attempts,tried:(Array.isArray(value.tried)?value.tried:[]).slice(0,LIMIT).map(v=>String(v).slice(0,34000)),candidates,...(typeof value.roundComplete==='boolean'?{roundComplete:value.roundComplete}:{}),...(value.target?{target:cleanTarget(value.target)}:{}),message:String(value.message||'').slice(0,300)};
 }
+function roundComplete(state){return !!state&&state.status==='failed'&&!state.target&&(state.roundComplete===true||state.roundComplete===undefined&&['本轮3次尝试已用完','搜索结果中没有可播放的替代版本'].includes(state.message));}
 const queries=track=>[...new Set([`${track.title} ${track.artist}`.trim(),`${normalize(track.title)} ${artists(track.artist).replace(/\|/g,' ')}`.trim(),String(track.title).trim()])].slice(0,3);
 // Refresh the URL of an already accepted candidate; this is the same reserved
 // attempt, not permission to retry a failed candidate after the budget expires.
@@ -43,13 +44,26 @@ async function resume(previous,adapter,signal){
     await adapter.save(state,signal);signal.throwIfAborted();return {state};
   }
 }
-async function run(original,previous,adapter,signal,report=()=>{},manual){
+function automaticCandidates(rows){
+  const found=new Map();
+  for(const row of rows){try{const target=cleanTarget(row),key=candidateKey(target);if(!found.has(key))found.set(key,target);}catch{}if(found.size===LIMIT)break;}
+  return [...found.values()];
+}
+async function run(original,previous,adapter,signal,report=()=>{},manual,automatic=false){
   signal.throwIfAborted();
   let state=cleanRecord(previous)||{status:'failed',attempts:0,tried:[],candidates:[],message:''};
   const persist=async patch=>{signal.throwIfAborted();state=cleanRecord({...state,...patch});await adapter.save(state,signal);signal.throwIfAborted();};
-  if(state.attempts>=LIMIT)throw Error('本轮已尝试3次，请明确重新匹配后继续');
+  if(state.attempts>=LIMIT){
+    if(automatic)await persist({status:'failed',target:undefined,roundComplete:true,message:'本轮3次尝试已用完'});
+    throw Object.assign(Error('本轮已尝试3次，请明确重新匹配后继续'),automatic?{code:'AUTOMATIC_REPLACEMENT_UNAVAILABLE'}:{});
+  }
   let candidates=manual?[cleanTarget(manual)]:state.candidates;
-  if(!candidates.length){
+  if(automatic&&!manual&&!state.attempts){
+    const query=String(original.title||'').trim();
+    report(`正在按歌名搜索替代版本 · ${query}`);
+    candidates=query?automaticCandidates(await adapter.search(query,signal,LIMIT)):[];
+    await persist({candidates});
+  }else if(!candidates.length){
     const found=new Map();
     for(const query of queries(original)){
       signal.throwIfAborted();report(`正在搜索替代版本 · ${query}`);
@@ -61,10 +75,10 @@ async function run(original,previous,adapter,signal,report=()=>{},manual){
     await persist({candidates});
   }
   for(const target of candidates){
-    if(!manual&&rank(original,target)<2)continue;
+    if(!manual&&!automatic&&rank(original,target)<2)continue;
     const key=candidateKey(target);if(!manual&&state.tried.includes(key))continue;
     if(state.attempts>=LIMIT)break;
-    await persist({status:'failed',target:undefined,attempts:state.attempts+1,tried:[...state.tried,key],message:'正在解析替代版本'});
+    await persist({status:'failed',target:undefined,roundComplete:false,attempts:state.attempts+1,tried:[...state.tried,key],message:'正在解析替代版本'});
     report(`正在验证替代音频 · ${state.attempts}/${LIMIT}`);
     try{
       const resolved=await adapter.resolve(target,signal);signal.throwIfAborted();
@@ -73,9 +87,9 @@ async function run(original,previous,adapter,signal,report=()=>{},manual){
       return {state,resolved,target};
     }catch(error){signal.throwIfAborted();await persist({message:'此候选明确失败，尝试下一候选'});}
   }
-  await persist({target:undefined,status:state.attempts>=LIMIT?'failed':candidates.some(row=>rank(original,row)===1)?'needsChoice':'failed',message:state.attempts>=LIMIT?'本轮3次尝试已用完':candidates.length?'版本信息有差异，请手动选择':'未找到同名、同歌手的替代版本'});
+  await persist({target:undefined,roundComplete:true,status:state.attempts>=LIMIT?'failed':!automatic&&candidates.some(row=>rank(original,row)===1)?'needsChoice':'failed',message:state.attempts>=LIMIT?'本轮3次尝试已用完':automatic?'搜索结果中没有可播放的替代版本':candidates.length?'版本信息有差异，请手动选择':'未找到同名、同歌手的替代版本'});
   return {state};
 }
-const api={LIMIT,normalize,rank,candidateKey,cleanTarget,cleanRecord,queries,run,resume};
+const api={LIMIT,normalize,rank,candidateKey,cleanTarget,cleanRecord,roundComplete,queries,automaticCandidates,run,resume};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else globalThis.zenixPlatformReplacement=api;

@@ -33,6 +33,23 @@ test('ambiguous editions never resolve without explicit choice and audio respons
  const chosen=await run(track(),result.state,f.adapter,new AbortController().signal,()=>{},candidate);assert.equal(chosen.state.status,'pending');assert.equal(chosen.state.attempts,1);
  const bad=fixture([track('a'),track('b'),track('c')]);bad.adapter.check=async()=>{throw Error('HTML not audio');};assert.equal((await run(track(),undefined,bad.adapter,new AbortController().signal)).state.attempts,3);
 });
+
+test('automatic playlist playback uses only the title and the first three unique results without manual metadata gates',async()=>{
+ const candidates=[track('a',{artist:'不同歌手',duration:0}),track('a'),track('b',{album:'其他专辑'}),track('c',{title:'Live 版本'}),track('d')];
+ const f=fixture(candidates,async song=>{if(song.id!=='c')throw Error('explicit failure');return{audioUrl:'audio'};});
+ const queries=[];f.adapter.search=async query=>{queries.push(query);return candidates;};
+ const result=await run(track(),undefined,f.adapter,new AbortController().signal,()=>{},undefined,true);
+ assert.deepEqual(queries,['你不知道的事']);assert.deepEqual(f.calls,['a','b','c']);assert.equal(result.state.attempts,3);assert.equal(result.target.id,'c');assert.equal(result.state.candidates.length,3);
+ const exhausted=fixture(candidates,async()=>{throw Error('HTTP 404');});
+ assert.equal((await run(track(),undefined,exhausted.adapter,new AbortController().signal,()=>{},undefined,true)).state.status,'failed');assert.deepEqual(exhausted.calls,['a','b','c']);
+});
+
+test('automatic cancellation keeps its reservation and resumes the remaining title results without a fourth attempt',async()=>{
+ let complete;const f=fixture([track('a'),track('b'),track('c'),track('d')],()=>new Promise(resolve=>complete=resolve));const abort=new AbortController();
+ const task=run(track(),undefined,f.adapter,abort.signal,()=>{},undefined,true);await new Promise(resolve=>setImmediate(resolve));abort.abort();complete({audioUrl:'late'});await assert.rejects(task,{name:'AbortError'});
+ const next=fixture([],async()=>{throw Error('failed');});const result=await run(track(),f.state,next.adapter,new AbortController().signal,()=>{},undefined,true);
+ assert.deepEqual(next.calls,['b','c']);assert.equal(result.state.attempts,3);assert(!result.target);
+});
 test('playlist associations persist after reload, retain originals/order, reject stale writes and undo without touching other collections',async t=>{
  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'zenix-replacement-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));const {PersonalStore}=require('../electron/personal.cjs'),store=new PersonalStore(folder);await store.load();await store.createPlaylist('Imported',track('original'));await store.addToPlaylist(store.snapshot().playlists[0].id,track('second'));const before=store.snapshot(),list=before.playlists[0],base={id:list.id,expected:list.tracks.map(song=>song.id)};
  await store.batch({...base,edit:'replacementPolicy',enabled:true});const record={...empty(),status:'pending',attempts:1,target:track('substitute'),candidates:[track('substitute')],tried:['fixture']};
@@ -52,7 +69,7 @@ test('desktop automatic fallback and decoder failures share the same persisted t
  const {resolveReplacement,markReplacementPlayed}=require('../src/core/desktopReplacement.ts');const {batchPlaylists}=require('../electron/runtime/playlist-batch.cjs');
  const original={...track('original'),playlistId:'test-list'},candidates=[track('a'),track('b'),track('c')];let state={liked:[],favorites:[],history:[],playlists:[{id:'test-list',name:'Imported',autoReplacement:true,tracks:[{...original,replacement:{...empty(),candidates}}]}]},calls=[];
  const beforeWindow=global.window;
- global.window={yzqxy:{personal:{load:async()=>structuredClone(state),batch:async args=>(state=batchPlaylists(state,args))},sources:{list:async()=>candidates.map(song=>({id:song.providerId,kind:'zenix',enabled:true,manifest:{qualities:['high'],capabilities:['search','resolvePlayback']}})),cancelRequest:async()=>{},resolve:async(song)=>{calls.push(song.id);return{audioUrl:'fixture',playbackProviderId:song.providerId};},probe:async()=>{}}}};
+ global.window={yzqxy:{personal:{load:async()=>structuredClone(state),batch:async args=>(state=batchPlaylists(state,args))},sources:{list:async()=>candidates.map(song=>({id:song.providerId,kind:'zenix',enabled:true,manifest:{qualities:['high'],capabilities:['search','resolvePlayback']}})),search:async(id,query)=>({items:candidates.filter(song=>song.providerId===id)}),cancelRequest:async()=>{},resolve:async(song)=>{calls.push(song.id);return{audioUrl:'fixture',playbackProviderId:song.providerId};},probe:async()=>{}}}};
  try{
   const normal=async()=>{throw Error('original unavailable');},signal=new AbortController().signal;
   const first=await resolveReplacement(original,[],()=>{},signal,normal);assert.equal(state.playlists[0].tracks[0].replacement.status,'pending');
@@ -101,4 +118,33 @@ test('desktop replacement streams cache under candidate identity, never the orig
  assert.equal(manager.sessions.get(result.audioUrl.split('/').at(-1)).trackId,candidate.id);
  const normal=await SourceManager.prototype.resolve.call(manager,candidate,'high',original,true,new AbortController().signal,false);
  assert.equal(manager.sessions.get(normal.audioUrl.split('/').at(-1)).trackId,original,'normal same-recording fallback retains its existing cache alias contract');
+});
+
+test('automatic resume after cancelling the third reservation cannot reset the round; complete cached originals remain playable',async()=>{
+ const {resolveReplacement}=require('../src/core/desktopReplacement.ts'),{batchPlaylists}=require('../electron/runtime/playlist-batch.cjs');
+ const original={...track('original'),playlistId:'cancel-third'},before=global.window;let lookups=0,cached=null;
+ let state={liked:[],favorites:[],history:[],playlists:[{id:'cancel-third',autoReplacement:true,tracks:[{...original,replacement:{...empty(),attempts:3,tried:['a','b','c'],message:'正在解析替代版本'}}]}]};
+ global.window={yzqxy:{personal:{load:async()=>structuredClone(state),batch:async args=>(state=batchPlaylists(state,args)),cancelBatch:async()=>{}},sources:{cachedBest:async()=>cached,cancelRequest:async()=>{},list:async()=>{lookups++;throw Error('must not search fourth candidate');}}}};
+ try{await assert.rejects(resolveReplacement(original,[],()=>{},new AbortController().signal,async()=>{throw Error('must not resolve original');}),{code:'AUTOMATIC_REPLACEMENT_UNAVAILABLE'});assert.equal(lookups,0);assert.equal(state.playlists[0].tracks[0].replacement.attempts,3);
+  delete state.playlists[0].tracks[0].replacement;cached={audioUrl:'yzqxy://cached-audio/complete'};
+  assert.equal((await resolveReplacement(original,[],()=>{},new AbortController().signal,async()=>{throw Error('network forbidden');})).audioUrl,cached.audioUrl);assert.equal(lookups,0,'automatic mode does not require online searches for complete cached original audio');
+ }finally{global.window=before;}
+});
+
+
+test('completed pools of one or two candidates start a new automatic round after source recovery',async()=>{
+ const {resolveReplacement}=require('../src/core/desktopReplacement.ts'),{batchPlaylists}=require('../electron/runtime/playlist-batch.cjs');
+ for(const count of [1,2]){let healthy=false,searches=0,resolves=0;const original={...track('original'),playlistId:'short-pool'},candidates=Array.from({length:count},(_,i)=>track('candidate-'+i));let state={liked:[],favorites:[],history:[],playlists:[{id:'short-pool',autoReplacement:true,tracks:[original]}]};const before=global.window;
+ global.window={yzqxy:{personal:{load:async()=>structuredClone(state),batch:async args=>(state=batchPlaylists(state,args))},sources:{cachedBest:async()=>null,list:async()=>[{id:'source.candidate-0',enabled:true,manifest:{capabilities:['search','resolvePlayback'],qualities:['high']}},...candidates.slice(1).map(s=>({id:s.providerId,enabled:true,manifest:{capabilities:['search','resolvePlayback'],qualities:['high']}}))],search:async(id)=>{searches++;return{items:candidates.filter(s=>s.providerId===id)};},resolve:async()=>{resolves++;if(!healthy)throw Error('HTTP 503');return{audioUrl:'fixture'};},probe:async()=>{},cancelRequest:async()=>{}}}};
+ try{const play=()=>resolveReplacement(original,[],()=>{},new AbortController().signal,async()=>{throw Error('unexpected original lookup');});await assert.rejects(play());assert.equal(state.playlists[0].tracks[0].replacement.roundComplete,true);const searched=searches;healthy=true;const result=await play();assert(result.replacementPlayback);assert(searches>searched);assert.equal(resolves,count+1);assert.equal(state.playlists[0].tracks[0].replacement.attempts,1);}finally{global.window=before;}
+ }
+});
+
+test('mobile policy refresh sends only selection identity and revision, never an old queue snapshot',async()=>{
+ const ts=require('typescript'),vm=require('node:vm'),raw=require('node:fs'),calls=[],module={exports:{}};
+ const source=ts.transpileModule(raw.readFileSync(path.resolve(__dirname,'../src/mobile/replacement.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ vm.runInNewContext(source,{module,exports:module.exports,require:name=>{assert.equal(name,'./native');return{command:async(action,payload)=>calls.push({action,payload})};}});
+ const old={track:{id:'old',playlistId:'list'},queue:[track('old')],queueIndex:0,selectionRevision:7};await module.exports.refreshMobileReplacement('list',old,true);
+ assert.equal(calls.length,1);assert.equal(calls[0].action,'replacementPolicyRefresh');assert.deepEqual({...calls[0].payload},{id:'list',trackId:'old',selectionRevision:7,enabled:true});assert(!('tracks'in calls[0].payload));
+ await module.exports.refreshMobileReplacement('list',{...old,selectionRevision:undefined},true);assert.equal(calls.length,1,'older unsupported snapshots cannot fall back to replaying the stale queue');
 });

@@ -104,6 +104,7 @@ export interface PlayerState {
   repeat: RepeatMode;
   queue: Track[];
   queueIndex: number;
+  selectionRevision?: number;
   error?: string;
   sourceActivity?: SourceActivity;
 }
@@ -112,7 +113,7 @@ export type MediaCommand = 'play-pause' | 'play' | 'pause' | 'next' | 'previous'
 
 export type AppearanceBackground = { kind: 'image' | 'video'; name: string; url: string };
 export type AppearanceState = { completed: boolean; background: AppearanceBackground | null };
-export type ReplacementState = {status:'pending'|'verified'|'failed'|'needsChoice'|'original';attempts:number;tried:string[];candidates:Track[];target?:Track;message:string};
+export type ReplacementState = {status:'pending'|'verified'|'failed'|'needsChoice'|'original';attempts:number;tried:string[];candidates:Track[];target?:Track;message:string;roundComplete?:boolean};
 export type PersonalPlaylist = { id: string; name: string; tracks: Track[]; autoReplacement?: boolean };
 export type HistoryEntry = { id: string; track: Track; playedAt: number };
 export type PersonalState = { liked: Track[]; favorites: Track[]; history: HistoryEntry[]; playlists: PersonalPlaylist[] };

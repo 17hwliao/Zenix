@@ -33,6 +33,7 @@ public final class PlaybackService extends MediaSessionService {
     private ZenixRuntime runtime; private JSONArray queue=new JSONArray(); private int index=-1;
     private JSONObject track,activity,error; private String repeat="all",quality="high";private boolean shuffle,readyRecorded,cacheEnabled=true;private volatile long generation;private volatile boolean wanted;
     private Set<String> attempted=new HashSet<>();private JSONObject resolution;
+    private final Set<String> skippedReplacements=new HashSet<>();
     private DataSource.Factory http;
     private Future<?> resolutionTask;
     private boolean loadingForeground;
@@ -69,7 +70,7 @@ public final class PlaybackService extends MediaSessionService {
                 else if(state==Player.STATE_ENDED) {accountListening();flushListening(false);if(roaming!=null&&roaming.isActive())roaming.next(true);else if(repeat.equals("one")){listenSeconds=0;countedPlay=false;player.seekTo(0);player.play();}else advance(1); }
                 runtime.emit();
             }
-            @Override public void onIsPlayingChanged(boolean playing) {if(playing){playbackEstablished=true;finishLoading();runtime.sources.playbackReady(track,resolution);if(resolution!=null&&resolution.has("replacementKey")){JSONObject selected=Json.copy(track);String key=resolution.optString("replacementKey");resolver.execute(()->{try{new PlaylistReplacement(runtime.store,runtime.sources).played(selected,key);runtime.emit();}catch(Exception ignored){}});}}accountListening();listening=playing;listenClock=SystemClock.elapsedRealtime();if(!playing)flushListening(false);if(roaming!=null)roaming.playingChanged(playing);MusicWidget.updateAll(PlaybackService.this);runtime.emit();}
+            @Override public void onIsPlayingChanged(boolean playing) {if(playing){skippedReplacements.clear();playbackEstablished=true;finishLoading();runtime.sources.playbackReady(track,resolution);if(resolution!=null&&resolution.has("replacementKey")){JSONObject selected=Json.copy(track);String key=resolution.optString("replacementKey");resolver.execute(()->{try{new PlaylistReplacement(runtime.store,runtime.sources).played(selected,key);runtime.emit();}catch(Exception ignored){}});}}accountListening();listening=playing;listenClock=SystemClock.elapsedRealtime();if(!playing)flushListening(false);if(roaming!=null)roaming.playingChanged(playing);MusicWidget.updateAll(PlaybackService.this);runtime.emit();}
             @Override public void onPlayerError(PlaybackException failure) {
                 if(!wanted)return;
                 if(track!=null&&!track.optString("source").equals("local")&&wanted){runtime.sources.playbackFailed(resolution,failure.errorCode>=2000&&failure.errorCode<3000);if(player.getCurrentPosition()>0)resumePosition=player.getCurrentPosition();beginRecovery();resolveNext(generation);}
@@ -97,7 +98,7 @@ public final class PlaybackService extends MediaSessionService {
     }
     JSONObject state() {
         long duration=player==null?0:player.getDuration();double fallback=track==null?0:track.optDouble("duration");
-        JSONObject result=Json.obj("audioSettings",audioSettings(),"playing",player!=null&&player.isPlaying(),"playWhenReady",wanted,"quality",quality,"cacheStatus",cacheStatus(),"position",player==null?0:player.getCurrentPosition()/1000.0,"duration",duration>0?duration/1000.0:fallback,"volume",player==null?0.75:player.getVolume(),"muted",player!=null&&player.getVolume()==0,"shuffle",shuffle,"repeat",repeat,"queue",queue,"queueIndex",index);
+        JSONObject result=Json.obj("audioSettings",audioSettings(),"playing",player!=null&&player.isPlaying(),"playWhenReady",wanted,"quality",quality,"cacheStatus",cacheStatus(),"position",player==null?0:player.getCurrentPosition()/1000.0,"duration",duration>0?duration/1000.0:fallback,"volume",player==null?0.75:player.getVolume(),"muted",player!=null&&player.getVolume()==0,"shuffle",shuffle,"repeat",repeat,"queue",queue,"queueIndex",index,"selectionRevision",generation);
         if(track!=null)Json.put(result,"track",track);if(activity!=null)Json.put(result,"sourceActivity",activity);if(error!=null)Json.put(result,"error",error.optString("message"));return result;
     }
     JSONObject cacheStats(){return Json.obj("usedBytes",cache==null?0:cache.getCacheSpace(),"limitMiB",runtime.store.integer("cacheLimitMiB",512),"enabled",cacheEnabled,"metadataBytes",runtime.sources.metadataBytes(),"metadataLimitMiB",runtime.sources.metadataLimit()/1024/1024);}
@@ -114,6 +115,7 @@ public final class PlaybackService extends MediaSessionService {
         runtime.emit();MusicWidget.updateAll(this);
     }
     void setQueue(JSONArray tracks,int selected) throws Exception {
+        skippedReplacements.clear();
         if(clearingCache)throw new Exception("缓存正在清理，请稍后播放");
         if(tracks.optJSONObject(selected)!=null&&tracks.optJSONObject(selected).optString("availability").equals("unavailable"))throw new Exception("这是对方的本地歌曲，请先导入同名、同歌手的音频，再重新导入歌单");
         if(roaming!=null)roaming.normalQueue();
@@ -124,6 +126,10 @@ public final class PlaybackService extends MediaSessionService {
     }
     void select(int at) {
         select(at,true);
+    }
+    void refreshReplacementPolicy(JSONObject args){
+        if(track==null||generation!=args.optLong("selectionRevision",-1)||!track.optString("id").equals(args.optString("trackId"))||!track.optString("playlistId").equals(args.optString("id")))return;
+        if(wanted&&activity!=null&&!activity.optString("phase").equals("failed")||args.optBoolean("enabled")&&error!=null)select(index);
     }
     private void select(int at,boolean autoPlay) {
         if(at>=0&&at<queue.length()&&queue.optJSONObject(at).optString("availability").equals("unavailable")){accountListening();flushListening(false);generation++;cancelResolution();wanted=false;player.stop();index=at;track=queue.optJSONObject(at);error=Json.obj("message","这是对方的本地歌曲，请先导入同名、同歌手的音频，再重新导入歌单");activity=null;runtime.emit();MusicWidget.updateAll(this);return;}
@@ -148,8 +154,13 @@ public final class PlaybackService extends MediaSessionService {
                 JSONObject cached=failures.contains("cache")?null:reusableCache(current);if(cached!=null)failures.add("cache");JSONObject result=cached!=null?cached:new PlaylistReplacement(runtime.store,runtime.sources).resolve(current,failures,requestedQuality,(phase,message)->main.post(() -> {if(token==generation&&wanted){activity=Json.obj("phase",phase,"message",message,"startedAt",activityStartedAt());runtime.emit();}}),()->token!=generation||!wanted||Thread.currentThread().isInterrupted());
                 if(result.has("replacementKey"))failures.add("replacement-active");
                 main.post(() -> {if(token==generation&&wanted)start(result,token);});
-            } catch(Exception e){main.post(() -> {if(token==generation&&wanted){wanted=false;finishLoading();activity=Json.obj("phase","failed","message","资源暂不可用，请更换音乐源或重试","detail",SourceDiagnostics.reason(e),"startedAt",activityStartedAt());error=Json.obj("message",SourceDiagnostics.reason(e)+"，请重试或更换音乐源");if(roaming!=null&&roaming.isActive())roaming.failed();runtime.emit();}});}
+            } catch(Exception e){main.post(() -> {if(token==generation&&wanted){if(e instanceof PlaylistReplacement.Unavailable&&skipUnavailableReplacement())return;wanted=false;finishLoading();activity=Json.obj("phase","failed","message",e instanceof PlaylistReplacement.Unavailable?"当前队列没有可播放的歌曲，请更换音乐源后重试":"资源暂不可用，请更换音乐源或重试","detail",SourceDiagnostics.reason(e),"startedAt",activityStartedAt());error=Json.obj("message",SourceDiagnostics.reason(e)+"，请重试或更换音乐源");if(roaming!=null&&roaming.isActive())roaming.failed();runtime.emit();}});}
         });
+    }
+    private boolean skipUnavailableReplacement(){
+        if(track==null)return false;skippedReplacements.add(track.optString("id"));
+        for(int step=1;step<queue.length();step++){int next=index+step;if(next>=queue.length()&&repeat.equals("off"))break;int at=next%queue.length();if(skippedReplacements.contains(queue.optJSONObject(at).optString("id")))continue;select(at);return true;}
+        return false;
     }
     boolean completeCachedForInspection(JSONObject song){try{if(clearingCache||!cacheEnabled||cache==null)return false;JSONObject mappings=runtime.store.object("cacheMappings"),saved=mappings==null?null:mappings.optJSONObject(song.optString("id"));if(!ReplacementRules.cacheMatches(song,saved,runtime.store.object("personal")))return false;String key=saved.optString("cacheKey");long length=ContentMetadata.getContentLength(cache.getContentMetadata(key));return length>0&&cache.isCached(key,0,length);}catch(Exception unavailable){return false;}}
     private JSONObject reusableCache(JSONObject track) {
@@ -189,10 +200,10 @@ public final class PlaybackService extends MediaSessionService {
     }
     private static Map<String,String> headers(JSONObject json){Map<String,String> values=new HashMap<>();if(json!=null)for(Iterator<String> it=json.keys();it.hasNext();){String key=it.next();if(!key.equalsIgnoreCase("Host")&&!key.equalsIgnoreCase("Content-Length"))values.put(key,json.optString(key));}return values;}
     void resume(){if(clearingCache)return;if(track!=null&&track.optString("availability").equals("unavailable")){error=Json.obj("message","请先导入同名本地音频，再重新导入歌单进行匹配");runtime.emit();return;}if(listenedTrack==null&&track!=null){listenedTrack=Json.copy(track);listenClock=SystemClock.elapsedRealtime();}if(roaming!=null&&roaming.needsRetry()){roaming.retry();return;}if(roaming!=null)roaming.userResume();wanted=true;if(player.getPlaybackState()==Player.STATE_IDLE&&track!=null){playbackEstablished=false;generation++;cancelResolution();attempted=new HashSet<>();if(track.optString("source").equals("local"))start(Json.obj("url",track.optString("audioUrl"),"quality","local"),generation);else resolveNext(generation);}else player.play();runtime.emit();}
-    private void pausePlayback(){wanted=false;finishLoading();player.pause();if(player.getPlaybackState()==Player.STATE_IDLE||player.getPlaybackState()==Player.STATE_BUFFERING){resumePosition=Math.max(resumePosition,player.getCurrentPosition());generation++;cancelResolution();player.stop();activity=null;}}
+    private void pausePlayback(){skippedReplacements.clear();wanted=false;finishLoading();player.pause();if(player.getPlaybackState()==Player.STATE_IDLE||player.getPlaybackState()==Player.STATE_BUFFERING){resumePosition=Math.max(resumePosition,player.getCurrentPosition());generation++;cancelResolution();player.stop();activity=null;}}
     void toggle(){if(wanted||roaming!=null&&roaming.pending()){if(roaming!=null)roaming.userPause();pausePlayback();}else resume();runtime.emit();}
     void seek(double seconds){if(!Double.isFinite(seconds))return;resumePosition=0;player.seekTo((long)(Math.max(0,Math.min(seconds,state().optDouble("duration")))*1000));runtime.emit();}
-    void advance(int direction){if(roaming!=null&&roaming.isActive()){if(direction>0)roaming.next(false);return;}if(queue.length()==0)return;int at=index+direction;
+    void advance(int direction){if(roaming!=null&&roaming.isActive()){if(direction>0)roaming.next(false);else roaming.previous();return;}if(queue.length()==0)return;int at=index+direction;
         if(shuffle){String id=null;if(direction<0){if(shufflePosition>0)id=shuffleHistory.get(--shufflePosition);else return;}else if(shufflePosition+1<shuffleHistory.size())id=shuffleHistory.get(++shufflePosition);else{if(shuffleDeck.isEmpty()){if(repeat.equals("off")){wanted=false;player.pause();runtime.emit();return;}refillShuffle();}id=shuffleDeck.pollFirst();}at=findIndex(id);if(at<0){advance(direction);return;}}
         if(at<0)at=repeat.equals("off")?0:queue.length()-1;if(at>=queue.length()){if(repeat.equals("off")){wanted=false;player.pause();runtime.emit();return;}at=0;}select(at);}
     private int findIndex(String id){for(int i=0;i<queue.length();i++)if(queue.optJSONObject(i).optString("id").equals(id))return i;return -1;}
@@ -246,7 +257,8 @@ public final class PlaybackService extends MediaSessionService {
     boolean isActuallyPlaying(){return player!=null&&player.isPlaying();}
     double currentDuration(){long duration=player==null?0:player.getDuration();return duration>0?duration/1000.0:track==null?0:track.optDouble("duration");}
     void waitForRoaming(){generation++;cancelResolution();wanted=false;activity=null;error=null;player.stop();runtime.emit();}
-    void playRoaming(JSONObject song){queue=Json.array(PrivateStore.cleanTrack(song));repeat="off";shuffle=false;select(0);}
+    void playRoaming(JSONObject song){JSONArray before=roaming.previousSongs(song.optString("id")),after=roaming.followingSongs(song.optString("id"));queue=new JSONArray();for(int i=0;i<before.length();i++)queue.put(before.optJSONObject(i));int at=queue.length();queue.put(PrivateStore.cleanTrack(song));for(int i=0;i<after.length();i++)queue.put(after.optJSONObject(i));repeat="off";shuffle=false;select(at);}
+    void syncRoamingHistory(JSONArray before,JSONArray after){if(track==null)return;queue=new JSONArray();for(int i=0;i<before.length();i++)queue.put(before.optJSONObject(i));index=queue.length();queue.put(PrivateStore.queueTrack(track));for(int i=0;i<after.length();i++)queue.put(after.optJSONObject(i));try{persist();}catch(Exception ignored){}runtime.emit();}
     void leaveRoaming(){generation++;attempted=new HashSet<>();queue=track==null?new JSONArray():Json.array(PrivateStore.cleanTrack(track));index=track==null?-1:0;repeat="off";try{persist();}catch(Exception ignored){}if(wanted&&track!=null&&player.getPlaybackState()==Player.STATE_IDLE)resolveNext(generation);}
     private void persist() throws Exception{runtime.store.enqueue(Json.obj("queue",queue,"queueIndex",index,"repeat",repeat,"shuffle",shuffle,"quality",quality));}
     JSONObject sleepTimerState(){return Json.obj("endsAt",sleepEndsAt);}

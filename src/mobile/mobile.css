@@ -160,3 +160,12 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .mobile-toast>button{pointer-events:auto;flex-shrink:0;min-width:44px;min-height:44px;padding:0;border-radius:50%;display:grid;place-items:center}
 .mobile-toast>button svg{width:18px;height:18px}
 .sheet-close{width:44px;height:44px;min-height:44px;z-index:2}
+
+/* Keep long diagnostics within the viewport and close/actions outside their scroll area. */
+.mobile-source-status{box-sizing:border-box;display:grid;grid-template-columns:44px minmax(0,1fr);align-items:start;z-index:110;max-height:calc(var(--visible-height,100dvh) - 210px);overflow-y:auto;pointer-events:auto;border-radius:24px}
+.mobile-source-status>.spin{justify-self:center;margin-top:10px}
+.mobile-source-status .source-status-copy{min-width:0;max-height:28dvh;overflow:auto;overflow-wrap:anywhere}
+.source-status-actions{grid-column:2;display:flex;flex-wrap:wrap;gap:8px}
+.source-status-actions>button{min-height:40px;padding:6px 12px;border-radius:14px;background:#ffffff0d;white-space:normal;overflow-wrap:anywhere}
+.mobile-toast{pointer-events:none;align-items:flex-start;box-sizing:border-box;max-height:calc(var(--visible-height,100dvh) - 210px)}
+.mobile-toast>span{max-height:35dvh;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap}

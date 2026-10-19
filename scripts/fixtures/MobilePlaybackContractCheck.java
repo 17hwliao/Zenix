@@ -157,6 +157,8 @@ final class SourceHttp {
 }
 final class ScriptEngine implements AutoCloseable {
     static JSONArray catalogRows=new JSONArray();static Runnable afterResolve;
+    static final List<String> searchKeywords=new java.util.concurrent.CopyOnWriteArrayList<>();
+    static boolean failReplacement;
     static int resets;
     static final List<String> calls=new java.util.concurrent.CopyOnWriteArrayList<>();
     final String script;boolean closed;
@@ -169,7 +171,8 @@ final class ScriptEngine implements AutoCloseable {
     Object call(String method,Object payload,JSONObject settings,long timeout)throws Exception {
         String quality=payload instanceof JSONObject?((JSONObject)payload).optString("quality"):"";calls.add(script+":"+method+":"+quality);if(timeout!=0&&(method.equals("resolvePlayback")||method.equals("lx")))throw new AssertionError("playback must await explicit completion");
         if(method.equals("catalog:search"))return Json.obj("items",catalogRows);
-        if(method.equals("search"))return Json.obj("items",Json.array(Json.obj("remoteId","match-"+script,"title","Fixture","artist","Artist","duration",90)));
+        if(method.equals("search")){searchKeywords.add(((JSONObject)payload).optString("keyword"));return Json.obj("items",Json.array(Json.obj("remoteId","match-"+script,"title","Fixture","artist","Artist","duration",90)));}
+        if(method.equals("resolvePlayback")&&failReplacement)throw new Exception("HTTP 503");
         if(method.equals("resolvePlayback")&&(script.equals("resetAlways")||script.equals("resetOnce")&&resets++==0))throw new java.net.SocketException("Connection reset");
         if(method.equals("resolvePlayback")&&script.equals("unavailableAlways"))throw new Exception("GD接口状态503，未返回音频");
         if(script.equals("patient")){checkStateWait(timeout);android.os.SystemClock.now+=300000;}

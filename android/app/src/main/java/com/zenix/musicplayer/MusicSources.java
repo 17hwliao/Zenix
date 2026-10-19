@@ -180,9 +180,13 @@ final class MusicSources implements AutoCloseable {
         }finally{inspecting.remove();inspectionLane.trimIdle();inspectionCatalog.trimIdle();}
     }
     JSONArray replacementSearch(String keyword,java.util.function.BooleanSupplier cancel)throws Exception{
+        return replacementSearch(keyword,cancel,Integer.MAX_VALUE);
+    }
+    JSONArray replacementSearch(String keyword,java.util.function.BooleanSupplier cancel,int limit)throws Exception{
+        Set<String> seen=new HashSet<>();
         JSONArray result=new JSONArray(),installed=list();for(int i=0;i<installed.length();i++){
             PlaylistReplacement.check(cancel);JSONObject source=installed.getJSONObject(i);String caps=source.getJSONObject("manifest").getJSONArray("capabilities").toString();if(!source.optBoolean("enabled")||!caps.contains("\"search\"")||!caps.contains("\"resolvePlayback\""))continue;
-            try{JSONArray rows=search(source.getString("id"),keyword,"",true,0).getJSONArray("items");for(int j=0;j<rows.length();j++)result.put(rows.get(j));}catch(Exception failure){PlaylistReplacement.check(cancel);}
+            try{JSONArray rows=search(source.getString("id"),keyword,"",true,0).getJSONArray("items");for(int j=0;j<rows.length();j++){try{JSONObject row=ReplacementRules.target(rows.getJSONObject(j));if(seen.add(ReplacementRules.key(row)))result.put(row);}catch(Exception invalid){}if(result.length()>=limit)return result;}}catch(Exception failure){PlaylistReplacement.check(cancel);}
         }return result;
     }
     JSONObject replacementExact(JSONObject target,String originalId)throws Exception{

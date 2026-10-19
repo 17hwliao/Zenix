@@ -1,5 +1,6 @@
 import CatalogBrowser from './CatalogBrowser';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import {createPortal} from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Compass, Home, LoaderCircle, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
 import PersonalBackdrop, { type PersonalScene } from './PersonalBackdrop';
@@ -33,6 +34,9 @@ export default function ZenixShell(props: ZenixShellProps) {
     desktopLyricsVisible = false, onToggleDesktopLyrics, roaming, onStartRoaming, onStopRoaming, onPlayRoaming,
   } = props;
   const [catalog,setCatalog]=useState<{kind:'artist'|'album';name:string}>();
+  const [dismissedError,setDismissedError]=useState('');
+  const errorKey=`${currentTrack?.id}:${playbackError}`;
+  useEffect(()=>{if(!playbackError)setDismissedError('');},[playbackError]);
   useEffect(()=>{const open=(event:Event)=>{const detail=(event as CustomEvent).detail;if(detail&&['artist','album'].includes(detail.kind))setCatalog(detail);};window.addEventListener('zenix-browse',open);return()=>window.removeEventListener('zenix-browse',open);},[]);
   const [view, setView] = useState<'home' | 'player'>('home');
   const [playerWallMode, setPlayerWallMode] = useState<'recent' | 'queue' | 'search' | 'roaming'>('recent');
@@ -145,6 +149,10 @@ export default function ZenixShell(props: ZenixShellProps) {
   const toggleDesktopLyrics = () => { playUiSound(desktopLyricsVisible ? 'cancel' : 'enter'); onToggleDesktopLyrics?.(); };
 
   const showWindowControls = Boolean(onMinimize || onMaximize || onClose);
+  const titlebarSearchVisible=!searchOpen&&!settingsOpen&&!managerSection&&!queueOpen;
+  const titlebarSearchWidth=titlebarSearchVisible?(view==='home'?'max(0px,min(440px,calc(100vw - 360px)))':'max(0px,min(570px,calc(100vw - 240px)))'):'0px';
+  const titlebarSearchLeft=`calc((100vw - ${titlebarSearchWidth}) / 2)`;
+  const titlebarSearchRight=`calc((100vw + ${titlebarSearchWidth}) / 2)`;
   const personalScene: PersonalScene = settingsOpen ? 'settings' : searchOpen ? 'search' : managerSection ? 'collection' : queueOpen ? 'queue' : view === 'player' ? 'player' : 'home';
   const showPersonalBackground = Boolean(appearanceBackground);
   const recentTracks = personal.history.map(entry => entry.track);
@@ -165,7 +173,11 @@ export default function ZenixShell(props: ZenixShellProps) {
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
       {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
       <div className="yz-grain" aria-hidden="true" />
-      <div className="yz-titlebar-drag" aria-hidden="true" />
+      {showWindowControls&&createPortal(<>
+        <div className="yz-titlebar-drag" aria-hidden="true" style={{right:'auto',width:titlebarSearchLeft}}/>
+        <div className="yz-titlebar-drag" aria-hidden="true" style={{left:titlebarSearchLeft,right:'auto',width:titlebarSearchWidth,height:titlebarSearchVisible?(view==='home'?16:25):32}}/>
+        <div className="yz-titlebar-drag" aria-hidden="true" style={{left:titlebarSearchRight}}/>
+      </>,document.body)}
 
       {view === 'home' && !searchOpen && (
         <div className={`yz-home-search-dock${homeSearchRevealed ? ' is-revealed' : ''}`} onMouseEnter={() => setHomeSearchRevealed(true)} >
@@ -178,13 +190,13 @@ export default function ZenixShell(props: ZenixShellProps) {
       )}
 
       {showWindowControls && (
-        <div className="yz-window-controls-zone" onMouseEnter={() => setTitlebarRevealed(true)} onMouseLeave={() => setTitlebarRevealed(false)}>
+        createPortal(<div className="yz-window-controls-zone" onMouseEnter={() => setTitlebarRevealed(true)} onMouseLeave={() => setTitlebarRevealed(false)}>
           <div className={`yz-window-controls${titlebarRevealed ? ' is-revealed' : ''}`} role="toolbar" aria-label="窗口控制">
           {onMinimize && <button title="最小化" aria-label="最小化" onClick={onMinimize}><Minus size={14} /></button>}
           {onMaximize && <button title={fullscreen ? '退出全屏（F11）' : '全屏（F11）'} aria-label={fullscreen ? '退出全屏' : '全屏'} onClick={onMaximize}>{fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button>}
           {onClose && <button title="收起到托盘，继续播放" aria-label="收起到托盘" onClick={onClose}><X size={15} /></button>}
           </div>
-        </div>
+        </div>,document.body)
       )}
 
       <AnimatePresence mode="wait" initial={false}>
@@ -211,17 +223,17 @@ export default function ZenixShell(props: ZenixShellProps) {
         {roaming?.active && <button aria-label="结束自动漫游" title="结束自动漫游" onClick={() => { onStopRoaming?.(); enterPlayer('queue'); }}><X size={15} /></button>}
       </div>}
 
-      {sourceActivity && !(view === 'player' && roamingAttention) && <SourceCallout onReplace={currentTrack?.playlistId?()=>{setManagerSection(currentTrack.playlistId!);setQueueOpen(false);setSearchOpen(false);}:undefined} activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
+      {sourceActivity && !(view === 'player' && roamingAttention) && <SourceCallout key={currentTrack?.id} onReplace={currentTrack?.playlistId?()=>{setManagerSection(currentTrack.playlistId!);setQueueOpen(false);setSearchOpen(false);}:undefined} activity={sourceActivity} title={currentTrack?.title} onRetry={onTogglePlay} onCancel={onCancelSourceRequest} onManage={() => { setSearchOpen(false); setQueueOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} />}
 
-      {playbackError && !sourceActivity && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
+      {playbackError && dismissedError!==errorKey && !sourceActivity && currentTrack && !searchOpen && !settingsOpen && !queueOpen && !managerSection && <div className="yz-playback-error" role="alert">
         <div><strong>播放失败</strong><span>{playbackError}</span></div>
-        <div className="yz-playback-error-actions"><button onClick={onTogglePlay}>重试</button>{currentTrack.source === 'custom' && <button onClick={() => { setSettingsInitialTab('sources'); setSettingsOpen(true); }}>管理音乐源</button>}</div>
+        <div className="yz-playback-error-actions"><button onClick={onTogglePlay}>重试</button>{currentTrack.source === 'custom' && <button onClick={() => { setSettingsInitialTab('sources'); setSettingsOpen(true); }}>管理音乐源</button>}<button aria-label="关闭播放错误" onClick={()=>setDismissedError(errorKey)}><X size={16}/></button></div>
       </div>}
 
       <AnimatePresence>
         {searchOpen && <motion.div key="search" className={`yz-search-layer yz-search-layer--${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : .18 }}><SearchOverlay query={query} onQueryChange={setQuery} search={musicSearch} onPlayTrack={(track, queue) => { onPlayTrack(track, queue); enterPlayer('queue'); }} onShowResults={showSearchResults} onClose={() => setSearchOpen(false)} onOpenSources={() => { setSearchOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} background={appearanceBackground} /></motion.div>}
         {catalog&&<motion.div className="yz-settings-backdrop" onClick={()=>setCatalog(undefined)}><div className="yz-settings-modal" role="dialog" aria-label="歌手与专辑" onClick={event=>event.stopPropagation()}><button onClick={()=>setCatalog(undefined)} aria-label="关闭歌手与专辑">关闭</button><CatalogBrowser initialKind={catalog.kind} initialName={catalog.name} tracks={[...tracks,...personal.liked,...personal.favorites,...personal.history.map(item=>item.track),...queue]} play={(tracks,index)=>{onPlayTrack(tracks[index],tracks);setCatalog(undefined);}}/></div></motion.div>}
-        {queueOpen && <motion.div className="yz-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setQueueOpen(false)}><QueuePanel personal={personal} tracks={tracks} playlists={playlists} queue={queue} currentTrack={currentTrack} onPlayTrack={onPlayTrack} onToggleSaved={(kind, track) => onToggleSaved?.(kind, track)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} onCreatePlaylist={(name, track) => onCreatePersonalPlaylist?.(name, track) ?? Promise.resolve(null)} onOpenManager={() => { setQueueOpen(false); setManagerSection('playlists'); }} onClose={() => setQueueOpen(false)} /></motion.div>}
+        {queueOpen && <motion.div className="yz-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setQueueOpen(false)}><QueuePanel onPlayRoaming={roaming?.active?onPlayRoaming:undefined} personal={personal} tracks={tracks} playlists={playlists} queue={queue} currentTrack={currentTrack} onPlayTrack={onPlayTrack} onToggleSaved={(kind, track) => onToggleSaved?.(kind, track)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} onCreatePlaylist={(name, track) => onCreatePersonalPlaylist?.(name, track) ?? Promise.resolve(null)} onOpenManager={() => { setQueueOpen(false); setManagerSection('playlists'); }} onClose={() => setQueueOpen(false)} /></motion.div>}
         {managerSection && <PersonalLibraryManager key={managerSection} initialSection={managerSection} personal={personal} tracks={tracks} queue={queue} onClose={() => setManagerSection(null)} onPlayTrack={(track, list) => { onPlayTrack(track, list); setManagerSection(null); enterPlayer('queue'); }} onCreatePlaylist={name => onCreatePersonalPlaylist?.(name) ?? Promise.resolve(null)} onRenamePlaylist={(id, name) => onRenamePersonalPlaylist?.(id, name) ?? Promise.resolve(false)} onDeletePlaylist={id => onDeletePersonalPlaylist?.(id) ?? Promise.resolve(false)} onRemoveSaved={(kind, id) => onRemoveSaved?.(kind, id)} onRemovePersonalTrack={(id, trackId) => onRemovePersonalTrack?.(id, trackId)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} />}
         {settingsOpen && <motion.div key="settings" className="yz-settings-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><SettingsModal tracks={[...tracks,...personal.liked,...personal.favorites,...personal.history.map(item=>item.track),...queue]} initialTab={settingsInitialTab} reduceMotion={reduceMotion} libraryBusy={libraryBusy} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReduceMotionChange={setReduceMotion} onImportFolder={onImportFolder} onRefreshLibrary={onRefreshLibrary} onClose={() => { setSettingsOpen(false); setSettingsInitialTab('options'); }} /></motion.div>}
       </AnimatePresence>

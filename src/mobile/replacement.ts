@@ -1,5 +1,9 @@
 import {command} from './native';
-import type {Track,PersonalState} from '../core/types';
+import type {Track,PersonalState,PlayerState} from '../core/types';
+export async function refreshMobileReplacement(id:string,player:PlayerState,enabled:boolean){
+  if(!player.track||!Number.isSafeInteger(player.selectionRevision))return;
+  await command('replacementPolicyRefresh',{id,trackId:player.track.id,selectionRevision:player.selectionRevision,enabled});
+}
 export async function inspectMobileReplacement(id:string,song:Track,signal:AbortSignal,candidate?:Track):Promise<PersonalState>{
   return mobileReplacementRequest('replacementRun',{id,trackId:song.id,candidate},signal);
 }

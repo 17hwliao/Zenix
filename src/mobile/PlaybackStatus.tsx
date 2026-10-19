@@ -12,10 +12,11 @@ export default function PlaybackStatus({ activity, stop, retry, sources,replace 
   const failed = activity.phase === 'failed';
   const [now,setNow] = useState(Date.now());
   const [dismissed, setDismissed] = useState('');
-  const failureKey = JSON.stringify(activity);
+  const failureKey = String(activity.startedAt);
   useEffect(() => {
     setNow(Date.now());
     if(failed)return;
+    setDismissed('');
     const timer=setInterval(()=>setNow(Date.now()),1000);
     return()=>clearInterval(timer);
   },[failed,activity.startedAt]);
@@ -27,6 +28,6 @@ export default function PlaybackStatus({ activity, stop, retry, sources,replace 
     <div className="source-status-copy"><span>{activity.message}</span>
       {!failed && <small>正在等待当前阶段完成 · 可随时停止</small>}<PlaybackDetails activity={activity} seconds={seconds}/>
     </div>
-    {failed?<><button onClick={retry}>重试</button><button onClick={sources}>换源</button>{replace&&<button onClick={replace}>寻找替代版本</button>}</>:<button onClick={stop}>停止</button>}
+    <div className="source-status-actions">{failed?<><button onClick={retry}>重试</button><button onClick={sources}>换源</button>{replace&&<button onClick={replace}>寻找替代版本</button>}</>:<button onClick={stop}>停止</button>}</div>
   </div>;
 }

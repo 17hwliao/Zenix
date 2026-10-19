@@ -36,8 +36,9 @@ final class ReplacementRules {
         JSONArray candidates=new JSONArray(),tried=new JSONArray(),rows=value.optJSONArray("candidates"),keys=value.optJSONArray("tried");
         if(rows!=null)for(int i=0;i<rows.length()&&i<12;i++)candidates.put(target(rows.getJSONObject(i)));
         if(keys!=null)for(int i=0;i<keys.length()&&i<3;i++)tried.put(clip(keys.optString(i),34000));
-        JSONObject clean=Json.obj("status",status,"attempts",attempts,"tried",tried,"candidates",candidates,"message",clip(value.optString("message"),300));if(value.optJSONObject("target")!=null)Json.put(clean,"target",target(value.getJSONObject("target")));return clean;
+        JSONObject clean=Json.obj("status",status,"attempts",attempts,"tried",tried,"candidates",candidates,"message",clip(value.optString("message"),300));if(value.opt("roundComplete") instanceof Boolean)Json.put(clean,"roundComplete",value.optBoolean("roundComplete"));if(value.optJSONObject("target")!=null)Json.put(clean,"target",target(value.getJSONObject("target")));return clean;
     }
+    static boolean complete(JSONObject state){return state!=null&&state.optString("status").equals("failed")&&state.optJSONObject("target")==null&&(state.optBoolean("roundComplete")||!state.has("roundComplete")&&Set.of("本轮3次尝试已用完","搜索结果中没有可播放的替代版本").contains(state.optString("message")));}
     static JSONObject empty(){return Json.obj("status","failed","attempts",0,"tried",new JSONArray(),"candidates",new JSONArray(),"message","");}
     static void edit(JSONObject source,JSONObject args)throws Exception{
         String edit=args.optString("edit");JSONArray tracks=source.getJSONArray("tracks");

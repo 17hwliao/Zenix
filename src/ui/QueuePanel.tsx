@@ -1,4 +1,6 @@
 import QueueEditor from './QueueEditor';
+import PlatformReplacement from './PlatformReplacement';
+import {replacementMutation} from '../core/desktopReplacement';
 import { useState } from 'react';
 import { ChevronDown, Heart, ListPlus, Star, Trash2, X } from 'lucide-react';
 import type { PersonalState } from '../core/types';
@@ -12,12 +14,13 @@ type Props = {
   personal: PersonalState; tracks: TrackView[]; playlists: PlaylistView[];
   queue: TrackView[]; currentTrack: TrackView | null;
   onPlayTrack: (track: TrackView, queue?: TrackView[]) => void;
+  onPlayRoaming?:(track:TrackView)=>void;
   onToggleSaved: (kind: 'liked' | 'favorites', track: TrackView) => void;
   onAddToPlaylist: (id: string, track: TrackView) => void; onCreatePlaylist: (name: string, track?: TrackView) => Promise<string | null>;
   onOpenManager: () => void; onClose: () => void;
 };
 
-export default function QueuePanel({ personal, tracks, playlists, queue, currentTrack, onPlayTrack, onToggleSaved, onAddToPlaylist, onCreatePlaylist, onOpenManager, onClose }: Props) {
+export default function QueuePanel({ personal, tracks, playlists, queue, currentTrack, onPlayTrack, onPlayRoaming,onToggleSaved, onAddToPlaylist, onCreatePlaylist, onOpenManager, onClose }: Props) {
   const [sourceOpen, setSourceOpen] = useState(false);
   const [source, setSource] = useState('queue');
   const [adding, setAdding] = useState<string | null>(null);
@@ -36,6 +39,8 @@ export default function QueuePanel({ personal, tracks, playlists, queue, current
   ];
   const selected = choices.find(item => item.id === source) ?? choices[0];
   const visibleEntries = selected.tracks;
+  const activePlaylist=personal.playlists.find(list=>list.id===currentTrack?.playlistId);
+  const playbackEntries=personal.playlists.some(list=>list.id===source)?visibleEntries.map(track=>({...track,playlistId:source})):visibleEntries;
   const choose = (id: string) => {
     setSource(id); setSourceOpen(false);
   };
@@ -56,9 +61,10 @@ export default function QueuePanel({ personal, tracks, playlists, queue, current
     <div className="zenix-queue-switch"><button onClick={() => setSourceOpen(!sourceOpen)} aria-expanded={sourceOpen}><span>{selected.label}</span><small>{selected.tracks.length} 首</small><ChevronDown size={16} /></button>
       {sourceOpen && <div className="zenix-queue-menu">{choices.map(item => <button key={item.id} className={item.id === source ? 'is-active' : ''} onClick={() => choose(item.id)}><span>{item.label}</span><small>{item.tracks.length}</small></button>)}</div>}
     </div>
+    {activePlaylist&&<PlatformReplacement key={activePlaylist.id} autoOnly list={activePlaylist} apply={replacementMutation} policyChanged={async()=>{const {player}=await import('../core/player');const value=player.snapshot;if(value.track?.playlistId===activePlaylist.id&&(value.sourceActivity||value.error)){player.setQueue(value.queue,value.queueIndex);void player.play();}}}/>}
     <QueueEditor queue={queue} currentId={currentTrack?.id} edit={async (operation,args) => {const {player}=await import('../core/player');player.editQueue(operation,args);}}/><p className="zenix-queue-hint">当前播放队列 · 歌曲删除请前往歌曲管理。</p>
     <div className="zenix-queue-list">{visibleEntries.length ? visibleEntries.map((track, index) => <div className={`zenix-queue-row${currentTrack?.id === track.id ? ' is-current' : ''}`} key={`${track.id}-${index}`}>
-      <button className="zenix-queue-track" onClick={() => onPlayTrack(track, visibleEntries)}><span className="zenix-queue-index">{String(index + 1).padStart(2, '0')}</span><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}</small></span></button>
+      <button className="zenix-queue-track" onClick={() => source==='queue'&&onPlayRoaming?onPlayRoaming(track):onPlayTrack(playbackEntries[index], playbackEntries)}><span className="zenix-queue-index">{String(index + 1).padStart(2, '0')}</span><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} /><span><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}</small></span></button>
       <div className="zenix-queue-actions"><button className={personal.liked.some(item => item.id === track.id) ? 'is-on' : ''} title="喜欢" aria-label="喜欢" onClick={() => onToggleSaved('liked', track)}><Heart size={16} fill={personal.liked.some(item => item.id === track.id) ? 'currentColor' : 'none'} /></button><button className={personal.favorites.some(item => item.id === track.id) ? 'is-on' : ''} title="收藏" aria-label="收藏" onClick={() => onToggleSaved('favorites', track)}><Star size={16} fill={personal.favorites.some(item => item.id === track.id) ? 'currentColor' : 'none'} /></button><button title="添加到歌单" aria-label="添加到歌单" onClick={() => setAdding(adding === `${index}` ? null : `${index}`)}><ListPlus size={17} /></button></div>
       {adding === `${index}` && <div className="zenix-queue-add"><strong>添加到歌单</strong>{personal.playlists.map(list => <button key={list.id} onClick={() => { onAddToPlaylist(list.id, track); setAdding(null); }}>{list.name}</button>)}<button onClick={() => makePlaylist(track)}>＋ 新建歌单并添加</button></div>}
     </div>) : <div className="zenix-queue-empty">队列里还没有歌曲。可在主页搜索，或导入本地音乐。</div>}</div>

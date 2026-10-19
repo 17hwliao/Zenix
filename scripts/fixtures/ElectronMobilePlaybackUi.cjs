@@ -35,7 +35,7 @@ app.whenReady().then(async()=>{
   await wait('document.querySelector(".source-status-copy small")?.textContent.includes("等待当前阶段完成")');
   await wait('document.querySelector(".playback-details textarea")?.value.includes("等待：5 秒")');
   const beforeStop=await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length');
-  await click('.mobile-source-status>button');
+  await click('.mobile-source-status .source-status-actions>button');
   assert.equal(await evaluate('window.fixture.calls.filter(c=>c.action==="toggle").length'),beforeStop+1,'stop cancels loading through the playback command');
   assert.equal(await evaluate('window.fixture.state.playback.playWhenReady'),false);
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,sourceActivity:{phase:'failed',startedAt:Date.now(),message:'资源暂不可用',detail:'Source B: HTTP not permitted https://fixture.invalid/audio?token=synthetic-secret'}}})`);
@@ -306,6 +306,10 @@ app.whenReady().then(async()=>{
   await pointer('.mini-info');await pointer('.mini-info');await wait('!!document.querySelector(".mobile-full-player")');
   assert.ok(await evaluate('document.querySelector(".mobile-full-player").getBoundingClientRect().top<=1'));
   await click('[aria-label="收起"]');await wait('!document.querySelector(".mobile-full-player")&&!document.querySelector(".mobile-space.is-suspended")');
+  await evaluate(`(()=>{const list=window.fixture.state.personal.playlists.find(l=>l.tracks.length);if(!list)throw Error('playlist fixture required');const queue=list.tracks.map(song=>({...song,playlistId:list.id}));window.fixture.setSnapshot({playback:{...window.fixture.state.playback,queue,queueIndex:0,track:queue[0],sourceActivity:undefined,error:undefined}});})()`);
+  await click('[aria-label="当前播放列表"]');await wait('!!document.querySelector(".mobile-sheet .replacement-policy input")');
+  assert.equal(await evaluate('!!document.querySelector(".mobile-sheet .replacement-manual")'),false,'playing playlist exposes automatic switch without scan or manual choices');
+  await click('.sheet-close');
   window.webContents.debugger.detach();
   process.stdout.write('MOBILE_PLAYBACK_UI_PASS\n');app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});

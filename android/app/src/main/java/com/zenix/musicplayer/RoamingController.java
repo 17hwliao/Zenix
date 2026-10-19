@@ -14,6 +14,7 @@ final class RoamingController implements AutoCloseable {
     private final Set<String> queried=new LinkedHashSet<>();
     private final LinkedHashMap<String,JSONObject> pool=new LinkedHashMap<>();
     private final LinkedHashMap<String,JSONObject> displayed=new LinkedHashMap<>();
+    private final RoamingHistory replay=new RoamingHistory();
     private final LinkedHashMap<String,Query> queries=new LinkedHashMap<>();
     private JSONObject seen,affinity;
     private final RoamingLedger ledger;
@@ -57,7 +58,7 @@ final class RoamingController implements AutoCloseable {
     private void sample(){long now=SystemClock.elapsedRealtime();if(listening!=null&&service.isActuallyPlaying()&&lastTick>0)listened+=Math.min(2,(now-lastTick)/1000.0);lastTick=now;if(listening!=null&&!listeningSaved&&listened>=30){listeningSaved=true;mark(listening,"played");save();}}
     void selected(JSONObject track){finish("interrupted");listening=Json.copy(track);listened=0;listeningSaved=false;lastTick=SystemClock.elapsedRealtime();}
     void ready(JSONObject track){if(!active)return;failures=0;phase="playing";message="正在为你发现新音乐";if(track!=null)mark(track,"played");save();runtime.emit();pump();}
-    void playingChanged(boolean playing){sample();lastTick=SystemClock.elapsedRealtime();if(active&&!waiting&&!searching&&!phase.equals("failed")&&!phase.equals("exhausted")){phase=playing?"playing":"paused";message=playing?"正在为你发现新音乐":"漫游已暂停";runtime.emit();}if(playing)pump();}
+    void playingChanged(boolean playing){sample();lastTick=SystemClock.elapsedRealtime();if(active&&playing&&listening!=null){replay.record(listening);service.syncRoamingHistory(replay.before(listening.optString("id")),replay.after(listening.optString("id")));}if(active&&!waiting&&!searching&&!phase.equals("failed")&&!phase.equals("exhausted")){phase=playing?"playing":"paused";message=playing?"正在为你发现新音乐":"漫游已暂停";runtime.emit();}if(playing)pump();}
     private void finish(String reason){sample();if(listening==null)return;JSONObject song=listening;double seconds=listened,duration=service.currentDuration();listening=null;listened=0;
         double ratio=duration>0?seconds/duration:0;
         double delta=ratio>=.8?3:ratio>=.5?2:seconds>=30?.5:reason.equals("skip")&&seconds>.1&&seconds<15?-.7:0;
@@ -80,15 +81,21 @@ final class RoamingController implements AutoCloseable {
         active=true;paused=false;waiting=true;phase="searching";message="正在根据你的听歌习惯寻找新歌曲";save();runtime.emit();next(false);
     }
     void retry(){if(!initialized){start();return;}if(!active||queries.isEmpty()){start();return;}generation++;selection++;searching=false;failures=0;searchFailures=0;emptySearches=0;for(Query query:queries.values())if(query.done){query.done=false;if(query.cursor.equals("null"))query.cursor="";}paused=false;waiting=true;phase="searching";message="正在继续寻找新歌曲";runtime.emit();next(false);}
-    void stop(){generation++;selection++;searching=false;waiting=false;finish("interrupted");active=false;paused=false;phase="idle";message="";service.leaveRoaming();save();runtime.emit();}
+    void stop(){generation++;selection++;searching=false;waiting=false;finish("interrupted");active=false;paused=false;phase="idle";message="";replay.clear();service.leaveRoaming();save();runtime.emit();}
     void normalQueue(){if(active)stop();else finish("skip");}
     void next(boolean ended){
+        if(active){JSONObject forward=replay.next(listening==null?"":listening.optString("id"));if(forward!=null){playAgain(forward);return;}}
         if(!active)return;paused=false;finish(ended?"ended":"skip");waiting=true;service.waitForRoaming();JSONObject candidate=choose();
         if(candidate!=null){waiting=false;emptySearches=0;pool.remove(identity(candidate));display(candidate);mark(candidate,"selected");phase="searching";message="正在准备下一首新歌曲";saveAndPlay(candidate);runtime.emit();}else {phase="searching";message="正在寻找下一首新歌曲";pump();}
     }
     void play(String id)throws Exception {
+        if(active&&replay.has(id)){playAgain(replay.get(id));return;}
         if(!active)throw new Exception("漫游未开启");JSONObject song=null;for(JSONObject value:displayed.values())if(value.optString("id").equals(id))song=value;if(song==null)for(JSONObject value:pool.values())if(value.optString("id").equals(id))song=value;if(song==null)throw new Exception("这首歌曲已不在当前漫游中");paused=false;finish("skip");service.waitForRoaming();pool.remove(identity(song));display(song);mark(song,"selected");waiting=false;phase="searching";message="正在准备这首歌曲";saveAndPlay(song);runtime.emit();
     }
+    void previous(){if(!active)return;JSONObject previous=replay.previous(listening==null?"":listening.optString("id"));if(previous!=null)playAgain(previous);}
+    private void playAgain(JSONObject song){paused=false;finish("interrupted");service.waitForRoaming();waiting=false;display(song);phase="searching";message="正在重听最近的漫游歌曲";saveAndPlay(song);runtime.emit();}
+    JSONArray previousSongs(String id){return replay.before(id);}
+    JSONArray followingSongs(String id){return replay.after(id);}
     private void saveAndPlay(JSONObject song){JSONObject value=persisted(),marks=Json.copy(dirtySeen);long token=generation;int request=++selection;JSONObject detached=Json.copy(song);persistence.execute(()->{try{ledger.save(marks);runtime.store.set("roaming",value);runtime.main.post(()->{acknowledge(marks);if(!closed&&active&&!paused&&token==generation&&request==selection)service.playRoaming(detached);});}catch(Exception error){persistenceFailed(error);}});}
     void failed(){if(!active)return;finish("failed");if(++failures>=4){waiting=false;phase="failed";message="连续多首资源不可用，请检查网络或音乐源后重试";save();runtime.emit();return;}message="这首暂不可用，继续探索下一首";runtime.emit();next(false);}
     private void mark(JSONObject track,String reason){pool.remove(identity(track));String key=identity(track);if(dirtySeen.length()>=512&&!dirtySeen.has(key)){persistenceFailed(new Exception("漫游记录暂时无法写入"));return;}JSONObject value=Json.obj("reason",reason,"at",System.currentTimeMillis());Json.put(seen,key,value);Json.put(dirtySeen,key,value);if(seen.length()>512){java.util.Iterator<String> keys=seen.keys();if(keys.hasNext())seen.remove(keys.next());}}
