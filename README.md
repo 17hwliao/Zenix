@@ -47,20 +47,20 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.0.3 / r47
+### 最新版本 v1.0.3 · Android r48 / Windows r47
 
-[v1.0.3 / r47](https://github.com/17hwliao/Zenix/releases/tag/v1.0.3) 是同一公开版本的维护修订：歌单播放时按歌名取前三个候选自动平替，最多三次、按状态等待并支持取消；补齐漫游最近三首重听、PC 顶部拖动区域，以及错误提示溢出与关闭修复。原歌曲资料和历史安装包保留。
+[v1.0.3](https://github.com/17hwliao/Zenix/releases/tag/v1.0.3) 最新移动维护修订为 Android r48：自动平替的每个候选复用普通播放的音源与音质切换，不再锁定搜索结果所属单个源；最多三个候选、按状态等待并支持取消。搜索接口全失败时明确提示，避免快速跳过整个歌单。Windows 保持 r47，原歌曲资料和历史安装包保留。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Android-1.0.3-r47.apk) |
+| Android | [原签名 APK · r48](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Android-1.0.3-r48.apk) |
 | Windows x64 | [安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Setup-1.0.3-r47-x64.exe) |
 
-正式与预览签名清单均提供 r47；旧客户端重新检查更新可获取维护修订，旧下载地址继续保留。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/SHA256SUMS-1.0.3-r47.txt)，功能和验证边界见 [发行说明](docs/releases/v1.0.3.md)。已有真实 PC 音源隔离解码、连续播放与取消检查；未重新验收各设备实际播放或系统覆盖安装，不将自动检查表述为真机通过。
+正式与预览签名清单均提供 Android r48、Windows r47；旧客户端重新检查更新可获取对应维护修订，旧下载地址继续保留。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/SHA256SUMS-1.0.3-r48.txt)，功能和验证边界见 [发行说明](docs/releases/v1.0.3.md)。手机已有 r47 同机故障对照及配置对齐后的起播证据；未新增 r48 系统覆盖安装验收，不将代码检查表述为新包真机通过。
 
 ### 首版 v1.0.0
 
-首版历史入口为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 构建 28。旧安装包保留供既有清单及历史下载使用；当前更新使用上方 r47。iOS 暂停发行，工程保留。
+首版历史入口为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 构建 28。旧安装包保留供既有清单及历史下载使用；当前更新使用上方各平台修订。iOS 暂停发行，工程保留。
 
 | 平台 | 当前下载 | 安装与更新 |
 | --- | --- | --- |

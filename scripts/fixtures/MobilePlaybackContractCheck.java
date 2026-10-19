@@ -147,7 +147,7 @@ final class SourcePolicy {
     static JSONObject validate(JSONObject policy){return policy;}
 }
 final class SourceHttp {
-    static okhttp3.OkHttpClient playbackClient(JSONArray hosts,boolean allowHttp){return new okhttp3.OkHttpClient.Builder().addInterceptor(chain->new okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("Fixture").body(okhttp3.ResponseBody.create(okhttp3.MediaType.parse("audio/mpeg"),"ID3 fixture audio bytes for prefix validation")).build()).build();}
+    static okhttp3.OkHttpClient playbackClient(JSONArray hosts,boolean allowHttp){return new okhttp3.OkHttpClient.Builder().addInterceptor(chain->new okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("Fixture").body(okhttp3.ResponseBody.create(okhttp3.MediaType.parse("audio/mpeg"),chain.request().url().encodedPath().contains("probe-bad")?"{\"error\":\"no audio\"}":"ID3 fixture audio bytes for prefix validation")).build()).build();}
     static void configure(android.content.Context context){}
     static final int MAX_BYTES=4*1024*1024;
     static byte[] bounded(InputStream input,int limit)throws Exception{try(input){byte[] bytes=input.readAllBytes();if(bytes.length>limit)throw new IOException("oversize");return bytes;}}
@@ -158,7 +158,7 @@ final class SourceHttp {
 final class ScriptEngine implements AutoCloseable {
     static JSONArray catalogRows=new JSONArray();static Runnable afterResolve;
     static final List<String> searchKeywords=new java.util.concurrent.CopyOnWriteArrayList<>();
-    static boolean failReplacement;
+    static boolean failReplacement,failSearch;
     static int resets;
     static final List<String> calls=new java.util.concurrent.CopyOnWriteArrayList<>();
     final String script;boolean closed;
@@ -170,6 +170,7 @@ final class ScriptEngine implements AutoCloseable {
     Object call(String method,Object payload,JSONObject settings)throws Exception{return call(method,payload,settings,20000);}
     Object call(String method,Object payload,JSONObject settings,long timeout)throws Exception {
         String quality=payload instanceof JSONObject?((JSONObject)payload).optString("quality"):"";calls.add(script+":"+method+":"+quality);if(timeout!=0&&(method.equals("resolvePlayback")||method.equals("lx")))throw new AssertionError("playback must await explicit completion");
+        if((method.equals("catalog:search")||method.equals("search"))&&failSearch)throw new IOException("HTTP 503");
         if(method.equals("catalog:search"))return Json.obj("items",catalogRows);
         if(method.equals("search")){searchKeywords.add(((JSONObject)payload).optString("keyword"));return Json.obj("items",Json.array(Json.obj("remoteId","match-"+script,"title","Fixture","artist","Artist","duration",90)));}
         if(method.equals("resolvePlayback")&&failReplacement)throw new Exception("HTTP 503");
@@ -178,7 +179,7 @@ final class ScriptEngine implements AutoCloseable {
         if(script.equals("patient")){checkStateWait(timeout);android.os.SystemClock.now+=300000;}
         if(script.startsWith("slow")){android.os.SystemClock.now+=45000;throw new java.net.SocketTimeoutException("transport explicitly failed");}
         if(script.equals("B")&&quality.equals("high"))throw new Exception("quality unavailable");
-        if(afterResolve!=null)afterResolve.run();return Json.obj("url","https://audio.example.test/fixture.mp3");
+        if(afterResolve!=null)afterResolve.run();return Json.obj("url",script.equals("probeBad")?"https://audio.example.test/probe-bad.mp3":"https://audio.example.test/fixture.mp3");
     }
     public void close(){closed=true;}
 }

@@ -55,7 +55,56 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             .put("history",mainPersonal.getJSONArray("history").length())
             .put("sha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(mainPersonal).getBytes(StandardCharsets.UTF_8)))));
         out.put("configurationSha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(new JSONObject().put("sources",mainData.opt("sources")).put("profile",mainData.opt("profile")).put("appearance",mainData.opt("appearance"))).getBytes(StandardCharsets.UTF_8))));
-        if (mode.equals("uiPerformance")) {
+        if (mode.equals("alignSources")) {
+            File input=new File(target.getExternalFilesDir(null),"pc-source-alignment.json");
+            JSONObject requested;try(InputStream stream=new FileInputStream(input)){byte[] bytes=stream.readAllBytes();if(bytes.length>65536)throw new IOException("Source alignment input too large");requested=new JSONObject(new String(bytes,StandardCharsets.UTF_8));}
+            org.json.JSONArray desired=requested.getJSONArray("sources"),existing=mainData.getJSONArray("sources"),aligned=new org.json.JSONArray();java.util.Set<String> used=new java.util.HashSet<>();
+            if(requested.optInt("schemaVersion")!=1||desired.length()!=existing.length())throw new IOException("Source sets differ; refusing replacement");
+            Class<?> policyType=target.getClassLoader().loadClass("com.zenix.musicplayer.SourcePolicy");Method validate=policyType.getDeclaredMethod("validate",JSONObject.class);validate.setAccessible(true);
+            for(int i=0;i<desired.length();i++){JSONObject want=desired.getJSONObject(i),source=null;String hash=want.getString("sha256");
+                for(int j=0;j<existing.length();j++){JSONObject row=existing.getJSONObject(j);if(row.optString("sha256").equals(hash)){source=new JSONObject(row.toString());break;}}
+                if(source==null||!used.add(hash))throw new IOException("Source content mismatch or duplicate");
+                JSONObject pack;try(InputStream stream=new FileInputStream(new File(target.getFilesDir(),"sources/"+source.getString("id")+".json"))){pack=new JSONObject(new String(stream.readAllBytes(),StandardCharsets.UTF_8));}
+                if(!hex(MessageDigest.getInstance("SHA-256").digest(pack.getString("script").getBytes(StandardCharsets.UTF_8))).equals(hash))throw new IOException("Actual source file changed");
+                String catalog=want.getString("catalog");if(!source.getJSONObject("manifest").getJSONObject("lxPlatforms").has(catalog))throw new IOException("Unsupported desktop catalogue");
+                JSONObject settings=source.optJSONObject("settings");if(settings==null)settings=new JSONObject();settings.put("lxCatalog",catalog);source.put("settings",settings).put("enabled",want.getBoolean("enabled")).put("networkPolicy",validate.invoke(null,want.getJSONObject("networkPolicy")));aligned.put(source);
+            }
+            File backups=new File(target.getFilesDir(),"source-alignment-backups");if(!backups.isDirectory()&&!backups.mkdirs())throw new IOException("Cannot create private source backup");File backup=File.createTempFile("before-pc-alignment-",".encrypted",backups);
+            try(InputStream in=new FileInputStream(new File(target.getFilesDir(),"zenix.json"));OutputStream dest=new FileOutputStream(backup)){in.transferTo(dest);}
+            call(mainStore,"apply",new Class<?>[]{JSONObject.class},new JSONObject().put("sources",aligned));call(mainStore,"flush",new Class<?>[]{});
+            Object reloaded=create(target,"PrivateStore",target);JSONObject after=(JSONObject)call(reloaded,"read",new Class<?>[]{});
+            if(!canonical(mainPersonal).equals(canonical(after.getJSONObject("personal"))))throw new IOException("Personal data changed during source alignment");
+            if(!canonical(new JSONObject().put("sources",aligned)).equals(canonical(new JSONObject().put("sources",after.getJSONArray("sources")))))throw new IOException("Source alignment persistence mismatch");
+            out.put("alignedCount",aligned.length()).put("personalUnchanged",true).put("backup",backup.getName());org.json.JSONArray report=new org.json.JSONArray();for(int i=0;i<aligned.length();i++){JSONObject source=aligned.getJSONObject(i);report.put(new JSONObject().put("order",i).put("name",source.getJSONObject("manifest").optString("name")).put("id",source.getString("id")).put("sha256",source.getString("sha256")).put("catalog",source.getJSONObject("settings").getString("lxCatalog")).put("networkPolicy",source.getJSONObject("networkPolicy")));}out.put("sources",report);
+        } else if (mode.equals("replacementCompare")) {
+            org.json.JSONArray records=mainData.optJSONArray("sources"),summary=new org.json.JSONArray();
+            for(int i=0;records!=null&&i<records.length();i++){
+                JSONObject source=records.getJSONObject(i),manifest=source.getJSONObject("manifest"),settings=source.optJSONObject("settings"),policy=source.optJSONObject("networkPolicy");
+                JSONObject row=new JSONObject().put("order",i).put("id",source.optString("id")).put("name",manifest.optString("name")).put("enabled",source.optBoolean("enabled")).put("kind",source.optString("kind")).put("sha256",source.optString("sha256"));
+                row.put("catalog",settings==null?"":settings.optString("lxCatalog")).put("capabilities",manifest.opt("capabilities")).put("platforms",manifest.opt("lxPlatforms")).put("allowHttp",policy!=null&&policy.optBoolean("allowHttp")).put("restrictedHostCount",policy==null||policy.optJSONArray("hosts")==null?0:policy.getJSONArray("hosts").length());summary.put(row);
+            }
+            out.put("sources",summary);
+            org.json.JSONArray lists=mainPersonal.getJSONArray("playlists");JSONObject original=null;
+            for(int i=0;i<lists.length();i++){JSONObject list=lists.getJSONObject(i);org.json.JSONArray tracks=list.getJSONArray("tracks");if(tracks.length()==296){out.put("playlist",new JSONObject().put("id",list.optString("id")).put("name",list.optString("name")).put("count",tracks.length()).put("autoReplacement",list.optBoolean("autoReplacement")));if(tracks.length()>0)original=new JSONObject(tracks.getJSONObject(0).toString());break;}}
+            if(original!=null){out.put("original",original);String phase=arguments.getString("phase","summary");if(!phase.equals("summary")){
+                Class<?> sourceType=target.getClassLoader().loadClass("com.zenix.musicplayer.MusicSources");Constructor<?> sourceConstructor=sourceType.getDeclaredConstructor(Context.class,mainStore.getClass());sourceConstructor.setAccessible(true);Object sources=sourceConstructor.newInstance(target,mainStore);java.util.function.BooleanSupplier cancel=()->false;
+                try{
+                    org.json.JSONArray rows=(org.json.JSONArray)call(sources,"replacementSearch",new Class<?>[]{String.class,java.util.function.BooleanSupplier.class,int.class},original.optString("title"),cancel,3);out.put("searchResults",rows);
+                    if(phase.equals("normal")&&rows.length()>0){
+                        Class<?> progressType=target.getClassLoader().loadClass("com.zenix.musicplayer.MusicSources$Progress");org.json.JSONArray steps=new org.json.JSONArray();
+                        Object progress=java.lang.reflect.Proxy.newProxyInstance(target.getClassLoader(),new Class<?>[]{progressType},(proxy,method,values)->{if(method.getName().equals("update")){steps.put(new JSONObject().put("phase",values[0]).put("message",values[1]));Bundle status=new Bundle();status.putString("zenixAcceptanceProgress",String.valueOf(values[1]));sendStatus(1,status);}return null;});
+                        try{JSONObject result=(JSONObject)call(sources,"resolve",new Class<?>[]{JSONObject.class,java.util.Set.class,String.class,progressType,java.util.function.BooleanSupplier.class},rows.getJSONObject(0),new java.util.HashSet<String>(),"high",progress,cancel);out.put("normalResolved",new JSONObject().put("providerId",result.optString("providerId")).put("providerName",result.optString("providerName")).put("quality",result.optString("quality")).put("host",new java.net.URI(result.getString("url")).getHost()));call(sources,"replacementProbe",new Class<?>[]{JSONObject.class},result);out.put("normalProbe","passed");}
+                        catch(Exception failure){Throwable cause=failure;while(cause.getCause()!=null)cause=cause.getCause();out.put("normalError",String.valueOf(cause.getMessage()).replaceAll("https?://\\S+","[URL]"));}out.put("normalSteps",steps);
+                    }
+                    if(phase.equals("resolve"))for(int i=0;i<rows.length();i++){JSONObject candidate=rows.getJSONObject(i),attempt=new JSONObject().put("title",candidate.optString("title")).put("artist",candidate.optString("artist")).put("providerId",candidate.optString("providerId"));long start=android.os.SystemClock.elapsedRealtime();
+                        try{JSONObject resolved=(JSONObject)call(sources,"replacementExact",new Class<?>[]{JSONObject.class,String.class},candidate,original.optString("id"));attempt.put("resolvedHost",new java.net.URI(resolved.getString("url")).getHost()).put("scheme",new java.net.URI(resolved.getString("url")).getScheme());call(sources,"replacementProbe",new Class<?>[]{JSONObject.class},resolved);attempt.put("result","probePassed");}
+                        catch(Exception failure){Throwable cause=failure instanceof InvocationTargetException?((InvocationTargetException)failure).getTargetException():failure;attempt.put("error",String.valueOf(cause.getMessage()).replaceAll("https?://\\S+","[URL]")).put("errorType",cause.getClass().getSimpleName());}
+                        attempt.put("elapsedMs",android.os.SystemClock.elapsedRealtime()-start);if(!out.has("attempts"))out.put("attempts",new org.json.JSONArray());out.getJSONArray("attempts").put(attempt);
+                    }
+                }finally{call(sources,"close",new Class<?>[]{});}
+            }}
+            JSONObject after=(JSONObject)call(mainStore,"read",new Class<?>[]{});out.put("personalUnchanged",canonical(mainPersonal).equals(canonical(after.getJSONObject("personal"))));
+        } else if (mode.equals("uiPerformance")) {
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
             launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
             long started=android.os.SystemClock.elapsedRealtime();while(foregroundActivity==null&&android.os.SystemClock.elapsedRealtime()-started<15000)Thread.sleep(100);
@@ -193,6 +242,12 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             while((service=field(runtime,"service"))==null&&android.os.SystemClock.elapsedRealtime()<until)Thread.sleep(100);
             if(service==null)throw new IOException("Playback service not available");Object player=service;
             JSONObject before=playbackSnapshot(player);boolean wasWanted=before.optBoolean("playWhenReady");
+            if(arguments.getString("playlistFirst","false").equals("true")){
+                org.json.JSONArray lists=mainPersonal.getJSONArray("playlists");JSONObject chosen=null;for(int i=0;i<lists.length();i++)if(lists.getJSONObject(i).getJSONArray("tracks").length()==296){chosen=lists.getJSONObject(i);break;}
+                if(chosen==null)throw new IOException("296-song playlist not found");org.json.JSONArray queue=new org.json.JSONArray();for(int i=0;i<chosen.getJSONArray("tracks").length();i++)queue.put(new JSONObject(chosen.getJSONArray("tracks").getJSONObject(i).toString()).put("playlistId",chosen.getString("id")));
+                runOnMainSync(()->{try{call(player,"setQueue",new Class<?>[]{org.json.JSONArray.class,int.class},queue,0);}catch(Exception error){throw new RuntimeException(error);}});out.put("testedPlaylistCount",queue.length());
+                before=playbackSnapshot(player);
+            }
             JSONObject selected=before.optJSONObject("track");if(selected!=null)out.put("title",selected.optString("title")).put("artist",selected.optString("artist"));
             try{
                 runOnMainSync(()->{try{call(player,"resume",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});

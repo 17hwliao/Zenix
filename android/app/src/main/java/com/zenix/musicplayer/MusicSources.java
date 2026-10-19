@@ -183,17 +183,44 @@ final class MusicSources implements AutoCloseable {
         return replacementSearch(keyword,cancel,Integer.MAX_VALUE);
     }
     JSONArray replacementSearch(String keyword,java.util.function.BooleanSupplier cancel,int limit)throws Exception{
+        return replacementSearch(keyword,cancel,limit,(phase,message)->{});
+    }
+    JSONArray replacementSearch(String keyword,java.util.function.BooleanSupplier cancel,int limit,Progress progress)throws Exception{
         Set<String> seen=new HashSet<>();
+        int requested=0,completed=0;Exception last=null;
         JSONArray result=new JSONArray(),installed=list();for(int i=0;i<installed.length();i++){
             PlaylistReplacement.check(cancel);JSONObject source=installed.getJSONObject(i);String caps=source.getJSONObject("manifest").getJSONArray("capabilities").toString();if(!source.optBoolean("enabled")||!caps.contains("\"search\"")||!caps.contains("\"resolvePlayback\""))continue;
-            try{JSONArray rows=search(source.getString("id"),keyword,"",true,0).getJSONArray("items");for(int j=0;j<rows.length();j++){try{JSONObject row=ReplacementRules.target(rows.getJSONObject(j));if(seen.add(ReplacementRules.key(row)))result.put(row);}catch(Exception invalid){}if(result.length()>=limit)return result;}}catch(Exception failure){PlaylistReplacement.check(cancel);}
-        }return result;
+            String name=source.getJSONObject("manifest").optString("name","音乐源");requested++;progress.update("resolving","正在搜索歌名 · "+keyword+" · "+name);
+            try{JSONArray rows=search(source.getString("id"),keyword,"",true,0).getJSONArray("items");completed++;progress.update("resolving",name+" 返回 "+rows.length()+" 项结果，正在选取前三个候选");for(int j=0;j<rows.length();j++){try{JSONObject row=ReplacementRules.target(rows.getJSONObject(j));if(seen.add(ReplacementRules.key(row)))result.put(row);}catch(Exception invalid){}if(result.length()>=limit)return result;}}catch(Exception failure){PlaylistReplacement.check(cancel);last=failure;progress.update("switching",name+" 搜索失败 · "+SourceDiagnostics.reason(failure));}
+        }
+        if(requested==0)throw new Exception("没有已启用且支持搜索与播放的音乐源");
+        if(completed==0)throw new Exception("歌名搜索全部失败，尚未解析任何候选 · "+SourceDiagnostics.reason(last));
+        return result;
     }
     JSONObject replacementExact(JSONObject target,String originalId)throws Exception{
         JSONObject source=find(target.getString("providerId"));if(!source.optBoolean("enabled"))throw new Exception("替代音源已停用");boolean lx=source.optString("kind").equals("lx");JSONObject info=lx?readInfo(target):null;JSONArray qualities=lx?source.getJSONObject("manifest").getJSONObject("lxPlatforms").getJSONObject(info.getString("source")).getJSONArray("qualitys"):source.getJSONObject("manifest").getJSONArray("qualities");String chosen="",normalized="";
         for(String q:List.of("320k","128k","flac")){String tier=q.equals("320k")?"high":q.equals("128k")?"standard":"lossless";if(qualities.toString().contains(JSONObject.quote(lx?q:tier))){chosen=q;normalized=tier;break;}}if(chosen.isEmpty())throw new Exception("音源不支持此歌曲目录或品质");
         Object value=lx?invoke(source,"lx",Json.obj("source",info.getString("source"),"action","musicUrl","info",Json.obj("type",chosen,"musicInfo",info)),source.getJSONObject("settings"),true,0):invoke(source,"resolvePlayback",Json.obj("remoteId",target.getString("remoteId"),"quality",normalized),source.getJSONObject("settings"),true,0);
         JSONObject result=value instanceof String?Json.obj("url",value):Json.copy((JSONObject)value);String url=result.optString("url");JSONArray hosts=SourcePolicy.hosts(source,"mediaHosts");SourceHttp.check(url,hosts,SourcePolicy.allowHttp(source));Json.put(result,"allowHttp",SourcePolicy.allowHttp(source));if(hosts!=null)Json.put(result,"mediaHosts",hosts);Json.put(result,"providerId",source.getString("id"));Json.put(result,"providerName",source.getJSONObject("manifest").optString("name"));Json.put(result,"quality",normalized);Json.put(result,"cacheKey",originalId+":"+normalized+":"+sha(source.getString("id")+"\n"+url));return result;
+    }
+    /** Three replacement SONGS; each song uses the same bounded source/quality plan as normal playback. */
+    JSONObject replacementPlayable(JSONObject target,String originalId,String quality,Progress progress,java.util.function.BooleanSupplier cancel)throws Exception{
+        Set<String> attempted=new HashSet<>();
+        while(true){
+            PlaylistReplacement.check(cancel);int before=attempted.size();
+            JSONObject result=resolve(target,attempted,quality,progress,cancel);
+            PlaylistReplacement.check(cancel);
+            try{
+                progress.update("connecting","正在检查当前候选音频 · "+result.optString("providerName"));
+                replacementProbe(result);PlaylistReplacement.check(cancel);
+                Json.put(result,"cacheKey",originalId+":"+result.optString("quality")+":"+sha(result.optString("providerId")+"\n"+result.getString("url")));
+                return result;
+            }catch(Exception failure){
+                PlaylistReplacement.check(cancel);diagnostics.outcome(result,false,SourceDiagnostics.reason(failure));
+                if(attempted.size()<=before)throw failure;
+                progress.update("switching","当前候选连接明确失败，继续其他音源或音质 · "+SourceDiagnostics.reason(failure));
+            }
+        }
     }
     void replacementProbe(JSONObject result)throws Exception{
         okhttp3.Request.Builder request=new okhttp3.Request.Builder().url(result.getString("url")).header("Range","bytes=0-4095");JSONObject headers=result.optJSONObject("headers");if(headers!=null)for(Iterator<String> keys=headers.keys();keys.hasNext();){String key=keys.next();if(!key.matches("(?i)host|content-length|range"))request.header(key,headers.optString(key));}
@@ -216,6 +243,7 @@ final class MusicSources implements AutoCloseable {
                 boolean same=source.optString("kind").equals("lx")&&original!=null&&original.optString("kind").equals("lx");
                 if(same) { JSONObject info=readInfo(track);same=source.getJSONObject("manifest").getJSONObject("lxPlatforms").has(info.optString("source")); }
                 if(!id.equals(track.optString("providerId"))&&!same) {
+                    candidate=null;
                     String matchKey=track.optString("id")+":"+id; synchronized(matched){candidate=matched.get(matchKey);}
                     if(candidate==null){if(attempted.contains(id+":match"))continue;attempted.add(id+":match");
                     JSONArray matches=search(id,track.optString("title")+" "+track.optString("artist"),"",true,0).getJSONArray("items");

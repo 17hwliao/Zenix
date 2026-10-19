@@ -32,12 +32,15 @@ public final class ReplacementContractCheck {
    store.set("personal",Json.obj("playlists",Json.array(Json.obj("id","list-one","autoReplacement",true,"tracks",Json.array(automaticOriginal)))));
    ScriptEngine.calls.clear();ScriptEngine.searchKeywords.clear();android.os.SystemClock.now=0;
    JSONObject automatic=manager.resolve(reference,new HashSet<>(),"high",(phase,message)->{},()->false);
-   check(automatic.optString("providerId").equals("patient"),"automatic playback accepts third title result without artist/duration confirmation");
-   check(manager.context(reference)[1].getJSONObject("replacement").optInt("attempts")==3,"automatic search shares exactly three attempts");
-   check(ScriptEngine.searchKeywords.equals(List.of("Fixture","Fixture","Fixture")),"only song title searched, source collection stops after first three unique rows");
-   check(ScriptEngine.calls.stream().filter(value->value.contains("resolvePlayback")).count()==3,"no original-first or nested quality retries in automatic mode");
+   check(automatic.optString("providerId").equals("patient"),"first title candidate can use a working source just like ordinary search playback");
+   check(manager.context(reference)[1].getJSONObject("replacement").optInt("attempts")==1,"source fallback stays within the same reserved candidate-song attempt");
+   check(manager.context(reference)[1].getJSONObject("replacement").getJSONObject("target").optString("providerId").equals("resetAlways"),"association keeps searched candidate identity even when another source plays it");
+   check(ScriptEngine.searchKeywords.subList(0,3).equals(List.of("Fixture","Fixture","Fixture")),"initial candidate lookup uses only the song title and stops after three unique results");
+   check(ScriptEngine.calls.stream().filter(value->value.contains("resolvePlayback")).count()==5,"normal playback retries explicit transport failures once then reaches the healthy provider");
    check(android.os.SystemClock.now>=300000,"automatic parsing still waits for a late explicit success");
-   try{manager.resolve(reference,new HashSet<>(List.of("replacement-active")),"high",(phase,message)->{},()->false);throw new AssertionError("automatic fourth attempt");}catch(PlaylistReplacement.Unavailable expected){}
+   ScriptEngine.failReplacement=true;
+   try{manager.resolve(reference,new HashSet<>(List.of("replacement-active")),"high",(phase,message)->{},()->false);throw new AssertionError("all replacement candidates should fail");}catch(PlaylistReplacement.Unavailable expected){}finally{ScriptEngine.failReplacement=false;}
+   check(manager.context(reference)[1].getJSONObject("replacement").optInt("attempts")==3,"three candidate SONGS remain the shared limit after media failure and source exhaustion");
    JSONObject interrupted=ReplacementRules.empty();Json.put(interrupted,"attempts",3);Json.put(interrupted,"message","正在解析替代版本");Json.put(interrupted,"tried",Json.array("a","b","c"));manager.save(manager.context(reference),manager.context(reference)[1].getJSONObject("replacement"),interrupted);ScriptEngine.calls.clear();
    try{manager.resolve(reference,new HashSet<>(),"high",(phase,message)->{},()->false);throw new AssertionError("third cancelled reservation reset on resume");}catch(PlaylistReplacement.Unavailable expected){}
    check(ScriptEngine.calls.isEmpty()&&manager.context(reference)[1].getJSONObject("replacement").optInt("attempts")==3,"resuming cancelled third attempt cannot start a fourth or original lookup");
@@ -48,6 +51,17 @@ public final class ReplacementContractCheck {
    check(manager.context(ref)[1].getJSONObject("replacement").optInt("attempts")==1&&manager.context(ref)[1].getJSONObject("replacement").optBoolean("roundComplete"),"one-candidate failure is a completed round");
    ScriptEngine.failReplacement=false;ScriptEngine.calls.clear();JSONObject result=manager.resolve(ref,new HashSet<>(),"high",(phase,message)->{},()->false);check(result.has("replacementKey")&&ScriptEngine.calls.stream().anyMatch(value->value.contains(":search:")),"recovered source gets a fresh title search without manual reset");
   }finally{ScriptEngine.failReplacement=false;}
+  PrivateStore probeStore=new PrivateStore();for(String id:List.of("probeBad","healthy")){probeStore.sources.put(MobilePlaybackContractCheck.source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
+  probeStore.set("personal",Json.obj("playlists",Json.array(Json.obj("id","probe-list","autoReplacement",true,"tracks",Json.array(song("original"))))));
+  try(MusicSources sources=new MusicSources(new android.content.Context(folder),probeStore)){
+   PlaylistReplacement manager=new PlaylistReplacement(probeStore,sources);JSONObject ref=song("original");Json.put(ref,"playlistId","probe-list");
+   JSONObject result=manager.resolve(ref,new HashSet<>(),"high",(phase,message)->{},()->false);
+   check(result.optString("providerId").equals("healthy"),"HTTP-200 non-audio on first source must try other qualities/sources for the same candidate");
+   check(manager.context(ref)[1].getJSONObject("replacement").optInt("attempts")==1,"audio probing does not spend another candidate-song reservation");
+   manager.save(manager.context(ref),manager.context(ref)[1].getJSONObject("replacement"),null);String before=probeStore.object("personal").toString();ScriptEngine.calls.clear();ScriptEngine.failSearch=true;
+   try{manager.resolve(ref,new HashSet<>(),"high",(phase,message)->{},()->false);throw new AssertionError("failed catalog treated as empty songs");}catch(PlaylistReplacement.Unavailable wrong){throw new AssertionError("catalog transport errors must stop instead of skipping the whole playlist",wrong);}catch(Exception expected){check(expected.getMessage().contains("搜索全部失败"),"search failure is visible");}finally{ScriptEngine.failSearch=false;}
+   check(probeStore.object("personal").toString().equals(before),"failed search cannot write a binding or use the candidate budget");check(ScriptEngine.calls.stream().noneMatch(s->s.contains("resolvePlayback")),"failed search never pretends candidates were parsed");
+  }
   // Imported QQ identity must be able to search a configured NetEase-only source.
   PrivateStore imported=new PrivateStore();JSONObject provider=MobilePlaybackContractCheck.source("wy-only");Json.put(provider,"kind","lx");Json.put(provider,"settings",Json.obj("lxCatalog","wy"));Json.put(provider.getJSONObject("manifest"),"lxPlatforms",Json.obj("wy",Json.obj("qualitys",Json.array("320k"))));imported.sources.put(provider);Files.writeString(new File(packs,"wy-only.json").toPath(),Json.obj("script","wy-only").toString());
   JSONObject qq=song("lx.playlist:catalog");Json.put(qq,"remoteId",android.util.Base64.encodeToString(Json.obj("source","tx","songmid","QQ-MID").toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),11));JSONObject wy=song("wy-only");Json.put(wy,"remoteId",android.util.Base64.encodeToString(Json.obj("source","wy","songmid",123).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),11));ScriptEngine.catalogRows=Json.array(wy);
