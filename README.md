@@ -47,16 +47,16 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.0.3 · Android r48 / Windows r47
+### 最新版本 v1.0.3 · r49
 
-[v1.0.3](https://github.com/17hwliao/Zenix/releases/tag/v1.0.3) 最新移动维护修订为 Android r48：自动平替的每个候选复用普通播放的音源与音质切换，不再锁定搜索结果所属单个源；最多三个候选、按状态等待并支持取消。搜索接口全失败时明确提示，避免快速跳过整个歌单。Windows 保持 r47，原歌曲资料和历史安装包保留。
+[v1.0.3](https://github.com/17hwliao/Zenix/releases/tag/v1.0.3) 双端维护修订为 r49：Android 悬浮歌词去掉黑色底板和锁按钮底色，保留拖动、锁定穿透和歌词设置；Windows 修复音源搜索全部失败时自动平替误跳歌的问题。每首最多三个候选、按状态等待和取消机制继续保留。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK · r48](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Android-1.0.3-r48.apk) |
-| Windows x64 | [安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Setup-1.0.3-r47-x64.exe) |
+| Android | [原签名 APK · r49](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Android-1.0.3-r49.apk) |
+| Windows x64 | [安装包 · r49](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Setup-1.0.3-r49-x64.exe) |
 
-正式与预览签名清单均提供 Android r48、Windows r47；旧客户端重新检查更新可获取对应维护修订，旧下载地址继续保留。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/SHA256SUMS-1.0.3-r48.txt)，功能和验证边界见 [发行说明](docs/releases/v1.0.3.md)。手机已有 r47 同机故障对照及配置对齐后的起播证据；未新增 r48 系统覆盖安装验收，不将代码检查表述为新包真机通过。
+正式与预览签名清单均提供双端 r49，旧版重新检查更新可获取维护修订，历史下载地址继续保留。Android r48→r49、Windows r47→r49 已完成实际更新下载、覆盖安装及资料保留核验。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/SHA256SUMS-1.0.3-r49.txt)，范围见 [发行说明](docs/releases/v1.0.3.md)及[本轮审查](docs/review-maintenance-r49.md)。
 
 ### 首版 v1.0.0
 
