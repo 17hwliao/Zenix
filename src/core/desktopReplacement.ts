@@ -19,9 +19,13 @@ export function desktopReplacementAdapter(list:PersonalPlaylist,song:Track){
     save:async(state:ReplacementState|undefined,signal?:AbortSignal)=>{await replacementMutation({id:list.id,edit:'replacement',trackId:song.id,expected:list.tracks.map(song=>song.id),expectedReplacement:JSON.stringify(saved||null),state},signal);saved=replacement.cleanRecord(state);},
     search:async(query:string,signal:AbortSignal,limit=Infinity)=>{
       const sources=(await window.yzqxy!.sources.list()).filter(source=>source.enabled&&source.manifest.capabilities.includes('search')&&source.manifest.capabilities.includes('resolvePlayback'));
+      signal.throwIfAborted();
+      if(!sources.length)throw Error('请先启用支持搜索和播放的音乐源');
       const rows:Track[]=[];
+      let completed=0;
       // Serial requests keep script/HTTP concurrency bounded and cancelable.
-      for(const source of sources){signal.throwIfAborted();try{const page=await sourceRequest(id=>window.yzqxy!.sources.search(source.id,query,null,25,id,true),signal,0);for(const row of page.items){try{const target=replacement.cleanTarget(row);if(!rows.some(value=>replacement.candidateKey(value)===replacement.candidateKey(target)))rows.push(target);}catch{}}if(rows.length>=limit)break;}catch{signal.throwIfAborted();}}
+      for(const source of sources){signal.throwIfAborted();try{const page=await sourceRequest(id=>window.yzqxy!.sources.search(source.id,query,null,25,id,true),signal,0);for(const row of page.items){try{const target=replacement.cleanTarget(row);if(!rows.some(value=>replacement.candidateKey(value)===replacement.candidateKey(target)))rows.push(target);}catch{}}completed++;if(rows.length>=limit)break;}catch{signal.throwIfAborted();}}
+      if(!completed)throw Error('替代版本搜索失败，请检查网络或音乐源后重试');
       return rows;
     },
     resolve:async(target:Track,signal:AbortSignal)=>{

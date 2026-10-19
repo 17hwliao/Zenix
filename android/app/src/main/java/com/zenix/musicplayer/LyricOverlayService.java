@@ -4,7 +4,6 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.ServiceInfo;
 import android.graphics.*;
-import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.provider.Settings;
 import android.view.*;
@@ -80,17 +79,13 @@ public final class LyricOverlayService extends Service {
         if (root != null) { resize(); shown = Integer.MIN_VALUE; render(); }
     }
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-    private GradientDrawable glass() {
-        GradientDrawable background = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0x63212934,0x35202832});
-        background.setCornerRadius(dp(24)); background.setStroke(dp(1),0x25ffffff); return background;
-    }
     private LinearLayout column() { LinearLayout view = new LinearLayout(this); view.setOrientation(LinearLayout.VERTICAL); return view; }
-    private TextView text(int size) { TextView view = new TextView(this); view.setTextSize(size); view.setTextColor(Color.WHITE); view.setGravity(Gravity.CENTER); view.setIncludeFontPadding(false); view.setMaxLines(2); return view; }
+    private TextView text(int size) { TextView view = new TextView(this); view.setTextSize(size); view.setTextColor(Color.WHITE); view.setShadowLayer(dp(2),0,dp(1),0x99000000); view.setGravity(Gravity.CENTER); view.setIncludeFontPadding(false); view.setMaxLines(2); return view; }
     private TextView button(String glyph, String description, Runnable action) {
         TextView view = text(18); view.setText(glyph); view.setContentDescription(description); view.setOnClickListener(v -> { action.run(); reveal(); }); return view;
     }
     private void build() {
-        root = column(); root.setPadding(dp(10),dp(5),dp(10),dp(7)); root.setBackground(glass());
+        root = column(); root.setPadding(dp(10),dp(5),dp(10),dp(7)); root.setBackgroundColor(Color.TRANSPARENT);
         controls = new LinearLayout(this); controls.setGravity(Gravity.CENTER_VERTICAL);
         Icon home = new Icon(this,false); home.setContentDescription("返回 Zenix 主窗口"); home.setOnClickListener(v -> startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)));
         controls.addView(home,new LinearLayout.LayoutParams(dp(32),dp(32)));
@@ -126,10 +121,11 @@ public final class LyricOverlayService extends Service {
         playback.addView(button("☆","收藏当前歌曲",()->saved("favorites")),new LinearLayout.LayoutParams(dp(40),dp(32)));footer.addView(playback);root.addView(footer);
         int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
         frame=new WindowManager.LayoutParams(dp(330),WindowManager.LayoutParams.WRAP_CONTENT,type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT);
+        // Android 12+ only passes touches through an untrusted overlay below .8 opacity.
         frame.gravity=Gravity.TOP|Gravity.LEFT;frame.alpha=.78f;
         JSONObject settings=runtime.store.object("overlay");frame.x=settings==null?dp(15):dp(settings.optInt("x",15));frame.y=settings==null?dp(130):dp(settings.optInt("y",130));
         lock=new Icon(this,true);lock.setContentDescription("锁定或解锁悬浮歌词");lock.setOnClickListener(v->{locked=!locked;previewing=false;expanded=!locked;shown=Integer.MIN_VALUE;resize();render();save();reveal();});
-        lockFrame=new WindowManager.LayoutParams(dp(30),dp(30),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT);lockFrame.gravity=Gravity.TOP|Gravity.LEFT;lock.setBackground(glass());
+        lockFrame=new WindowManager.LayoutParams(dp(30),dp(30),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT);lockFrame.gravity=Gravity.TOP|Gravity.LEFT;
         windows.addView(root,frame);windows.addView(lock,lockFrame);resize();reveal();
         root.addOnLayoutChangeListener((v,a,b,c,d,e,f,g,h)->{if(c-a!=g-e||d-b!=h-f){clamp();updateWindow();}});
     }

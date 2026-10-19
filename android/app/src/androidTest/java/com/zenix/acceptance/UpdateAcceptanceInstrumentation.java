@@ -104,6 +104,57 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                 }finally{call(sources,"close",new Class<?>[]{});}
             }}
             JSONObject after=(JSONObject)call(mainStore,"read",new Class<?>[]{});out.put("personalUnchanged",canonical(mainPersonal).equals(canonical(after.getJSONObject("personal"))));
+        } else if(mode.equals("overlayAppearance")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target);
+            Object existing=field(runtime,"overlay"),overlay=existing;JSONObject original=null;
+            try {
+                if(overlay==null){Class<?> type=target.getClassLoader().loadClass("com.zenix.musicplayer.LyricOverlayService");Method start=type.getDeclaredMethod("start",Context.class);start.setAccessible(true);runOnMainSync(()->{try{start.invoke(null,target);}catch(Exception error){throw new RuntimeException(error);}});long deadline=android.os.SystemClock.elapsedRealtime()+10000;while((overlay=field(runtime,"overlay"))==null&&android.os.SystemClock.elapsedRealtime()<deadline)Thread.sleep(100);}
+                if(overlay==null)throw new IOException("Floating lyrics unavailable; check overlay permission");
+                Object active=overlay;original=(JSONObject)call(active,"status",new Class<?>[]{});JSONObject storeBefore=(JSONObject)call(field(runtime,"store"),"read",new Class<?>[]{});
+                java.util.concurrent.atomic.AtomicReference<Exception> checkFailure=new java.util.concurrent.atomic.AtomicReference<>();
+                runOnMainSync(()->{try{
+                    android.view.View rootView=(android.view.View)field(active,"root"),lockView=(android.view.View)field(active,"lock");android.graphics.drawable.Drawable background=rootView.getBackground();
+                    if(background!=null&&(!(background instanceof android.graphics.drawable.ColorDrawable)||android.graphics.Color.alpha(((android.graphics.drawable.ColorDrawable)background).getColor())!=0))throw new IOException("Lyrics container still paints a backdrop");
+                    if(lockView.getBackground()!=null)throw new IOException("Lock still paints a backdrop");
+                    call(active,"configure",new Class<?>[]{JSONObject.class},new JSONObject().put("locked",true));android.view.WindowManager.LayoutParams frame=(android.view.WindowManager.LayoutParams)field(active,"frame");
+                    if(frame.format!=android.graphics.PixelFormat.TRANSLUCENT||(frame.flags&android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)!=0)throw new IOException("Overlay dims other apps");
+                    if((frame.flags&android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)==0||frame.alpha>.8f)throw new IOException("Locked lyrics can block underlying app touches");
+                    android.view.WindowManager.LayoutParams lockFrame=(android.view.WindowManager.LayoutParams)field(active,"lockFrame");if((lockFrame.flags&android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)!=0)throw new IOException("Unlock button is not touchable");
+                    call(active,"configure",new Class<?>[]{JSONObject.class},new JSONObject().put("locked",false));if((frame.flags&android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)!=0)throw new IOException("Unlocked lyrics cannot receive controls");
+                    out.put("transparentLyricsContainer",true).put("transparentLock",true).put("noDimBehind",true).put("lockedTouchPassthrough",true).put("unlockedControlsTouchable",true);
+                }catch(Exception failure){checkFailure.set(failure);}});
+                if(checkFailure.get()!=null)throw checkFailure.get();
+                JSONObject storeAfter=(JSONObject)call(field(runtime,"store"),"read",new Class<?>[]{});out.put("overlayConfigurationRetained",java.util.Objects.equals(String.valueOf(storeBefore.opt("overlay")),String.valueOf(storeAfter.opt("overlay"))));
+                if(!out.optBoolean("overlayConfigurationRetained"))throw new IOException("Overlay test changed saved configuration");
+            }finally{if(overlay!=null){Object active=overlay;JSONObject settings=original;if(existing==null)runOnMainSync(()->((android.app.Service)active).stopSelf());else if(settings!=null)runOnMainSync(()->{try{call(active,"configure",new Class<?>[]{JSONObject.class},settings);}catch(Exception failure){throw new RuntimeException(failure);}});}}
+        } else if(mode.equals("playlistPlaybackSamples")) {
+            Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
+            Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target);
+            long until=android.os.SystemClock.elapsedRealtime()+15000;Object service;while((service=field(runtime,"service"))==null&&android.os.SystemClock.elapsedRealtime()<until)Thread.sleep(100);if(service==null)throw new IOException("Playback service missing");Object player=service,liveStore=field(runtime,"store");
+            JSONObject liveBefore=(JSONObject)call(liveStore,"read",new Class<?>[]{}),personalBefore=liveBefore.getJSONObject("personal");JSONObject list=null;org.json.JSONArray lists=personalBefore.getJSONArray("playlists");for(int i=0;i<lists.length();i++)if(lists.getJSONObject(i).getJSONArray("tracks").length()==296){list=lists.getJSONObject(i);break;}if(list==null||!list.optBoolean("autoReplacement"))throw new IOException("Expected 296-song playlist with automatic replacement enabled");
+            JSONObject before=playbackSnapshot(player);org.json.JSONArray oldQueue=before.getJSONArray("queue"),queue=new org.json.JSONArray(),samples=new org.json.JSONArray();int oldIndex=before.optInt("queueIndex",-1);double oldPosition=before.optDouble("position");boolean oldWanted=before.optBoolean("playWhenReady");
+            String listId=list.getString("id");for(int i=0;i<list.getJSONArray("tracks").length();i++)queue.put(new JSONObject(list.getJSONArray("tracks").getJSONObject(i).toString()).put("playlistId",listId));out.put("playlistCount",queue.length()).put("playlistId",listId);
+            try {
+                for(String raw:arguments.getString("indices","0,1,147,295").split(",")){
+                    int index=Integer.parseInt(raw.trim());if(index<0||index>=queue.length())throw new IOException("Sample index invalid");JSONObject song=queue.getJSONObject(index),result=new JSONObject().put("index",index).put("title",song.optString("title")).put("artist",song.optString("artist"));
+                    long started=android.os.SystemClock.elapsedRealtime();runOnMainSync(()->{try{call(player,"setQueue",new Class<?>[]{org.json.JSONArray.class,int.class},queue,index);}catch(Exception failure){throw new RuntimeException(failure);}});
+                    double first=-1;until=started+90000;
+                    while(android.os.SystemClock.elapsedRealtime()<until){Thread.sleep(250);JSONObject state=playbackSnapshot(player);JSONObject current=state.optJSONObject("track");
+                        if(current!=null&&!current.optString("id").equals(song.optString("id"))){result.put("skippedTo",current.optString("title"));break;}
+                        if(state.optBoolean("playing")){if(first<0)first=state.optDouble("position");if(state.optDouble("position")>=first+1.2){result.put("playing",true).put("positionBefore",first).put("positionAfter",state.optDouble("position")).put("cacheStatus",state.optString("cacheStatus"));JSONObject resolution=(JSONObject)field(player,"resolution");if(resolution!=null)result.put("provider",resolution.optString("providerName")).put("quality",resolution.optString("quality")).put("replacementUsed",resolution.has("replacementKey"));break;}}
+                        if(state.has("error")&&!state.optBoolean("playWhenReady")){result.put("failure",state.optString("error")).put("activity",state.optJSONObject("sourceActivity"));break;}
+                    }
+                    if(!result.optBoolean("playing")&&!result.has("failure")&&!result.has("skippedTo"))result.put("incomplete","test observation ended; production request was explicitly cancelled, not marked unavailable");
+                    runOnMainSync(()->{try{call(player,"pausePlayback",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});result.put("elapsedMs",android.os.SystemClock.elapsedRealtime()-started);samples.put(result);Bundle status=new Bundle();status.putString("zenixPlaybackSample",result.toString());sendStatus(4,status);
+                }
+            }finally{
+                runOnMainSync(()->{try{call(player,"setQueue",new Class<?>[]{org.json.JSONArray.class,int.class},oldQueue,oldIndex);if(oldQueue.length()>0&&oldIndex>=0)call(player,"seek",new Class<?>[]{double.class},oldPosition);if(!oldWanted)call(player,"pausePlayback",new Class<?>[]{});}catch(Exception failure){throw new RuntimeException(failure);}});
+            }
+            JSONObject after=(JSONObject)call(liveStore,"read",new Class<?>[]{}),personalAfter=after.getJSONObject("personal");
+            out.put("samples",samples).put("originalTracksAndCollectionsRetained",personalIdentity(personalBefore).equals(personalIdentity(personalAfter))).put("configurationUnchanged",configurationIdentity(liveBefore).equals(configurationIdentity(after))).put("queueRestored",true);
+            for(int i=0;i<samples.length();i++)if(!samples.getJSONObject(i).optBoolean("playing"))out.put("ok",false);
+            if(!out.optBoolean("originalTracksAndCollectionsRetained")||!out.optBoolean("configurationUnchanged"))throw new IOException("Personal/configuration preservation mismatch");
         } else if (mode.equals("uiPerformance")) {
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
             launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
@@ -409,6 +460,8 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     private static Object create(Context target,String name,Context context)throws Exception {
         Class<?> type=target.getClassLoader().loadClass("com.zenix.musicplayer."+name);Constructor<?> constructor=type.getDeclaredConstructor(Context.class);constructor.setAccessible(true);return constructor.newInstance(context);
     }
+    private static String configurationIdentity(JSONObject value)throws Exception {JSONObject copy=new JSONObject();for(String name:new String[]{"sources","profile","appearance","smoothPlayback","quality","cacheEnabled","cacheLimitMiB"})if(value.has(name))copy.put(name,value.opt(name));return canonical(copy);}
+    private static String personalIdentity(JSONObject value)throws Exception {JSONObject copy=new JSONObject(value.toString());copy.remove("history");org.json.JSONArray lists=copy.getJSONArray("playlists");for(int i=0;i<lists.length();i++){org.json.JSONArray tracks=lists.getJSONObject(i).getJSONArray("tracks");for(int j=0;j<tracks.length();j++){JSONObject track=tracks.getJSONObject(j);track.remove("replacement");track.remove("coverUrl");track.remove("coverHint");}}return canonical(copy);}
     private JSONObject playbackSnapshot(Object player)throws Exception {
         java.util.concurrent.atomic.AtomicReference<JSONObject> snapshot=new java.util.concurrent.atomic.AtomicReference<>();java.util.concurrent.atomic.AtomicReference<Exception> failure=new java.util.concurrent.atomic.AtomicReference<>();
         runOnMainSync(()->{try{snapshot.set((JSONObject)call(player,"state",new Class<?>[]{}));}catch(Exception error){failure.set(error);}});

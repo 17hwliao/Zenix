@@ -79,6 +79,23 @@ test('desktop automatic fallback and decoder failures share the same persisted t
   await assert.rejects(resolveReplacement(third,['decoder-c'],()=>{},signal,normal),/3次/);assert.equal(calls.length,3);
  }finally{global.window=beforeWindow;}
 });
+test('desktop replacement search outages do not skip the playlist or consume candidate attempts',async()=>{
+ const ts=require('typescript'),raw=require('node:fs');require.extensions['.ts']=(module,file)=>module._compile(ts.transpileModule(raw.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,file);
+ const {resolveReplacement,desktopReplacementAdapter}=require('../src/core/desktopReplacement.ts');const original={...track('original'),playlistId:'outage-list'},list={id:'outage-list',name:'Imported',autoReplacement:true,tracks:[original]};
+ const personal={liked:[],favorites:[],history:[],playlists:[list]},before=JSON.stringify(personal),saved=global.window;let writes=0;
+ const sources=[{id:'one',enabled:true,manifest:{capabilities:['search','resolvePlayback']}},{id:'two',enabled:true,manifest:{capabilities:['search','resolvePlayback']}}];
+ global.window={yzqxy:{personal:{load:async()=>structuredClone(personal),batch:async()=>{writes++;}},sources:{list:async()=>sources,search:async()=>{throw Error('HTTP 503');},cancelRequest:async()=>{}}}};
+ const signal=new AbortController().signal;
+ try {
+  await assert.rejects(resolveReplacement(original,[],()=>{},signal,async()=>{throw Error('unexpected normal resolve');}),error=>!error.code&&/搜索失败/.test(error.message));
+  assert.equal(writes,0);assert.equal(JSON.stringify(personal),before);
+  global.window.yzqxy.sources.list=async()=>[];await assert.rejects(desktopReplacementAdapter(list,original).search('歌曲',signal,3),/启用.*音乐源/);assert.equal(writes,0);
+  global.window.yzqxy.sources.list=async()=>sources;global.window.yzqxy.sources.search=async id=>{if(id==='one')throw Error('HTTP 503');return{items:[]};};
+  assert.deepEqual(await desktopReplacementAdapter(list,original).search('歌曲',signal,3),[],'a completed empty search is different from a transport outage');
+  const abort=new AbortController();global.window.yzqxy.sources.search=async()=>{abort.abort();throw Error('network cancelled');};await assert.rejects(desktopReplacementAdapter(list,original).search('歌曲',abort.signal,3),{name:'AbortError'});assert.equal(writes,0);
+ } finally {global.window=saved;}
+});
+
 test('real React replacement panel: opt-in, version confirmation, restore, cancellation and responsive geometry',{skip:process.platform!=='win32'},async t=>{
  const {createServer}=await import('vite'),folder=await fs.mkdtemp(path.join(os.tmpdir(),'zenix-replacement-ui-'));const server=await createServer({cacheDir:path.join(folder,'vite'),server:{port:0,strictPort:false},logLevel:'error'});await server.listen();t.after(async()=>{await server.close();await fs.rm(folder,{recursive:true,force:true});});
  const env={...process.env,ZENIX_TEST_USER_DATA:folder,ZENIX_TEST_UI_URL:`http://127.0.0.1:${server.httpServer.address().port}/scripts/fixtures/replacement-ui.html`};delete env.ELECTRON_RUN_AS_NODE;
