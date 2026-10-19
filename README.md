@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">桌面与移动端音乐播放器 · v1.0.3</p>
+<p align="center">桌面与移动端音乐播放器 · v1.0.4</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -47,24 +47,24 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.0.3 · r49
+### 最新版本 v1.0.4 · r50
 
-[v1.0.3](https://github.com/17hwliao/Zenix/releases/tag/v1.0.3) 双端维护修订为 r49：Android 悬浮歌词去掉黑色底板和锁按钮底色，保留拖动、锁定穿透和歌词设置；Windows 修复音源搜索全部失败时自动平替误跳歌的问题。每首最多三个候选、按状态等待和取消机制继续保留。
+[v1.0.4](https://github.com/17hwliao/Zenix/releases/tag/v1.0.4) 新增电脑端与安卓端文本歌单导入：粘贴清单或选择 UTF-8 TXT / CSV / TSV，识别歌名与歌手，预览确认后保存为独立歌单，并默认开启播放时自动匹配。安卓支持文本分享到 Zenix，以及音乐空间双指缩放；原贴纸聚焦和播放操作继续保留。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK · r49](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Android-1.0.3-r49.apk) |
-| Windows x64 | [安装包 · r49](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/Zenix-Setup-1.0.3-r49-x64.exe) |
+| Android | [原签名 APK · r50](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Android-1.0.4-r50.apk) |
+| Windows x64 | [安装包 · r50](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Setup-1.0.4-r50-x64.exe) |
 
-正式与预览签名清单均提供双端 r49，旧版重新检查更新可获取维护修订，历史下载地址继续保留。Android r48→r49、Windows r47→r49 已完成实际更新下载、覆盖安装及资料保留核验。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.3/SHA256SUMS-1.0.3-r49.txt)，范围见 [发行说明](docs/releases/v1.0.3.md)及[本轮审查](docs/review-maintenance-r49.md)。
+正式与预览签名清单均提供双端 r50，旧版重新检查更新可获取本版，历史下载地址继续保留。本地完整回归 164/164 通过；本轮未进行实际设备覆盖安装或人工体验验收。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/SHA256SUMS-1.0.4-r50.txt)，范围见 [发行说明](docs/releases/v1.0.4.md)及[本轮审查](docs/review-v1.0.4.md)。
 
 ### 首版 v1.0.0
 
 首版历史入口为 [v1.0.0](https://github.com/17hwliao/Zenix/releases/tag/v1.0.0)：Android 内部构建 33，Windows 构建 28。旧安装包保留供既有清单及历史下载使用；当前更新使用上方各平台修订。iOS 暂停发行，工程保留。
 
-| 平台 | 当前下载 | 安装与更新 |
+| 平台 | 首版下载 | 安装与更新 |
 | --- | --- | --- |
-| Windows x64 | [下载安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r28-x64.exe) | 当前稳定 r28，覆盖安装保留资料；沿用签名清单和 SHA256 核验，暂无 Authenticode 发行证书。 |
+| Windows x64 | [下载安装包](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Setup-1.0.0-r28-x64.exe) | 首版 r28，覆盖安装保留资料；沿用签名清单和 SHA256 核验，暂无 Authenticode 发行证书。 |
 | Android | [下载 APK](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/Zenix-Android-1.0.0-r33.apk) | 优化版 r33，沿用原发行密钥和包名，覆盖安装保留资料。 |
 
 同页提供 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.0/SHA256SUMS-1.0.0-r33.txt) 和完整源码归档。main 保留当前完整源码。公开工件不包含用户音乐、缓存、个人资料、私人源脚本或签名私钥。本次整理按维护者要求不新增测试，已有验收事实与未验证项见 [发行说明](docs/releases/v1.0.0.md)。
