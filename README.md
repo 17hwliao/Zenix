@@ -47,16 +47,18 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.0.4 · r51
+### 最新版本 v1.0.4 · r52
 
-[v1.0.4](https://github.com/17hwliao/Zenix/releases/tag/v1.0.4) 新增电脑端与安卓端文本歌单导入：粘贴清单或选择 UTF-8 TXT / CSV / TSV，识别歌名与歌手，预览确认后保存为独立歌单，并默认开启播放时自动匹配。安卓支持文本分享到 Zenix，以及音乐空间双指缩放；原贴纸聚焦和播放操作继续保留。
+本次维护修复歌曲封面加载和失败恢复，隔离封面、歌词与播放状态，修正缓存清理竞争和系统媒体封面异常打断播放的问题。保留此前的文本歌单导入、安卓文本分享、贴纸双指缩放及三次自动平替。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK · r51](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Android-1.0.4-r51.apk) |
-| Windows x64 | [安装包 · r51](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Setup-1.0.4-r51-x64.exe) |
+| Android | [原签名 APK · r52](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Android-1.0.4-r52.apk) |
+| Windows x64 | [安装包 · r52](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Setup-1.0.4-r52-x64.exe) |
 
-正式与预览签名清单均提供双端 r51，旧版重新检查更新可获取本版，历史下载地址继续保留。本地完整回归 172 项通过，最终音源专项 9 项通过（范围重叠）；本轮未进行实际设备覆盖安装或人工体验验收。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/SHA256SUMS-1.0.4-r51.txt)，范围见 [发行说明](docs/releases/v1.0.4.md)及[本轮审查](docs/review-maintenance-r51.md)。
+[v1.0.4 维护更新](https://github.com/17hwliao/Zenix/releases/tag/v1.0.4)保持原公开版本，内部构建递增至 52；原签名、公钥及资料目录保留。正式与预览签名清单均提供双端 r52，旧版重新检查更新可获取本版，历史包和下载地址继续保留。
+
+本轮通过自动回归、安装包身份及旧客户端签名清单兼容检查；沿用本地自动验证范围，未进行真实设备覆盖安装，不将自动测试等同于实际安装验收。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/SHA256SUMS-1.0.4-r52.txt)，范围见[发行说明](docs/releases/v1.0.4.md)及[本轮审查](docs/review-artwork-isolation-2026-10-21.md)。
 
 ### 首版 v1.0.0
 

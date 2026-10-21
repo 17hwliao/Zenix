@@ -1,0 +1,37 @@
+{
+  "run": {
+    "id": 39588271255,
+    "head_sha": "9ad5936d8682c2f537a46b88afd209dd69d275e3",
+    "conclusion": "success",
+    "path": ".github/workflows/verify-staged-windows.yml"
+  },
+  "receipt": {
+    "schemaVersion": 1,
+    "repository": "17hwliao/Zenix",
+    "verificationSource": "9ad5936d8682c2f537a46b88afd209dd69d275e3",
+    "run": 39588271255,
+    "artifact": {
+      "version": "1.0.4",
+      "build": 52,
+      "name": "Zenix-Setup-1.0.4-r52-x64.exe",
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Setup-1.0.4-r52-x64.exe",
+      "size": 105114863,
+      "sha256": "6f411d535ff497d5336fecca76da270ca464e78632ee7d5f14901bcee43fbcac"
+    },
+    "productionIdentityGatePassed": true,
+    "packagedCoreSources": {
+      "electron/main.cjs": "0364c6a76ba86bce095d62fade9f20b4a3c3773fa6944af8c38f25b3972da575",
+      "electron/sources.cjs": "3aa24375b88e6f81fc2397750e468c55e52818c5534d24c98cb0a53179aaa785",
+      "electron/lx-catalog.cjs": "7e8c83e9586e9865d619e21a8a7faf7d60aa3c4c756042816bd532b1b0482bb5",
+      "electron/runtime/source-artwork.cjs": "a98fd88d77a57a354bc7f5904c7efb60d937032855561b081d6b578d6053b360",
+      "electron/runtime/metadata-cache.cjs": "6d86d2e1ea8d6be7ba0cd82eb8e83832756d4f4982fd7aecae7aa22619a9b06e",
+      "electron/runtime/media-protocol.cjs": "9d5cda0cd07c1350351a569974ebacc7e8983edcb58318cfd6c13525968e2f4e",
+      "electron/runtime/updates.cjs": "5fb31286f0129277b06e8c93033979ef8c376e2b3405f49294cc65088539ca1c",
+      "electron/runtime/source-policy.cjs": "6c91a91af5cce63ef94749b916bb847216d2b23d48dcf24babc58be3baedf223",
+      "electron/runtime/source-network.cjs": "915b2f7c605f58245782fef09acddc3a5ec850682d59207b525d89ed37a86f5c"
+    },
+    "distributionConfigSha256": "71fef1673b92a1d9f0b0b055293d2ba05c08cf3123130568ca7df97398ece796",
+    "checkedAt": "2026-10-21T10:57:39.008Z",
+    "systemInstallationPerformed": false
+  }
+}
