@@ -1,0 +1,23 @@
+name: Publish verified maintenance metadata
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Existing uploaded revision with signed feeds
+        required: true
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publish signed metadata after remote artifact verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ inputs.revision }}
+        run: node scripts/Publish-MaintenanceMetadata.cjs

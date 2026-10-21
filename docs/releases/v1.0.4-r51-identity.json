@@ -1,0 +1,33 @@
+{
+  "run": {
+    "id": 39576643487,
+    "head_sha": "15fb6e63562a16e1ed92f13c1ac5d259e5a76ef9",
+    "conclusion": "success",
+    "path": ".github/workflows/verify-staged-windows.yml"
+  },
+  "receipt": {
+    "schemaVersion": 1,
+    "repository": "17hwliao/Zenix",
+    "verificationSource": "15fb6e63562a16e1ed92f13c1ac5d259e5a76ef9",
+    "run": 39576643487,
+    "artifact": {
+      "version": "1.0.4",
+      "build": 51,
+      "name": "Zenix-Setup-1.0.4-r51-x64.exe",
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Setup-1.0.4-r51-x64.exe",
+      "size": 105113968,
+      "sha256": "fcb3087769182cdd92c9871aa1d29b8e96faabe310432cd8e80836fa4a6577ff"
+    },
+    "productionIdentityGatePassed": true,
+    "packagedCoreSources": {
+      "electron/sources.cjs": "f90c4add406a13ab1f0e1f7cf295d49b257bfece3da2dfb962cdc483fd6109d6",
+      "electron/lx-catalog.cjs": "f66d9c578a3f082c8bcb70d1743160e216a42652761bd69ba8f7b87b60e0962e",
+      "electron/runtime/updates.cjs": "5fb31286f0129277b06e8c93033979ef8c376e2b3405f49294cc65088539ca1c",
+      "electron/runtime/source-policy.cjs": "6c91a91af5cce63ef94749b916bb847216d2b23d48dcf24babc58be3baedf223",
+      "electron/runtime/source-network.cjs": "915b2f7c605f58245782fef09acddc3a5ec850682d59207b525d89ed37a86f5c"
+    },
+    "distributionConfigSha256": "71fef1673b92a1d9f0b0b055293d2ba05c08cf3123130568ca7df97398ece796",
+    "checkedAt": "2026-10-21T09:24:35.260Z",
+    "systemInstallationPerformed": false
+  }
+}
