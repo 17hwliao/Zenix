@@ -18,7 +18,7 @@ async function verify(){
     const {getPath7za}=require('app-builder-lib/out/toolsets/7zip.js'),asar=require('@electron/asar');
     await promisify(execFile)(await getPath7za(),['e',file,'resources/app.asar','-y','-o'+folder],{windowsHide:true});
     const archive=path.join(folder,'app.asar'),core={};
-    for(const entry of ['electron/sources.cjs','electron/lx-catalog.cjs','electron/runtime/updates.cjs','electron/runtime/source-policy.cjs','electron/runtime/source-network.cjs']){
+    for(const entry of ['electron/main.cjs','electron/sources.cjs','electron/lx-catalog.cjs','electron/runtime/source-artwork.cjs','electron/runtime/metadata-cache.cjs','electron/runtime/media-protocol.cjs','electron/runtime/updates.cjs','electron/runtime/source-policy.cjs','electron/runtime/source-network.cjs']){
       const actual=asar.extractFile(archive,path.normalize(entry)).toString('utf8').replace(/\r\n/g,'\n'),expected=(await fs.readFile(entry,'utf8')).replace(/\r\n/g,'\n');assert.equal(actual,expected,entry);core[entry]=createHash('sha256').update(actual).digest('hex');
     }
     const receipt={schemaVersion:1,repository:process.env.GITHUB_REPOSITORY,verificationSource:process.env.GITHUB_SHA,run:Number(process.env.GITHUB_RUN_ID),artifact:{version:application.version,build:application.zenixBuild,name,url:url.href,size,sha256:digest.slice(7)},productionIdentityGatePassed:true,packagedCoreSources:core,distributionConfigSha256:createHash('sha256').update(JSON.stringify(config)).digest('hex'),checkedAt:new Date().toISOString(),systemInstallationPerformed:false};

@@ -28,6 +28,9 @@ function qualityTypes(values) {
 function normalize(name, artist, album, duration, coverUrl, info) {
   const seconds = Math.max(0, Number(duration) || 0);
   info.interval = `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+  const image = artworkUrl(coverUrl);
+  // Keep the existing serialized song identity; HTTPS display normalization
+  // must not turn saved likes/history into different songs.
   info.img = /^https:\/\//i.test(coverUrl || '') ? coverUrl : null;
   info.lrc = null;
   info.typeUrl = {};
@@ -35,8 +38,13 @@ function normalize(name, artist, album, duration, coverUrl, info) {
   return {
     remoteId: compactInfo(info), title: String(name || '').trim(), artist: String(artist || '').trim(),
     album: String(album || '').trim(), duration: seconds,
-    coverUrl: /^https:\/\//i.test(coverUrl || '') ? coverUrl : undefined,
+    coverUrl: image || undefined,
   };
+}
+
+function artworkUrl(value) {
+  if (typeof value !== 'string') return null;
+  return /^https?:\/\//i.test(value) ? value.replace(/^http:\/\//i, 'https://').replace(/\{size\}/g, '480') : null;
 }
 
 async function json(url, options = {}) {
@@ -70,7 +78,9 @@ async function searchKg(keyword, page, size) {
     items: (data.data?.lists || []).map(song => {
       const hashes = { '128k': song.FileHash, '320k': song.HQFileHash, flac: song.SQFileHash, flac24bit: song.ResFileHash };
       const info = { source: 'kg', songmid: song.Audioid, albumAudioId: song.MixSongID, hash: song.FileHash, name: song.OriSongName || song.SongName, singer: (song.Singers || []).map(item => item.name).join('、') || song.SingerName, albumName: song.AlbumName, albumId: song.AlbumID, types: Object.entries(hashes).filter(([, hash]) => hash).map(([type, hash]) => ({ type, hash })), _types: qualityTypes(hashes) };
-      return info.songmid ? normalize(info.name, info.singer, info.albumName, song.Duration, '', info) : null;
+      if (!info.songmid) return null;
+      const track = normalize(info.name, info.singer, info.albumName, song.Duration, '', info);
+      return { ...track, coverUrl: artworkUrl(song.AlbumImage) || artworkUrl(song.Image) || undefined };
     }).filter(Boolean),
   };
 }
@@ -141,32 +151,27 @@ async function search(platform, keyword, page, size, signal) {
   return { items: result.items, nextCursor: result.items.length && page * size < result.total ? String(page + 1) : null };
 }
 
-async function artwork(info) {
-  if (typeof info.img === 'string' && /^https?:\/\//i.test(info.img)) return info.img;
+async function artwork(info, signal) {
+  if (signal) return context.run(signal, () => artwork(info));
+  if (artworkUrl(info.img)) return artworkUrl(info.img);
   if (info.source === 'kw') {
     const query = new URLSearchParams({ corp: 'kuwo', type: 'rid_pic', pictype: '500', size: '500', rid: String(info.songmid) });
     const response = await fetch(`https://artistpicserver.kuwo.cn/pic.web?${query}`, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) return null;
     const url = (await readLimited(response, 65536)).toString('utf8').trim();
-    return url.length < 1500 && /^https?:\/\//i.test(url) ? url : null;
+    return url.length < 1500 ? artworkUrl(url) : null;
   }
   if (info.source === 'kg') {
-    const body = {
-      appid: 1001, area_code: '1', behavior: 'play', clientver: '9020', need_hash_offset: 1, relate: 1,
-      resource: [{ album_audio_id: info.songmid, album_id: info.albumId, hash: info.hash, id: 0, name: `${info.singer || ''} - ${info.name || ''}.mp3`, type: 'audio' }],
-      token: '', userid: 2626431536, vip: 1,
-    };
-    const data = await json('https://media.store.kugou.com/v1/get_res_privilege', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'KG-RC': '1', 'KG-THash': 'expand_search_manager.cpp:852736169:451', 'User-Agent': 'KuGou2012-9020-ExpandSearchManager' },
-      body: JSON.stringify(body),
-    });
-    const image = data.data?.[0]?.info?.image;
-    const size = data.data?.[0]?.info?.imgsize?.[0] || 480;
-    return typeof image === 'string' ? image.replace('{size}', String(size)).replace(/^http:\/\//i, 'https://') : null;
+    if (!info.hash) return null;
+    const query = new URLSearchParams({ cmd: 'playInfo', hash: String(info.hash) });
+    const data = await json(`https://m.kugou.com/app/i/getSongInfo.php?${query}`);
+    // Metadata can contain an album image even when audio requires purchase.
+    // This request never resolves or starts audio playback.
+    return artworkUrl(data.album_img) || artworkUrl(data.imgUrl);
   }
   if (info.source === 'wy') {
     const data = await json(`https://music.163.com/api/song/detail?ids=${encodeURIComponent(JSON.stringify([info.songmid]))}`);
-    return data.songs?.[0]?.album?.picUrl || data.songs?.[0]?.al?.picUrl || null;
+    return artworkUrl(data.songs?.[0]?.album?.picUrl || data.songs?.[0]?.al?.picUrl);
   }
   if (info.source === 'tx' && info.albumMid) return `https://y.gtimg.cn/music/photo_new/T002R500x500M000${encodeURIComponent(info.albumMid)}.jpg`;
   return null;

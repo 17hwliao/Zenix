@@ -37,6 +37,14 @@ class MetadataCache {
   }
   schedule() { if (this.timer) return; this.timer = setTimeout(() => { this.timer = null; void this.prune().catch(() => {}); }, Math.max(300, this.nextRetryAt - Date.now())); this.timer.unref(); }
   failWrite() { this.writeEnabled = false; this.error = '封面与歌词缓存无法保存，已暂停写入'; this.nextRetryAt = Date.now() + 30000; }
+  async write(entries, epoch) {
+    const task = this.pending.catch(() => {}).then(async () => {
+      if (!this.writeEnabled || epoch !== this.epoch) return;
+      try { for (const [file, data] of entries) await fs.writeFile(file, data); }
+      catch { this.failWrite(); }
+    });
+    this.pending = task; return task;
+  }
   async clear() { this.epoch++; clearTimeout(this.timer); this.timer = null; const task = this.pending.catch(() => {}).then(async () => { for (const file of await this.files()) await fs.rm(file.file, { force: true }); await this.probeWritable(); }).then(() => { this.writeEnabled = true; this.error = ''; this.nextRetryAt = 0; }, error => { this.writeEnabled = false; this.error = '封面与歌词缓存无法清理，已暂停写入'; this.nextRetryAt = Date.now() + 30000; throw error; }); this.pending = task; return task; }
   async stats() { const files = await this.files().catch(() => { this.writeEnabled = false; this.error = '封面与歌词缓存无法读取，已暂停写入'; return []; }); return { metadataBytes: files.reduce((sum, file) => sum + file.size, 0), metadataLimitMiB: Math.round(this.limit / 1024 / 1024), metadataError: this.error }; }
 }

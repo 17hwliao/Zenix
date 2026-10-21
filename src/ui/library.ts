@@ -1,4 +1,5 @@
 import type { PlaylistView, TrackView } from './types';
+import { trackCoverUrl } from '../core/trackCover';
 
 // Local collection summaries are derived in memory from the current library snapshot.
 export type HomeTab = 'playlist' | 'radio' | 'album' | 'local';
@@ -31,7 +32,7 @@ const groupTracks = (tracks: TrackView[], field: (track: TrackView) => string, p
     id: `${prefix}:${title}`,
     title,
     subtitle: `${songs.length} 首歌曲`,
-    coverUrl: songs.find(song => song.coverUrl)?.coverUrl,
+    coverUrl: songs.map(trackCoverUrl).find(Boolean),
     tracks: songs,
     kind: 'collection',
   }));
@@ -43,7 +44,7 @@ export function getLibraryCards(tracks: TrackView[], tab: HomeTab, localSection:
       id: 'radio:all',
       title: '随机播放',
       subtitle: `${tracks.length} 首本地歌曲`,
-      coverUrl: tracks.find(song => song.coverUrl)?.coverUrl,
+      coverUrl: tracks.map(trackCoverUrl).find(Boolean),
       tracks,
       kind: 'collection',
     }] : [];
@@ -63,20 +64,20 @@ export function getLibraryCards(tracks: TrackView[], tab: HomeTab, localSection:
       id: 'playlist:all',
       title: '全部歌曲',
       subtitle: `${tracks.length} 首歌曲`,
-      coverUrl: tracks.find(song => song.coverUrl)?.coverUrl,
+      coverUrl: tracks.map(trackCoverUrl).find(Boolean),
       tracks,
       kind: 'collection',
     }] : [];
     return [...allSongs, ...playlists.map(playlist => {
       const songs = playlist.trackIds.map(id => byId.get(id)).filter((track): track is TrackView => Boolean(track));
-      return { id: `playlist:${playlist.id}`, title: playlist.name, subtitle: `${songs.length} 首歌曲`, coverUrl: songs.find(song => song.coverUrl)?.coverUrl, tracks: songs, kind: 'collection' as const };
+      return { id: `playlist:${playlist.id}`, title: playlist.name, subtitle: `${songs.length} 首歌曲`, coverUrl: songs.map(trackCoverUrl).find(Boolean), tracks: songs, kind: 'collection' as const };
     })];
   }
   return tracks.map(track => ({
     id: `track:${track.id}`,
     title: track.title,
     subtitle: text(track.artist, '未知艺术家'),
-    coverUrl: track.coverUrl,
+    coverUrl: trackCoverUrl(track),
     tracks: [track],
     kind: 'track',
   }));

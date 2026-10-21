@@ -1,6 +1,7 @@
 import {markReplacementPlayed} from './desktopReplacement';
 import {AudioGraph,defaultAudioSettings,validateAudio,type AudioSettings} from './audioSettings';
 import type { MediaCommand, PlayerState, RepeatMode, SourceProgress, Track } from './types';
+import { trackCoverUrl } from './trackCover';
 
 type Listener = (state: PlayerState) => void;
 export type PlaybackLifecycle = { type: 'audible' | 'pause' | 'pause-request' | 'waiting' | 'failure' | 'manual' | 'selected' | 'tick' | 'skip' | 'ended'; track?: Track };
@@ -630,12 +631,14 @@ class PlayerController {
   private updateMediaMetadata(): void {
     if (!('mediaSession' in navigator) || !this.state.track) return;
     const track = this.state.track;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.title,
-      artist: track.artist,
-      album: track.album ?? '',
-      artwork: track.coverUrl ? [{ src: track.coverUrl }] : [],
-    });
+    const metadata = { title: track.title, artist: track.artist, album: track.album ?? '' };
+    try {
+      const cover = trackCoverUrl(track);
+      navigator.mediaSession.metadata = new MediaMetadata({ ...metadata, artwork: cover ? [{ src: cover }] : [] });
+    } catch {
+      // Optional OS artwork support must never interrupt selecting/playing audio.
+      try { navigator.mediaSession.metadata = new MediaMetadata(metadata); } catch {}
+    }
   }
 
   private updateMediaPosition(): void {

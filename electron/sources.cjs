@@ -88,9 +88,16 @@ class SourceManager {
     this.requests = new Map();
     this.broadcast = broadcast; this.records = []; this.runners = new Map(); this.byContents = new Map();
     this.sessions = new BoundedCache({ maxEntries: 48, ttl: 6 * 60 * 60 * 1000 });
-    this.coverCache = new BoundedCache({ maxEntries: 32, maxBytes: 8 * 1024 * 1024, sizeOf: value => value.data.byteLength });
-    this.catalogCache = new BoundedCache({ maxEntries: 12, ttl: 60000 }); this.catalogPending = new Map(); this.coverPending = new Map();
-    this.coverHints = new BoundedCache({ maxEntries: 500, ttl: 30 * 60 * 1000 }); this.settings = {}; this.pendingImports = new BoundedCache({ maxEntries: 6, ttl: 10 * 60 * 1000 }); this.errors = new Map();
+    this.artwork = new (require('./runtime/source-artwork.cjs').SourceArtwork)({
+      folder: this.coverFolder, metadataCache: this.metadataCache,
+      resolve: async (id, remoteId, hint, signal) => {
+        const record = id === 'lx.playlist:catalog' ? { kind: 'lx', networkPolicy: { allowHttp: false, hosts: null } } : this.record(id);
+        const url = hint || (record.kind === 'lx' ? await lxCatalog.artwork(lxCatalog.readInfo(remoteId), signal) : (await this.call(id, 'artwork', { remoteId }, signal))?.url);
+        return { url, patterns: record.kind === 'lx' ? null : record.manifest.network.artworkHosts, options: policyOptions(record) };
+      },
+    });
+    this.catalogCache = new BoundedCache({ maxEntries: 12, ttl: 60000 }); this.catalogPending = new Map();
+    this.coverHints = this.artwork.hints; this.settings = {}; this.pendingImports = new BoundedCache({ maxEntries: 6, ttl: 10 * 60 * 1000 }); this.errors = new Map();
     ipcMain.on('source:registered', event => this.byContents.get(event.sender.id)?.onRegistered?.());
     ipcMain.on('source:lx-inited', (event, data) => {
       const runner = this.byContents.get(event.sender.id);
@@ -279,7 +286,7 @@ class SourceManager {
     await this.save(); await fs.rm(path.join(this.folder, id), { recursive: true, force: true }); return this.list();
   }
   retireSource(id) { for (const runner of this.runners.values()) if (runner.record.id === id) runner.destroy(); }
-  close() { this.stopping = true; for (const request of this.requests.values()) request.abort(new Error('应用正在退出')); for (const runner of this.runners.values()) runner.destroy(); }
+  close() { this.stopping = true; this.artwork.close(); for (const request of this.requests.values()) request.abort(new Error('应用正在退出')); for (const runner of this.runners.values()) runner.destroy(); }
   runner(id,stateDriven=false) {
     if (this.stopping) throw new Error('应用正在退出');
     const record = this.record(id);
@@ -307,6 +314,7 @@ class SourceManager {
   async call(id, method, payload, signal) {
     const record = this.record(id);
     if (!record.manifest.capabilities.includes(method)) throw new Error(`该源未提供 ${method}`);
+    const reportStatus = method !== 'artwork' && method !== 'lyrics';
     let runner;
     const cancel = () => runner?.destroy();
     signal?.throwIfAborted();signal?.addEventListener('abort', cancel, { once: true });
@@ -316,13 +324,15 @@ class SourceManager {
       await runner.startTask;
       signal?.throwIfAborted();
       const result = await runner.invoke(method, payload, this.settings[id] || {});
-      if (this.errors.delete(id)) this.broadcast('sources:changed', this.list());
+      if (reportStatus && this.errors.delete(id)) this.broadcast('sources:changed', this.list());
       return result;
     } catch (error) {
       if (signal?.aborted) throw signal.reason || error;
       if (runner && !runner.window) runner.destroy();
-      this.errors.set(id, boundedText(error instanceof Error ? error.message : String(error), 180));
-      this.broadcast('sources:changed', this.list());
+      if (reportStatus) {
+        this.errors.set(id, boundedText(error instanceof Error ? error.message : String(error), 180));
+        this.broadcast('sources:changed', this.list());
+      }
       throw error;
     } finally {
       signal?.removeEventListener('abort', cancel);
@@ -614,48 +624,15 @@ class SourceManager {
       const result = record.kind === 'lx' ? await lxCatalog.lyrics(lxCatalog.readInfo(track.remoteId)) : await this.call(track.providerId, 'lyrics', { remoteId: track.remoteId });
       const lyrics = typeof result === 'string' ? { text: result.slice(0, 200000), format: 'lrc', source: 'custom' }
         : result && typeof result.text === 'string' ? { text: result.text.slice(0, 200000), translationText: typeof result.translationText === 'string' ? result.translationText.slice(0, 100000) : undefined, format: boundedText(result.format || 'lrc', 15), source: 'custom' } : null;
-      if (lyrics && this.metadataCache.writeEnabled && epoch === this.metadataCache.epoch) { await fs.writeFile(file, JSON.stringify(lyrics), 'utf8').catch(() => this.metadataCache.failWrite()); if (epoch !== this.metadataCache.epoch) await fs.rm(file, { force: true }); }
+      if (lyrics) await this.metadataCache.write([[file, JSON.stringify(lyrics)]], epoch);
       this.metadataCache.schedule();
       return lyrics;
     } catch (error) {
       try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch { throw error; }
     }
   }
-  async cover(request, id, remoteId) {
-    const key = `${id}:${remoteId}`;
-    let pending = this.coverPending.get(key);
-    if (!pending) { pending = this.coverBytes(id, remoteId).finally(() => this.coverPending.delete(key)); this.coverPending.set(key, pending); }
-    const result = await pending;
-    return new Response(result.data || null, { status: result.status || 200, headers: { 'Content-Type': result.type || 'image/jpeg', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'private, max-age=86400' } });
-  }
-  async coverBytes(id, remoteId) {
-    const epoch = this.metadataCache.epoch;
-    try {
-      const key = `${id}:${remoteId}`;
-      if (this.coverCache.has(key)) { const hit = this.coverCache.get(key); return hit; }
-      const hash = createHash('sha256').update(key).digest('hex');
-      try {
-        const [data, type] = await Promise.all([readBoundedFile(path.join(this.coverFolder, `${hash}.bin`), 5 * 1024 * 1024), readBoundedFile(path.join(this.coverFolder, `${hash}.type`), 256, 'utf8')]);
-        if (data.length && data.length <= 5 * 1024 * 1024 && type.startsWith('image/')) { const value = { data, type }; if (epoch === this.metadataCache.epoch) this.coverCache.set(key, value); return value; }
-      } catch {}
-      const record = id === 'lx.playlist:catalog' ? { kind: 'lx', networkPolicy: { allowHttp: false, hosts: null } } : this.record(id);
-      const url = this.coverHints.get(key) || (record.kind === 'lx' ? await lxCatalog.artwork(lxCatalog.readInfo(remoteId)) : (await this.call(id, 'artwork', { remoteId }))?.url);
-      if (record.kind === 'lx') await checkLxUrl(url, sourcePolicy(record.networkPolicy)); else checkUrl(url, record.manifest.network.artworkHosts);
-      const response = await fetchAllowed(url, record.kind === 'lx' ? null : record.manifest.network.artworkHosts, { ...policyOptions(record), signal: AbortSignal.timeout(10000) });
-      if (!response.ok) { await response.body?.cancel().catch(() => {}); return { status: response.status }; }
-      const type = response.headers.get('content-type') || 'image/jpeg';
-      if (!type.startsWith('image/')) { await response.body?.cancel().catch(() => {}); throw new Error('封面格式无效'); }
-      const data = await readLimited(response, 5 * 1024 * 1024);
-      if (epoch !== this.metadataCache.epoch) return { data, type };
-      this.coverCache.set(key, { data, type });
-      if (!this.metadataCache.writeEnabled) { this.metadataCache.schedule(); return { data, type }; }
-      const files = [path.join(this.coverFolder, `${hash}.bin`), path.join(this.coverFolder, `${hash}.type`)];
-      await Promise.all([fs.writeFile(files[0], data), fs.writeFile(files[1], type)]).catch(() => this.metadataCache.failWrite());
-      if (epoch !== this.metadataCache.epoch) await Promise.all(files.map(file => fs.rm(file, { force: true })));
-      this.metadataCache.schedule();
-      return { data, type };
-    } catch { return { status: 404 }; }
-  }
+  cover(request, id, remoteId) { return this.artwork.cover(request, id, remoteId); }
+  coverBytes(id, remoteId) { return this.artwork.get(id, remoteId); }
   async choosePackage(window) {
     const result = await dialog.showOpenDialog(window, { title: '导入音乐源', properties: ['openFile'], filters: [{ name: '音乐源包或脚本', extensions: ['zenixsource', 'json', 'js'] }] });
     return result.canceled || !result.filePaths[0] ? null : this.importFile(result.filePaths[0]);

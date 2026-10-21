@@ -1,0 +1,32 @@
+const { app, BrowserWindow, protocol } = require('electron'), assert = require('node:assert/strict');
+if (!process.env.ZENIX_TEST_USER_DATA) throw Error('isolated profile required');
+app.setPath('userData', process.env.ZENIX_TEST_USER_DATA); app.disableHardwareAcceleration();
+protocol.registerSchemesAsPrivileged([{ scheme: 'yzqxy', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }]);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+app.whenReady().then(async () => {
+  const { registerMediaProtocol } = require('../../electron/runtime/media-protocol.cjs');
+  const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=', 'base64');
+  let calls = 0, deadCalls = 0, recovered = false, late;
+  registerMediaProtocol({ protocol, sourceManager: { async cover(request, id, song) {
+    assert.equal(id, 'fixture'); assert.equal(new URL(request.url).searchParams.get('artwork'), '2');
+    if (song === 'dead') deadCalls++;
+    if (song === 'flaky' && ++calls === 1 || song === 'dead' && !recovered) return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    if (song === 'late') return new Promise(resolve => { late = () => resolve(new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } })); });
+    return new Response(image, { headers: { 'Content-Type': 'image/png' } });
+  } } });
+  const window = new BrowserWindow({ show: false, width: 500, height: 500, webPreferences: { offscreen: true, backgroundThrottling: false } });
+  const run = code => window.webContents.executeJavaScript(code, true);
+  const wait = async code => { for (let n = 0; n < 150; n++) { if (await run(code)) return; await sleep(40); } throw Error('UI wait: ' + code); };
+  await window.loadURL(process.env.ZENIX_TEST_UI_URL);
+  await wait('document.querySelector("img")?.naturalWidth===1'); assert.equal(calls, 2, 'initial error recovers automatically');
+  await run('changeCover("yzqxy://source-cover/fixture/late")');
+  for (let n = 0; n < 100 && !late; n++) await sleep(20); assert(late);
+  await run('changeCover("yzqxy://source-cover/fixture/good")'); await wait('document.querySelector("img")?.naturalWidth===1');
+  late(); await sleep(100); assert.equal(await run('document.querySelector("img")?.naturalWidth'), 1, 'late failure cannot hide the new song');
+  await run('changeCover("yzqxy://source-cover/fixture/dead")'); await sleep(3500);
+  assert.equal(await run('document.querySelector("img")'), null, 'permanent failure leaves a placeholder');
+  assert.equal(deadCalls, 3, 'one initial attempt plus two retries, never an infinite retry loop');
+  recovered = true; await run('window.dispatchEvent(new Event("online"))'); await wait('document.querySelector("img")?.naturalWidth===1'); assert.equal(deadCalls, 4);
+  await run('changeCover("yzqxy://source-cover/fixture/good")'); await wait('document.querySelector("img")?.naturalWidth===1');
+  console.log('ARTWORK_UI_PASS'); app.exit(0);
+}).catch(error => { console.error(error); app.exit(1); });

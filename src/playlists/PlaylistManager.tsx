@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Download, FolderInput, ListMusic, Music2, Pencil, Play, Plus, Search, Trash2, X } from 'lucide-react';
 import { library } from '../core';
 import type { LibrarySnapshot, Playlist, Track } from '../core';
+import CoverArt from '../ui/CoverArt';
+import { trackCoverUrl } from '../core/trackCover';
 import './PlaylistManager.css';
 
 export interface PlaylistManagerProps {
@@ -16,9 +18,7 @@ function durationLabel(seconds: number): string {
 }
 
 function TrackArt({ track }: { track: Track }) {
-  return <span className="yz-pl-art">
-    {track.coverUrl ? <img src={track.coverUrl} alt="" loading="lazy" /> : <Music2 size={18} strokeWidth={1.5} />}
-  </span>;
+  return <CoverArt title={track.title} coverUrl={trackCoverUrl(track)} className="yz-pl-art" />;
 }
 
 export function PlaylistManager({ onClose, onPlayTrack }: PlaylistManagerProps) {

@@ -23,6 +23,7 @@ export function portableCatalog() {
   code = replaceOne(code, "const { createHash } = require('node:crypto');", "const createHash = () => ({ update(value) { this.value = value; return this; }, digest() { return lx.utils.crypto.md5(this.value); } });", 'crypto');
   code = replaceOne(code, "const { inflateSync } = require('node:zlib');", "const inflateSync = value => Buffer.from(lx.utils.buffer.from(NativeHost.zlib('inflate', lx.utils.buffer.bufToString(value, 'base64')), 'base64'));", 'inflate');
   code = replaceOne(code, /  if \(signal\) return context\.run\(signal, \(\) => search\([^\n]+\n/, '', 'cancellation');
+  code = replaceOne(code, /  if \(signal\) return context\.run\(signal, \(\) => artwork\([^\n]+\n/, '', 'artwork-cancellation');
   code = replaceOne(code, 'module.exports = { PLATFORMS, readInfo, search, artwork, lyrics };', 'globalThis.zenixCatalog = { PLATFORMS, readInfo, search, artwork, lyrics };', 'exports');
   code = code.replace(/LX /g, '').replace("source: 'lx'", "source: 'custom'");
   if (/require\(|module\.exports|AsyncLocalStorage|context\.run|http:\/\/media\.store\.kugou\.com/.test(code)) throw new Error('目录适配留下了不支持的运行时调用或明文端点');

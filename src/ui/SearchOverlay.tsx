@@ -2,6 +2,7 @@ import SearchAssist from './SearchAssist';
 import { rememberSearch } from '../core/listening';
 import { Search, X } from 'lucide-react';
 import CoverArt from './CoverArt';
+import { trackCoverUrl } from '../core/trackCover';
 import { formatTime } from './library';
 import type { TrackView } from './types';
 import type { AppearanceBackground, InstalledSource } from '../core/types';
@@ -23,7 +24,7 @@ export default function SearchOverlay({ query, onQueryChange, search, onPlayTrac
   const { enabled, selected, setSelected, pages, keyword, localResults, playableTracks, sourcesError, loadMore } = search;
   const renderTracks = (tracks: TrackView[], source?: InstalledSource) => <div className="yz-search-result-list">{tracks.map((track, index) => <div className="yz-search-result-row" key={track.id}>
     <button className="yz-search-result-play" disabled={Boolean(source && !source.manifest.capabilities.includes('resolvePlayback'))} title={source && !source.manifest.capabilities.includes('resolvePlayback') ? '此源仅支持浏览' : '播放歌曲'} onClick={() => { onPlayTrack(track, playableTracks); onClose(); }}>
-      <span className="yz-search-result-index">{String(index + 1).padStart(2, '0')}</span><CoverArt title={track.title} coverUrl={track.coverUrl} />
+      <span className="yz-search-result-index">{String(index + 1).padStart(2, '0')}</span><CoverArt title={track.title} coverUrl={trackCoverUrl(track)} />
       <span className="yz-search-result-title"><strong>{track.title}</strong><small>{track.artist || '未知艺术家'}</small></span>
       <span className="yz-search-result-album">{track.album || ''}</span><span className="yz-search-result-time">{formatTime(track.duration)}</span>
     </button>

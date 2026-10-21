@@ -483,7 +483,7 @@ function registerHandlers() {
   handleApp('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   handleApp('cache:stats', async () => ({ ...audioCache.stats(), ...await sourceManager.metadataCache.stats() }));
   handleApp('cache:configure', async (_event, options) => { const stats = await audioCache.configure(options); sourceManager.metadataCache.limit = Math.max(8, Math.min(64, stats.limitMiB / 8)) * 1024 * 1024; await sourceManager.metadataCache.prune(); return { ...stats, ...await sourceManager.metadataCache.stats() }; });
-  handleApp('cache:clear', async () => { sourceManager.coverCache.clear(); await sourceManager.metadataCache.clear(); return { ...await audioCache.clear(), ...await sourceManager.metadataCache.stats() }; });
+  handleApp('cache:clear', async () => { sourceManager.artwork.clearMemory(); await sourceManager.metadataCache.clear(); return { ...await audioCache.clear(), ...await sourceManager.metadataCache.stats() }; });
   handleApp('sources:open-folder', () => shell.openPath(sourceManager.folder));
   handleApp('library:load', () => library.load());
   handleApp('library:import-folder', async () => {

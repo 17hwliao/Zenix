@@ -1,6 +1,7 @@
 const test = require('node:test');
 require('./Test-CatalogSearch.cjs');
 require('./Test-SourceSetup.cjs');
+require('./Test-Artwork.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -125,6 +126,21 @@ class FakeAudio extends EventTarget {
 global.Audio = FakeAudio; global.HTMLMediaElement = { HAVE_METADATA: 1 }; global.window = {};
 const preferences = new Map(); global.localStorage = { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) };
 const { player } = require('../src/core/player.ts');
+
+test('OS cover metadata failure cannot interrupt track selection or playback', async () => {
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'mediaSession'), original = global.MediaMetadata;
+  const session = { setPositionState() {} }; Object.defineProperty(navigator, 'mediaSession', { value: session, configurable: true });
+  try {
+    global.MediaMetadata = class { constructor(value) { if (value.artwork) throw Error('OS rejected artwork'); Object.assign(this, value); } };
+    const song = track('cover-failure', { source: 'local', audioUrl: 'file://fixture.wav', coverUrl: 'yzqxy://source-cover/lx.fixture/song' });
+    player.setQueue([song]); await player.play(); assert.equal(player.snapshot.playing, true); assert.equal(session.metadata.title, song.title);
+    global.MediaMetadata = class { constructor() { throw Error('OS metadata unavailable'); } };
+    player.setQueue([{ ...song, id: 'next-cover-failure' }]); await player.play(); assert.equal(player.snapshot.playing, true); assert.equal(player.snapshot.track.id, 'next-cover-failure');
+  } finally {
+    player.setQueue([]); global.MediaMetadata = original;
+    if (previous) Object.defineProperty(navigator, 'mediaSession', previous); else delete navigator.mediaSession;
+  }
+});
 test('queue controls, seek, mute and listener cleanup', async () => {
   const songs = ['a', 'b', 'c'].map(id => track(id, { source: 'local', audioUrl: 'file://fixture.wav' })); player.setQueue(songs);
   let calls = 0; const dispose = player.subscribe(() => calls++); await player.play(); assert(player.snapshot.playing); player.pause(); assert(!player.snapshot.playing);
