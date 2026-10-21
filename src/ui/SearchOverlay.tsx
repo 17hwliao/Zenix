@@ -52,7 +52,7 @@ export default function SearchOverlay({ query, onQueryChange, search, onPlayTrac
         {keyword && selected !== 'local' && enabled.filter(source => selected === 'all' || selected === source.id).map(source => {
           const page = pages[source.id];
           return <section className="yz-search-source-group" key={source.id}><h3>{source.manifest.name}<small>{!page || page.loading ? '搜索中…' : page.items.length ? `${page.items.length} 首` : ''}</small></h3>
-            {page?.items.length ? renderTracks(page.items, source) : <div className="yz-search-source-empty">{page?.error || (!page || page.loading ? '正在获取结果…' : '暂无结果')}</div>}
+            {page?.items.length ? renderTracks(page.items, source) : <div className="yz-search-source-empty">{page?.error || (!page || page.loading ? '正在获取结果…' : '暂无结果')}{page?.error && <button onClick={onOpenSources}>检查音源与搜索平台</button>}</div>}
             {page?.nextCursor && <button className="yz-search-more" disabled={page.loading} onClick={() => loadMore(source)}>{page.loading ? '加载中…' : '加载更多'}</button>}
           </section>;
         })}

@@ -15,13 +15,14 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
   const [sourcesError, setSourcesError] = useState('');
   const [selected, setSelected] = useState('all');
   const [searchText, setSearchText] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const [results, setResults] = useState<SearchResults>({ key: '', pages: {} });
   const serial = useRef(0);
   const searchAbort = useRef<AbortController | null>(null);
   const keyword = query.trim();
   const enabled = useMemo(() => sources.filter(source => source.enabled && source.manifest.capabilities.includes('search')), [sources]);
-  const enabledKey = enabled.map(source => `${source.id}:${source.manifest.version}`).join('|');
-  const requestKey = `${enabledKey}\0${searchText}`;
+  const enabledKey = enabled.map(source => `${source.id}:${source.manifest.version}:${source.catalog || ""}`).join('|');
+  const requestKey = `${enabledKey}\0${searchText}\0${attempt}`;
   const currentResults = results.key === requestKey && searchText === keyword;
   const pages = currentResults ? results.pages : {};
 
@@ -46,7 +47,7 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
     return () => window.clearTimeout(timer);
   }, [active, keyword]);
 
-  const submit = useCallback(() => setSearchText(keyword), [keyword]);
+  const submit = useCallback(() => { setSearchText(keyword); setAttempt(value => value + 1); }, [keyword]);
 
   useEffect(() => {
     if (!active || !sourcesLoaded) return;
@@ -80,6 +81,7 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
   }, [keyword, selected, currentResults, enabled, results, localResults]);
   const playableTracks = useMemo(() => visibleTracks.filter(track => track.source !== 'custom' || (track.searchAlternatives || [track]).some(candidate => enabled.some(source => source.id === candidate.providerId && source.manifest.capabilities.includes('resolvePlayback')))), [enabled, visibleTracks]);
   const loading = Boolean(active && keyword && selected !== 'local' && (!sourcesLoaded || searchText !== keyword || selectedSources.some(source => !pages[source.id] || pages[source.id].loading)));
+  const searchError = selected === 'local' ? '' : sourcesError || selectedSources.map(source => pages[source.id]?.error).find(Boolean) || '';
 
   const loadMore = (source: InstalledSource) => {
     const old = pages[source.id];
@@ -100,7 +102,7 @@ export function useMusicSearch(query: string, active: boolean, localTracks: Trac
     });
   };
 
-  return { enabled, selected, setSelected, pages, keyword, localResults, visibleTracks, playableTracks, loading, sourcesError, submit, loadMore };
+  return { enabled, selected, setSelected, pages, keyword, localResults, visibleTracks, playableTracks, loading, sourcesError, searchError, submit, loadMore };
 }
 
 export type MusicSearch = ReturnType<typeof useMusicSearch>;

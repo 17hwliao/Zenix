@@ -48,6 +48,16 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [expandRequest, setExpandRequest] = useState(0);
   const expandPlaying = () => { if (!currentTrack) return; setPlayerWallMode('queue'); setView('player'); setSearchOpen(false); setQueueOpen(false); setManagerSection(null); setExpandRequest(value => value + 1); };
   const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail.keyword !== 'string' || typeof detail.id !== 'string') return;
+      setQuery(detail.keyword); musicSearch.setSelected(detail.id); setSettingsOpen(false);
+      setManagerSection(null); setPlayerWallMode('search'); setView('player'); setSearchOpen(true);
+    };
+    window.addEventListener('zenix-source-search', open);
+    return () => window.removeEventListener('zenix-source-search', open);
+  }, []);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'options' | 'sources'>('options');
   const [managerSection, setManagerSection] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -210,7 +220,7 @@ export default function ZenixShell(props: ZenixShellProps) {
             {playerAnchor ? (
               <LatticePlayer sources={musicSearch.enabled} expandRequest={expandRequest} onExpandPlayer={expandPlaying} track={playerAnchor} hasPlayback={Boolean(currentTrack)} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} queue={queue} queueIndex={queueIndex} displayTracks={displayTracks} onPlayTrack={track => { playUiSound('enter'); if (playerWallMode === 'roaming' && roaming?.active && onPlayRoaming) { onPlayRoaming(track); return; } onPlayTrack(track, searchingWall ? queueForSelection(musicSearch.playableTracks, track) : playerWallMode === 'recent' ? recentTracks : undefined); }} lyrics={lyrics} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} onBack={() => { playUiSound('cancel'); setView('home'); }} onTogglePlay={currentTrack ? togglePlayback : () => onPlayTrack(playerAnchor, searchingWall ? musicSearch.playableTracks : recentTracks)} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenQueue={openQueue} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => openSearch()} searchRevealed={homeSearchRevealed} searchAvailable={!queueOpen && !settingsOpen && !managerSection && !searchOpen} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} />
             ) : <><button className="yz-player-back yz-player-back--empty" onClick={() => { playUiSound('cancel'); setView('home'); }} title="个人主页" aria-label="个人主页"><Home size={19} /></button><div className={`yz-lattice-search-zone${homeSearchRevealed ? ' is-revealed' : ''}`}><button onClick={() => openSearch()} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div><div className="yz-empty-player-dots" aria-hidden="true" /></>}
-            {searchingWall && !musicSearch.visibleTracks.length && !searchOpen && <div className="yz-search-wall-status" role="status"><strong>{musicSearch.loading ? `正在搜索“${musicSearch.keyword}”…` : `没有找到“${musicSearch.keyword}”`}</strong>{!musicSearch.loading && <button onClick={() => openSearch()}>修改搜索或音乐源</button>}</div>}
+            {searchingWall && !musicSearch.visibleTracks.length && !searchOpen && <div className="yz-search-wall-status" role="status"><strong>{musicSearch.loading ? `正在搜索“${musicSearch.keyword}”…` : musicSearch.searchError ? '音乐源搜索出错' : `没有找到“${musicSearch.keyword}”`}</strong>{!musicSearch.loading && musicSearch.searchError && <small>{musicSearch.searchError}</small>}{!musicSearch.loading && <button onClick={() => openSearch()}>修改搜索或音乐源</button>}</div>}
           </motion.div>
         )}
       </AnimatePresence>

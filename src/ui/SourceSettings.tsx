@@ -9,6 +9,7 @@ import SourceDiagnosticsPanel from './SourceDiagnosticsPanel';
 const loadDiagnostics = () => window.yzqxy!.sources.diagnostics();
 const configureDiagnostics = (smooth: boolean) => window.yzqxy!.sources.configureDiagnostics(smooth);
 import SourceBundleExport from './SourceBundleExport';
+import SourceSetupGuide from './SourceSetupGuide';
 import { SourceNetworkOptions, DEFAULT_SOURCE_POLICY, type SourceNetworkPolicy } from './SourceNetworkOptions';
 
 export default function SourceSettings() {
@@ -53,7 +54,7 @@ export default function SourceSettings() {
   };
   const loadPreview = async (action: () => Promise<SourcePreview | null>) => {
     setBusy(true); setError('');
-    try { const next = await action(); if (next) { if (preview) await window.yzqxy!.sources.cancelImport(preview.token); setPreview(next); setPermission(DEFAULT_SOURCE_POLICY); } }
+    try { const next = await action(); if (next) { if (preview) await window.yzqxy!.sources.cancelImport(preview.token); setPreview(next); setPermission(sources.find(source => source.id === next.manifest.id)?.networkPolicy || { allowHttp: next.kind === 'lx', hosts: null }); } }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
@@ -74,7 +75,9 @@ export default function SourceSettings() {
       try {
         const next = await window.yzqxy.sources.importUrl(address);
         token = next.token;
-        setSources(await window.yzqxy.sources.confirmImport(token));
+        if (preview) await window.yzqxy.sources.cancelImport(preview.token);
+        setPreview(next);
+        setPermission(presetInstalled(preset)?.networkPolicy || { allowHttp: next.kind === 'lx', hosts: null });
         setBusy(false);
         return;
       } catch (reason) {
@@ -99,6 +102,11 @@ export default function SourceSettings() {
   };
   return <div className="zenix-source-settings">{dialog}
     <div className="yz-settings-intro"><h2>音乐源</h2><p>按首次接入时间依次尝试。每个源先获取所选音质，再逐级降低；该源仍不可播放时才切换到下一个。更新脚本不会改变顺序。</p></div>
+    <SourceSetupGuide sources={sources} configure={async (id, platform) => {
+      const bridge = window.yzqxy!.sources;
+      const current = await bridge.getSettings(id);
+      await bridge.configure(id, { ...current, lxCatalog: platform });
+    }} search={(keyword, id) => window.dispatchEvent(new CustomEvent('zenix-source-search', { detail: { keyword, id } }))}/>
     <label className="zenix-source-quality">播放音质<select value={quality} onChange={event => { setQuality(event.target.value); localStorage.setItem('zenix.onlineQuality', event.target.value); }}><option value="auto">自动 · 优先最高可用</option><option value="standard">标准</option><option value="high">最高高音质</option><option value="lossless">最高无损</option></select></label>
     {cache && <section className="zenix-audio-cache" aria-label="自动缓存">
       <div><strong>自动缓存</strong><small>播放过的在线歌曲会缓存在本机，再次播放优先读取缓存。近期播放记录、收藏与歌单独立保存。</small></div>
@@ -113,17 +121,17 @@ export default function SourceSettings() {
       <div className="zenix-source-presets-head"><strong>快捷添加音乐源</strong><small>直接从上游下载最新脚本；播放效果以实际服务为准。</small></div>
       <div className="zenix-source-preset-list">{LX_PRESETS.map(preset => {
         const installed = presetInstalled(preset);
-        return <div className="zenix-source-preset" key={preset.key}><div><strong>{preset.name}</strong><small>{preset.description}</small></div><button type="button" disabled={busy || !preset.url} onClick={() => void installPreset(preset)}>{!preset.url ? '链接失效' : installed ? '重新获取' : '一键添加'}</button></div>;
+        return <div className="zenix-source-preset" key={preset.key}><div><strong>{preset.name}</strong><small>{preset.description}</small></div><button type="button" disabled={busy || Boolean(preview) || !preset.url} onClick={() => void installPreset(preset)}>{!preset.url ? '链接失效' : installed ? '重新获取' : '获取脚本'}</button></div>;
       })}</div>
     </section>
     <SourceBundleExport count={sources.length} disabled={busy || Boolean(preview) || !window.yzqxy?.sources?.exportBundle} onBusy={setBusy} save={() => window.yzqxy!.sources.exportBundle()}/>
-    <SourceDiagnosticsPanel sources={sources} load={loadDiagnostics} configure={configureDiagnostics}/><SourceBundleImport localScripts disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
+    <SourceDiagnosticsPanel sources={sources} load={loadDiagnostics} configure={configureDiagnostics}/><SourceBundleImport localScripts importNotice="确认添加将允许新兼容脚本访问公网 HTTP / HTTPS（HTTP 不加密）；已有音源保持原网络权限。添加完成后仍需搜索试听。" disabled={busy || Boolean(preview) || !window.yzqxy?.sources} onBusy={setBusy} install={async entry => {
       const bridge = window.yzqxy!.sources;
       let token = '';
       try {
         const next = entry.script !== undefined ? await bridge.importText(entry.script, entry.local ? entry.name : entry.url, entry.local ? 'file' : 'url') : await bridge.importUrl(entry.url);
         token = next.token;
-        setSources(await bridge.confirmImport(token));
+        setSources(await bridge.confirmImport(token, sources.find(source => source.id === next.manifest.id)?.networkPolicy || { allowHttp: next.kind === 'lx', hosts: null }));
       } finally { if (token) await bridge.cancelImport(token).catch(() => {}); }
     }} />
     <div className="zenix-source-import">
@@ -131,7 +139,7 @@ export default function SourceSettings() {
       <button type="button" onClick={() => void loadPreview(() => window.yzqxy!.sources.importFolder())} disabled={busy || !window.yzqxy?.sources}><FolderOpen size={16} />源文件夹</button>
       <form onSubmit={importUrl}><Globe2 size={16} /><input type="url" value={url} onChange={event => setUrl(event.target.value)} placeholder="粘贴 HTTP / HTTPS 源包或 .js 脚本地址" aria-label="音乐源地址" /><button type="submit" disabled={busy || !url.trim()}>导入</button></form>
     </div>
-    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.filter(capability => capability !== 'resolveDownload').join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<SourceNetworkOptions compatible={preview.kind === 'lx'} policy={permission} onChange={setPermission} /><small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
+    {preview && <div className="zenix-source-preview"><strong>{preview.previousVersion ? `更新 ${preview.manifest.name} · ${preview.previousVersion} → ${preview.manifest.version}` : `安装 ${preview.manifest.name} · ${preview.manifest.version}`}</strong><small>{preview.origin.label}</small>{preview.kind === 'lx' ? <><p>支持的 搜索平台将在安装时检测。</p><p>音乐源脚本会在运行时请求公开网络地址。请只导入你信任的脚本；播放是否成功取决于脚本自己的服务。</p></> : <><p>能力：{preview.manifest.capabilities.filter(capability => capability !== 'resolveDownload').join(' · ')}</p><p>接口域名：{preview.manifest.network.apiHosts.join(' · ') || '无'}</p><p>媒体域名：{preview.manifest.network.mediaHosts.join(' · ') || '无'}</p><p>封面域名：{preview.manifest.network.artworkHosts.join(' · ') || '无'}</p></>}<p>添加只验证脚本初始化，不保证能取得或播放音频。{permission.allowHttp ? '确认后允许此脚本使用公网 HTTP / HTTPS，HTTP 不加密。' : '当前仅允许 HTTPS。'}</p><SourceNetworkOptions compatible={preview.kind === 'lx'} policy={permission} onChange={setPermission} /><small>SHA-256 {preview.sha256.slice(0, 16)}…</small><div><button onClick={cancelPreview} disabled={busy}>取消</button><button onClick={installPreview} disabled={busy}>确认安装并启用</button></div></div>}
     <p className="zenix-source-hint">支持 .zenixsource JSON、自定义 .js 脚本及其 HTTPS 地址。搜索平台可在安装后的“源选项”中切换。<button className="zenix-source-folder-link" onClick={() => void window.yzqxy?.sources.openFolder()}>打开已安装源目录</button></p>
     {error && <p className="zenix-source-error" role="alert">{error}</p>}
     <div className="zenix-source-list">

@@ -28,7 +28,7 @@ function lxManifest(origin, script, initialized) {
   const platforms = Object.fromEntries(Object.entries(initialized?.sources || {}).filter(([key, value]) => LX_PLATFORM_KEYS.includes(key) && value?.type === 'music' && Array.isArray(value.actions) && value.actions.includes('musicUrl')).map(([key, value]) => [key, { name: boundedText(value.name, 40) || lxCatalog.PLATFORMS[key], qualitys: (value.qualitys || []).filter(type => ['128k', '320k', 'flac', 'flac24bit'].includes(type)) }]));
   if (!Object.keys(platforms).length) throw new Error('音乐源脚本没有声明 Zenix 可搜索的音乐平台');
   const id = `lx.${createHash('sha256').update(origin.label.toLowerCase()).digest('hex').slice(0, 24)}`;
-  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: '搜索平台', type: 'select', options: Object.keys(platforms), default: Object.keys(platforms)[0] }], lxPlatforms: platforms };
+  return { schemaVersion: 1, id, name: boundedText(info.name, 60), version, entry: 'index.js', capabilities: ['search', 'resolvePlayback', 'lyrics'], qualities: ['standard', 'high', 'lossless'], network: { apiHosts: [], mediaHosts: [], artworkHosts: [] }, settings: [{ key: 'lxCatalog', label: '搜索平台', type: 'select', options: Object.keys(platforms), default: ['tx', 'kw', 'kg', 'wy', 'mg'].find(key => platforms[key]) }], lxPlatforms: platforms };
 }
 function validateLxManifest(raw) {
   if (!raw || !SOURCE_ID.test(raw.id) || !raw.id.startsWith('lx.') || !VERSION.test(raw.version) || !raw.lxPlatforms || typeof raw.lxPlatforms !== 'object') throw new Error('音乐源记录无效');
@@ -135,7 +135,7 @@ class SourceManager {
     }
     return this.list();
   }
-  list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256, installedAt, networkPolicy }) => ({ networkPolicy, id, kind: kind || 'zenix', manifest, enabled, origin, sha256, installedAt, status: this.errors.has(id) ? 'error' : [...this.runners.values()].some(runner => runner.record.id === id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
+  list() { return this.records.map(({ id, kind, manifest, enabled, origin, sha256, installedAt, networkPolicy }) => ({ catalog: kind === 'lx' ? this.settings[id]?.lxCatalog || manifest.settings.find(field => field.key === 'lxCatalog')?.default : undefined, networkPolicy, id, kind: kind || 'zenix', manifest, enabled, origin, sha256, installedAt, status: this.errors.has(id) ? 'error' : [...this.runners.values()].some(runner => runner.record.id === id) ? 'ready' : 'idle', lastError: this.errors.get(id) || '' })); }
   async move(id, direction) {
     this.assertWritable(); const before = structuredClone(this.records), at = this.records.findIndex(record => record.id === id); if (at < 0) throw Error("音乐源不存在"); const next = Math.max(0, Math.min(this.records.length - 1, at + (direction < 0 ? -1 : 1))); [this.records[at], this.records[next]] = [this.records[next], this.records[at]]; this.records.forEach((record, index) => {record.manualOrder = index;}); try {await this.save();} catch(error) {this.records = before; throw error;} return this.list();
   }
@@ -212,6 +212,7 @@ class SourceManager {
     try { await runner.start(script); manifest = lxManifest(origin, script, runner.lxInfo); }
     finally { runner.destroy(); }
     const index = this.records.findIndex(item => item.id === id);
+    const previousCatalog = this.settings[id]?.lxCatalog || this.records[index]?.manifest.settings.find(field => field.key === 'lxCatalog')?.default;
     const next = { kind: 'lx', id, manifest, enabled: true, networkPolicy: policy, origin, sha256: createHash('sha256').update(script).digest('hex'), manualOrder: this.records[index]?.manualOrder, installedAt: this.records[index]?.installedAt || Date.now() };
     const target = path.join(this.folder, id, manifest.version);
     await fs.mkdir(target, { recursive: true });
@@ -219,7 +220,8 @@ class SourceManager {
     await fs.writeFile(path.join(target, 'index.js'), script, 'utf8');
     this.retireSource(id);
     if (index >= 0) this.records[index] = next; else this.records.push(next);
-    if (!manifest.lxPlatforms[this.settings[id]?.lxCatalog]) delete this.settings[id];
+    if (manifest.lxPlatforms[previousCatalog]) this.settings[id] = { ...this.settings[id], lxCatalog: previousCatalog };
+    else if (this.settings[id]) delete this.settings[id].lxCatalog;
     await this.save();
     return this.list();
   }

@@ -78,9 +78,19 @@ async function searchKg(keyword, page, size) {
 async function searchWy(keyword, page, size) {
   const query = new URLSearchParams({ s: keyword, type: '1', offset: String((page - 1) * size), limit: String(size) });
   const data = await json(`https://music.163.com/api/search/get/web?${query}`);
+  if (String(data?.code) !== '200') {
+    const code = /^\d{1,6}$/.test(String(data?.code)) ? String(data.code) : '未知状态';
+    if (code === '405') throw new Error('网易云搜索失败（405）：操作频繁，请稍候再试，或在音乐源设置中切换搜索平台');
+    throw new Error(`网易云搜索失败（${code}），请稍后重试或切换搜索平台`);
+  }
+  const result = data.result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !Array.isArray(result.songs) && !(result.songs === undefined && Number(result.songCount) === 0 && result.songCount != null)) {
+    throw new Error('网易云搜索返回的数据不完整，请重试或切换搜索平台');
+  }
   return {
-    total: Number(data.result?.songCount) || 0,
-    items: (data.result?.songs || []).map(song => {
+    total: Number(result.songCount) || 0,
+    items: (result.songs || []).map(song => {
       const info = { source: 'wy', songmid: song.id, name: song.name, singer: (song.artists || []).map(item => item.name).join('、'), albumName: song.album?.name, albumId: song.album?.id, types: [{ type: '128k' }, { type: '320k' }, { type: 'flac' }], _types: {} };
       return info.songmid ? normalize(info.name, info.singer, info.albumName, (song.duration || 0) / 1000, song.album?.picUrl, info) : null;
     }).filter(Boolean),

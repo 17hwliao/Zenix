@@ -124,7 +124,7 @@ export type SourceManifest = {
   settings: { key: string; label: string; type: 'text' | 'select'; options: string[]; default: string }[];
   lxPlatforms?: Record<string, { name: string; qualitys: string[] }>;
 };
-export type InstalledSource = { networkPolicy?: { allowHttp: boolean; hosts: string[] | null }; id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; installedAt: number; status: string; lastError: string };
+export type InstalledSource = { catalog?: string; networkPolicy?: { allowHttp: boolean; hosts: string[] | null }; id: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; enabled: boolean; origin: { kind: 'file' | 'url'; label: string }; sha256: string; installedAt: number; status: string; lastError: string };
 export type SourcePreview = { token: string; kind?: 'zenix' | 'lx'; manifest: SourceManifest; origin: { kind: 'file' | 'url'; label: string }; sha256: string; previousVersion: string | null };
 export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number; metadataBytes?: number; metadataLimitMiB?: number; metadataError?: string };
