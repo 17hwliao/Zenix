@@ -14,6 +14,7 @@ public final class PlaybackLoadingCheck {
     private int resolutions;
     private void resolveNext(long token){check(token==generation,"fallback owns selection");resolutions++;}
     private void finishLoading(){}
+    private void discardFailedCache(){}
     /* PRODUCTION_PLAYER_ERROR_METHOD */
     /* PRODUCTION_RECOVERY_METHOD */
     private static final class PlaybackException {int errorCode=2001;}

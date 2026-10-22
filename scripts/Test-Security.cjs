@@ -91,6 +91,7 @@ test('runner cancellation aborts only its own eight bounded network tasks and ig
   const { SourceRunner } = isolated('electron/runtime/source-runner.cjs', { electron: {} });
   const registry = { runners: new Map() }, first = new SourceRunner(registry, { id: 'fixture' }, 'first'), second = new SourceRunner(registry, { id: 'fixture' }, 'second');
   registry.runners.set('first', first); registry.runners.set('second', second);
+  first.acquire(); second.acquire();
   const work = signal => new Promise((_, reject) => signal.addEventListener('abort', () => reject(Error('cancelled')), { once: true }));
   const tasks = Array.from({ length: 8 }, () => first.network(work).catch(error => error));
   await assert.rejects(first.network(work), /并发过多/);

@@ -125,7 +125,11 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
       if(!dragged.current){dragged.current=true;setMoving(true);event.currentTarget.setPointerCapture(event.pointerId);}
       x.set(value.x);y.set(value.y);scale.set(value.scale);
       if(gesture.current.count===2){event.preventDefault();event.stopPropagation();}
-    }} onPointerUpCapture={event=>{gesture.current.up(event.pointerId,cameraValue());if(!gesture.current.count)setMoving(false);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancelCapture={cancelGesture} onLostPointerCapture={event=>{if(gesture.current.has(event.pointerId))cancelGesture();}} onClickCapture={event=>{if(dragged.current&&event.detail!==0){event.preventDefault();event.stopPropagation();}}}>
+    }} onPointerUpCapture={event=>{gesture.current.up(event.pointerId,cameraValue());if(!gesture.current.count)setMoving(false);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancelCapture={cancelGesture} onLostPointerCapture={event=>{
+      // Touch starts with implicit capture on the poster. Its bubbled loss when
+      // the viewport takes over is a handoff, not cancellation of the camera.
+      if(event.target===event.currentTarget&&gesture.current.has(event.pointerId)&&!event.currentTarget.hasPointerCapture(event.pointerId))cancelGesture();
+    }} onClickCapture={event=>{if(dragged.current&&event.detail!==0){event.preventDefault();event.stopPropagation();}}}>
       <motion.div className="space-plane" style={{ x, y, scale,transformOrigin:'0 0' }}>{songs.map((song, index) => {
         const candidateChoice = song.searchAlternatives?.find(item => item.id === chosenVariants[song.id]) || song.searchAlternatives?.find(candidate=>state.sources.some(source=>source.id===candidate.providerId&&source.enabled&&source.manifest.capabilities.includes('resolvePlayback'))) || song;
         const choice = chosenVariants[song.id] ? {...candidateChoice, preferredPlaybackProviderId:candidateChoice.providerId} : candidateChoice;

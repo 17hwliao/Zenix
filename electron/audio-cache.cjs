@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
-const { captureBody } = require('./runtime/audio-capture.cjs');
+const { captureBody, audioHeader } = require('./runtime/audio-capture.cjs');
 
 const DAY = 24 * 60 * 60 * 1000;
 const MIB = 1024 * 1024;
@@ -17,6 +17,7 @@ class AudioCache {
     this.enabled = true;
     this.limitMiB = 1024;
     this.jobs = new Map();
+    this.discarding = new Set();
     this.captureQueue = Promise.resolve();
     this.pendingSave = Promise.resolve();
   }
@@ -87,6 +88,15 @@ class AudioCache {
     } catch {}
     return null;
   }
+  async discard(trackId, quality) {
+    const requested = this.key(trackId, quality), key = this.aliases.get(requested) || requested;
+    if (!this.entries.has(key)) return;
+    this.discarding.add(key);
+    this.entries.delete(key);
+    for (const [alias, target] of this.aliases) if (target === key) this.aliases.delete(alias);
+    try { await fs.rm(this.file(key), { force: true }).catch(() => {}); await this.save().catch(() => {}); }
+    finally { this.discarding.delete(key); }
+  }
   async configure(options) {
     if (typeof options?.enabled === 'boolean') this.enabled = options.enabled;
     if (LIMITS.includes(options?.limitMiB)) this.limitMiB = options.limitMiB;
@@ -125,7 +135,7 @@ class AudioCache {
   captureResponse(trackId, quality, response, fetchAudio) {
     if (!this.enabled || !response.body || !trackId) return response.body;
     const key = this.key(trackId, quality);
-    if (this.entries.has(this.aliases.get(key) || key) || this.jobs.has(key)) return response.body;
+    if (this.entries.has(this.aliases.get(key) || key) || this.jobs.has(key) || this.discarding.has(key)) return response.body;
     const range = (response.headers.get('content-range') || '').match(/^bytes 0-(\d+)\/(\d+)$/);
     const expected = response.status === 200 ? Number(response.headers.get('content-length')) : range && Number(range[1]) + 1 === Number(range[2]) ? Number(range[2]) : 0;
     const contentType = (response.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim().toLowerCase();
@@ -154,7 +164,7 @@ class AudioCache {
   schedule(trackId, quality, fetchAudio, delay = 0) {
     if (!this.enabled || !trackId) return;
     const key = this.key(trackId, quality);
-    if (this.entries.has(key) || this.jobs.has(key) || this.jobs.size >= 2) return;
+    if (this.entries.has(this.aliases.get(key) || key) || this.jobs.has(key) || this.discarding.has(key) || this.jobs.size >= 2) return;
     const controller = new AbortController();
     this.jobs.set(key, controller);
     const job = this.captureQueue.catch(() => {}).then(async () => {
@@ -185,7 +195,7 @@ class AudioCache {
         const { done, value } = await reader.read();
         if (done) break;
         if (controller.signal.aborted) return;
-        if (!firstBytes) firstBytes = value.slice(0, 64);
+        if (!firstBytes || firstBytes.length < 64) firstBytes = Buffer.concat([firstBytes || Buffer.alloc(0), Buffer.from(value.subarray(0, 64 - (firstBytes?.length || 0)))]);
         size += value.byteLength;
         if (size > MAX_TRACK_BYTES) return;
         let offset = 0;
@@ -195,7 +205,7 @@ class AudioCache {
           offset += written.bytesWritten;
         }
       }
-      if (size < 1024 || (declared && size !== declared) || controller.signal.aborted || /^[\s\u0000]*[<{[]/.test(Buffer.from(firstBytes || []).toString('utf8'))) return;
+      if (size < 1024 || (declared && size !== declared) || controller.signal.aborted || !audioHeader(firstBytes)) return;
       await handle.close(); handle = null;
       await fs.rename(temporary, this.file(key));
       if (controller.signal.aborted || !this.enabled) { await fs.rm(this.file(key), { force: true }).catch(() => {}); return; }

@@ -170,6 +170,19 @@ app.whenReady().then(async()=>{
   const pinch=await evaluate(`(()=>{const p=document.querySelector('.is-focused .space-poster').getBoundingClientRect(),v=document.querySelector('.space-viewport').getBoundingClientRect(),m=new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.space-plane')).transform);return{x:p.x+p.width/2,y:Math.max(v.top+28,p.y+Math.min(60,p.height/4)),left:v.left,top:v.top,focus:document.querySelector('.is-focused').dataset.songId,camera:{x:m.m41,y:m.m42,scale:m.m11}};})()`);
   await window.webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});
   const touch=(type,points)=>window.webContents.debugger.sendCommand('Input.dispatchTouchEvent',{type,touchPoints:points.map(([id,x,y])=>({id,x,y,radiusX:3,radiusY:3,force:1}))});
+  await evaluate(`window.singleDragEvents=[];for(const type of ['gotpointercapture','lostpointercapture','pointercancel'])document.querySelector('.space-viewport').addEventListener(type,e=>window.singleDragEvents.push({type,target:e.target.className,pointer:e.pointerId}),true);`);
+  await touch('touchStart',[[1,pinch.x,pinch.y]]);await sleep(25);
+  const singleFrames=[];
+  for(let step=1;step<=10;step++){
+    await touch('touchMove',[[1,pinch.x-step*6,pinch.y-step*4]]);await sleep(20);
+    singleFrames.push(await evaluate(`(()=>{const m=new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.space-plane')).transform);return{x:m.m41,y:m.m42,panning:document.querySelector('.mobile-space').classList.contains('is-panning')};})()`));
+  }
+  console.log('SINGLE_DRAG',JSON.stringify({frames:singleFrames,events:await evaluate('window.singleDragEvents')}));
+  assert(singleFrames.slice(2).every(frame=>frame.panning),'one finger must retain camera ownership after capture transfers from the poster');
+  assert(Math.abs(singleFrames.at(-1).x-pinch.camera.x+60)<2&&Math.abs(singleFrames.at(-1).y-pinch.camera.y+40)<2,'single-finger movement follows the complete drag, not only its first step');
+  await touch('touchEnd',[]);await sleep(50);
+  assert.equal(await evaluate('document.querySelector(".is-focused").dataset.songId'),pinch.focus,'drag release does not refocus a sticker');
+  await click('.space-caption button');await sleep(700);
   await touch('touchStart',[[1,pinch.x-25,pinch.y]]);await touch('touchStart',[[1,pinch.x-25,pinch.y],[2,pinch.x+25,pinch.y]]);await sleep(520);
   assert.equal(await evaluate('!!document.querySelector(".song-quick-actions")'),false,'second finger cancels the poster long-press');
   for(let step=1;step<=4;step++){const half=25+step*4;await touch('touchMove',[[1,pinch.x-half,pinch.y],[2,pinch.x+half,pinch.y]]);await sleep(25);}

@@ -155,6 +155,41 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             out.put("samples",samples).put("originalTracksAndCollectionsRetained",personalIdentity(personalBefore).equals(personalIdentity(personalAfter))).put("configurationUnchanged",configurationIdentity(liveBefore).equals(configurationIdentity(after))).put("queueRestored",true);
             for(int i=0;i<samples.length();i++)if(!samples.getJSONObject(i).optBoolean("playing"))out.put("ok",false);
             if(!out.optBoolean("originalTracksAndCollectionsRetained")||!out.optBoolean("configurationUnchanged"))throw new IOException("Personal/configuration preservation mismatch");
+        } else if(mode.equals("cacheNetwork")) {
+            File folder=new File(root,"audio-reuse-"+System.nanoTime());
+            androidx.media3.datasource.cache.SimpleCache isolated=new androidx.media3.datasource.cache.SimpleCache(folder,new androidx.media3.datasource.cache.NoOpCacheEvictor());
+            java.util.concurrent.atomic.AtomicInteger opens=new java.util.concurrent.atomic.AtomicInteger();
+            java.util.concurrent.atomic.AtomicReference<androidx.media3.exoplayer.ExoPlayer> probe=new java.util.concurrent.atomic.AtomicReference<>();
+            try {
+                int samples=8000;java.nio.ByteBuffer wav=java.nio.ByteBuffer.allocate(44+samples*2).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+                wav.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(wav.capacity()-8).put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16).putShort((short)1).putShort((short)1).putInt(8000).putInt(16000).putShort((short)2).putShort((short)16).put("data".getBytes(StandardCharsets.US_ASCII)).putInt(samples*2);for(int i=0;i<samples;i++)wav.putShort((short)(Math.sin(i*.2)*1000));
+                androidx.media3.datasource.DataSource.Factory upstream=()->{opens.incrementAndGet();return new androidx.media3.datasource.ByteArrayDataSource(wav.array());};
+                Class<?> type=target.getClassLoader().loadClass("com.zenix.musicplayer.PlaybackService");Method factory=type.getDeclaredMethod("audioCacheSource",androidx.media3.datasource.cache.SimpleCache.class,androidx.media3.datasource.DataSource.Factory.class,boolean.class);factory.setAccessible(true);
+                String key="isolated-loop",url="https://audio.zenix.invalid/isolated.wav";
+                androidx.media3.datasource.DataSource initial=((androidx.media3.datasource.DataSource.Factory)factory.invoke(null,isolated,upstream,false)).createDataSource();
+                try{initial.open(new androidx.media3.datasource.DataSpec.Builder().setUri(url).setKey(key).build());byte[] buffer=new byte[1024];while(initial.read(buffer,0,buffer.length)!=androidx.media3.common.C.RESULT_END_OF_INPUT){}}finally{initial.close();}
+                if(!isolated.isCached(key,0,wav.capacity()))throw new IOException("Fixture did not create complete audio cache");
+                androidx.media3.datasource.DataSource.Factory offline=(androidx.media3.datasource.DataSource.Factory)factory.invoke(null,isolated,upstream,true);
+                java.util.concurrent.CountDownLatch ended=new java.util.concurrent.CountDownLatch(3);java.util.concurrent.atomic.AtomicReference<String> failure=new java.util.concurrent.atomic.AtomicReference<>();
+                runOnMainSync(()->{androidx.media3.exoplayer.ExoPlayer player=new androidx.media3.exoplayer.ExoPlayer.Builder(target).setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(target).setDataSourceFactory(offline)).build();probe.set(player);player.setVolume(0);player.addListener(new androidx.media3.common.Player.Listener(){@Override public void onPlayerError(androidx.media3.common.PlaybackException error){failure.set(error.getMessage());while(ended.getCount()>0)ended.countDown();}@Override public void onPlaybackStateChanged(int state){if(state==androidx.media3.common.Player.STATE_ENDED){ended.countDown();if(ended.getCount()>0){player.seekTo(0);player.play();}}}});player.setMediaItem(new androidx.media3.common.MediaItem.Builder().setMediaId(key).setUri(url).setCustomCacheKey(key).build());player.prepare();player.play();});
+                if(!ended.await(15,java.util.concurrent.TimeUnit.SECONDS)||failure.get()!=null)throw new IOException("Offline loop did not finish: "+failure.get());
+                if(opens.get()!=1)throw new IOException("Complete cache reopened upstream");
+                androidx.media3.datasource.DataSource missing=offline.createDataSource();boolean rejected=false;try{missing.open(new androidx.media3.datasource.DataSpec.Builder().setUri(url).setKey("missing").build());missing.read(new byte[4],0,4);}catch(IOException expected){rejected=true;}finally{missing.close();}
+                if(!rejected||opens.get()!=1)throw new IOException("Offline cache hole silently used upstream");
+                out.put("cacheNetwork",new JSONObject().put("completeBytes",wav.capacity()).put("initialUpstreamFactories",1).put("actualDecoderLoops",3).put("repeatUpstreamFactories",opens.get()-1).put("offlineHoleRejected",true).put("isolatedFromUserQueue",true));
+            }finally{if(probe.get()!=null)runOnMainSync(()->probe.get().release());isolated.release();}
+            Class<?> engineType=target.getClassLoader().loadClass("com.zenix.musicplayer.ScriptEngine");Constructor<?> constructor=engineType.getDeclaredConstructor(Context.class,String.class,JSONObject.class,org.json.JSONArray.class,boolean.class,boolean.class,boolean.class);constructor.setAccessible(true);
+            Object engine=constructor.newInstance(target,"zenix.register({resolvePlayback:()=>({url:'https://audio.zenix.invalid/test.wav'})});",new JSONObject(),null,false,false,true);
+            try{
+                call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"resolvePlayback",new JSONObject(),new JSONObject(),0L);
+                android.webkit.WebView engineView=(android.webkit.WebView)field(engine,"view");
+                evaluate(engineView,"globalThis.__idleResult='waiting';fetch('https://must-not-resolve.zenix.invalid/idle').then(()=>__idleResult='unexpected success',e=>__idleResult=String(e.message));true");
+                long until=android.os.SystemClock.elapsedRealtime()+5000;String idle;
+                while((idle=evaluate(engineView,"__idleResult")).equals("\"waiting\"")){if(android.os.SystemClock.elapsedRealtime()>until)throw new IOException("Idle source request not rejected");Thread.sleep(50);}
+                if(!idle.contains("没有待处理任务"))throw new IOException("Idle source reached another network path: "+idle);
+                call(engine,"call",new Class<?>[]{String.class,Object.class,JSONObject.class,long.class},"resolvePlayback",new JSONObject(),new JSONObject(),0L);
+                out.getJSONObject("cacheNetwork").put("idleScriptHttpRejectedBeforeTransport",true).put("warmEngineReusable",true);
+            }finally{call(engine,"close",new Class<?>[]{});}
         } else if (mode.equals("uiPerformance")) {
             Intent launch=target.getPackageManager().getLaunchIntentForPackage(target.getPackageName());
             launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);runOnMainSync(()->target.startActivity(launch));
@@ -165,13 +200,38 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
             while(!evaluate(view,"!!document.querySelector('.mobile-nav')&&!document.querySelector('.mobile-boot')").equals("true")) {
                 if(android.os.SystemClock.elapsedRealtime()-started>20000)throw new IOException("Mobile UI did not become ready");Thread.sleep(200);
             }
-            String asset=arguments.getString("scenario","").equals("stickerSwitch")?"mobile-sticker-switch.js":"mobile-performance.js";
+            String scenario=arguments.getString("scenario","");
+            String asset=scenario.equals("stickerGesture")?"mobile-sticker-gesture.js":scenario.equals("stickerSwitch")?"mobile-sticker-switch.js":"mobile-performance.js";
             String script;try(InputStream stream=getContext().getAssets().open(asset)){script=new String(stream.readAllBytes(),StandardCharsets.UTF_8);}
             boolean trace=arguments.getString("trace","false").equals("true");
             try {
                 if(trace){runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(true));Thread.sleep(3000);}
                 evaluate(view,script);started=android.os.SystemClock.elapsedRealtime();String report;
                 while((report=evaluate(view,"JSON.stringify(window.__zenixMobilePerf?.report||null)")).equals("\"null\"")) {
+                    if(asset.equals("mobile-sticker-gesture.js")){
+                        String request=evaluate(view,"JSON.stringify(window.__zenixMobilePerf?.touch||null)");
+                        if(!request.equals("\"null\"")){
+                            JSONObject touch=new JSONObject(String.valueOf(new org.json.JSONTokener(request).nextValue()));
+                            org.json.JSONArray frames=touch.getJSONArray("frames");
+                            double ratio=view.getWidth()/Double.parseDouble(evaluate(view,"innerWidth"));
+                            int[] offset=new int[2];runOnMainSync(()->view.getLocationOnScreen(offset));
+                            long down=android.os.SystemClock.uptimeMillis();
+                            for(int index=0;index<frames.length();index++){
+                                JSONObject frame=frames.getJSONObject(index);org.json.JSONArray points=frame.getJSONArray("points");int count=points.length();
+                                android.view.MotionEvent.PointerProperties[] properties=new android.view.MotionEvent.PointerProperties[count];
+                                android.view.MotionEvent.PointerCoords[] coordinates=new android.view.MotionEvent.PointerCoords[count];
+                                for(int pointer=0;pointer<count;pointer++){
+                                    JSONObject point=points.getJSONObject(pointer);properties[pointer]=new android.view.MotionEvent.PointerProperties();properties[pointer].id=point.getInt("id");properties[pointer].toolType=android.view.MotionEvent.TOOL_TYPE_FINGER;
+                                    coordinates[pointer]=new android.view.MotionEvent.PointerCoords();coordinates[pointer].x=(float)(offset[0]+point.getDouble("x")*ratio);coordinates[pointer].y=(float)(offset[1]+point.getDouble("y")*ratio);coordinates[pointer].pressure=1;coordinates[pointer].size=.02f;
+                                }
+                                int action=frame.getInt("action");
+                                android.view.MotionEvent event=android.view.MotionEvent.obtain(down,android.os.SystemClock.uptimeMillis(),action,count,properties,coordinates,0,0,1,1,0,0,android.view.InputDevice.SOURCE_TOUCHSCREEN,0);
+                                try{if(!getUiAutomation().injectInputEvent(event,true))throw new IOException("Touch injection rejected");}finally{event.recycle();}
+                                Thread.sleep(frame.optInt("delay",20));
+                            }
+                            evaluate(view,"window.__zenixMobilePerf.touch=null;true");
+                        }
+                    }
                     if(asset.equals("mobile-sticker-switch.js")){
                         String request=evaluate(view,"JSON.stringify(window.__zenixMobilePerf?.swipe||null)");
                         if(!request.equals("\"null\"")){
@@ -190,7 +250,16 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
                     }
                     if(android.os.SystemClock.elapsedRealtime()-started>90000)throw new IOException("Mobile performance probe timed out");Thread.sleep(250);
                 }
-                Object decoded=new org.json.JSONTokener(report).nextValue();out.put("uiPerformance",new JSONObject(String.valueOf(decoded)));
+                Object decoded=new org.json.JSONTokener(report).nextValue();JSONObject performance=new JSONObject(String.valueOf(decoded));out.put("uiPerformance",performance);
+                if(asset.equals("mobile-sticker-gesture.js")){
+                    Class<?> runtimeClass=target.getClassLoader().loadClass("com.zenix.musicplayer.ZenixRuntime");Method get=runtimeClass.getDeclaredMethod("get",Context.class);get.setAccessible(true);Object runtime=get.invoke(null,target);
+                    JSONObject after=(JSONObject)call(field(runtime,"store"),"read",new Class<?>[]{});
+                    java.util.Set<String> changed=new java.util.TreeSet<>();changedFields(mainPersonal,after.getJSONObject("personal"),changed);
+                    boolean retained=canonical(withoutArtwork(mainPersonal)).equals(canonical(withoutArtwork(after.getJSONObject("personal"))));
+                    boolean configured=configurationIdentity(mainData).equals(configurationIdentity(after));
+                    out.put("personalChangedFields",new org.json.JSONArray(changed)).put("personalRetainedExceptArtworkCache",retained).put("configurationUnchanged",configured);
+                    if(!performance.optBoolean("ok")||!retained||!configured)out.put("ok",false);
+                }
             } finally { if(trace)runOnMainSync(()->android.webkit.WebView.setWebContentsDebuggingEnabled(false)); }
             out.put("configurationSha256",hex(MessageDigest.getInstance("SHA-256").digest(canonical(new JSONObject().put("sources",mainData.opt("sources")).put("profile",mainData.opt("profile")).put("appearance",mainData.opt("appearance"))).getBytes(StandardCharsets.UTF_8))));
         } else if (mode.equals("playbackStateCheck")) {
@@ -459,6 +528,14 @@ public final class UpdateAcceptanceInstrumentation extends Instrumentation {
     }
     private static Object create(Context target,String name,Context context)throws Exception {
         Class<?> type=target.getClassLoader().loadClass("com.zenix.musicplayer."+name);Constructor<?> constructor=type.getDeclaredConstructor(Context.class);constructor.setAccessible(true);return constructor.newInstance(context);
+    }
+    private static Object withoutArtwork(Object value)throws Exception {
+        if(value instanceof JSONObject){JSONObject input=(JSONObject)value,copy=new JSONObject();for(java.util.Iterator<String> keys=input.keys();keys.hasNext();){String key=keys.next();if(!key.equals("coverUrl"))copy.put(key,withoutArtwork(input.get(key)));}return copy;}
+        if(value instanceof org.json.JSONArray){org.json.JSONArray input=(org.json.JSONArray)value,copy=new org.json.JSONArray();for(int i=0;i<input.length();i++)copy.put(withoutArtwork(input.get(i)));return copy;}return value;
+    }
+    private static void changedFields(Object before,Object after,java.util.Set<String> fields)throws Exception {
+        if(before instanceof JSONObject&&after instanceof JSONObject){JSONObject left=(JSONObject)before,right=(JSONObject)after;java.util.Set<String> keys=new java.util.HashSet<>();left.keys().forEachRemaining(keys::add);right.keys().forEachRemaining(keys::add);for(String key:keys)if(!canonical(left.opt(key)).equals(canonical(right.opt(key)))){fields.add(key);changedFields(left.opt(key),right.opt(key),fields);}}
+        else if(before instanceof org.json.JSONArray&&after instanceof org.json.JSONArray){org.json.JSONArray left=(org.json.JSONArray)before,right=(org.json.JSONArray)after;for(int i=0;i<Math.min(left.length(),right.length());i++)changedFields(left.opt(i),right.opt(i),fields);}
     }
     private static String configurationIdentity(JSONObject value)throws Exception {JSONObject copy=new JSONObject();for(String name:new String[]{"sources","profile","appearance","smoothPlayback","quality","cacheEnabled","cacheLimitMiB"})if(value.has(name))copy.put(name,value.opt(name));return canonical(copy);}
     private static String personalIdentity(JSONObject value)throws Exception {JSONObject copy=new JSONObject(value.toString());copy.remove("history");org.json.JSONArray lists=copy.getJSONArray("playlists");for(int i=0;i<lists.length();i++){org.json.JSONArray tracks=lists.getJSONObject(i).getJSONArray("tracks");for(int j=0;j<tracks.length();j++){JSONObject track=tracks.getJSONObject(j);track.remove("replacement");track.remove("coverUrl");track.remove("coverHint");}}return canonical(copy);}

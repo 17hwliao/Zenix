@@ -8,6 +8,7 @@ class SourceRunner {
   constructor(manager, record, key = record.id) { this.manager = manager; this.record = record; this.key = key; this.window = null; this.pending = new Map(); this.ready = null; this.idleTimer = null; this.leases = 0; this.networkRequests = new Set(); this.starting = false; }
   async network(operation) {
     if (this.destroyed) throw new Error('音乐源已取消');
+    if (!this.leases && !this.starting) throw new Error('音乐源当前没有待处理任务');
     if (this.networkRequests.size >= 8) throw new Error('音乐源请求并发过多');
     const controller = new AbortController(); this.networkRequests.add(controller);
     try { return await operation(controller.signal); }
@@ -17,6 +18,8 @@ class SourceRunner {
   release() {
     this.leases = Math.max(0, this.leases - 1);
     if (this.leases || this.pending.size) return;
+    for (const controller of this.networkRequests) controller.abort();
+    this.networkRequests.clear();
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => { if (!this.leases && !this.pending.size) this.destroy(); }, 20000);
     this.idleTimer.unref();

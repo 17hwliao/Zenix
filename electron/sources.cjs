@@ -520,6 +520,9 @@ class SourceManager {
     // A replacement has its own recording identity. Never alias its bytes to
     // the original song: restoring the original must not return this cache.
     const cacheId = !replacement && typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
+    // A forced resolve follows a rejected cache/connection. Do not route its
+    // fresh stream back into those same bytes, including aliases of the file.
+    if (skipCache) await this.audioCache?.discard(cacheId, quality);
     const record = this.record(id);
     quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
     const started = Date.now();
@@ -572,6 +575,10 @@ class SourceManager {
   }
   async stream(request, token) {
     const session = this.sessions.get(token); if (!session) return new Response('音频会话已过期', { status: 404 });
+    // The player retains this stream token across repeats and seeks. Cache may
+    // have completed since it was resolved; check disk before refreshing URLs.
+    const cached = await this.audioCache?.find(session.trackId, session.quality);
+    if (cached) return require('./runtime/media-protocol.cjs').serveFile(cached.path, request, cached.contentType);
     const record = this.record(session.id);
     if (!session.replacement&&session.expiresAt && Date.now() >= session.expiresAt - 15000) await this.refresh(session);
     const headers = { ...session.headers };
@@ -614,9 +621,7 @@ class SourceManager {
     if (!track?.providerId || !track?.remoteId) return null;
     const file = path.join(this.lyricFolder, `${createHash('sha256').update(`${track.providerId}:${track.remoteId}`).digest('hex')}.json`);
     const record = this.records.find(item => item.id === track.providerId) || (track.providerId === 'lx.playlist:catalog' ? { kind: 'lx', enabled: true } : null);
-    if (record?.kind === 'lx') {
-      try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch {}
-    }
+    try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch {}
     if (!record?.enabled || (record.kind !== 'lx' && !record.manifest.capabilities.includes('lyrics'))) {
       try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch { return null; }
     }

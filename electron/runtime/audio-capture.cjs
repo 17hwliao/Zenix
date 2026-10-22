@@ -59,7 +59,7 @@ function captureBody(body, { temporary, expected, signal, commit, partial, finis
       // pending. Wait for that operation before closing/removing its file.
       await pulling.catch(() => {});
       try { reader.releaseLock(); } catch { /* The completed pull may have released it. */ }
-      await cleanup(false);
+      await cleanup(size === expected);
     },
   }, { highWaterMark: 0 });
 }

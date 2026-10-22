@@ -2,6 +2,7 @@ const test = require('node:test');
 require('./Test-CatalogSearch.cjs');
 require('./Test-SourceSetup.cjs');
 require('./Test-Artwork.cjs');
+require('./Test-AudioReuse.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');

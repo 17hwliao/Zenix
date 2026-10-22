@@ -25,7 +25,7 @@ final class ScriptEngine implements AutoCloseable {
     private final JSONArray apiHosts;
     private final boolean allowHttp;
     private final boolean stateDriven;
-    private WebView view; private long sequence; private volatile boolean closed;
+    private WebView view; private volatile long sequence; private volatile boolean closed;
     private final java.util.Set<okhttp3.Call> requests=ConcurrentHashMap.newKeySet();
     boolean isClosed(){return closed;}
     boolean isBusy(){return !closed&&(!ready.isDone()||!pending.isEmpty());}
@@ -80,8 +80,9 @@ final class ScriptEngine implements AutoCloseable {
         try { return timeoutMs==0?result.get():result.get(Math.max(1,deadline-System.nanoTime()),TimeUnit.NANOSECONDS); }
         catch(TimeoutException error){close();throw new TimeoutException("音乐源解析等待超时");}
         catch(InterruptedException error){close();Thread.currentThread().interrupt();throw error;}
-        finally { pending.remove(id); }
+        finally { pending.remove(id);for(okhttp3.Call call:requests)call.cancel();requests.clear(); }
     }
+    private boolean networkAllowed(long operation){return !closed&&(operation==0&&!ready.isDone()||operation>0&&pending.containsKey(operation));}
     private void evaluate(String code) { if(view!=null&&!closed) view.evaluateJavascript(code,null); }
     private void fail(Exception e) { ready.completeExceptionally(e); pending.values().forEach(f -> f.completeExceptionally(e));pending.clear(); }
     @Override public void close() { closed=true; fail(new Exception("音乐源已关闭"));for(okhttp3.Call call:requests)call.cancel();requests.clear();network.shutdownNow(); main.post(() -> { if(view!=null) { view.removeJavascriptInterface("NativeHost");view.destroy();view=null; } }); }
@@ -95,11 +96,11 @@ final class ScriptEngine implements AutoCloseable {
             if(closed)return;
             if(json==null||json.length()>SourceHttp.MAX_BYTES){fail(new IOException("音乐源网络请求超过大小限制"));close();return;}
             try {
-                JSONObject request=new JSONObject(json); long id=request.getLong("id");
+                JSONObject request=new JSONObject(json); long id=request.getLong("id"),operation=sequence;
                 network.execute(() -> {
                     String result,error;
                     okhttp3.Call[] running=new okhttp3.Call[1];
-                    try { result=SourceHttp.request(request.getString("url"),request.optJSONObject("options")==null ? new JSONObject() : request.getJSONObject("options"),apiHosts,call->{running[0]=call;requests.add(call);if(closed)call.cancel();},allowHttp,stateDriven).toString();error="null"; }
+                    try { if(!networkAllowed(operation))throw new java.util.concurrent.CancellationException("音乐源当前没有待处理任务");result=SourceHttp.request(request.getString("url"),request.optJSONObject("options")==null ? new JSONObject() : request.getJSONObject("options"),apiHosts,call->{running[0]=call;requests.add(call);if(!networkAllowed(operation))call.cancel();},allowHttp,stateDriven).toString();error="null"; }
                     catch(Exception e) { result="null";error=JSONObject.quote(Json.message(e)); }
                     finally{if(running[0]!=null)requests.remove(running[0]);}
                     String js="__networkResult("+id+","+result+","+error+")"; main.post(() -> evaluate(js));

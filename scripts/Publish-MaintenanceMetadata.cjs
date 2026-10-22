@@ -26,7 +26,7 @@ async function publish(){
     const live=(await inventory()).find(a=>a.name===name);assert(live&&live.id===pointer.id&&live.digest===pointer.digest);
     await api('/releases/assets/'+pointer.id,{method:'DELETE'});await api('/releases/assets/'+pending.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});assert((await inventory()).some(a=>a.name===name&&a.digest===hash(bytes)&&a.state==='uploaded'));
   }
-  await api('/releases/'+release.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:`Zenix v${application.version} · Android r${application.zenixBuild} / Windows r${application.zenixBuild}`,body:`${notes}\n\n公开版本仍为 ${application.version}，内部修订 r${application.zenixBuild}。历史安装包保留。\n\n[发行与审查说明](https://github.com/17hwliao/Zenix/blob/main/docs/releases/${tag}.md)\n\n本轮自动测试与安装器身份核验通过，未进行真实设备覆盖安装。`,make_latest:'true'})});
+  await api('/releases/'+release.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:`Zenix v${application.version} · Android r${application.zenixBuild} / Windows r${application.zenixBuild}`,body:`${notes}\n\n公开版本仍为 ${application.version}，内部修订 r${application.zenixBuild}。历史安装包保留。\n\n[发行、审查与实际验证范围](https://github.com/17hwliao/Zenix/blob/main/docs/releases/${tag}.md)`,make_latest:'true'})});
   console.log('MAINTENANCE_METADATA_PUBLISHED '+tag+' r'+application.zenixBuild);
 }
 publish().catch(error=>{console.error(error.message);process.exitCode=1;});
