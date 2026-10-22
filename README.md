@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">桌面与移动端音乐播放器 · v1.0.4</p>
+<p align="center">桌面与移动端音乐播放器 · v1.1.0</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -47,18 +47,18 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.0.4 · r52
+### 最新版本 v1.1.0 · r55
 
-本次维护修复歌曲封面加载和失败恢复，隔离封面、歌词与播放状态，修正缓存清理竞争和系统媒体封面异常打断播放的问题。保留此前的文本歌单导入、安卓文本分享、贴纸双指缩放及三次自动平替。
+本轮新增音乐工作台：私人片段与歌词检索、歌单修改撤销、离线收纳与网络偏好、空间分区和漫游控制、版本试听与片段练习、后台任务、设备协作、可换皮肤音乐助手。设置中的工作台入口集中管理，手机音乐空间也提供入口。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK · r52](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Android-1.0.4-r52.apk) |
-| Windows x64 | [安装包 · r52](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/Zenix-Setup-1.0.4-r52-x64.exe) |
+| Android | [原签名 APK · r55](https://github.com/17hwliao/Zenix/releases/download/v1.1.0/Zenix-Android-1.1.0-r55.apk) |
+| Windows x64 | [安装包 · r55](https://github.com/17hwliao/Zenix/releases/download/v1.1.0/Zenix-Setup-1.1.0-r55-x64.exe) |
 
-[v1.0.4 维护更新](https://github.com/17hwliao/Zenix/releases/tag/v1.0.4)保持原公开版本，内部构建递增至 52；原签名、公钥及资料目录保留。正式与预览签名清单均提供双端 r52，旧版重新检查更新可获取本版，历史包和下载地址继续保留。
+[v1.1.0 功能更新](https://github.com/17hwliao/Zenix/releases/tag/v1.1.0)的公开版本为 1.1.0，双端构建为 55。正式与预览签名清单均指向本版；旧版重新检查更新即可读取本版信息。原发行身份、公钥、资料目录及历史下载入口保留，覆盖更新无需卸载或清空资料。
 
-本轮通过自动回归、安装包身份及旧客户端签名清单兼容检查；沿用本地自动验证范围，未进行真实设备覆盖安装，不将自动测试等同于实际安装验收。摘要见 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.0.4/SHA256SUMS-1.0.4-r52.txt)，范围见[发行说明](docs/releases/v1.0.4.md)及[本轮审查](docs/review-artwork-isolation-2026-10-21.md)。
+本地回归 269/269、双端构建及实际安装包身份核验通过；Windows 生产下载器实际下载完整安装包并校验通过，未执行系统安装。用户层面测试按本轮约定跳过，不将本地测试当作真机完整升级证明。见[功能与审查范围](docs/review-feature-iteration-2026-10-23.md)、[发行说明](docs/releases/v1.1.0.md)及 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.1.0/SHA256SUMS-1.1.0-r55.txt)。
 
 ### 首版 v1.0.0
 
