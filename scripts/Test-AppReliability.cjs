@@ -80,7 +80,7 @@ test('production backup transaction persists merged data, undo snapshot survives
   const result = await backup.invoke({ operation: 'backupApply', token: 'fixture', sections: ['liked', 'profile'], browser });
   assert.equal((await new PersonalStore(folder).load()).liked.length, 1); assert.deepEqual(JSON.parse(JSON.stringify(store.snapshot().favorites)), before.favorites); assert.equal(result.browser.profile.name, 'imported'); await backup.invoke({ operation: 'backupAcknowledge', browser: result.browser });
   const reopened = new BackupManager({ folder, personal: store, stats: listening, appearance, library: { snapshot: () => ({ tracks: [] }) }, broadcast: () => {}, protection });
-  await reopened.load(); const undo = await reopened.invoke({ operation: 'backupUndo', browser: result.browser }); assert.equal(undo.browser.profile.name, 'original'); await reopened.invoke({ operation: 'backupAcknowledge', browser: undo.browser }); assert.deepEqual(store.snapshot(), before);
+  await reopened.load(); const undo = await reopened.invoke({ operation: 'backupUndo', browser: result.browser }); assert.equal(undo.browser.profile.name, 'original'); await reopened.invoke({ operation: 'backupAcknowledge', browser: undo.browser }); assert.deepEqual(JSON.parse(JSON.stringify(store.snapshot())), before); // Compare persisted JSON values; undefined optional track fields are not stored.
   backup.pending = { token: 'second', payload: cleanPayload({ personal: { liked: [song] } }) }; await backup.invoke({ operation: 'backupApply', token: 'second', sections: ['liked'], browser }); await store.toggle('favorites', { ...song, id: 'another', remoteId: '2' });
   await assert.rejects(backup.invoke({ operation: 'backupUndo', browser }), /新资料/); assert.equal(store.snapshot().favorites.length, 2);
 });
@@ -92,7 +92,7 @@ test('transaction failure restores disk and memory; queued personal writes resum
   await assert.rejects(backup.invoke({ operation: 'backupApply', token: 'fixture', sections: ['liked', 'appearance'], browser: {} }), /disk failure/); assert.deepEqual(store.snapshot(), before); assert.deepEqual(await new PersonalStore(folder).load(), before);
   let entered; const gate = new Promise(resolve => { entered = resolve; }); let release; const hold = new Promise(resolve => { release = resolve; }); const transaction = backup.exclusive(async () => { entered(); await hold; }); await gate; const pending = store.toggle('liked', song); assert.equal(store.snapshot().liked.length, 0); release(); await Promise.all([transaction, pending]); assert.equal(store.snapshot().liked.length, 1);
   const old = backup.capture({}), corrupted = structuredClone(old); corrupted.personal.liked = []; await backup.writeJournal({ pending: true, before: old, after: corrupted, sections: ['liked'] }); store.data = corrupted.personal; await store.save();
-  const restarted = new BackupManager({ folder, personal: store, stats: listening, appearance, broadcast: () => {}, protection }); await restarted.load(); assert.equal(store.snapshot().liked.length, 1); assert.equal(await restarted.readJournal(), null);
+  const restarted = new BackupManager({ folder, personal: store, stats: listening, appearance, broadcast: () => {}, protection }); await restarted.load(); assert.equal(store.snapshot().liked.length, 0,'startup must not write personal data');const recovery=await restarted.invoke({operation:'backupInfo'});assert.equal(recovery.recovery.backendPending,true);await restarted.invoke({operation:'backupRecover',receiptId:recovery.recovery.receiptId,browser:{}});assert.equal(store.snapshot().liked.length,1);assert.equal(await restarted.readJournal(),null);
 });
 
 test('interrupted desktop profile receipt preserves later edits and completes only the pending browser sync', async t => {
@@ -112,16 +112,17 @@ test('interrupted desktop profile receipt preserves later edits and completes on
   await assert.rejects(reopened.invoke({ operation: 'backupUndo', browser: info.recovery.browser }), /新资料/);
 });
 
-test('partial backend transaction rolls back while retaining the interrupted browser snapshot', async t => {
+test('partial backend transaction waits for explicit recovery and retains the interrupted browser snapshot', async t => {
   const { backup, store, listening, appearance, folder } = await manager(t);
   const before = backup.capture({ profile: { name: 'original' } }), after = structuredClone(before);
   after.personal.liked = [song]; after.browser.profile.name = 'interrupted';
   await backup.writeJournal({ pending: true, before, after, sections: ['liked', 'profile'] });
   store.data = after.personal; await store.save();
   const reopened = new BackupManager({ folder, personal: store, stats: listening, appearance, library: { snapshot: () => ({ tracks: [] }) }, broadcast: () => {}, protection });
-  await reopened.load(); assert.equal(store.snapshot().liked.length, 0);
-  const info = await reopened.invoke({ operation: 'backupInfo' }); assert.equal(info.recovery.browser.profile.name, 'original');
-  await reopened.invoke({ operation: 'backupAcknowledge', browser: info.recovery.browser }); assert.equal(await reopened.readJournal(), null);
+  await reopened.load(); assert.equal(store.snapshot().liked.length, 1, 'startup must retain current personal data');
+  const info = await reopened.invoke({ operation: 'backupInfo' }); assert.equal(info.recovery.browser.profile.name, 'original'); assert.equal(info.recovery.backendPending, true);
+  const recovered = await reopened.invoke({operation:'backupRecover',receiptId:info.recovery.receiptId,browser:{profile:{name:'interrupted'}}});assert.equal(store.snapshot().liked.length,0);
+  await reopened.invoke({ operation: 'backupAcknowledge', receiptId:recovered.receiptId,browser: recovered.browser }); assert.equal(await reopened.readJournal(), null);
 });
 
 test('local history relinking updates the history identity together with its track', async t => {
@@ -147,6 +148,15 @@ test('Android production backup contract reads desktop files and emits desktop-r
   }
   const specialLocal = { ...song, source: 'local', id: 'local-special', title: "歌曲!~'()*" };
   const input = path.join(folder, 'input.zenixbackup'), output = path.join(folder, 'output.zenixbackup'); await fs.writeFile(input, encode({ personal: { liked: [song], favorites: [specialLocal], history: [], playlists: [{ name: '歌单', tracks: [song] }] }, profile: { name: 'Fixture', email: 'fixture@example.test' }, stats: stats() }));
-  const root = path.resolve(__dirname, '../android/app/src/main/java/com/zenix/musicplayer'); await promisify(execFile)(bin('javac'), ['-cp', jar, '-d', folder, path.join(root, 'Json.java'), path.join(root, 'BackupFormat.java'), path.join(__dirname, 'fixtures/BackupContractCheck.java')], { timeout: 30000, windowsHide: true });
+  const root = path.resolve(__dirname, '../android/app/src/main/java/com/zenix/musicplayer'); await promisify(execFile)(bin('javac'), ['-cp', jar, '-d', folder, path.join(root, 'Json.java'), path.join(root, 'BackupFormat.java'), path.join(root, 'PersonalFeatureFormat.java'), path.join(root,'FeatureSettingsFormat.java'), path.join(root,'SpaceFeatureFormat.java'), path.join(root,'PlaybackPreferences.java'), path.join(__dirname, 'fixtures/BackupContractCheck.java')], { timeout: 30000, windowsHide: true });
   const { stdout } = await promisify(execFile)(bin('java'), ['-cp', folder + path.delimiter + jar, 'com.zenix.musicplayer.BackupContractCheck', input, output], { timeout: 15000, windowsHide: true }); assert.match(stdout, /BACKUP_CONTRACT_PASS/); const decoded = decode(await fs.readFile(output, 'utf8')); assert.equal(decoded.personal.liked[0].id, song.id); assert.equal(decoded.profile.email, 'fixture@example.test'); assert.equal(decoded.stats.days['2026-10-11'].seconds, 60); assert.equal(JSON.parse(JSON.parse(await fs.readFile(output, 'utf8')).payload).personal.favorites[0].id, cleanPayload({ personal: { favorites: [specialLocal] } }).personal.favorites[0].id, 'Java and JavaScript emit identical portable local IDs');
+});
+
+
+test('pending recovery never overwrites new selected data and keep-current blocks old whole-state undo',async t=>{
+ const {backup,store,listening,appearance,folder}=await manager(t),before=backup.capture({}),after=structuredClone(before);after.personal.liked=[song];await backup.writeJournal({pending:true,before,after,sections:['liked']});await store.toggle('liked',{...song,id:'newer',remoteId:'newer'});const latest=JSON.parse(JSON.stringify(store.snapshot())),reopened=new BackupManager({folder,personal:store,stats:listening,appearance,broadcast:()=>{},protection});await reopened.load();assert.deepEqual(JSON.parse(JSON.stringify(store.snapshot())),latest);const info=await reopened.invoke({operation:'backupInfo'});await assert.rejects(reopened.invoke({operation:'backupAcknowledge',receiptId:info.recovery.receiptId,browser:{}}),/尚未完成/);await assert.rejects(reopened.invoke({operation:'backupRecover',receiptId:info.recovery.receiptId,browser:{}}),/新修改/);assert.deepEqual(JSON.parse(JSON.stringify(store.snapshot())),latest);await reopened.invoke({operation:'backupKeepCurrent',receiptId:info.recovery.receiptId,browser:{}});await assert.rejects(reopened.invoke({operation:'backupUndo',browser:{}}),/原快照/);assert.deepEqual(JSON.parse(JSON.stringify(await new PersonalStore(folder).load())),latest);assert.deepEqual((await reopened.readJournal()).before.personal.liked,[]);
+});
+
+test('explicit partial recovery patches only selected categories and preserves newer history',async t=>{
+ const {backup,store,listening,appearance,folder}=await manager(t),before=backup.capture({}),after=structuredClone(before);after.personal.liked=[song];await backup.writeJournal({pending:true,before,after,sections:['liked']});store.data=after.personal;await store.save();await store.record({...song,id:'later',remoteId:'later'});const history=JSON.parse(JSON.stringify(store.snapshot().history)),reopened=new BackupManager({folder,personal:store,stats:listening,appearance,broadcast:()=>{},protection});await reopened.load();const info=await reopened.invoke({operation:'backupInfo'});await reopened.invoke({operation:'backupRecover',receiptId:info.recovery.receiptId,browser:{}});assert.equal(store.snapshot().liked.length,0);assert.deepEqual(JSON.parse(JSON.stringify(store.snapshot().history)),history);assert.equal(await reopened.readJournal(),null);
 });

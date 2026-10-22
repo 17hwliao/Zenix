@@ -36,6 +36,9 @@ import SwipeTrackRow from './SwipeTrackRow';
 import SaveFeedback from './SaveFeedback';
 import { useSongGesture } from './useSongGesture';
 import { useGlassConfirm } from '../ui/useGlassConfirm';
+import FeatureLauncher from '../features/FeatureLauncher';
+import {useSpaceSettings,writeSpace,type SpaceState} from '../features/space/state';
+import {versionPreferences} from '../features/playback/preferences';
 
 const mobileTool:ToolInvoke=args=>command('features',args);
 
@@ -57,16 +60,18 @@ export default function MobileApp() {
   const [state, setState] = useState<MobileSnapshot>(initialSnapshot);
   const [route, setRoute] = useState<{ page: Page; direction: number }>({ page: 'home', direction: 1 });
   const { page, direction } = route;
-  const reducedMotion = useReducedMotion();
+  const spaceSettings=useSpaceSettings();
+  const systemReducedMotion = useReducedMotion();
+  const reducedMotion=systemReducedMotion||spaceSettings.motion==='reduced';
   const { confirm, dialog } = useGlassConfirm();
   function setPage(next: Page) { if (next !== page) window.scrollTo(0, 0); setRoute(previous => previous.page === next ? previous : { page: next, direction: pageOrder.indexOf(next) > pageOrder.indexOf(previous.page) ? 1 : -1 }); }
   // Opacity on the page keeps the fixed sticker camera anchored to the viewport.
   const pageVariants = {
     enter: { opacity: 0 },
-    visible: { opacity: 1, pointerEvents: 'auto' as const, transition: { duration: reducedMotion ? 0 : .24, ease: [.22, 1, .36, 1] as const } },
-    leave: { opacity: 0, pointerEvents: 'none' as const, transition: { duration: reducedMotion ? 0 : .16 } },
+    visible: { opacity: 1, pointerEvents: 'auto' as const, transition: { duration: reducedMotion ? 0 : spaceSettings.motion==='light'?.12:.24, ease: [.22, 1, .36, 1] as const } },
+    leave: { opacity: 0, pointerEvents: 'none' as const, transition: { duration: reducedMotion ? 0 : spaceSettings.motion==='light'?.08:.16 } },
   };
-  const panelTransition = { duration: reducedMotion ? 0 : .22, ease: [.22, 1, .36, 1] as const };
+  const panelTransition = { duration: reducedMotion ? 0 : spaceSettings.motion==='light'?.12:.22, ease: [.22, 1, .36, 1] as const };
   const [wall, setWall] = useState<Track[]>([]), [label, setLabel] = useState('最近播放');
   const [searchOpen, setSearchOpen] = useState(false), [keyword, setKeyword] = useState(''), [sourceId, setSourceId] = useState('all');
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [more, setMore] = useState<Record<string, string>>({});
@@ -90,6 +95,8 @@ export default function MobileApp() {
   const [saveFeedback,setSaveFeedback]=useState<{id:number;kinds:('liked'|'favorites')[]}>();
   useEffect(()=>{if(!saveFeedback)return;const timer=setTimeout(()=>setSaveFeedback(undefined),1000);return()=>clearTimeout(timer);},[saveFeedback]);
   useMobileViewport();
+  useEffect(()=>{if(!isNativeMobile)return;let alive=true;void command<SpaceState>('features',{operation:'spaceFeatures',action:'read'}).then(value=>{if(alive)writeSpace(value);}).catch(()=>{});void command('playbackFeature',{operation:'preferences'}).then(value=>{if(alive)versionPreferences.write(versionPreferences.clean(value));}).catch(()=>{});return()=>{alive=false;};},[]);
+  useEffect(()=>{const open=(event:Event)=>{const text=String((event as CustomEvent).detail?.query||'');if(text){setKeyword(text);void search(false,{keyword:text,sourceId:'all'});}};window.addEventListener('zenix-assistant-search',open);return()=>window.removeEventListener('zenix-assistant-search',open);});
   useEffect(() => { document.documentElement.dataset.mobilePlatform = mobilePlatform.toLowerCase(); return () => { delete document.documentElement.dataset.mobilePlatform; }; }, []);
   const player = state.playback, track = player.track, personal = state.personal;
   const playbackWanted=player.playWhenReady??player.playing;
@@ -227,7 +234,7 @@ export default function MobileApp() {
     <header className="mobile-header"><button className="brand" onClick={() => setPage('home')}>Zenix<span>.</span></button><div><button aria-label="搜索歌曲" onClick={() => setSearchOpen(true)}><Search /></button><button aria-label="设置" onClick={() => setPage('settings')}><Settings2 /></button></div></header>
     <div className="mobile-page-host"><AnimatePresence initial={false} mode="sync" custom={direction}><motion.main key={page} data-page={page} data-collection={collectionId} className="mobile-content" custom={direction} variants={pageVariants} initial="enter" animate="visible" exit="leave">
       {homeContent}
-      {page === 'space' && <section><div className="section-heading"><div><span>YOUR MUSIC SPACE</span><h1>{label}</h1></div><div className="space-list-buttons">{(collectionId.startsWith('list-')||collectionId==='liked'||collectionId==='favorites')&&<button aria-label="管理歌单歌曲" onClick={()=>setModal('songs')}><ListMusic/></button>}<button aria-label="搜索" onClick={() => setSearchOpen(true)}><Search /></button></div></div><StickerSpace suspended={fullVisible} key={collectionId === 'search' ? `search-${searchGeneration}` : collectionId} seek={seconds => void act('seek', { seconds })} songs={wall} state={state} label={label} focusRequest={focusRequest} longPress={songMenu} play={song => { if (track?.id === song.id && track.playlistId===personal.playlists.find(list=>list.id===collectionId)?.id && !player.error) void act('toggle'); else if (collectionId === 'roaming' && state.roaming?.active) void act('roamingPlay', { id: song.id }); else void play(song); }} full={() => setFull(true)} actions={actions} />{busy && <div className="empty"><LoaderCircle className="spin" />正在查找音乐</div>}{!busy && !wall.length && collectionId !== 'roaming' && <div className="empty glass"><Music2 /><p>{error || '这里还没有歌曲'}</p><button className="pill" onClick={() => enabled.length ? setSearchOpen(true) : setPage('sources')}>{enabled.length ? '搜索音乐' : '配置音乐源'}</button><button onClick={() => void act('pickLocal')}>导入本地音乐</button></div>}{!busy && Object.keys(more).length > 0 && <button className="pill load-more space-more" onClick={() => void search(true)}>查看更多</button>}</section>}
+      {page === 'space' && <section><div className="section-heading"><div><span>YOUR MUSIC SPACE</span><h1>{label}</h1></div><div className="space-list-buttons"><FeatureLauncher mobileSnapshot={state}/>{(collectionId.startsWith('list-')||collectionId==='liked'||collectionId==='favorites')&&<button aria-label="管理歌单歌曲" onClick={()=>setModal('songs')}><ListMusic/></button>}<button aria-label="搜索" onClick={() => setSearchOpen(true)}><Search /></button></div></div><StickerSpace suspended={fullVisible} key={collectionId === 'search' ? `search-${searchGeneration}` : collectionId} seek={seconds => void act('seek', { seconds })} songs={wall} state={state} label={label} focusRequest={focusRequest} longPress={songMenu} play={song => { if (track?.id === song.id && track.playlistId===personal.playlists.find(list=>list.id===collectionId)?.id && !player.error) void act('toggle'); else if (collectionId === 'roaming' && state.roaming?.active) void act('roamingPlay', { id: song.id }); else void play(song); }} full={() => setFull(true)} actions={actions} />{busy && <div className="empty"><LoaderCircle className="spin" />正在查找音乐</div>}{!busy && !wall.length && collectionId !== 'roaming' && <div className="empty glass"><Music2 /><p>{error || '这里还没有歌曲'}</p><button className="pill" onClick={() => enabled.length ? setSearchOpen(true) : setPage('sources')}>{enabled.length ? '搜索音乐' : '配置音乐源'}</button><button onClick={() => void act('pickLocal')}>导入本地音乐</button></div>}{!busy && Object.keys(more).length > 0 && <button className="pill load-more space-more" onClick={() => void search(true)}>查看更多</button>}</section>}
       {sourcesContent}
       {settingsContent}
     </motion.main></AnimatePresence></div>

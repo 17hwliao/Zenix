@@ -47,6 +47,8 @@ class PlayerController {
   private playbackRequested = false;
   private resolvingSource?: { token: number; pending: Promise<boolean> };
   private pendingSeek?: { token: number; seconds: number };
+  private practice?: {trackId:string;start:number;end:number};
+  private preview?: {audio:HTMLAudioElement;abort:AbortController;owner:number;resume:boolean;position:number;start:number;end:number};
 
   constructor() {
     this.audio = new Audio();
@@ -172,6 +174,7 @@ class PlayerController {
 
   private invalidateSelection(keepSourceActivity = false): void {
     this.selectionToken += 1;
+    this.update({selectionRevision:this.selectionToken});
     this.sourceAbort?.abort();
     this.sourceAbort = undefined;
     clearTimeout(this.mediaWaitTimer);
@@ -198,6 +201,7 @@ class PlayerController {
   }
 
   private updateClock(): void {
+    if(this.practice&&this.practice.trackId===this.state.track?.id&&this.audio.currentTime>=this.practice.end&&this.audio.readyState>=2){this.audio.currentTime=this.practice.start;}
     this.emitLifecycle('tick');
     if (this.pendingSeek?.token === this.selectionToken && this.audio.readyState >= HTMLMediaElement.HAVE_METADATA && Math.abs(this.audio.currentTime - this.pendingSeek.seconds) < 0.15) this.pendingSeek = undefined;
     const pending = this.pendingSeek?.token === this.selectionToken ? this.pendingSeek : undefined;
@@ -242,6 +246,7 @@ class PlayerController {
   }
 
   setQueue(queue: Track[], startIndex = 0): void {
+    this.stopPreview(false);this.practice=undefined;this.audio.playbackRate=1;
     this.skippedReplacements.clear();
     const entries = queue.map(track => track.source === 'custom' ? { ...track, audioUrl: '', playbackProviderId: undefined, playbackQuality: undefined } : track);
     this.history = [];
@@ -288,6 +293,7 @@ class PlayerController {
   }
 
   private select(index: number): void {
+    this.stopPreview(false);this.practice=undefined;this.audio.playbackRate=1;
     const selected = this.state.queue[index];
     const track = selected?.source === 'custom' ? { ...selected, audioUrl: '', playbackProviderId: undefined, playbackQuality: undefined } : selected;
     if (!track) return;
@@ -302,12 +308,15 @@ class PlayerController {
   }
 
   async play(isRetry = false, bypassResume = false): Promise<void> {
+    void this.stopPreview(false);
     if (!isRetry && !bypassResume && this.resumeHandler && await this.resumeHandler()) return;
     if (!this.state.track) return;
     if(this.state.track.source==='local'&&this.state.track.availability==='unavailable'){this.update({playing:false,error:'这是对方的本地歌曲，请先导入同名、同歌手的音频，再重新导入歌单进行匹配。'});return;}
     if (!isRetry && this.state.error && this.state.track.source === 'custom') {
+      const resumeAt=this.state.position;
       this.failedAttempts.clear();
       this.invalidateSelection();
+      this.pendingSeek=resumeAt>0?{token:this.selectionToken,seconds:resumeAt}:undefined;
       const track = { ...this.state.track, audioUrl: '', playbackProviderId: undefined, playbackQuality: undefined };
       this.setAudioSource('');
       this.update({ track });
@@ -396,6 +405,7 @@ class PlayerController {
         this.failSource('这首歌暂时无法播放');
         return false;
       }
+      if(this.practice&&(String(selected.replacementPlayback||'')!==String(resolved.replacementPlayback||'')||String(selected.playbackProviderId||'')!==String(resolved.playbackProviderId||''))){this.practice=undefined;this.audio.playbackRate=1;}
       const queue = [...this.state.queue];
       if (index >= 0 && queue[index]?.id === selected.id) queue[index] = resolved;
       this.setAudioSource(resolved.audioUrl);
@@ -413,6 +423,7 @@ class PlayerController {
   }
 
   pause(internal = false): void {
+    void this.stopPreview(false);
     this.skippedReplacements.clear();
     if (!internal) this.emitLifecycle('pause-request');
     this.playbackToken += 1;
@@ -489,10 +500,36 @@ class PlayerController {
   }
 
   private async onEnded(): Promise<void> {
+    if(this.practice&&this.practice.trackId===this.state.track?.id){this.seek(this.practice.start);await this.play();return;}
     await this.next(true);
   }
 
-  seek(seconds: number): void {
+  practiceState(){return {loop:this.practice?{...this.practice}:null,rate:this.audio.playbackRate,preview:!!this.preview};}
+  configurePractice(args:{enabled?:boolean;start?:number;end?:number;rate?:number;expected?:Partial<Track>&{recordingId?:string;recordingIdentity?:string}}){
+    if(args.expected&&(['id','remoteId','replacementPlayback','playbackProviderId'] as const).some(key=>String(args.expected?.[key]||'')!==String(this.state.track?.[key]||'')))throw Error('歌曲版本已变化，请重新选择练习片段');
+    if(args.expected?.recordingId!==undefined&&args.expected.recordingId!==String(this.state.track?.playbackRecording?.remoteId||''))throw Error('歌曲版本已变化，请重新选择练习片段');
+    if(args.expected?.recordingIdentity!==undefined&&args.expected.recordingIdentity!==this.currentRecordingIdentity())throw Error('歌曲版本已变化，请重新选择练习片段');
+    if(args.rate!==undefined&&(!Number.isFinite(args.rate)||args.rate<.5||args.rate>1.5))throw Error('练习速度范围为 0.5–1.5 倍');
+    if(args.enabled===false)this.practice=undefined;
+    else if(args.enabled){const {start,end}=args;if(!this.state.track||!Number.isFinite(start)||!Number.isFinite(end)||start!<0||end!-start!<.5||this.state.duration>0&&end!>this.state.duration)throw Error('请选择有效的 A–B 区间（至少半秒）');this.practice={trackId:this.state.track.id,start:start!,end:end!};if(this.state.position<start!||this.state.position>=end!)this.seek(start!);}
+    if(args.rate!==undefined)this.audio.playbackRate=args.rate;return this.practiceState();
+  }
+  async previewVersion(track:Track,start=0,length=20){
+    if(this.navigation)throw Error('请先暂停并结束漫游，再进行版本试听');
+    if(!this.trackResolver&&track.source==='custom')throw Error('播放解析尚未就绪');
+    if(!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<1||length>30)throw Error('试听片段无效');
+    const resume=this.preview?.resume??(this.state.playing||this.playbackRequested),position=this.preview?.position??this.state.position;await this.stopPreview(false);this.pause(true);
+    const audio=new Audio();audio.volume=this.state.volume;audio.muted=this.state.muted;
+    const session={audio,abort:new AbortController(),owner:this.selectionToken,resume,position,start,end:start+length};this.preview=session;
+    const finish=()=>{if(this.preview===session)void this.stopPreview(true);};audio.addEventListener('ended',finish);audio.addEventListener('timeupdate',()=>{if(audio.currentTime>=session.end)finish();});audio.addEventListener('error',finish);
+    try{const candidate={...track,playlistId:undefined,replacement:undefined,replacementPlayback:undefined};const resolved=candidate.source==='custom'?await this.trackResolver!(candidate,[],()=>{},session.abort.signal):candidate;if(this.preview!==session||session.abort.signal.aborted)return this.practiceState();if(!resolved.audioUrl)throw Error('此版本没有可播放地址');audio.src=resolved.audioUrl;audio.addEventListener('loadedmetadata',()=>{if(this.preview===session)audio.currentTime=Math.min(session.start,Number.isFinite(audio.duration)?Math.max(0,audio.duration-.1):session.start);},{once:true});await audio.play();return this.practiceState();}catch(error){if(this.preview===session)await this.stopPreview(true);throw error;}
+  }
+  async stopPreview(restore=true){const session=this.preview;if(!session)return this.practiceState();this.preview=undefined;session.abort.abort();session.audio.pause();session.audio.removeAttribute('src');session.audio.load();if(restore&&session.owner===this.selectionToken){if(session.position>0)this.pendingSeek={token:this.selectionToken,seconds:session.position};if(session.resume)await this.play(false,true);}return this.practiceState();}
+
+  private currentRecordingIdentity():string {const track=this.state.track?.playbackRecording||this.state.track;return `${track?.source||'custom'}\0${track?.providerId||''}\0${track?.remoteId||track?.id||''}`;}
+  seek(seconds: number,expected?:{selectionRevision?:number;id:string;recordingIdentity:string}): void {
+    if(expected&&(expected.selectionRevision!==this.state.selectionRevision||expected.id!==this.state.track?.id||expected.recordingIdentity!==this.currentRecordingIdentity()))throw Error('当前歌曲已变化，未修改新歌曲的进度');
+    void this.stopPreview(false);
     if (!this.state.track || !Number.isFinite(seconds)) return;
     const maximum = Number.isFinite(this.audio.duration) ? this.audio.duration : this.state.duration;
     const target = Math.max(0, Math.min(seconds, maximum || seconds));
@@ -649,7 +686,7 @@ class PlayerController {
         navigator.mediaSession.setPositionState({
           duration: this.state.duration,
           position: Math.min(this.state.position, this.state.duration),
-          playbackRate: 1,
+          playbackRate: this.audio.playbackRate,
         });
       } catch {
         // Some media backends reject position updates before metadata is ready.
@@ -668,6 +705,7 @@ class PlayerController {
   }
 
   dispose(): void {
+    void this.stopPreview(false);
     this.playbackToken += 1;
     this.invalidateSelection();
     this.unlistenMedia?.();

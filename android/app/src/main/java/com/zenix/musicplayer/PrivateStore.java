@@ -52,6 +52,8 @@ final class PrivateStore {
     String error(){return writeError;}
     synchronized JSONArray array(String key) { JSONArray value=data.optJSONArray(key); if(value==null)return null; try{return new JSONArray(value.toString());}catch(JSONException error){throw new IllegalStateException(error);} }
     synchronized int integer(String key,int fallback){return data.optInt(key,fallback);}
+    synchronized boolean offlinePinned(String key){JSONObject pins=data.optJSONObject("offlinePins");JSONArray groups=pins==null?null:pins.optJSONArray(key);return groups!=null&&groups.length()>0;}
+    synchronized JSONObject offlineNetworkPolicy(){JSONObject tasks=data.optJSONObject("offlineTasks"),policy=tasks==null?null:tasks.optJSONObject("policy");return policy==null?null:Json.copy(policy);}
     JSONObject personal(String action,JSONObject args)throws Exception {return personal(action,args,()->false);}
     JSONObject personal(String action,JSONObject args,java.util.function.BooleanSupplier cancel)throws Exception {JSONObject result;synchronized(this){PlaylistReplacement.check(cancel);result=mutatePersonal(action,args,cancel);}flush();return result;}
     private JSONObject mutatePersonal(String action,JSONObject args,java.util.function.BooleanSupplier cancel) throws Exception {
@@ -100,7 +102,10 @@ final class PrivateStore {
             }
             if(!found) throw new Exception("歌单不存在"); Json.put(personal,"playlists",next);
         }
-        PlaylistReplacement.check(cancel);apply(Json.obj("personal",personal)); return Json.copy(personal);
+        PlaylistReplacement.check(cancel);JSONObject changes=Json.obj("personal",personal);
+        try{JSONObject features=PersonalFeatureFormat.record(data.optJSONObject("personalFeatures"),data.getJSONObject("personal"),personal,"修改歌单");if(features!=null)Json.put(changes,"personalFeatures",features);}
+        catch(Exception error){Json.put(changes,"personalFeaturesNotice","歌单已保存，本次修改记录不可用；已有私人资料保留");}
+        apply(changes); return Json.copy(personal);
     }
     static JSONObject cleanTrack(JSONObject track) {
         JSONObject value=Json.copy(track);value.remove("playlistId");value.remove("replacementPlayback");value.remove("searchAlternatives");value.remove("diagnosticAttemptId");

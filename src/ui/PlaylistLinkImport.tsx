@@ -3,6 +3,7 @@ import { Link2 } from 'lucide-react';
 import { readLinkedPlaylist, playlistPlatforms, type LinkedPlaylist, type PlaylistResponse } from '../core/playlistLinks';
 import type { ToolInvoke } from './MusicTools';
 import { readPlaylistFile, readTextPlaylist, type FilePlaylistPreview, type TextOrder } from '../core/playlistFiles';
+import {startActivity} from '../features/tasks/activities';
 
 export default function PlaylistLinkImport({ invoke, disabled, onPreview, initialInput = '' }: { invoke: ToolInvoke; disabled: boolean; onPreview: (value: any) => void; initialInput?: string }) {
   const [input, setInput] = useState(initialInput), [preview, setPreview] = useState<LinkedPlaylist>(), [name, setName] = useState('');
@@ -46,6 +47,7 @@ export default function PlaylistLinkImport({ invoke, disabled, onPreview, initia
     } catch (error) { if (mounting.current) setMessage(error instanceof Error ? error.message : '导入失败，请重试；若已有待确认清单，可在下方继续确认'); }
     finally { saving.current = false; if (mounting.current) setBusy(false); }
   }
+  function background(){try{const text=input,selected=file,format=order,currentMode=mode;startActivity('后台解析歌单',async(signal,report)=>{report(0,1,'正在读取歌曲清单');let playlists;if(currentMode==='link'){const value=await readLinkedPlaylist(text,args=>invoke<PlaylistResponse>({operation:'playlistRequest',...args}),signal,message=>report(0,1,message));signal.throwIfAborted();if(!value.complete)throw Error('公开清单不完整，请在前台预览确认后导入');playlists=[{name:value.name,tracks:value.tracks,autoReplacement:true}];}else{signal.throwIfAborted();const value=currentMode==='text'?readTextPlaylist(text,format):readPlaylistFile(selected!.bytes,selected!.name,format);playlists=value.lists.map(list=>({...list,autoReplacement:true}));}signal.throwIfAborted();report(1,1,'已解析，请在工作台预览并确认导入');return {playlists};});setMessage('已移到工作台的后台任务，解析后需明确确认导入');}catch(error){setMessage(String(error));}}
   return <section className="playlist-link-import"><h3><Link2 size={17}/> 从音乐平台带来歌单</h3>
     <p>支持 QQ、网易云、酷我的公开分享链接，以及文本歌单。先预览，再确认导入。</p>
     <div className="tool-actions" aria-label="歌单导入方式">{([{id:'link',label:'分享链接'},{id:'file',label:'文本文件'},{id:'text',label:'粘贴文本'}] as const).map(item=><button key={item.id} disabled={busy} aria-pressed={mode===item.id} onClick={()=>{setMode(item.id);setInput('');setPreview(undefined);setFilePreview(undefined);setFile(undefined);setMessage('');}}>{item.label}</button>)}</div>
@@ -62,6 +64,7 @@ export default function PlaylistLinkImport({ invoke, disabled, onPreview, initia
       <button disabled={busy || disabled || !name.trim() || !preview.complete && !partial} onClick={() => void save()}>导入为新歌单</button>
     </div>}
     {filePreview && <div className="playlist-link-preview"><strong>{filePreview.lists.length} 个歌单 · {filePreview.lists.reduce((sum,list)=>sum+list.tracks.length,0)} 首可导入</strong>{filePreview.warnings.map((warning,index)=><p role="note" key={index}>{warning}</p>)}<label className="tool-field">{filePreview.lists.length>1?'第一个歌单名称':'新歌单名称'}<input value={name} maxLength={100} onChange={event=>setName(event.target.value)}/></label>{filePreview.lists.map((list,index)=><div key={index}><b>{index===0?name:list.name} · {list.tracks.length} 首</b><ol>{list.tracks.slice(0,30).map(track=><li key={track.id}><b>{track.title}</b><small>{track.artist||'未指定歌手'}</small></li>)}</ol>{list.tracks.length>30&&<small>预览前 30 首，确认后导入全部 {list.tracks.length} 首。</small>}</div>)}<label className="playlist-partial"><input type="checkbox" checked={automatic} onChange={event=>setAutomatic(event.target.checked)}/>播放此歌单时自动搜索匹配可播放版本（最多三个候选）</label><button disabled={busy||disabled||!name.trim()} onClick={()=>void save()}>导入为新歌单</button></div>}
+    <button disabled={busy||disabled||(mode==='file'?!file:!input.trim())} onClick={background}>在后台解析，稍后确认导入</button>
     {message && <p role="status" aria-live="polite">{message}</p>}
     <small>仅迁移曲目信息，不迁移音频、平台账号或会员权限；播放使用自己的音乐源。私密或登录后可见的歌单请先在原平台公开。</small>
   </section>;

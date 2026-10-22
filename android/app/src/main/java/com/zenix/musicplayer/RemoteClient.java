@@ -28,7 +28,7 @@ final class RemoteClient {
         try {
             try(OutputStream out=connection.getOutputStream()){out.write(bytes);}
             int status=connection.getResponseCode();if(status!=200)throw new IOException(status>=300&&status<400?"电脑地址发生跳转，已拒绝连接":"电脑未接受请求，请检查配对码、电脑确认状态或重新配对");
-            ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=connection.getInputStream()){byte[] buffer=new byte[1024];int read;while((read=in.read(buffer))!=-1){if(closed||System.nanoTime()>deadline)throw new IOException("遥控连接超时或已取消");if(out.size()+read>8192)throw new IOException("遥控响应过大");out.write(buffer,0,read);}}
+            ByteArrayOutputStream out=new ByteArrayOutputStream();try(InputStream in=connection.getInputStream()){byte[] buffer=new byte[4096];int read;while((read=in.read(buffer))!=-1){if(closed||System.nanoTime()>deadline)throw new IOException("遥控连接超时或已取消");if(out.size()+read>4*1024*1024)throw new IOException("遥控响应过大");out.write(buffer,0,read);}}
             Object result=new JSONTokener(out.toString("UTF-8")).nextValue();if(closed)throw new IOException("遥控已关闭");return result;
         }finally{active=null;connection.disconnect();}
     }
@@ -47,6 +47,7 @@ final class RemoteClient {
         }
         if(token.isEmpty())return Json.obj("phase","idle");
         if(!approved){if(System.nanoTime()-pairedAt>120_000_000_000L){disconnect();throw new IOException("等待电脑确认已超时，请重新配对");}approved=request("pairStatus",null).optBoolean("approved");if(!approved)return Json.obj("phase","waiting","address",base.substring(7));}
+        if(operation.equals("collaboration")){JSONObject extra=new JSONObject(args.toString());extra.remove("operation");return request("collaboration",Json.obj("request",extra));}
         if(!operation.equals("status")){
             if(Set.of("play-pause","previous","next").contains(operation))request(operation,null);
             else if(operation.equals("seek")){double seconds=args.optDouble("seconds",Double.NaN);if(!Double.isFinite(seconds)||seconds<0||seconds>86400)throw new IOException("进度无效");request("seek",Json.obj("seconds",seconds));}

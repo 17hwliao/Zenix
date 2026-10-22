@@ -1,6 +1,7 @@
 import type {Track,PersonalPlaylist,ReplacementState,SourceProgress} from './types';
 import {replacement} from './platformReplacement';
 import {sourceRequest} from './sourceDeadline';
+import {versionPreferences} from '../features/playback/preferences';
 export async function replacementContext(track:Track){
   if(!track.playlistId||!window.yzqxy)return undefined;
   const personal=await window.yzqxy.personal.load(),list=personal.playlists.find(list=>list.id===track.playlistId),song=list?.tracks.find(song=>song.id===track.id);
@@ -26,7 +27,7 @@ export function desktopReplacementAdapter(list:PersonalPlaylist,song:Track){
       // Serial requests keep script/HTTP concurrency bounded and cancelable.
       for(const source of sources){signal.throwIfAborted();try{const page=await sourceRequest(id=>window.yzqxy!.sources.search(source.id,query,null,25,id,true),signal,0);for(const row of page.items){try{const target=replacement.cleanTarget(row);if(!rows.some(value=>replacement.candidateKey(value)===replacement.candidateKey(target)))rows.push(target);}catch{}}completed++;if(rows.length>=limit)break;}catch{signal.throwIfAborted();}}
       if(!completed)throw Error('替代版本搜索失败，请检查网络或音乐源后重试');
-      return rows;
+      return versionPreferences.order(rows,song,versionPreferences.read());
     },
     resolve:async(target:Track,signal:AbortSignal)=>{
       const cached=await sourceRequest(()=>window.yzqxy!.sources.cachedBest?.(target,['high','standard','lossless'])||Promise.resolve(null),signal,0);if(cached)return cached;
@@ -52,6 +53,7 @@ export async function resolveReplacement(track:Track,failed:readonly string[],re
   const adapter=desktopReplacementAdapter(ctx.list,ctx.song);
   if(track.replacementPlayback&&failed.length&&previous){previous={...previous,status:'failed',target:undefined,message:'音频解码失败，继续本轮剩余候选'};await adapter.save(previous,signal);}
   if(previous?.status==='verified'&&previous.target){previous={...previous,status:'pending',attempts:1,tried:[replacement.candidateKey(previous.target)]};await adapter.save(previous,signal);}
+  if(previous?.target&&!versionPreferences.order([previous.target],ctx.song,versionPreferences.read()).length){previous={...previous,status:'failed',target:undefined,message:'用户已排除此候选，继续本轮剩余候选'};await adapter.save(previous,signal);}
   const automatic=ctx.list.autoReplacement===true;
   if(automatic&&!previous?.target&&!failed.length&&!track.replacementPlayback){
     const cached=await sourceRequest(()=>window.yzqxy!.sources.cachedBest?.(track,['lossless24','lossless','high','standard'])||Promise.resolve(null),signal,0);if(cached)return{...track,...cached};
@@ -63,5 +65,5 @@ export async function resolveReplacement(track:Track,failed:readonly string[],re
   if(previous?.target){result=await replacement.resume(previous,adapter,signal);if(!result.target){previous=result.state;if(!ctx.list.autoReplacement)throw Error(previous.message);}}
   if(!result?.target)result=await replacement.run(ctx.song,previous,adapter,signal,message=>report({phase:'resolving',message}),undefined,automatic);
   if(!result.target||!result.resolved)throw Object.assign(Error(result.state.message),automatic?{code:'AUTOMATIC_REPLACEMENT_UNAVAILABLE'}:{});
-  return {...track,...result.resolved,id:track.id,title:track.title,artist:track.artist,replacementPlayback:replacement.candidateKey(result.target)+'\u0000'+result.state.attempts,playbackQuality:'replacement'};
+  return {...track,...result.resolved,id:track.id,title:track.title,artist:track.artist,replacementPlayback:replacement.candidateKey(result.target)+'\u0000'+result.state.attempts,playbackQuality:'replacement',playbackRecording:result.resolved.playbackRecording || (result.resolved.playbackProviderId==='cache'?undefined:{id:result.target.id,title:result.target.title,artist:result.target.artist,album:result.target.album,source:result.target.source,providerId:result.target.providerId,remoteId:result.target.remoteId,duration:result.target.duration})};
 }

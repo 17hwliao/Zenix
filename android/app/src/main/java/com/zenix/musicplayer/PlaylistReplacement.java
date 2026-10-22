@@ -31,6 +31,7 @@ final class PlaylistReplacement {
             for(String query:queries){check(cancel);progress.update("resolving","正在搜索替代版本 · "+query);JSONArray rows=sources.replacementSearch(query,cancel);for(int i=0;i<rows.length();i++){JSONObject row=rows.getJSONObject(i);if(ReplacementRules.rank(original,row)>0)found.put(ReplacementRules.key(row),ReplacementRules.target(row));}if(found.values().stream().anyMatch(row->ReplacementRules.rank(original,row)>=2))break;}
             List<JSONObject> sorted=new ArrayList<>(found.values());sorted.sort(Comparator.<JSONObject>comparingInt(row->ReplacementRules.rank(original,row)).reversed().thenComparingDouble(row->Math.abs(row.optDouble("duration")-original.optDouble("duration"))));candidates=new JSONArray();for(JSONObject row:sorted)if(candidates.length()<12)candidates.put(row);Json.put(state,"candidates",candidates);check(cancel);save(ctx,previous,state,cancel);previous=Json.copy(state);
         }
+        candidates=PlaybackPreferences.order(candidates,original,store);
         for(int i=0;i<candidates.length()&&state.optInt("attempts")<3;i++){
             JSONObject target=candidates.getJSONObject(i);String key=ReplacementRules.key(target);if(manual==null&&(!automatic&&ReplacementRules.rank(original,target)<2||contains(state.getJSONArray("tried"),key)))continue;
             check(cancel);Json.put(state,"roundComplete",false);state.remove("target");Json.put(state,"status","failed");Json.put(state,"attempts",state.optInt("attempts")+1);state.getJSONArray("tried").put(key);Json.put(state,"message","正在解析替代版本");save(ctx,previous,state,cancel);previous=Json.copy(state);progress.update("resolving","正在验证替代音频 · "+state.optInt("attempts")+"/3");
@@ -47,6 +48,7 @@ final class PlaylistReplacement {
         JSONObject state=ctx[1].optJSONObject("replacement");boolean replacementFailed=attempted.contains("replacement-active");
         if(state!=null&&replacementFailed){JSONObject old=Json.copy(state);state.remove("target");Json.put(state,"status","failed");save(ctx,old,state,cancel);}
         if(state!=null&&state.optJSONObject("target")!=null&&state.optString("status").equals("verified")&&!replacementFailed){JSONObject old=Json.copy(state);Json.put(state,"status","pending");Json.put(state,"attempts",1);Json.put(state,"tried",Json.array(ReplacementRules.key(state.getJSONObject("target"))));save(ctx,old,state,cancel);}
+        if(state!=null&&state.optJSONObject("target")!=null&&PlaybackPreferences.excluded(state.optJSONObject("target"),ctx[1],PlaybackPreferences.clean(store.object("playbackPreferences")))){JSONObject old=Json.copy(state);state.remove("target");Json.put(state,"status","failed");Json.put(state,"message","用户已排除此候选，继续本轮剩余候选");save(ctx,old,state,cancel);}
         JSONObject target=state==null?null:state.optJSONObject("target");
         boolean automatic=ctx[0].optBoolean("autoReplacement");
         if(automatic&&attempted.isEmpty()&&ReplacementRules.complete(state)){JSONObject old=Json.copy(state);state=ReplacementRules.empty();save(ctx,old,state,cancel);}

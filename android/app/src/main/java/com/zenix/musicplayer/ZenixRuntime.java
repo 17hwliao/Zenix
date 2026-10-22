@@ -8,6 +8,7 @@ import java.util.concurrent.*;
 final class ZenixRuntime {
     private static volatile ZenixRuntime instance;
     final PrivateStore store; final MusicSources sources; final CompanionTools companion;
+    final PersonalFeatures personalFeatures; final OfflineTasks offlineTasks; final AssistantFeatures assistant;
     final ExecutorService work=Executors.newFixedThreadPool(2);
     // Cover/lyric HTTP must not queue ahead of likes, playlist writes or stats.
     final ExecutorService sourceWork=new ThreadPoolExecutor(2,2,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(32));
@@ -19,7 +20,7 @@ final class ZenixRuntime {
     private final Context context; volatile PlaybackService service; volatile LyricOverlayService overlay;
     private volatile ZenixNativePlugin observer;private volatile boolean visible;
     static ZenixRuntime get(Context context){if(instance==null)synchronized(ZenixRuntime.class){if(instance==null)instance=new ZenixRuntime(context);}return instance;}
-    private ZenixRuntime(Context context){this.context=context.getApplicationContext();store=new PrivateStore(context);sources=new MusicSources(context,store);companion=new CompanionTools(this.context,this);work.execute(sources::pruneMetadata);}
+    private ZenixRuntime(Context context){this.context=context.getApplicationContext();store=new PrivateStore(context);sources=new MusicSources(context,store);companion=new CompanionTools(this.context,this);personalFeatures=new PersonalFeatures(store);offlineTasks=new OfflineTasks(this.context,this);assistant=new AssistantFeatures(this.context);work.execute(sources::pruneMetadata);}
     void attach(PlaybackService service){this.service=service;}
     void detach(PlaybackService service){if(this.service==service)this.service=null;}
     void observe(ZenixNativePlugin plugin,boolean active){if(observer!=plugin||active&&!visible)publishedRevision=-1;observer=plugin;visible=active;main.removeCallbacks(tick);main.removeCallbacks(trimSources);if(active){emit();main.post(tick);}else main.postDelayed(trimSources,30000);}

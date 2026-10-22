@@ -47,6 +47,11 @@ class PersonalStore {
     this.data = { liked: [], favorites: [], history: [], playlists: [] };
     this.pendingSave = Promise.resolve();
     this.loadError = '';
+    this.playlistJournal = [];
+    this.journalNotice = '';
+    this.persistedPlaylists = [];
+    this.persistedPersonal = structuredClone(this.data);
+    this.unreadablePlaylistJournal = undefined;
   }
 
   async load() {
@@ -72,6 +77,12 @@ class PersonalStore {
           tracks: (Array.isArray(entry.tracks) ? entry.tracks : []).map(cleanTrack).filter(Boolean),
         })),
       };
+      if (raw._playlistJournal !== undefined) {
+        try { this.playlistJournal = require('../src/features/personal/model.cjs').clean({schema:1,revision:0,bookmarks:[],lyrics:[],journal:raw._playlistJournal}).journal; }
+        catch { this.unreadablePlaylistJournal=raw._playlistJournal;this.journalNotice='歌单修改记录无法读取，原记录已保留；个人歌单仍可使用'; }
+      }
+      this.persistedPlaylists = structuredClone(this.data.playlists);
+      this.persistedPersonal = structuredClone(this.data);
       if (this.data.history.length !== loadedHistory.length) await this.save();
     } catch (error) {
       if (error.code !== 'ENOENT') { this.loadError = '个人曲库无法读取，已保留原文件并停止写入'; throw new Error(this.loadError); }
@@ -86,11 +97,23 @@ class PersonalStore {
     return { liked: this.data.liked.some(track => track.id === trackId), favorite: this.data.favorites.some(track => track.id === trackId), playlists: this.data.playlists.map(list => ({ id: list.id, name: list.name, count: list.tracks.length })) };
   }
 
-  async save() {
+  async save(options = {}) {
     this.assertWritable();
     this.pendingSave = this.pendingSave.catch(() => {}).then(async () => {
       const temporary = `${this.file}.${randomUUID()}.tmp`;
-      try { await fs.writeFile(temporary, JSON.stringify(this.data), 'utf8'); await fs.rename(temporary, this.file); }
+      const data = structuredClone(this.data), model = require('../src/features/personal/model.cjs');
+      let journal = this.playlistJournal, notice = this.unreadablePlaylistJournal!==undefined?this.journalNotice:'';
+      if (!options.skipJournal && this.unreadablePlaylistJournal===undefined) {
+        try {
+          const next = model.record({schema:1,revision:0,bookmarks:[],lyrics:[],journal}, {playlists:this.persistedPlaylists},data,options.label || '修改歌单',randomUUID,Date.now());
+          journal = next.journal;
+        } catch (error) {
+          // A large undo snapshot must never prevent saving the actual personal library.
+          notice = '此歌单变更过大，已保存资料，但无法提供本次撤销记录';
+        }
+      }
+      try { await fs.writeFile(temporary, JSON.stringify({...data,_playlistJournal:this.unreadablePlaylistJournal!==undefined?this.unreadablePlaylistJournal:journal}), 'utf8'); await fs.rename(temporary, this.file); this.playlistJournal=journal;this.persistedPlaylists=data.playlists;this.persistedPersonal=data;this.journalNotice=notice; }
+      catch(error){if(model.canonical(this.data)===model.canonical(data))this.data=structuredClone(this.persistedPersonal);throw error;}
       finally { await fs.unlink(temporary).catch(() => {}); }
     });
     await this.pendingSave;

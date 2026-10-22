@@ -10,6 +10,8 @@ public final class PlaybackSelectionCheck {
     private JSONObject track,error,activity,resolution,listenedTrack;
     private boolean clearingCache,countedPlay,readyRecorded,wanted,playbackEstablished;
     private double listenSeconds;private long listenClock,generation,resumePosition;
+    private double practiceStart=-1,practiceEnd=-1;private String practiceTrack="";
+    private void stopPreview(boolean restore){}
     private Set<String> attempted;
     private final Set<String> skippedReplacements=new HashSet<>();private String repeat="all";
     private final Decoder player=new Decoder();private final Runtime runtime=new Runtime();private Roaming roaming;
@@ -27,6 +29,7 @@ public final class PlaybackSelectionCheck {
     private static final class Decoder {
         boolean hasMedia;int clears,stops;
         void stop(){stops++;}
+        void setPlaybackSpeed(float speed){}
         void clearMediaItems(){hasMedia=false;clears++;}
         void setMediaItem(MediaItem item){check(item.uri!=null&&!item.uri.isEmpty(),"unresolved selection entered decoder before a real audio address");hasMedia=true;}
     }

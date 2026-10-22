@@ -1,5 +1,5 @@
 const MAX_BYTES = 48 * 1024 * 1024;
-const SECTIONS = ['liked', 'favorites', 'playlists', 'history', 'profile', 'appearance', 'stats'];
+const SECTIONS = ['liked', 'favorites', 'playlists', 'history', 'profile', 'appearance', 'stats', 'personalFeatures', 'featureSettings'];
 const PROFILE_FIELDS = ['name', 'bio', 'tagline', 'about', 'contact', 'tags', 'cardNumber', 'cardLine', 'lyricColor', 'lyricSize', 'email', 'subject', 'background', 'orbitCovers'];
 function fail(message) { throw Error(message || '备份文件结构无效'); }
 function object(value) { return value && typeof value === 'object' && !Array.isArray(value); }
@@ -36,6 +36,18 @@ function cleanPayload(raw) {
   if (raw.profile !== undefined) result.profile = cleanProfile(raw.profile);
   if (raw.appearance !== undefined) { if (!object(raw.appearance)) fail(); const appearance = { transparency: Math.max(0, Math.min(90, Number(raw.appearance.transparency) || 0)) }; if (raw.appearance.media) { const media = raw.appearance.media; if (!object(media) || !['image', 'video'].includes(media.kind) || typeof media.base64 !== 'string' || media.base64.length > (media.kind === 'video' ? 44 : 17) * 1024 * 1024 || !/^[A-Za-z0-9+/]*={0,2}$/.test(media.base64)) fail('背景文件无效或过大'); appearance.media = { name: text(media.name, 120), kind: media.kind, base64: media.base64 }; } result.appearance = appearance; }
   if (raw.stats !== undefined) result.stats = cleanStats(raw.stats);
+  if (raw.extensions?.personalFeatures !== undefined) {
+    const extension = raw.extensions.personalFeatures;
+    if (!object(extension) || extension.schema !== 1 || !Array.isArray(extension.bookmarks) || !Array.isArray(extension.lyrics)) fail('私人资料备份扩展无效');
+    const api = typeof module !== 'undefined' && module.exports ? require('../features/personal/model.cjs') : globalThis.zenixPersonalFeatures;
+    if (!api) fail('私人资料扩展尚未加载');
+    result.extensions = {personalFeatures:api.clean({...extension,journal:[]})};
+  }
+  if (raw.extensions?.featureSettings !== undefined) {
+    const api=typeof module!=='undefined'&&module.exports?require('../features/settingsBackup.cjs'):globalThis.zenixSettingsBackup;
+    if(!api)fail('功能设置格式尚未加载');
+    result.extensions={...result.extensions,featureSettings:api.clean(raw.extensions.featureSettings)};
+  }
   return result;
 }
 function restoreTrack(track, localTracks) {
@@ -60,7 +72,7 @@ function mergePersonal(current, incoming, selected, localTracks, uuid) {
   return { personal: next, result };
 }
 function mergeStats(current, incoming) { const result = JSON.parse(JSON.stringify(current)); result.startedAt = Math.min(result.startedAt, incoming.startedAt); result.tracks = { ...result.tracks, ...incoming.tracks }; for (const [date, day] of Object.entries(incoming.days)) { const existing = result.days[date] ||= { date, seconds: 0, plays: 0, tracks: {} }; for (const [id, row] of Object.entries(day.tracks)) { const old = existing.tracks[id] || { seconds: 0, plays: 0 }; existing.tracks[id] = { seconds: Math.max(old.seconds, row.seconds), plays: Math.max(old.plays, row.plays) }; } existing.seconds = Object.values(existing.tracks).reduce((n, row) => n + row.seconds, 0); existing.plays = Object.values(existing.tracks).reduce((n, row) => n + row.plays, 0); } return cleanStats(result); }
-function preview(payload) { const counts = {}; for (const kind of ['liked', 'favorites', 'playlists', 'history']) if (payload.personal[kind]) counts[kind] = payload.personal[kind].length; for (const kind of ['profile', 'appearance', 'stats']) if (payload[kind]) counts[kind] = kind === 'stats' ? Object.keys(payload.stats.days).length : 1; const tracks = [...(payload.personal.liked || []), ...(payload.personal.favorites || []), ...(payload.personal.playlists || []).flatMap(list => list.tracks), ...(payload.personal.history || []).map(row => row.track)]; return { counts, localCount: new Set(tracks.filter(track => track.source === 'local').map(identity)).size, playlists: (payload.personal.playlists || []).map(list => ({ name: list.name, count: list.tracks.length })) }; }
+function preview(payload) { const counts = {}; for (const kind of ['liked', 'favorites', 'playlists', 'history']) if (payload.personal[kind]) counts[kind] = payload.personal[kind].length; for (const kind of ['profile', 'appearance', 'stats']) if (payload[kind]) counts[kind] = kind === 'stats' ? Object.keys(payload.stats.days).length : 1; if(payload.extensions?.personalFeatures)counts.personalFeatures=payload.extensions.personalFeatures.bookmarks.length;if(payload.extensions?.featureSettings)counts.featureSettings=1;const tracks = [...(payload.personal.liked || []), ...(payload.personal.favorites || []), ...(payload.personal.playlists || []).flatMap(list => list.tracks), ...(payload.personal.history || []).map(row => row.track)]; return { counts, localCount: new Set(tracks.filter(track => track.source === 'local').map(identity)).size, playlists: (payload.personal.playlists || []).map(list => ({ name: list.name, count: list.tracks.length })) }; }
 function canonical(value) { if (Array.isArray(value)) return `[${value.map(item => canonical(item) ?? 'null').join(',')}]`; if (object(value)) return `{${Object.keys(value).sort().filter(key => value[key] !== undefined).map(key => JSON.stringify(key) + ':' + canonical(value[key])).join(',')}}`; return JSON.stringify(value); }
 const api = { canonical, MAX_BYTES, SECTIONS, PROFILE_FIELDS, cleanPayload, cleanProfile, cleanStats, cleanTrack, localKey, identity, restoreTrack, mergePersonal, mergeStats, preview };
 

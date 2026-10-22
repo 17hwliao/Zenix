@@ -85,7 +85,7 @@ export async function resolveOriginalTrack(track: Track, failedAttempts: readonl
           const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId), signal, 0);
           if (resolved.audioUrl) {
             notify('connecting', `地址已取得，正在连接音频 · ${sourceLabel}`);
-            return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: source.id, playbackQuality: tier };
+            return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: resolved.playbackProviderId || source.id, playbackQuality: tier,playbackRecording:resolved.playbackRecording || (resolved.playbackProviderId==='cache'?undefined:{id:candidate.id,title:candidate.title,artist:candidate.artist,album:candidate.album,source:candidate.source,providerId:source.id,remoteId:candidate.remoteId,duration:candidate.duration}) };
           }
           failures.push(`${source.manifest.name}的${tier}音质无法播放`);
           failed('音频不可播放');

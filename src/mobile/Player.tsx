@@ -9,6 +9,7 @@ import { activeLyricIndex, parseLyrics } from '../core/lyrics';
 import type { LyricLine, Track } from '../core/types';
 import { isNativeMobile, isAndroid, command, supportsOverlay, readLyrics, type MobileSnapshot } from './native';
 import { useSongGesture } from './useSongGesture';
+import {useSpaceSettings} from '../features/space/state';
 
 export const fileUrl = (url?: string) => url && (url.startsWith('/') || url.startsWith('content:')) ? Capacitor.convertFileSrc(url) : url;
 const clock = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
@@ -50,7 +51,9 @@ export function Seek({ position, duration, onSeek, compact = false }: { position
   return <div className={`mobile-seek ${compact ? 'compact' : ''}`}><span>{clock(value)}</span><input aria-label="歌曲进度" type="range" min="0" max={Math.max(1, duration)} step="0.1" value={Math.min(value, Math.max(1, duration))} style={{ '--progress': `${Math.min(100, value / Math.max(1, duration) * 100)}%` } as CSSProperties} onChange={event => setDrag(Number(event.target.value))} onPointerUp={event => { onSeek(Number(event.currentTarget.value)); setDrag(null); }} onPointerCancel={() => setDrag(null)} onKeyUp={event => { if (event.key.startsWith('Arrow')) { onSeek(Number(event.currentTarget.value)); setDrag(null); } }} /><span>{clock(duration)}</span></div>;
 }
 export function FullPlayer({ state, act, actions, close, queue, longPress }: { state: MobileSnapshot; act: (action: string, payload?: Record<string, unknown>) => Promise<unknown>; actions: ReactNode; close: () => void; queue: () => void; longPress?: (song:Track)=>void }) {
-  const reducedMotion = useReducedMotion();
+  const spaceSettings=useSpaceSettings();
+  const systemReducedMotion=useReducedMotion();
+  const reducedMotion=systemReducedMotion||spaceSettings.motion==='reduced';
   const present = useIsPresent();
   const [entered,setEntered] = useState(Boolean(reducedMotion));
   const player = state.playback, track = player.track;
@@ -63,8 +66,8 @@ export function FullPlayer({ state, act, actions, close, queue, longPress }: { s
   const shownLines=useMemo(()=>lines.map(line=>({...line,time:Math.max(0,line.time+lyricDisplay.offset),translation:lyricDisplay.translation?line.translation:undefined})),[lines,lyricDisplay.offset,lyricDisplay.translation]);
   useEffect(() => { if (reducedMotion) setEntered(true); }, [reducedMotion]);
   const panelVariants = {
-    closed: { y: reducedMotion ? 0 : '100%', pointerEvents: 'none' as const, transition: { type: 'tween' as const, duration: reducedMotion ? 0 : .18, ease: [.4, 0, 1, 1] as const } },
-    open: { y: 0, pointerEvents: 'auto' as const, transition: { type: 'tween' as const, duration: reducedMotion ? 0 : .22, ease: [.22, 1, .36, 1] as const } },
+    closed: { y: reducedMotion ? 0 : '100%', pointerEvents: 'none' as const, transition: { type: 'tween' as const, duration: reducedMotion ? 0 : spaceSettings.motion==='light'?.1:.18, ease: [.4, 0, 1, 1] as const } },
+    open: { y: 0, pointerEvents: 'auto' as const, transition: { type: 'tween' as const, duration: reducedMotion ? 0 : spaceSettings.motion==='light'?.12:.22, ease: [.22, 1, .36, 1] as const } },
   };
   useEffect(()=>{if(entered&&present&&track&&isNativeMobile)void actRef.current('lyricsConfigure',{id:track.id,offset:lyricDisplay.offset});},[entered,present,track?.id,lyricDisplay.offset]);
   useEffect(() => {

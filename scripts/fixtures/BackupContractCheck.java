@@ -19,3 +19,5 @@ public final class BackupContractCheck {
         Files.writeString(Path.of(args[1]),BackupFormat.encode(payload));System.out.println("BACKUP_CONTRACT_PASS");
     }
 }
+
+final class PrivateStore {JSONObject object(String key){return null;}}

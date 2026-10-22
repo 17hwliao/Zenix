@@ -42,6 +42,7 @@ export default function App() {
 
   useEffect(()=>{const show=(event:Event)=>setNotice(String((event as CustomEvent).detail));window.addEventListener('zenix-audio-notice',show);return()=>window.removeEventListener('zenix-audio-notice',show);},[]);
   useEffect(()=>window.yzqxy?.desktop?.onCommand(({action,value})=>{
+    if(action==='assistant'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:'assistant'}}));return;}
     if(action==='seek')player.seek(value||0);else if(action==='volume')player.setVolume(value||0);
     else if(action==='volume-up')player.setVolume(player.snapshot.volume+.05);else if(action==='volume-down')player.setVolume(player.snapshot.volume-.05);
     else if(action==='search')window.dispatchEvent(new Event('zenix-open-search'));

@@ -12,6 +12,7 @@ import { MusicToolsButton } from './MusicTools';
 import GlassSelect from './GlassSelect';
 import './SettingsModal.css';
 import SettingsSearch, { type SettingSearchEntry, type SettingsTab } from './SettingsSearch';
+import FeatureLauncher from '../features/FeatureLauncher';
 
 type SettingsModalProps = {
   initialTab?: 'options' | 'appearance' | 'sources';
@@ -63,7 +64,7 @@ export default function SettingsModal({ tracks=[], initialTab = 'options', reduc
       <div className="yz-settings-tab-content" hidden={Boolean(query.trim())}>
       {tab === 'options' && <div className="yz-settings-body">
         <div className="yz-settings-intro"><h2>播放与声音</h2><p>选择听歌的方式，调整你习惯的声音。</p></div>
-        <DesktopAudioSettings/><div className="tool-actions yz-settings-quick-tools"><MusicToolsButton initial="timer"/><MusicToolsButton initial="widget"/></div>
+        <DesktopAudioSettings/><div className="tool-actions yz-settings-quick-tools"><FeatureLauncher/><MusicToolsButton initial="timer"/><MusicToolsButton initial="widget"/></div>
         <div className="yz-setting-row"><div><strong>减少动效</strong><small>关闭页面间的过渡动画</small></div><button className={`yz-switch ${reduceMotion ? 'is-on' : ''}`} onClick={() => onReduceMotionChange(!reduceMotion)} role="switch" aria-checked={reduceMotion} aria-label="减少动效"><span /></button></div>
         <div className="yz-setting-row"><div><strong>刷新本地曲库</strong><small>重新读取已导入的音乐</small></div><button className="yz-round-button" onClick={() => void onRefreshLibrary?.()} disabled={!onRefreshLibrary || libraryBusy} aria-label="刷新本地曲库"><RefreshCw size={17} /></button></div>
         <div className="yz-setting-row"><div><strong>导入音乐</strong><small>选择本地音乐文件夹</small></div><button className="yz-round-button" onClick={() => void onImportFolder()} disabled={libraryBusy} aria-label="导入音乐"><FolderOpen size={17} /></button></div>

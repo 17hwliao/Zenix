@@ -1,0 +1,4 @@
+.zenix-feature-loading{position:fixed;inset:30% 10%;z-index:3001;display:flex;align-items:center;justify-content:center;gap:20px;padding:24px;box-sizing:border-box;border:1px solid #ffffff26;border-radius:24px;background:#191c25;color:white;box-shadow:0 20px 80px #0008;overflow-wrap:anywhere;-webkit-app-region:no-drag}
+.zenix-feature-loading button{flex:0 0 auto;min-height:44px;padding:10px 16px;border:1px solid #ffffff30;border-radius:12px;background:#ffffff12;color:inherit;font:inherit;cursor:pointer}
+.zenix-feature-loading button:focus-visible{outline:2px solid #a9dafa;outline-offset:3px}
+@media(max-width:450px){.zenix-feature-loading{inset:22% 12px;flex-direction:column;gap:16px}}

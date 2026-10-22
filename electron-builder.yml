@@ -15,11 +15,14 @@ files:
   - electron/**/*.cjs
   - src/core/backupFormat.cjs
   - src/core/sourceDiagnostics.cjs
+  - src/core/searchGroups.cjs
   - src/core/platformReplacement.cjs
+  - src/features/**/*.cjs
   - electron/desktop-lyrics.html
   - electron/lyrics-lock.html
   - electron/music-widget.html
   - electron/remote-control.html
+  - electron/assistant-pet.html
   - assets/zenix-icon.ico
   - assets/zenix-icon.png
   - LICENSE

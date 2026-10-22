@@ -1,3 +1,4 @@
+import {readSpace,rules,type RoamPreferences} from '../features/space/state';
 import type { PersonalState, RoamingStatus, Track, InstalledSource } from './types';
 import { player, type PlaybackLifecycle } from './player';
 import { RoamingStore } from './roamingStore';
@@ -35,6 +36,19 @@ class RoamingController {
   private completed = new Set<string>();
   private session?: { track: Track; seconds: number; clock: number; audible: boolean };
   private previousRepeat = player.snapshot.repeat;
+  private branch?:{track:Track;remaining:number;pending:Track[];cursors:Map<string,string|null>;completed:Set<string>;counted:Set<string>};
+  private preferences():RoamPreferences{try{return readSpace().roaming;}catch{return rules.clean().roaming;}}
+  async feature(args:Record<string,unknown>){
+    if(args.edit==='return'){this.returnBranch();return {branch:false};}
+    if(args.edit!=='branch'||!args.track)throw Error('未知漫游设置');
+    if(!this.status.active)throw Error('请先开始音乐漫游，再进入临时探索');
+    const track=args.track as Track;if(!track.artist?.trim())throw Error('当前歌曲没有歌手信息');
+    this.returnBranch();this.generation++;this.abort?.abort();this.abort=new AbortController();this.filling=undefined;this.advancing=false;
+    this.branch={track,remaining:Math.max(1,Math.min(5,Math.floor(Number(args.count)||3))),pending:this.pending,cursors:this.cursors,completed:this.completed,counted:new Set(player.snapshot.track?[player.snapshot.track.id]:[])};
+    this.pending=[];this.cursors=new Map();this.completed=new Set();this.wall();return {branch:true,remaining:this.branch.remaining};
+  }
+  private returnBranch(){if(!this.branch)return;const branch=this.branch;this.branch=undefined;this.generation++;this.abort?.abort();this.abort=new AbortController();this.filling=undefined;this.advancing=false;this.pending=branch.pending;this.cursors=branch.cursors;this.completed=branch.completed;this.wall();}
+  private rankCandidates(tracks:Track[]){const p=this.preferences();const candidates=rank(this.learning,this.personal,tracks);return rules.order(candidates,p,this.personal,this.learning.recentArtists);}
   private unlisten?: () => void;
   private unlistenPlayer?: () => void;
 
@@ -118,6 +132,7 @@ class RoamingController {
       }
       this.elapsed(); this.session!.audible = true;
       if (this.status.active) {
+        if(this.branch&&!this.branch.counted.has(event.track.id)){this.branch.counted.add(event.track.id);if(--this.branch.remaining<=0)this.returnBranch();}
         this.replay.record(event.track);this.wall();
         this.consecutiveFailures = 0;
         this.update({ phase: 'playing', message: '正在漫游，继续发现新音乐' });
@@ -183,7 +198,7 @@ class RoamingController {
       player.retainCurrentTrack();
       player.setRepeat(manual ? this.previousRepeat : 'off');
     }
-    this.pending = []; this.viewed = [];this.replay.clear();
+    this.branch=undefined;this.pending = []; this.viewed = [];this.replay.clear();
     this.update({ active: false, phase: 'idle', message: '' });
     this.persist();
   }
@@ -211,13 +226,14 @@ class RoamingController {
     this.advancing = true;
     const generation = this.generation;
     if (reason === 'next' || reason === 'ended') this.finish(reason === 'ended' ? 'played' : 'skip');
-    this.pending = rank(this.learning, this.personal, this.pending).slice(0, 30);
+    this.pending = this.rankCandidates(this.pending).slice(0,30);
     player.pause(true);
     this.update({ phase: 'searching', message: reason === 'failure' ? '这首暂不可用，正在探索下一首' : '正在寻找下一首新歌曲' });
     try {
       if (!chosen && !this.pending.length) await this.fill(true);
       if (generation !== this.generation) return;
       const next = chosen || this.pending.shift();
+      if (!next&&this.branch){this.returnBranch();await this.advance(reason);return;}
       if (!next) {
         this.update({ phase: this.successfulSearches ? 'exhausted' : 'failed', message: this.successfulSearches ? '当前能找到的新歌曲已探索完毕。听听其他歌曲后，可以继续漫游。' : '暂时无法检索新歌曲，请检查网络和音乐源后重试。' });
         return;
@@ -262,7 +278,9 @@ class RoamingController {
     const signal = this.abort?.signal;
     if (!signal || signal.aborted || !this.status.active) return Promise.resolve();
     const task = (async () => {
-      const plans = queries(this.learning, this.personal);
+      const prefs=this.preferences();
+      if(prefs.scope!=='all'){const refs=prefs.scope==='playlist'?this.personal.playlists.filter(v=>v.id===prefs.playlistId).flatMap(v=>v.tracks):[...this.personal.liked,...this.personal.favorites,...this.personal.playlists.flatMap(v=>v.tracks)];const unseen=await this.ledger.unseen(refs);if(generation!==this.generation)return;this.pending=this.rankCandidates(unseen).slice(0,30);this.wall();return;}
+      const plans = this.branch?[{key:'branch:'+this.branch.track.id,keyword:this.branch.track.artist}]:queries(this.learning, this.personal);
       this.persist();
       const candidates = [...this.pending];
       const searchedPlans = new Set<string>();
@@ -283,7 +301,7 @@ class RoamingController {
             const unseen = await this.ledger.unseen(page.items.filter(track => track.source === 'custom'));
             if (generation !== this.generation) return;
             candidates.push(...unseen);
-            this.pending = rank(this.learning, this.personal, candidates).slice(0, this.foregroundRequested ? 5 : 30);
+            this.pending = this.rankCandidates(candidates).slice(0,this.foregroundRequested?5:30);
             candidates.splice(0, candidates.length, ...this.pending);
             this.wall();
             if (this.pending.length && this.foregroundRequested) { this.foregroundRequested = false; return; }

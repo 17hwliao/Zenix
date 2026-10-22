@@ -21,6 +21,12 @@ class Companion {
   async invoke(args) {
     if (String(args.operation).startsWith("backup")) return this.backup.invoke(args);
     switch(args.operation) {
+      case 'featureTextSave': {
+        if(typeof args.text!=='string'||Buffer.byteLength(args.text)>12*1024*1024)throw Error('导出内容超过12 MiB');
+        const name=String(args.name||'Zenix-私人资料.zenixbackup').replace(/[\\/:*?"<>|]/g,'_').slice(0,120);
+        const result=await this.dialog.showSaveDialog(this.getWindow(),{title:'保存私人音乐资料',defaultPath:name,filters:[{name:'Zenix 私人资料',extensions:['zenixbackup']}]});
+        if(result.canceled||!result.filePath)return {saved:false};await fs.writeFile(result.filePath,args.text,'utf8');return {saved:true};
+      }
       case 'playlistRequest': return require('./playlist-http.cjs').playlistRequest(args);
       case 'playlistPreview': return this.preview(require('../playlist-format.cjs').validateBundle(args.bundle));
       case 'playlistReadFile': {
@@ -45,7 +51,7 @@ class Companion {
         try {const pending = this.pending; const state = await this.personal.importPlaylists(restoreTracks(pending.bundle, this.library.snapshot().tracks));
         if(this.pending===pending)this.pending=null; this.broadcast('personal:changed',state); return this.status();}finally{this.importing=false;}
       }
-      case 'importDiscard': if(this.importing)throw Error('正在导入歌单');this.pending=null; return this.status();
+      case 'importDiscard': if(this.importing)throw Error('正在导入歌单');if(args.token!==undefined&&args.token!==this.pending?.token)throw Error('导入预览已失效');this.pending=null; return this.status();
       case 'lanStart': if(this.pending)throw Error('请先处理当前待接收歌单'); await this.lan.start(); return this.status();
       case 'lanStop': this.lan.stop(); return this.status();
       case 'lanStatus': return this.status();

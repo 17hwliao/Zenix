@@ -1,7 +1,7 @@
 export type StickerGeometry = { left: number; top: number; width: number; height: number };
 
 /** Read all interrupted projections before starting any new compositor animation. */
-export function projectStickerLayout(elements: Map<string, HTMLElement>, before: Map<string, StickerGeometry>, after: Map<string, StickerGeometry>, animations: Map<string, Animation>, enabled: boolean) {
+export function projectStickerLayout(elements: Map<string, HTMLElement>, before: Map<string, StickerGeometry>, after: Map<string, StickerGeometry>, animations: Map<string, Animation>, enabled: boolean, duration = 580) {
   if (!enabled) {
     for (const animation of animations.values()) animation.cancel();
     animations.clear(); return;
@@ -17,7 +17,7 @@ export function projectStickerLayout(elements: Map<string, HTMLElement>, before:
   for (const { id, element, dx, dy, sx, sy } of changes) {
     animations.get(id)?.cancel(); animations.delete(id);
     if (Math.abs(dx) < .01 && Math.abs(dy) < .01 && Math.abs(sx - 1) < .001 && Math.abs(sy - 1) < .001) continue;
-    const animation = element.animate([{ transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})` }, { transform: 'none' }], { duration: 580, easing: 'cubic-bezier(.22,1,.36,1)' });
+    const animation = element.animate([{ transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})` }, { transform: 'none' }], { duration, easing: 'cubic-bezier(.22,1,.36,1)' });
     animations.set(id, animation);
     animation.onfinish = animation.oncancel = () => { if (animations.get(id) === animation) animations.delete(id); };
   }

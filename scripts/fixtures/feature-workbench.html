@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+window.workbenchErrors=[];window.workbenchAudioCount=0;
+window.addEventListener('error',event=>window.workbenchErrors.push(String(event.error||event.message)));
+window.addEventListener('unhandledrejection',event=>window.workbenchErrors.push(String(event.reason)));
+const OriginalAudio=window.Audio;window.Audio=function(...args){window.workbenchAudioCount++;return new OriginalAudio(...args);};window.Audio.prototype=OriginalAudio.prototype;
+if(new URLSearchParams(location.search).get('mode')==='mobile'){
+ window.androidBridge={postMessage(){}};
+ window.Capacitor={PluginHeaders:[{name:'ZenixNative',methods:[{name:'invoke',rtype:'promise'},{name:'addListener',rtype:'callback'},{name:'removeListener',rtype:'promise'}]}],nativePromise:(_plugin,method,args)=>window.workbenchFixture.native(method,args),nativeCallback:(_plugin,method,args,callback)=>window.workbenchFixture.listen(method,args,callback)};
+}
+</script></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/FeatureWorkbenchUi.tsx"></script></body></html>

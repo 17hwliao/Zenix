@@ -1,6 +1,7 @@
 export type SourceDiagnosticsState = { smooth: boolean; sources: Record<string, { attempts: number; resolved: number; played: number; averageMs: number; lastPlayedAt: number; lastFailure: string }> };
 
 export interface Track {
+  playbackRecording?:Pick<Track,'id'|'title'|'artist'|'album'|'source'|'providerId'|'remoteId'|'duration'>;
   playlistId?: string;
   replacementPlayback?: string;
   replacement?: ReplacementState;
@@ -185,9 +186,9 @@ export interface DesktopBridge {
     search(id: string, keyword: string, cursor?: string | null, pageSize?: number, requestId?: string, stateDriven?: boolean): Promise<SourceSearchPage>;
     probe(audioUrl:string,requestId:string):Promise<void>;
     cancelRequest(requestId: string): Promise<void>;
-    cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string } | null>;
-    cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string } | null>;
-    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string, replacement?:boolean): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string }>;
+    cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackRecording?:Track['playbackRecording'] } | null>;
+    cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string; playbackRecording?:Track['playbackRecording'] } | null>;
+    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string, replacement?:boolean): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackRecording?:Track['playbackRecording'] }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     openFolder(): Promise<string>;
     onChanged(callback: (sources: InstalledSource[]) => void): () => void;

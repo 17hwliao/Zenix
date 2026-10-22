@@ -1,3 +1,5 @@
+import {useSpaceSettings,commitSpace,rules,type SpaceBookmark} from '../features/space/state';
+import '../features/space/space.css';
 import {BrowseLinks} from './CatalogBrowser';
 import LyricControls from './LyricControls';
 import {useLyricDisplay} from '../core/listening';
@@ -62,6 +64,8 @@ export default function LatticePlayer({
   onBack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
   onToggleMute, onToggleShuffle, onCycleRepeat, onOpenQueue, onExpandPlayer, expandRequest = 0, onOpenSettings, onOpenSearch, searchAvailable = true, searchRevealed = false, desktopLyricsVisible = false, onToggleDesktopLyrics,
 }: LatticePlayerProps) {
+  const pendingRestore=useRef<SpaceBookmark|undefined>(undefined);
+  const settings=useSpaceSettings(),[zone,setZone]=useState(''),[zoneEditing,setZoneEditing]=useState(false),[restored,setRestored]=useState<TrackView[]>(),[zoom,setZoom]=useState(1);
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const lyricRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -81,7 +85,9 @@ export default function LatticePlayer({
   const seekDraftRef = useRef<number | null>(null);
   const seekDraggingRef = useRef(false);
   // Each poster belongs to the visible search result or the current playback queue exactly once.
-  const wallTracks = displayTracks ?? (queue.length ? queue : [track]);
+  const baseTracks=restored??displayTracks??(queue.length?queue:[track]);
+  const activeZone=settings.zones.find(value=>value.id===zone);
+  const wallTracks=useMemo(()=>activeZone?baseTracks.filter(song=>activeZone.trackIds.includes(song.id)):baseTracks,[baseTracks,activeZone]);
   const wallTracksRef = useRef(wallTracks);
   wallTracksRef.current = wallTracks;
   const focusedTrackIdRef = useRef<string | null>(null);
@@ -111,12 +117,13 @@ export default function LatticePlayer({
     };
   }, [slots]);
   const bounds = layoutBounds(expandedRects);
+  useEffect(()=>{const request=(event:Event)=>{window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:{...camera,scale:zoom},selectedId:wallTracks[selectedSlot]?.id||'',tracks:wallTracks.map(rules.reference)}}}));};const restore=(event:Event)=>{const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseTracks.map(song=>[song.id,song]));const tracks=bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song);pendingRestore.current=bookmark;setRestored(tracks);setZone('');setSelectedSlot(Math.max(0,tracks.findIndex(song=>song.id===bookmark.selectedId)));setZoom(bookmark.camera.scale);setCamera({x:bookmark.camera.x,y:bookmark.camera.y});setPanning(true);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[camera,zoom,wallTracks,selectedSlot,baseTracks]);
   const wallWidth = bounds.right * cellPitch;
   const wallHeight = bounds.bottom * cellPitch;
   const clampCamera = useCallback((x: number, y: number, target = bounds) => ({
-    x: Math.max(viewport.width / 2 - target.right * cellPitch, Math.min(viewport.width / 2 - target.left * cellPitch, x)),
-    y: Math.max(viewport.height / 2 - target.bottom * cellPitch, Math.min(viewport.height / 2 - target.top * cellPitch, y)),
-  }), [bounds.left, bounds.top, bounds.right, bounds.bottom, cellPitch, viewport.width, viewport.height]);
+    x: Math.max(viewport.width / 2 - target.right * cellPitch * zoom, Math.min(viewport.width / 2 - target.left * cellPitch * zoom, x)),
+    y: Math.max(viewport.height / 2 - target.bottom * cellPitch * zoom, Math.min(viewport.height / 2 - target.top * cellPitch * zoom, y)),
+  }), [bounds.left, bounds.top, bounds.right, bounds.bottom, cellPitch, viewport.width, viewport.height,zoom]);
 
   const focusSlot = useCallback((slot: number, remember = true) => {
     const layout = expandedStickerLayout(slot, slots);
@@ -125,8 +132,8 @@ export default function LatticePlayer({
     if (remember) focusedTrackIdRef.current = wallTracksRef.current[slot]?.id ?? null;
     setSelectedSlot(slot);
     setPanning(false);
-    setCamera(clampCamera(viewport.width / 2 - (focus.x + focus.columns / 2) * cellPitch + STICKER_GAP / 2, viewport.height / 2 - (focus.y + focus.rows / 2) * cellPitch + STICKER_GAP / 2, layoutBounds(layout)));
-  }, [cellPitch, clampCamera, layoutBounds, slots, viewport.height, viewport.width]);
+    setCamera(clampCamera(viewport.width / 2 - (focus.x + focus.columns / 2) * cellPitch * zoom + STICKER_GAP / 2, viewport.height / 2 - (focus.y + focus.rows / 2) * cellPitch * zoom + STICKER_GAP / 2, layoutBounds(layout)));
+  }, [cellPitch, clampCamera, layoutBounds, slots, viewport.height, viewport.width,zoom]);
 
   const focusCurrent = () => {
     const index = wallTracks.findIndex(item => item.id === track.id);
@@ -152,7 +159,7 @@ export default function LatticePlayer({
     return () => observer.disconnect();
   }, []);
   // Recenter on an actual viewport change, not on every appended source reply.
-  useEffect(() => { focusSlot(selectedSlot, false); }, [cellPitch, viewport.width, viewport.height]);
+  useEffect(() => { focusSlot(selectedSlot, false); }, [cellPitch, viewport.width, viewport.height,zoom]);
   useEffect(() => { if (displayTracks === undefined) focusSlot(Math.max(0, queueIndex >= 0 ? queueIndex : activeIndex)); }, [queueSignature, displayTracks === undefined]);
   useEffect(() => {
     if (displayTracks === undefined) { displayedIdsRef.current = []; return; }
@@ -173,6 +180,8 @@ export default function LatticePlayer({
     focusSlot(activeIndex);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track.id]);
+
+  useEffect(()=>{const restore=pendingRestore.current;if(!restore)return;pendingRestore.current=undefined;setSelectedSlot(Math.max(0,wallTracks.findIndex(v=>v.id===restore.selectedId)));setCamera({x:restore.camera.x,y:restore.camera.y});setZoom(restore.camera.scale);},[restored]);
 
   useEffect(() => {
     const container = lyricsContainerRef.current;
@@ -224,7 +233,7 @@ export default function LatticePlayer({
     const node = wallRef.current;
     if (!node) return;
     const onWheel = (event: WheelEvent) => {
-      if (immersive || event.ctrlKey || event.metaKey) return;
+      if (immersive) return;if(event.ctrlKey||event.metaKey){event.preventDefault();setZoom(previous=>Math.max(.4,Math.min(2.5,previous*Math.exp(-event.deltaY*.002))));return;}
       event.preventDefault();
       playUiSound('slide');
       const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX;
@@ -239,7 +248,7 @@ export default function LatticePlayer({
   }, [clampCamera, immersive]);
 
   const pointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (immersive || event.button !== 0 || !event.isPrimary || (event.target as Element).closest('.yz-sticker.is-expanded button, .yz-sticker.is-expanded input')) return;
+    if (zoneEditing || immersive || event.button !== 0 || !event.isPrimary || (event.target as Element).closest('.yz-sticker.is-expanded button, .yz-sticker.is-expanded input')) return;
     didDragRef.current = false;
     dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y, dragged: false };
   };
@@ -278,9 +287,11 @@ export default function LatticePlayer({
     if (seconds !== null) onSeek(seconds);
   };
 
-  return <div className={`yz-lattice${immersive ? ' is-immersive' : ''}`}>
+  return <div className={`yz-lattice zenix-motion-${settings.motion}${immersive ? ' is-immersive' : ''}`}>
+    {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部贴纸</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} onDragOver={event=>{if(zoneEditing)event.preventDefault();}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/x-zenix-track');if(!baseTracks.some(song=>song.id===id))return;try{commitSpace({...settings,zones:settings.zones.map(zone=>zone.id===item.id?{...zone,trackIds:[...new Set([...zone.trackIds,id])]}:zone)});}catch(error){window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:error instanceof Error?error.message:String(error)}));}}} aria-pressed={zone===item.id} onClick={()=>{setZone(item.id);setSelectedSlot(0);}}>{item.name}</button>)}<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成分区整理':'拖动贴纸归类'}</button>{restored&&<button onClick={()=>{setRestored(undefined);setZone('');setZoom(1);}}>返回原空间</button>}</nav>}
+    {!wallTracks.length&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲。</p>}
     <div className="yz-sticker-viewport" ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
-      <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: immersive ? viewport.width : wallWidth, height: immersive ? viewport.height : wallHeight, transform: immersive ? 'translate3d(0,0,0)' : `translate3d(${camera.x}px,${camera.y}px,0)` }}>
+      <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: immersive ? viewport.width : wallWidth, height: immersive ? viewport.height : wallHeight, transform: immersive ? 'translate3d(0,0,0)' : `translate3d(${camera.x}px,${camera.y}px,0) scale(${zoom})`,transformOrigin:'0 0' }}>
         {slots.map((tile, slot) => {
           const itemIndex = slot;
           const item = wallTracks[itemIndex];
@@ -289,8 +300,8 @@ export default function LatticePlayer({
           const current = hasPlayback && containsTrack(item, track.id);
           // Keep only the camera's visible posters and a small overscan mounted.
           const overscan = cellPitch * (dragging || panning ? 1.5 : 1);
-          if (!expanded && (immersive || rect.x * cellPitch + camera.x > viewport.width + overscan || rect.y * cellPitch + camera.y > viewport.height + overscan || (rect.x + rect.columns) * cellPitch + camera.x < -overscan || (rect.y + rect.rows) * cellPitch + camera.y < -overscan)) return null;
-          return <div key={slot} className={`yz-sticker${expanded ? ' is-expanded' : ''}${current ? ' is-current' : ''}${rect.columns * rect.rows <= 6 ? ' is-compact' : ''}`} style={{ left: immersive && expanded ? 0 : rect.x * cellPitch, top: immersive && expanded ? 0 : rect.y * cellPitch, width: immersive && expanded ? viewport.width : rect.columns * cellPitch - STICKER_GAP, height: immersive && expanded ? viewport.height : rect.rows * cellPitch - STICKER_GAP, visibility: immersive && !expanded ? 'hidden' : undefined }} onClick={() => { if (!expanded) { playUiSound('enter'); focusSlot(slot); } }} onKeyDown={event => {
+          if (!expanded && (immersive || rect.x * cellPitch * zoom + camera.x > viewport.width + overscan || rect.y * cellPitch * zoom + camera.y > viewport.height + overscan || (rect.x + rect.columns) * cellPitch * zoom + camera.x < -overscan || (rect.y + rect.rows) * cellPitch * zoom + camera.y < -overscan)) return null;
+          return <div key={slot} draggable={zoneEditing} onDragStart={event=>{if(!zoneEditing){event.preventDefault();return;}event.dataTransfer.setData('application/x-zenix-track',item.id);event.dataTransfer.effectAllowed='copy';}} className={`yz-sticker${expanded ? ' is-expanded' : ''}${current ? ' is-current' : ''}${rect.columns * rect.rows <= 6 ? ' is-compact' : ''}`} style={{ left: immersive && expanded ? 0 : rect.x * cellPitch, top: immersive && expanded ? 0 : rect.y * cellPitch, width: immersive && expanded ? viewport.width : rect.columns * cellPitch - STICKER_GAP, height: immersive && expanded ? viewport.height : rect.rows * cellPitch - STICKER_GAP, visibility: immersive && !expanded ? 'hidden' : undefined }} onClick={() => { if (!expanded) { playUiSound('enter'); focusSlot(slot); } }} onKeyDown={event => {
             if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
             event.preventDefault();
             if (!expanded) focusSlot(slot);

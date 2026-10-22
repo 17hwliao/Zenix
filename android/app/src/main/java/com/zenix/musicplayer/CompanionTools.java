@@ -19,7 +19,7 @@ final class CompanionTools {
             case "lanStart":synchronized(this){if(pending!=null)throw new Exception("请先处理当前待接收歌单");}lan.start();return status();
             case "lanStop":lan.stop();return status();
             case "lanSend":return lan.send(args.getString("address"),args.getString("code"),PlaylistExchange.bundle(runtime.store,args.optJSONArray("ids")));
-            case "importDiscard":synchronized(this){if(importing)throw new Exception("正在导入歌单");pending=null;token=null;}return status();
+            case "importDiscard":synchronized(this){if(importing)throw new Exception("正在导入歌单");if(args.has("token")&&!args.optString("token").equals(token))throw new Exception("导入预览已失效");pending=null;token=null;}return status();
             case "importConfirm":{
                 JSONObject bundle;synchronized(this){if(importing||pending==null||!args.optString("token").equals(token))throw new Exception("导入预览已失效或正在导入");importing=true;bundle=pending;}
                 try{JSONArray lists=PlaylistExchange.restore(bundle,runtime.store.array("localTracks"));runtime.store.personal("importPlaylists",Json.obj("playlists",lists));synchronized(this){pending=null;token=null;}runtime.emit();return status();}finally{synchronized(this){importing=false;}}

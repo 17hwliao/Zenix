@@ -38,6 +38,8 @@ function validateLxManifest(raw) {
 }
 
 function boundedText(value, max = 200) { return String(value ?? '').trim().slice(0, max); }
+function samePlaybackRecording(left, right) { return !!left && !!right && left.providerId === right.providerId && left.remoteId === right.remoteId; }
+function recordingCacheId(recording) { return `recording:${recording.providerId}\0${recording.remoteId}`; }
 function parseSourcePackage(text) {
   let parsed;
   try { parsed = JSON.parse(text); }
@@ -91,6 +93,7 @@ class SourceManager {
     this.artwork = new (require('./runtime/source-artwork.cjs').SourceArtwork)({
       folder: this.coverFolder, metadataCache: this.metadataCache,
       resolve: async (id, remoteId, hint, signal) => {
+        this.networkPreferences?.require('artwork');
         const record = id === 'lx.playlist:catalog' ? { kind: 'lx', networkPolicy: { allowHttp: false, hosts: null } } : this.record(id);
         const url = hint || (record.kind === 'lx' ? await lxCatalog.artwork(lxCatalog.readInfo(remoteId), signal) : (await this.call(id, 'artwork', { remoteId }, signal))?.url);
         return { url, patterns: record.kind === 'lx' ? null : record.manifest.network.artworkHosts, options: policyOptions(record) };
@@ -501,7 +504,7 @@ class SourceManager {
     const cacheId = typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     const cached = await this.audioCache?.find(cacheId, quality) || (cacheId !== track.id ? await this.audioCache?.find(track.id, quality) : null);
     if (cached && cacheId !== track.id) await this.audioCache?.link(cacheId, quality, cached.key);
-    return cached ? { audioUrl: `yzqxy://cached-audio/${cached.key}`, actualQuality: '本地缓存', coverUrl, playbackProviderId: 'cache' } : null;
+    return cached ? { audioUrl: `yzqxy://cached-audio/${cached.key}`, actualQuality: '本地缓存', coverUrl, playbackProviderId: 'cache', playbackRecording: cached.recording } : null;
   }
   async cachedBest(track, qualities) {
     // One IPC; preserve the caller's quality preference while looking up disk cache.
@@ -517,12 +520,17 @@ class SourceManager {
       const local = await this.cached(track, quality, cacheAsId);
       if (local) return local;
     }
+    this.networkPreferences?.require('audio');
     // A replacement has its own recording identity. Never alias its bytes to
     // the original song: restoring the original must not return this cache.
     const cacheId = !replacement && typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     // A forced resolve follows a rejected cache/connection. Do not route its
     // fresh stream back into those same bytes, including aliases of the file.
-    if (skipCache) await this.audioCache?.discard(cacheId, quality);
+    if (skipCache && this.audioCache && !this.audioCache.readOnly) {
+      const cached = await this.audioCache.find(cacheId, quality);
+      if (cached && (!cached.recording || samePlaybackRecording(cached.recording, track))) await this.audioCache.discard(cacheId, quality);
+      await this.audioCache.discard(recordingCacheId(track), quality);
+    }
     const record = this.record(id);
     quality = record.kind === 'lx' && quality === 'lossless24' ? quality : record.manifest.qualities.includes(quality) ? quality : record.manifest.qualities[0] || quality;
     const started = Date.now();
@@ -533,8 +541,9 @@ class SourceManager {
     signal?.throwIfAborted();
     const token = randomUUID();
     const headers = this.mediaHeaders(result.headers);
-    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers,replacement, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
-    return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id, diagnosticAttemptId: this.diagnostics.record(id, started) };
+    const recording = require('./audio-cache.cjs').safeRecording({ ...track, actualQuality: result.actualQuality || quality });
+    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, recording,replacement, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
+    return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id, playbackRecording: recording, diagnosticAttemptId: this.diagnostics.record(id, started) };
     } catch (error) { this.diagnostics.record(id, started, error); throw error; }
   }
   async lxPlayback(id, remoteId, quality, signal) {
@@ -578,7 +587,11 @@ class SourceManager {
     // The player retains this stream token across repeats and seeks. Cache may
     // have completed since it was resolved; check disk before refreshing URLs.
     const cached = await this.audioCache?.find(session.trackId, session.quality);
-    if (cached) return require('./runtime/media-protocol.cjs').serveFile(cached.path, request, cached.contentType);
+    if (cached && (!session.recording || samePlaybackRecording(cached.recording, session.recording))) return require('./runtime/media-protocol.cjs').serveFile(cached.path, request, cached.contentType);
+    const isolatedId = session.recording ? recordingCacheId(session.recording) : null;
+    const isolated = isolatedId ? await this.audioCache?.find(isolatedId, session.quality) : null;
+    if (isolated && samePlaybackRecording(isolated.recording, session.recording)) return require('./runtime/media-protocol.cjs').serveFile(isolated.path, request, isolated.contentType);
+    this.networkPreferences?.require('audio');
     const record = this.record(session.id);
     if (!session.replacement&&session.expiresAt && Date.now() >= session.expiresAt - 15000) await this.refresh(session);
     const headers = { ...session.headers };
@@ -603,8 +616,11 @@ class SourceManager {
     }
     outgoing.set('Access-Control-Allow-Origin', '*');
     if (request.method === 'HEAD') { await response.body?.cancel().catch(() => {}); return new Response(null, { status: response.status, headers: outgoing }); }
+    const latestCached = cached || await this.audioCache?.find(session.trackId, session.quality);
+    const activeCapture = this.audioCache?.jobs.get(this.audioCache.key(session.trackId, session.quality));
+    const captureId = isolatedId && (latestCached && !samePlaybackRecording(latestCached.recording, session.recording) || activeCapture && !samePlaybackRecording(activeCapture.recording, session.recording)) ? isolatedId : session.trackId;
     const body = [200, 206].includes(response.status)
-      ? this.audioCache?.captureResponse(session.trackId, session.quality, response, signal => fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), headers: session.headers, signal })) || response.body
+      ? this.audioCache?.captureResponse(captureId, session.quality, response, signal => fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), headers: session.headers, signal }), session.recording) || response.body
       : response.body;
     return new Response(body, { status: response.status, headers: outgoing });
   }
@@ -622,6 +638,7 @@ class SourceManager {
     const file = path.join(this.lyricFolder, `${createHash('sha256').update(`${track.providerId}:${track.remoteId}`).digest('hex')}.json`);
     const record = this.records.find(item => item.id === track.providerId) || (track.providerId === 'lx.playlist:catalog' ? { kind: 'lx', enabled: true } : null);
     try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch {}
+    this.networkPreferences?.require('lyrics');
     if (!record?.enabled || (record.kind !== 'lx' && !record.manifest.capabilities.includes('lyrics'))) {
       try { return JSON.parse(await readBoundedFile(file, 1024 * 1024, 'utf8')); } catch { return null; }
     }
@@ -637,6 +654,57 @@ class SourceManager {
     }
   }
   cover(request, id, remoteId) { return this.artwork.cover(request, id, remoteId); }
+  async prepareOffline(track, quality, signal, progress) {
+    signal ||= new AbortController().signal;
+    signal.throwIfAborted(); signal.zenixStateDriven = true;
+    if (this.audioCache?.readOnly) throw Error(this.audioCache.cacheError);
+    const cached = await this.audioCache?.find(track.id, quality);
+    signal.throwIfAborted();
+    if (cached) return { recording: cached.recording || null };
+    this.networkPreferences?.require('preload');
+    const { sameRecordingMetadata } = require('../src/core/searchGroups.cjs');
+    const seen = new Set(), available = this.records.filter(record => record.enabled && record.manifest.capabilities.includes('resolvePlayback'));
+    available.sort((a, b) => Number(b.id === track.providerId) - Number(a.id === track.providerId));
+    let lastError, platform = '', searched = 0;
+    try { platform = lxCatalog.readInfo(track.remoteId).source || ''; } catch {}
+    const attempt = async candidate => {
+      signal.throwIfAborted();
+      const key = `${candidate.providerId}\0${candidate.remoteId}`;
+      if (seen.has(key) || seen.size >= 3) return null;
+      seen.add(key);
+      try {
+        const resolved = await this.resolve(candidate, quality, '', false, signal);
+        signal.throwIfAborted();
+        const existingKey = resolved.audioUrl.match(/^yzqxy:\/\/cached-audio\/([a-f0-9]{64})$/)?.[1];
+        const recording = resolved.playbackRecording;
+        if (existingKey) { signal.throwIfAborted(); await this.audioCache.link(track.id, quality, existingKey); return { recording: recording || null }; }
+        const session = this.sessions.get(resolved.audioUrl.split('/').at(-1));
+        if (!session) throw Error('音频会话无效');
+        const record = this.record(session.id);
+        await this.audioCache.prepare(track.id, quality, async abort => {
+          signal.throwIfAborted(); this.networkPreferences?.require('preload'); this.networkPreferences?.require('audio');
+          return fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), stateDriven: true, headers: session.headers, signal: abort });
+        }, signal, progress, recording);
+        signal.throwIfAborted(); const completed = await this.audioCache.find(track.id, quality); return { recording: completed?.recording || null };
+      } catch (error) { signal.throwIfAborted(); lastError = error; return null; }
+    };
+    for (const source of available) {
+      signal.throwIfAborted(); if (seen.size >= 3) break;
+      const direct = source.id === track.providerId ? track : source.kind === 'lx' && platform && source.manifest.lxPlatforms?.[platform]
+        ? { ...track, id: `source:${encodeURIComponent(source.id)}:${encodeURIComponent(track.remoteId)}`, providerId: source.id } : null;
+      if (direct) { const result = await attempt(direct); if (result) return result; }
+      if (seen.size >= 3 || !source.manifest.capabilities.includes('search') || searched >= 8) continue;
+      searched++;
+      try {
+        const page = await this.search(source.id, track.title, null, 50, signal); signal.throwIfAborted();
+        const matches = page.items.filter(candidate => sameRecordingMetadata(track, candidate))
+          .sort((a, b) => Math.abs(a.duration - track.duration) - Math.abs(b.duration - track.duration));
+        for (const candidate of matches) { const result = await attempt(candidate); if (result) return result; if (seen.size >= 3) break; }
+      } catch (error) { signal.throwIfAborted(); lastError = error; }
+    }
+    const reason = require('../src/core/sourceDiagnostics.cjs').redact(lastError?.message || '没有同名、同歌手且录音信息一致的候选');
+    throw Error(`离线准备失败：已尝试 ${seen.size}/3 个不同候选。${reason}`);
+  }
   coverBytes(id, remoteId) { return this.artwork.get(id, remoteId); }
   async choosePackage(window) {
     const result = await dialog.showOpenDialog(window, { title: '导入音乐源', properties: ['openFile'], filters: [{ name: '音乐源包或脚本', extensions: ['zenixsource', 'json', 'js'] }] });

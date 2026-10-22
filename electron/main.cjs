@@ -17,6 +17,7 @@ const {DesktopControls}=require('./runtime/desktop-controls.cjs');
 let desktopTray,desktopControls;
 let companion, musicWidget;
 let updates;
+let personalFeatures, offlineTasks, assistant;
 
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.quit();
@@ -483,7 +484,7 @@ function registerHandlers() {
   handleApp('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   handleApp('cache:stats', async () => ({ ...audioCache.stats(), ...await sourceManager.metadataCache.stats() }));
   handleApp('cache:configure', async (_event, options) => { const stats = await audioCache.configure(options); sourceManager.metadataCache.limit = Math.max(8, Math.min(64, stats.limitMiB / 8)) * 1024 * 1024; await sourceManager.metadataCache.prune(); return { ...stats, ...await sourceManager.metadataCache.stats() }; });
-  handleApp('cache:clear', async () => { sourceManager.artwork.clearMemory(); await sourceManager.metadataCache.clear(); return { ...await audioCache.clear(), ...await sourceManager.metadataCache.stats() }; });
+  handleApp('cache:clear', async () => { try{await offlineTasks?.pauseForCacheClear();sourceManager.artwork.clearMemory();await sourceManager.metadataCache.clear();return {...await audioCache.clear(),...await sourceManager.metadataCache.stats()};}finally{offlineTasks?.endCacheClear();} });
   handleApp('sources:open-folder', () => shell.openPath(sourceManager.folder));
   handleApp('library:load', () => library.load());
   handleApp('library:import-folder', async () => {
@@ -577,8 +578,16 @@ if (primaryInstance) app.whenReady().then(async () => {
   musicWidget = new MusicWidget({ BrowserWindow,folder:app.getPath('userData'),screen, command: action => broadcast('media:command', action), showApp: showMainWindow });
   companion = new Companion({ folder: app.getPath('userData'), personal, library, dialog, getWindow: () => mainWindow, broadcast, app, widget: musicWidget, appearance });
   await companion.stats.load();
+  personalFeatures = new (require('./runtime/personal-features.cjs').PersonalFeatures)({folder:app.getPath('userData'),personal,broadcast,exclusive:fn=>companion.backup.exclusive(fn)});
+  await personalFeatures.load().catch(error=>console.error('Optional private music tools:',error.message));
+  companion.backup.personalFeatures=personalFeatures;
+  offlineTasks = new (require('./runtime/offline-tasks.cjs').OfflineTasks)({folder:app.getPath('userData'),sources:sourceManager,cache:audioCache});
+  await offlineTasks.load().catch(error=>console.error('Optional offline tasks:',error.message));
+  companion.backup.offlineTasks=offlineTasks;
   await companion.backup.load();
-  handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');if(args?.operation==='widgetUpdate'){desktopTray?.update(args);desktopControls?.update(args);}return companion.invoke(args || {}); });
+  assistant=new (require('./runtime/assistant.cjs').Assistant)({folder:app.getPath('userData'),dialog,getWindow:()=>mainWindow,BrowserWindow,ipcMain,execute:async action=>action==='show'?broadcast('desktop:command',{action:'assistant'}):broadcast('media:command',action)});
+  await assistant.load();
+  handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');if(args?.operation==='assistant')return assistant.invoke(args);if(args?.operation==='personalFeatures')return personalFeatures.invoke(args);if(args?.operation==='offlineTasks')return offlineTasks.invoke(args);if(args?.operation==='widgetUpdate'){desktopTray?.update(args);desktopControls?.update(args);assistant?.update(args);}return companion.invoke(args || {}); });
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
   sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;
   await sourceManager.metadataCache.prune({ bestEffort: true });
@@ -596,4 +605,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => { desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
+app.on('before-quit', () => { assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });

@@ -19,6 +19,7 @@ import { useDocumentVisible } from '../core/useDocumentVisible';
 import { trackCoverUrl } from '../core/trackCover';
 import type { ZenixShellProps } from './types';
 import './Zenix.css';
+import {useSpaceSettings} from '../features/space/state';
 
 const ShaderBackdrop = lazy(() => import('./ShaderBackdrop'));
 
@@ -61,7 +62,10 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [settingsInitialTab, setSettingsInitialTab] = useState<'options' | 'sources'>('options');
   const [managerSection, setManagerSection] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [legacyReduceMotion, setReduceMotion] = useState(false);
+  const spaceSettings=useSpaceSettings();
+  const reduceMotion=legacyReduceMotion||spaceSettings.motion==='reduced';
+  useEffect(()=>{const open=(event:Event)=>{const query=String((event as CustomEvent).detail?.query||'');if(query){setQuery(query);setSearchOpen(true);}};window.addEventListener('zenix-assistant-search',open);return()=>window.removeEventListener('zenix-assistant-search',open);},[]);
   const [titlebarRevealed, setTitlebarRevealed] = useState(false);
   const [homeSearchRevealed, setHomeSearchRevealed] = useState(false);
   const documentVisible = useDocumentVisible();
@@ -179,7 +183,7 @@ export default function ZenixShell(props: ZenixShellProps) {
       const overAction = Boolean(target.closest('button,a,input,select,textarea,[role="button"],.yz-window-controls-zone'));
       setHomeSearchRevealed(overSearch || (!overAction && event.clientY >= 32 && event.clientY <= 148));
     }} onPointerLeave={() => setHomeSearchRevealed(false)}>
-      {documentVisible && !showPersonalBackground && view === 'home' && <Suspense fallback={null}><ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion} /></Suspense>}
+      {documentVisible && !showPersonalBackground && view === 'home' && <Suspense fallback={null}><ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion||spaceSettings.motion==='light'} /></Suspense>}
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
       {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
       <div className="yz-grain" aria-hidden="true" />

@@ -15,6 +15,8 @@ import { isNativeMobile, readLyrics, type MobileSnapshot } from './native';
 import { useSongGesture } from './useSongGesture';
 import { projectStickerLayout, type StickerGeometry } from './stickerMotion';
 import { StickerCameraGesture } from './stickerCamera';
+import {useSpaceSettings,writeSpace,rules,type SpaceBookmark} from '../features/space/state';
+import '../features/space/space.css';
 
 /** Uses the desktop mosaic algorithm, finite posters and a touch camera. */
 const layouts = new Map<string, ReturnType<typeof expandedStickerLayout>>();
@@ -28,7 +30,7 @@ function mobileLayout(count: number, selected: number, slots: ReturnType<typeof 
   }
   return layout;
 }
-export default memo(function StickerSpace({ songs, state, label, play, full, actions, focusRequest, seek, longPress, suspended = false }: {
+export default memo(function StickerSpace({ songs:providedSongs, state, label, play, full, actions, focusRequest, seek, longPress, suspended = false }: {
   songs: Track[]; state: MobileSnapshot; label: string; play: (song: Track) => void;
   full: () => void; actions: (song: Track) => ReactNode;
   seek: (seconds: number) => void;
@@ -36,8 +38,16 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
   longPress?: (song:Track)=>void;
   suspended?: boolean;
 }) {
+  const zoneDrag=useRef<{id:string;pointer:number}|undefined>(undefined);
+  const settings=useSpaceSettings(),[zone,setZone]=useState(''),[zoneEditing,setZoneEditing]=useState(false),[restored,setRestored]=useState<Track[]>(),[restoreVersion,setRestoreVersion]=useState(0);
+  const pendingRestore=useRef<SpaceBookmark|undefined>(undefined);
+  const baseSongs=restored||providedSongs;
+  const activeZone=settings.zones.find(value=>value.id===zone);
+  const songs=useMemo(()=>activeZone?baseSongs.filter(song=>activeZone.trackIds.includes(song.id)):baseSongs,[baseSongs,activeZone]);
+  useEffect(()=>{setRestored(undefined);setZone('');},[label]);
   const viewport = useRef<HTMLDivElement>(null), gesture = useRef(new StickerCameraGesture()), gestureOrigin=useRef({left:0,top:0});
-  const dragged = useRef(false), x = useMotionValue(0), y = useMotionValue(0), scale=useMotionValue(1), reduced = useReducedMotion();
+  const dragged = useRef(false), x = useMotionValue(0), y = useMotionValue(0), scale=useMotionValue(1), systemReduced = useReducedMotion();
+  const reduced=systemReduced||settings.motion==='reduced';
   const [camera, setCamera] = useState<{x:number;y:number;scale:number;toX?:number;toY?:number}>({ x: 0, y: 0, scale:1 });
   const cameraFlight = useRef(false), flightGeneration = useRef(0);
   const cameraTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -69,12 +79,12 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
     else{stickerElements.current.delete(id);stickerAnimations.current.get(id)?.cancel();stickerAnimations.current.delete(id);}
   },[]);
   useLayoutEffect(()=>{
-    projectStickerLayout(stickerElements.current,layoutGeometry.current,geometry,stickerAnimations.current,!suspended&&!reduced);
+    projectStickerLayout(stickerElements.current,layoutGeometry.current,geometry,stickerAnimations.current,!suspended&&!reduced,settings.motion==='light'?240:580);
     layoutGeometry.current=geometry;
-  },[geometry,suspended,reduced]);
+  },[geometry,suspended,reduced,settings.motion]);
   const bounds = rects.length ? { left: Math.min(...rects.map(rect => rect.x)) * pitch, top: Math.min(...rects.map(rect => rect.y)) * pitch, right: Math.max(...rects.map(rect => rect.x + rect.columns)) * pitch, bottom: Math.max(...rects.map(rect => rect.y + rect.rows)) * pitch } : { left: 0, top: 0, right: 0, bottom: 0 };
   function stop() { flightGeneration.current++; animations.current.forEach(animation => animation.stop()); if(cameraFlight.current){cameraFlight.current=false;setCamera(cameraValue());} }
-  function cancelGesture(){const ids=gesture.current.ids();gesture.current.cancel();for(const id of ids)if(viewport.current?.hasPointerCapture(id))viewport.current.releasePointerCapture(id);setMoving(false);}
+  function cancelGesture(){zoneDrag.current=undefined;const ids=gesture.current.ids();gesture.current.cancel();for(const id of ids)if(viewport.current?.hasPointerCapture(id))viewport.current.releasePointerCapture(id);setMoving(false);}
   useEffect(() => {
     if(suspended){stop();cancelGesture();clearTimeout(cameraTimer.current);cameraTimer.current=undefined;clearTimeout(captionTimer.current);}
     else {showCaption();hideCaptionLater();}
@@ -82,7 +92,7 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
   function focus(index: number) {
     if (!songs.length) return; if(gesture.current.count)cancelGesture();transitionGeometry.current=layoutGeometry.current;setSelected(index); stop();
     const rect = focusedStickerRect(index, slots) || slots[index];
-    const options = reduced ? { duration: 0 } : { duration: .62, ease: [.22, 1, .36, 1] as [number, number, number, number] };
+    const options = reduced ? { duration: 0 } : { duration: settings.motion==='light'?.28:.62, ease: [.22, 1, .36, 1] as [number, number, number, number] };
     // Focus is centered deliberately; empty space is filled by the personal background.
     const toX=size.width / 2 - (rect.x + rect.columns / 2) * pitch * scale.get(), toY=size.height / 2 - (rect.y + rect.rows / 2) * pitch * scale.get();
     // Mount the swept viewport once. Camera frames update the plane directly,
@@ -99,6 +109,8 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
     const previous = previousLayout.current, ids = songs.map(song => song.id);
     const appended = previous.ids.length > 0 && previous.ids.length <= ids.length && previous.ids.every((id, index) => id === ids[index]);
     const current = songs.findIndex(song => song.id === player.track?.id);
+    const restore=pendingRestore.current;
+    if(restore){pendingRestore.current=undefined;stop();cancelGesture();setSelected(Math.max(0,songs.findIndex(song=>song.id===restore.selectedId)));x.set(restore.camera.x);y.set(restore.camera.y);scale.set(restore.camera.scale);setCamera(cameraValue());previousLayout.current={ids,focusRequest,width:size.width,height:size.height};return;}
     if (!appended) {
       focus(current >= 0 ? current : 0);
     } else if (previous.focusRequest !== focusRequest) {
@@ -110,22 +122,28 @@ export default memo(function StickerSpace({ songs, state, label, play, full, act
     // Progressive source replies and pagination extend the same wall. They must
     // not recenter the user's camera or change the selected poster.
     previousLayout.current = { ids, focusRequest, width: size.width, height: size.height };
-  }, [signature, focusRequest, size.width, size.height, suspended]);
+  }, [signature, focusRequest, size.width, size.height, suspended,restoreVersion]);
   useEffect(() => () => stop(), []);
+  useEffect(()=>{const request=(event:Event)=>{if(suspended)return;window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:cameraValue(),selectedId:songs[selected]?.id||'',tracks:songs.map(rules.reference)}}}));};const restore=(event:Event)=>{if(suspended)return;const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseSongs.map(song=>[song.id,song]));setRestored(bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song));setZone('');pendingRestore.current=bookmark;setRestoreVersion(v=>v+1);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[songs,selected,baseSongs,suspended]);
   return <section className={`mobile-space ${moving ? 'is-panning' : ''} ${suspended ? 'is-suspended' : ''}`} aria-hidden={suspended} onPointerDownCapture={showCaption} onPointerUpCapture={hideCaptionLater} onPointerCancelCapture={hideCaptionLater}>
     <div className={`space-caption glass ${captionVisible ? "is-visible" : "is-hidden"}`} aria-hidden={!captionVisible}><span>{player.track ? `${player.playing ? "正在播放" : "已暂停"} · ${player.track.title}` : label}</span><small>{songs.length} 首 · 双指缩放</small><button tabIndex={captionVisible ? 0 : -1} aria-label="聚焦当前歌曲" onClick={() => { const index = songs.findIndex(song => song.id === player.track?.id); focus(index >= 0 ? index : selected); }}><Crosshair /></button></div>
+    {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部贴纸</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} aria-pressed={zone===item.id} onClick={()=>setZone(item.id)}>{item.name}</button>)}<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成整理':'拖动贴纸归类'}</button>{restored&&<button onClick={()=>{setRestored(undefined);setZone('');}}>返回原空间</button>}</nav>}
+    {zoneEditing&&<p className="zenix-space-empty">将贴纸拖到上方分区按钮，松开即可归类。</p>}
+    {!songs.length&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲，可以从工作台加入聚焦歌曲。</p>}
     <div ref={viewport} className="space-viewport" onPointerDownCapture={event => {
+      if(zoneEditing){const sticker=(event.target as Element).closest<HTMLElement>('[data-song-id]');if(sticker?.dataset.songId){zoneDrag.current={id:sticker.dataset.songId,pointer:event.pointerId};dragged.current=true;event.currentTarget.setPointerCapture(event.pointerId);event.preventDefault();}return;}
       if(suspended||event.button!==0||!gesture.current.count&&(event.target as Element).closest('.sticker-toolbar,input,.focused-lyrics'))return;
       if(!gesture.current.count){if(event.pointerType==='touch'&&!event.isPrimary)return;stop();dragged.current=false;gestureOrigin.current=event.currentTarget.getBoundingClientRect();}
       const point={x:event.clientX-gestureOrigin.current.left,y:event.clientY-gestureOrigin.current.top};
       if(!gesture.current.down(event.pointerId,point,cameraValue()))return;
       if(gesture.current.count===2){dragged.current=true;setMoving(true);for(const id of gesture.current.ids())event.currentTarget.setPointerCapture(id);event.preventDefault();event.stopPropagation();}
     }} onPointerMoveCapture={event=>{
+      if(zoneDrag.current){event.preventDefault();return;}
       const value=gesture.current.move(event.pointerId,{x:event.clientX-gestureOrigin.current.left,y:event.clientY-gestureOrigin.current.top},bounds,size);if(!value)return;
       if(!dragged.current){dragged.current=true;setMoving(true);event.currentTarget.setPointerCapture(event.pointerId);}
       x.set(value.x);y.set(value.y);scale.set(value.scale);
       if(gesture.current.count===2){event.preventDefault();event.stopPropagation();}
-    }} onPointerUpCapture={event=>{gesture.current.up(event.pointerId,cameraValue());if(!gesture.current.count)setMoving(false);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancelCapture={cancelGesture} onLostPointerCapture={event=>{
+    }} onPointerUpCapture={event=>{if(zoneDrag.current){const drag=zoneDrag.current;zoneDrag.current=undefined;const target=document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-space-zone]'),id=target?.dataset.spaceZone;if(id){const next={...settings,zones:settings.zones.map(zone=>zone.id===id?{...zone,trackIds:[...new Set([...zone.trackIds,drag.id])]}:zone)};void command('features',{operation:'spaceFeatures',action:'save',value:next}).then(saved=>writeSpace(saved)).catch(error=>window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:String(error)})));}if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);return;}gesture.current.up(event.pointerId,cameraValue());if(!gesture.current.count)setMoving(false);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancelCapture={cancelGesture} onLostPointerCapture={event=>{
       // Touch starts with implicit capture on the poster. Its bubbled loss when
       // the viewport takes over is a handoff, not cancellation of the camera.
       if(event.target===event.currentTarget&&gesture.current.has(event.pointerId)&&!event.currentTarget.hasPointerCapture(event.pointerId))cancelGesture();
