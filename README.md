@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">桌面与移动端音乐播放器 · v1.1.0</p>
+<p align="center">桌面与移动端音乐播放器 · v1.2.0</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -38,7 +38,7 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 | 收藏与歌单 | 喜欢、收藏、去重后的近期历史和自定义歌单保存在本机；播放队列的移除操作与库存删除分开。 |
 | 音乐漫游 | 一键按本地收听习惯自动推荐新歌曲，跨源指纹去重、持续补充候选、失败跳过；推荐算法自研，无外部推荐 API。 |
 | 歌词 | 读取本地内嵌或同名歌词文件；音乐源目录可补充在线歌词；贴纸歌词支持浏览、跳转和自动回到当前句。 |
-| 桌面 LRC | 独立透明歌词窗口，至少三句歌词，横向/纵向布局、字体与颜色调整、拖动预览、定位播放、锁定及召回主窗口。 |
+| 桌面 LRC | 独立透明歌词窗口，前两句＋当前句＋后两句逐级缩小；支持横向/纵向布局、字体颜色、拖动窗口和锁定；歌词文字不跳播。 |
 | 个性化与音效 | 图片或视频背景按场景调整显示；Lottie 开屏动画；进入、取消、滑动三类音效，各五种方案，可调整或关闭。 |
 
 以上为当前代码已集成的功能范围。项目未接入账号或登录系统。
@@ -47,18 +47,18 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.1.0 · r55
+### 最新版本 v1.2.0 · r56
 
-本轮新增音乐工作台：私人片段与歌词检索、歌单修改撤销、离线收纳与网络偏好、空间分区和漫游控制、版本试听与片段练习、后台任务、设备协作、可换皮肤音乐助手。设置中的工作台入口集中管理，手机音乐空间也提供入口。
+星音集成固定音乐指令：按住说话或输入文字，进行播放、歌曲资料查询、歌词校正、歌单缓存、空间与漫游、统计定时、已配对设备接力和检查更新。保留六类音乐工作台；新增五句悬浮歌词、歌词纯净模式、原创角色动作与八套换装。角色为 Live2D 风格图像/姿态，不是真正 Cubism 模型，不接通用大模型或常驻语音唤醒。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK · r55](https://github.com/17hwliao/Zenix/releases/download/v1.1.0/Zenix-Android-1.1.0-r55.apk) |
-| Windows x64 | [安装包 · r55](https://github.com/17hwliao/Zenix/releases/download/v1.1.0/Zenix-Setup-1.1.0-r55-x64.exe) |
+| Android | [原签名 APK · r56](https://github.com/17hwliao/Zenix/releases/download/v1.2.0/Zenix-Android-1.2.0-r56.apk) |
+| Windows x64 | [安装包 · r56](https://github.com/17hwliao/Zenix/releases/download/v1.2.0/Zenix-Setup-1.2.0-r56-x64.exe) |
 
-[v1.1.0 功能更新](https://github.com/17hwliao/Zenix/releases/tag/v1.1.0)的公开版本为 1.1.0，双端构建为 55。正式与预览签名清单均指向本版；旧版重新检查更新即可读取本版信息。原发行身份、公钥、资料目录及历史下载入口保留，覆盖更新无需卸载或清空资料。
+[v1.2.0 功能更新](https://github.com/17hwliao/Zenix/releases/tag/v1.2.0)公开版本 1.2.0，双端内部构建 56。正式与预览签名清单指向本版；旧版重新检查更新即可读取本版信息。保留原发行身份、公钥、资料目录和历史下载入口，无需卸载或清空资料。
 
-本地回归 269/269、双端构建及实际安装包身份核验通过；Windows 生产下载器实际下载完整安装包并校验通过，未执行系统安装。用户层面测试按本轮约定跳过，不将本地测试当作真机完整升级证明。见[功能与审查范围](docs/review-feature-iteration-2026-10-23.md)、[发行说明](docs/releases/v1.1.0.md)及 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.1.0/SHA256SUMS-1.1.0-r55.txt)。
+全量相关改动 Review、修复后本地回归 294/294 通过，GitHub 回归与 Android 编译通过，双端实际安装包身份和远程大小/SHA256 核验通过。用户层面测试按既有约定跳过，没有在用客户端安装或真机完整升级声明。见[Review 与修复](docs/review-assistant-integration-2026-10-24.md)、[发行说明](docs/releases/v1.2.0.md)、[指令范围](docs/design/assistant-fixed-controls.md)及 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.2.0/SHA256SUMS-1.2.0-r56.txt)。
 
 ### 首版 v1.0.0
 

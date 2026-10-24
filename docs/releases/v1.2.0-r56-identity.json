@@ -1,0 +1,31 @@
+{
+  "version": "1.2.0",
+  "build": 56,
+  "sourceCommit": "01fcb871bfba78b64241881dfc8d9f8fb5bbc210",
+  "checkedAt": "2026-10-24T07:33:57.108Z",
+  "androidOriginalCertCompared": true,
+  "artifacts": {
+    "windows": {
+      "version": "1.2.0",
+      "build": 56,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.2.0/Zenix-Setup-1.2.0-r56-x64.exe",
+      "size": 143493812,
+      "sha256": "90cbb2ff65a061013ceba001d1f8278e020aba95101543883ece2e485483d4ea"
+    },
+    "android": {
+      "version": "1.2.0",
+      "build": 56,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.2.0/Zenix-Android-1.2.0-r56.apk",
+      "size": 45796659,
+      "sha256": "b5293cc45454689452d2ae84436ce83890d837bb9f8325fe06e6b408974f03a4"
+    }
+  },
+  "tests": {
+    "total": 294,
+    "pass": 294,
+    "fail": 0,
+    "skipped": 0
+  },
+  "deviceInstallationPerformed": false,
+  "userDataTouched": false
+}
