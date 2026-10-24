@@ -1,5 +1,5 @@
 (function(root,factory){const value=factory();if(typeof module==='object'&&module.exports)module.exports=value;else root.zenixAssistantSkin=value;})(typeof globalThis!=='undefined'?globalThis:this,()=>{
-  const states=['idle','listening','thinking','executing','success','failure'];
+  const states=['idle','listening','thinking','executing','success','failure','shy','talking','greeting','cheer'];
   function integer(value,min,max,label){if(!Number.isInteger(value)||value<min||value>max)throw Error(label+'无效');return value;}
   function clean(raw,files){
     if(!raw||raw.schema!==1)throw Error('皮肤规范版本不受支持');

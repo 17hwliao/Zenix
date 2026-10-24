@@ -31,7 +31,7 @@ test('production source manifest selects supported QQ first; descriptors retain 
 });
 test('first-use production React settings preserve configuration, require import confirmation, and expose non-playing search recovery',{skip:process.platform!=='win32'},async t=>{
  const {createServer}=await import('vite'),folder=await fsp.mkdtemp(path.join(os.tmpdir(),'zenix-source-setup-'));
- const server=await createServer({cacheDir:path.join(folder,'vite'),optimizeDeps:{entries:['scripts/fixtures/source-setup.html']},server:{host:'127.0.0.1',port:0,strictPort:true},logLevel:'error'});await server.listen();t.after(async()=>{await server.close();await fsp.rm(folder,{recursive:true,force:true});});
- const env={...process.env,ZENIX_TEST_USER_DATA:folder,ZENIX_TEST_UI_URL:`http://127.0.0.1:${server.httpServer.address().port}/scripts/fixtures/source-setup.html`};delete env.ELECTRON_RUN_AS_NODE;
+ const server=await createServer({cacheDir:path.join(folder,'vite'),optimizeDeps:{entries:['scripts/fixtures/source-setup.html']},server:{middlewareMode:true,hmr:false},logLevel:'error'});const http=require('node:http').createServer(server.middlewares);await new Promise(resolve=>http.listen(0,'127.0.0.1',resolve));t.after(async()=>{await server.close();await new Promise(resolve=>http.close(resolve));await fsp.rm(folder,{recursive:true,force:true});});
+ const env={...process.env,ZENIX_TEST_USER_DATA:folder,ZENIX_TEST_UI_URL:`http://127.0.0.1:${http.address().port}/scripts/fixtures/source-setup.html`};delete env.ELECTRON_RUN_AS_NODE;
  const {stdout,stderr}=await require('node:util').promisify(require('node:child_process').execFile)(require('electron'),[path.join(__dirname,'fixtures/ElectronSourceSetupUi.cjs')],{env,windowsHide:true,timeout:45000});assert.match(stdout,/SOURCE_SETUP_UI_PASS/,stderr);
 });

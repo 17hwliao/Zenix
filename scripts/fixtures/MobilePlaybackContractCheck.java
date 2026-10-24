@@ -108,6 +108,12 @@ public final class MobilePlaybackContractCheck {
         JSONObject personal=Json.obj("liked",new JSONArray(),"favorites",new JSONArray());JSONObject song=track("B");
         PersonalCollections.add(personal,song,Json.array("liked","favorites"));PersonalCollections.add(personal,song,Json.array("liked","favorites"));
         check(personal.getJSONArray("liked").length()==1&&personal.getJSONArray("favorites").length()==1,"one-tap save idempotent, never toggles off");
+        JSONObject many=Json.obj("liked",new JSONArray(),"favorites",new JSONArray(),"history",Json.array(Json.obj("id","keep")),"playlists",new JSONArray());
+        JSONObject second=Json.copy(song);Json.put(second,"id","second");JSONArray batch=Json.array(song,second,song);
+        PersonalCollections.addMany(many,batch,Json.array("liked","favorites"));PersonalCollections.addMany(many,batch,Json.array("liked","favorites"));
+        check(many.getJSONArray("liked").length()==2&&many.getJSONArray("favorites").length()==2,"bulk save idempotent across both kinds");
+        String intact=many.toString();try{PersonalCollections.addMany(many,Json.array(second,Json.obj("id","bad")),Json.array("liked"));throw new AssertionError("invalid bulk track accepted");}catch(Exception expected){check(many.toString().equals(intact),"invalid bulk leaves all personal data intact");}
+        try{PersonalCollections.addMany(many,batch,Json.array("liked","unknown"));throw new AssertionError("invalid bulk kind accepted");}catch(Exception expected){check(many.toString().equals(intact),"invalid bulk kind leaves data intact");}
         try{PersonalCollections.add(personal,song,Json.array("liked","unknown"));throw new AssertionError("invalid collection accepted");}catch(Exception expected){check(personal.getJSONArray("liked").length()==1,"invalid batch did not change collections");}
     }
     static void matchingAndBackgrounds(File folder)throws Exception{

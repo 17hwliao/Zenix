@@ -261,7 +261,7 @@ function resizeLyricsWindow(size) {
   const area = screen.getDisplayMatching(bounds).workArea;
   const vertical = lyricsOrientation === 'vertical';
   const width = Math.min(area.width, Math.max(vertical ? 260 : 650, Math.min(Math.round(size.width), vertical ? 380 : 820)));
-  const height = Math.min(area.height, Math.max(vertical ? 500 : 190, Math.min(Math.round(size.height), vertical ? 760 : 235)));
+  const height = Math.min(area.height, Math.max(vertical ? 500 : 240, Math.min(Math.round(size.height), vertical ? 760 : 340)));
   if (width === bounds.width && height === bounds.height) return;
   const x = Math.max(area.x, Math.min(bounds.x, area.x + area.width - width));
   const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - height));
@@ -280,12 +280,12 @@ function setLyricsOrientation(value) {
     const area = screen.getDisplayMatching(previous || win.getBounds()).workArea;
     const stored = lyricsLayouts[value];
     const width = Math.min(area.width, Math.max(value === 'vertical' ? 260 : 650, Math.min(stored?.width || (value === 'vertical' ? 326 : 740), value === 'vertical' ? 380 : 820)));
-    const height = Math.min(area.height, Math.max(value === 'vertical' ? 500 : 190, Math.min(stored?.height || (value === 'vertical' ? 640 : 205), value === 'vertical' ? 760 : 235)));
+    const height = Math.min(area.height, Math.max(value === 'vertical' ? 500 : 240, Math.min(stored?.height || (value === 'vertical' ? 640 : 260), value === 'vertical' ? 760 : 340)));
     const x = Math.max(area.x, Math.min(area.x + area.width - width, stored?.x ?? Math.round(previous.x + (previous.width - width) / 2)));
     const y = Math.max(area.y, Math.min(area.y + area.height - height, stored?.y ?? Math.round(previous.y + (previous.height - height) / 2)));
     win.setMinimumSize(1, 1);
     win.setBounds({ x, y, width, height });
-    win.setMinimumSize(Math.min(width, value === 'vertical' ? 260 : 650), Math.min(height, value === 'vertical' ? 500 : 190));
+    win.setMinimumSize(Math.min(width, value === 'vertical' ? 260 : 650), Math.min(height, value === 'vertical' ? 500 : 240));
     lyricsBounds = win.getBounds();
     lyricsLayouts[value] = lyricsBounds;
     win.webContents.send('lyrics:orientation', value);
@@ -299,7 +299,7 @@ function createLyricsWindow() {
   if (lyricsWindow && !lyricsWindow.isDestroyed()) return lyricsWindow;
   const vertical = lyricsOrientation === 'vertical';
   lyricsWindow = new BrowserWindow({
-    width: Math.max(vertical ? 260 : 650, Math.min(lyricsBounds?.width || (vertical ? 326 : 740), vertical ? 380 : 820)), height: Math.max(vertical ? 500 : 190, Math.min(lyricsBounds?.height || (vertical ? 640 : 205), vertical ? 760 : 235)), minWidth: vertical ? 260 : 650, minHeight: vertical ? 500 : 190, frame: false,
+    width: Math.max(vertical ? 260 : 650, Math.min(lyricsBounds?.width || (vertical ? 326 : 740), vertical ? 380 : 820)), height: Math.max(vertical ? 500 : 240, Math.min(lyricsBounds?.height || (vertical ? 640 : 260), vertical ? 760 : 340)), minWidth: vertical ? 260 : 650, minHeight: vertical ? 500 : 240, frame: false,
     transparent: true, hasShadow: false, alwaysOnTop: true, skipTaskbar: true,
     // Avoid the native resize/non-client frame on transparent Windows overlays.
     // The renderer's small resize grip changes bounds without toggling native styles.
@@ -421,6 +421,7 @@ function registerHandlers() {
   handleApp('personal:load', () => personal.snapshot());
   personalAction('personal:toggle', (kind, track) => personal.toggle(kind, track));
   personalAction('personal:record', track => personal.record(track));
+  personalAction('personal:collect-many', (kinds, tracks) => personal.collectMany(kinds, tracks));
   personalAction('personal:create-playlist', (name, firstTrack) => personal.createPlaylist(name, firstTrack));
   personalAction('personal:rename-playlist', (id, name) => personal.renamePlaylist(id, name));
   personalAction('personal:delete-playlist', id => personal.deletePlaylist(id));
@@ -585,7 +586,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   await offlineTasks.load().catch(error=>console.error('Optional offline tasks:',error.message));
   companion.backup.offlineTasks=offlineTasks;
   await companion.backup.load();
-  assistant=new (require('./runtime/assistant.cjs').Assistant)({folder:app.getPath('userData'),dialog,getWindow:()=>mainWindow,BrowserWindow,ipcMain,execute:async action=>action==='show'?broadcast('desktop:command',{action:'assistant'}):broadcast('media:command',action)});
+  assistant=new (require('./runtime/assistant.cjs').Assistant)({folder:app.getPath('userData'),dialog,getWindow:()=>mainWindow,BrowserWindow,ipcMain,screen,execute:async(action,value)=>action==='voiceStart'?mainWindow?.webContents.send('assistant:voice-start'):action==='voice'?mainWindow?.webContents.send('assistant:utterance',value):action==='show'?broadcast('desktop:command',{action:'assistant'}):broadcast('media:command',action)});
   await assistant.load();
   handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');if(args?.operation==='assistant')return assistant.invoke(args);if(args?.operation==='personalFeatures')return personalFeatures.invoke(args);if(args?.operation==='offlineTasks')return offlineTasks.invoke(args);if(args?.operation==='widgetUpdate'){desktopTray?.update(args);desktopControls?.update(args);assistant?.update(args);}return companion.invoke(args || {}); });
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });

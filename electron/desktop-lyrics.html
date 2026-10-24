@@ -17,7 +17,7 @@
     body { padding:6px; }
     button,select,input { font:inherit; }
     .glass {
-      position:relative; isolation:isolate; width:100%; height:100%; min-height:174px; overflow:hidden; border:1px solid transparent; border-radius:30px;
+      position:relative; isolation:isolate; width:100%; height:100%; min-height:220px; overflow:hidden; border:1px solid transparent; border-radius:30px;
       background:rgba(0,0,0,.005); box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
       -webkit-app-region:no-drag;
     }
@@ -53,7 +53,10 @@
     .size-grip { position:absolute; z-index:3; right:3px; bottom:3px; display:grid; place-items:center; width:16px; height:16px; padding:0; border:0; background:transparent; color:rgba(255,255,255,.45); cursor:nwse-resize; touch-action:none; opacity:0; visibility:hidden; pointer-events:none; -webkit-app-region:no-drag; }
     .size-grip svg { width:11px; height:11px; fill:none; stroke:currentColor; stroke-width:1.4; pointer-events:none; }
     body:not(.is-locked).is-hovered .size-grip { opacity:1; visibility:visible; pointer-events:auto; }
-    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 68px); min-height:99px; padding:0 28px; text-align:center; touch-action:none; cursor:grab; --drag-offset:0px; }
+    .lines { position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; height:calc(100% - 68px); min-height:150px; padding:0 28px; text-align:center; touch-action:none; cursor:grab; --drag-offset:0px; }
+    .lines { -webkit-app-region:drag; }
+    body.is-locked .lines { -webkit-app-region:no-drag; }
+    .line.distant {color:rgba(244,248,255,.32);font-size:calc(var(--lyric-size) * .43);line-height:1.3;min-height:1.3em;}
     .lines:active { cursor:grabbing; }
     .lines.is-browsing { padding-left:100px; padding-right:100px; }
     .lines.is-browsing::after { content:''; position:absolute; z-index:0; top:50%; left:50%; width:min(70%,540px); height:66px; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(ellipse,rgba(255,255,255,.045),transparent 72%); pointer-events:none; animation:preview-glow .34s ease-out both; }
@@ -65,11 +68,6 @@
     body.is-paused .lines.is-browsing .line.current { opacity:1; }
     .lines.is-browsing .line.current { text-shadow:0 1px 6px rgba(0,0,0,.7),0 0 19px color-mix(in srgb,var(--lyric-color) 26%,transparent); }
     .line.is-placeholder { opacity:.38; }
-    .jump { position:absolute; z-index:2; right:14px; top:50%; display:none; align-items:center; justify-content:center; gap:5px; min-width:65px; height:32px; padding:0 9px; transform:translateY(-50%); border:1px solid rgba(255,255,255,.26); border-radius:18px; background:rgba(255,255,255,.12); color:var(--lyric-color); font-size:11px; font-weight:700; cursor:pointer; backdrop-filter:blur(10px); }
-    .jump:hover,.jump:focus-visible { outline:none; border-color:var(--lyric-color); background:rgba(255,255,255,.2); }
-    .lines.is-browsing .jump { display:flex; animation:preview-jump .28s cubic-bezier(.16,1,.3,1) both; }
-    @keyframes preview-glow { from { opacity:0; scale:.78; } to { opacity:1; scale:1; } }
-    @keyframes preview-jump { from { opacity:0; translate:10px 0; scale:.82; } to { opacity:1; translate:0 0; scale:1; } }
     .bottom { position:absolute; z-index:1; left:20px; right:20px; bottom:9px; display:flex; align-items:center; gap:7px; height:20px; -webkit-app-region:no-drag; }
     .saved-actions { display:flex; align-items:center; gap:2px; flex:none; }
     .saved-actions button { display:grid; place-items:center; width:25px; height:25px; padding:0; border:0; border-radius:50%; background:transparent; color:rgba(255,255,255,.72); cursor:pointer; -webkit-app-region:no-drag; }
@@ -116,14 +114,13 @@
     body.is-vertical .icon-button.lock { top:83px; }
     body.is-vertical .lines { flex-direction:row-reverse; justify-content:center; align-items:stretch; gap:5px; width:100%; height:calc(100% - 156px); min-height:340px; padding:15px 12px 7px; }
     body.is-vertical .lines.is-browsing { padding:15px 12px 7px; }
-    body.is-vertical .lines .line { flex:0 0 31%; width:31%; height:100%; writing-mode:vertical-rl; text-orientation:mixed; text-align:center; text-overflow:ellipsis; translate:var(--drag-offset) 0; }
+    body.is-vertical .lines .line { flex:0 0 18%; width:18%; height:100%; writing-mode:vertical-rl; text-orientation:mixed; text-align:center; text-overflow:ellipsis; translate:var(--drag-offset) 0; }
     body.is-vertical .lines .line.is-latin { display:flex; align-items:center; justify-content:center; writing-mode:horizontal-tb; white-space:normal; text-overflow:clip; }
     body.is-vertical .lines .line.is-latin .line-text { display:block; width:100%; white-space:normal; overflow-wrap:break-word; text-align:center; }
     body.is-vertical .line.previous,body.is-vertical .line.next { font-size:calc(var(--lyric-size) * .66); }
     body.is-vertical .line.current { font-size:var(--lyric-size); }
     body.is-vertical .line.previous.is-latin,body.is-vertical .line.next.is-latin { font-size:calc(var(--lyric-size) * .66 * var(--latin-fit,1)); }
     body.is-vertical .line.current.is-latin { font-size:calc(var(--lyric-size) * var(--latin-fit,1)); }
-    body.is-vertical .jump { top:auto; right:auto; bottom:3px; left:50%; transform:translateX(-50%); }
     body.is-vertical .bottom { left:13px; right:13px; bottom:10px; display:grid; grid-template-columns:34px minmax(0,1fr) 34px; grid-template-rows:20px 25px; gap:3px 5px; height:48px; }
     body.is-vertical .bottom time:first-child { grid-column:1; grid-row:1; }
     body.is-vertical .bottom .song-progress { grid-column:2; grid-row:1; width:100%; }
@@ -154,11 +151,12 @@
       </div>
     </div>
     <button class="icon-button lock" id="lock" title="锁定歌词，让鼠标点击穿透" aria-label="锁定歌词，让鼠标点击穿透"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/><path d="M12 14v3"/></svg></button>
-    <div class="lines" id="lines" aria-label="上下拖动预览歌词" aria-live="off">
+    <div class="lines" id="lines" aria-label="拖动悬浮歌词窗口" aria-live="off">
+      <span class="line distant" id="previous-two"><span class="line-text"></span></span>
       <span class="line previous is-placeholder" id="previous"><span class="line-text">上一句歌词</span></span>
       <span class="line current" id="current"><span class="line-text">播放歌曲后显示歌词</span></span>
       <span class="line next is-placeholder" id="next"><span class="line-text">下一句歌词</span></span>
-      <button class="jump" id="jump" title="播放预览的这一句" aria-label="跳转到预览歌词">▶ <span id="jump-time">0:00</span></button>
+      <span class="line distant" id="next-two"><span class="line-text"></span></span>
     </div>
     <div class="bottom"><time id="elapsed">0:00</time><input class="song-progress" id="song-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="歌曲播放进度"><time id="total">0:00</time><div class="saved-actions"><button id="like" title="喜欢" aria-label="喜欢"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></svg></button><button id="favorite" title="收藏" aria-label="收藏"><svg viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 7 .9-5.1 5 .9 7-5.9-3.3-5.9 3.3.9-7-5.1-5 7-.9L12 2Z"/></svg></button><button id="playlist-toggle" title="加入歌单" aria-label="加入歌单"><svg viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M19 15v7M15.5 18.5h7"/></svg></button></div></div>
     <div class="playlist-menu" id="playlist-menu"><div id="playlist-choices"></div><form id="playlist-create"><input id="playlist-name" aria-label="新歌单名称" placeholder="新歌单名称"><button type="submit">新建</button></form></div>
@@ -344,11 +342,7 @@
     byId('favorite').addEventListener('click',() => { void saveAction('favorites'); });
     byId('playlist-toggle').addEventListener('click',() => byId('playlist-menu').classList.toggle('is-open'));
     byId('playlist-create').addEventListener('submit',event => { event.preventDefault(); const input = byId('playlist-name'); if (!input.value.trim()) return; void saveAction('create',input.value.trim()); input.value = ''; });
-    let previewIndex = null;
-    let drag = null;
     let scrubbing = false;
-    let previewReturnTimer = null;
-    const lineAnimations = new WeakMap();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
     const formatTime = value => { const seconds = Math.max(0,Math.floor(Number(value) || 0)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2,'0')}`; };
@@ -368,7 +362,7 @@
         element.dataset.fitSignature = signature;
         const content = element.querySelector('.line-text');
         const available = Math.max(1,element.clientHeight - 18);
-        const baseSize = settings.size * (element.classList.contains('current') ? 1 : .66);
+        const baseSize = settings.size * (element.classList.contains('current') ? 1 : element.classList.contains('distant') ? .43 : .66);
         lyricMeasure.font = `${settings.weight} ${baseSize}px ${getComputedStyle(element).fontFamily}`;
         const words = text.match(/[A-Za-z0-9]+(?:['’._-][A-Za-z0-9]+)*/g) || [];
         const widestWord = Math.max(1,...words.map(word => lyricMeasure.measureText(word).width));
@@ -388,61 +382,11 @@
     }
     new ResizeObserver(fitVerticalLyrics).observe(byId('lines'));
     const activeLineIndex = () => latestData.lines.reduce((index,line,i) => latestData.position >= line.time ? i : index,-1);
-    function cancelPreviewReturn() { if (previewReturnTimer !== null) clearTimeout(previewReturnTimer); previewReturnTimer = null; }
-    function schedulePreviewReturn() {
-      cancelPreviewReturn();
-      if (previewIndex === null) return;
-      previewReturnTimer = setTimeout(() => {
-        previewReturnTimer = null;
-        if (drag) { schedulePreviewReturn(); return; }
-        const direction = Math.sign(activeLineIndex() - previewIndex);
-        previewIndex = null;
-        byId('lines').style.setProperty('--drag-offset','0px');
-        renderLines(direction);
-      },3000);
-    }
-    function clearPreview() {
-      cancelPreviewReturn();
-      const direction = previewIndex === null ? 0 : Math.sign(activeLineIndex() - previewIndex);
-      previewIndex = null;
-      byId('lines').style.setProperty('--drag-offset','0px');
-      renderLines(direction);
-    }
-    function renderLines(direction = 0) {
-      const lines = latestData.lines || [];
-      const browsing = previewIndex !== null && lines.length > 0;
-      const index = browsing ? clamp(previewIndex,0,lines.length - 1) : -1;
-      const previous = browsing ? lines[index - 1]?.text || '' : latestData.previous || '';
-      const current = browsing ? lines[index]?.text || '' : latestData.line || latestData.title || '播放歌曲后显示歌词';
-      const next = browsing ? lines[index + 1]?.text || '' : latestData.next || '';
-      const area = byId('lines');
-      const animate = !reducedMotion && (browsing || area.classList.contains('is-browsing'));
-      const updateLine = (id,text,order) => {
-        const element = byId(id);
-        const content = element.querySelector('.line-text');
-        if (content.textContent === text) return;
-        content.textContent = text;
-        if (!animate) return;
-        lineAnimations.get(element)?.cancel();
-        const opacity = getComputedStyle(element).opacity;
-        lineAnimations.set(element,element.animate([
-          { opacity:.24, transform:`translate${orientation === 'vertical' ? 'X' : 'Y'}(${(direction || 1) * 16}px) scale(.97)`, filter:'blur(3px)' },
-          { opacity, transform:`translate${orientation === 'vertical' ? 'X' : 'Y'}(0) scale(1)`, filter:'blur(0)' },
-        ],{ duration:browsing ? 290 : 380, delay:order * 24, easing:'cubic-bezier(.16,1,.3,1)' }));
-      };
-      area.classList.toggle('is-browsing',browsing);
-      byId('previous').classList.toggle('is-placeholder',!previous);
-      byId('next').classList.toggle('is-placeholder',!next);
-      updateLine('previous',previous || '上一句歌词',0);
-      updateLine('current',current,1);
-      byId('preview-line').textContent = current;
-      updateLine('next',next || '下一句歌词',2);
-      fitVerticalLyrics();
-      if (browsing) {
-        const time = formatTime(lines[index].time);
-        byId('jump-time').textContent = time;
-        byId('jump').setAttribute('aria-label',`从 ${time} 播放：${current}`);
-      }
+    function renderLines() {
+      const index=activeLineIndex(),lines=latestData.lines||[];
+      const values=[lines[index-2]?.text||'',index>=0?lines[index-1]?.text||'':latestData.previous||'',index>=0?lines[index]?.text||'':latestData.line||latestData.title||'播放歌曲后显示歌词',lines[index+1]?.text||latestData.next||'',lines[index+2]?.text||''];
+      ['previous-two','previous','current','next','next-two'].forEach((id,at)=>{const row=byId(id);row.querySelector('.line-text').textContent=values[at];row.classList.toggle('is-placeholder',!values[at]);});
+      byId('preview-line').textContent=values[2];fitVerticalLyrics();
     }
     function renderProgress(value = latestData.position) {
       const duration = Math.max(0,Number(latestData.duration) || 0);
@@ -456,54 +400,7 @@
       byId('total').textContent = formatTime(duration);
     }
     const lyricArea = byId('lines');
-    lyricArea.addEventListener('pointerdown',event => {
-      if (event.target.closest('button') || !latestData.lines?.length) return;
-      cancelPreviewReturn();
-      drag = { pointerId:event.pointerId, startY:event.clientY, startX:event.clientX, base:previewIndex ?? Math.max(0,activeLineIndex()), moved:false };
-      lyricArea.setPointerCapture(event.pointerId);
-    });
-    lyricArea.addEventListener('pointermove',event => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      const distance = orientation === 'vertical' ? drag.startX - event.clientX : drag.startY - event.clientY;
-      if (Math.abs(distance) < 7 && !drag.moved) return;
-      drag.moved = true;
-      const steps = Math.round(distance / 25);
-      const nextIndex = clamp(drag.base + steps,0,latestData.lines.length - 1);
-      lyricArea.style.setProperty('--drag-offset',`${clamp((steps * 25 - distance) * .55,-9,9)}px`);
-      if (nextIndex !== previewIndex) {
-        const direction = Math.sign(nextIndex - (previewIndex ?? drag.base)) || Math.sign(distance);
-        previewIndex = nextIndex;
-        renderLines(direction);
-      }
-    });
-    const endLyricDrag = event => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      const moved = drag.moved;
-      drag = null;
-      lyricArea.style.setProperty('--drag-offset','0px');
-      if (!moved && previewIndex !== null) clearPreview();
-      else if (moved) schedulePreviewReturn();
-      if (lyricArea.hasPointerCapture(event.pointerId)) lyricArea.releasePointerCapture(event.pointerId);
-    };
-    lyricArea.addEventListener('pointerup',endLyricDrag);
-    lyricArea.addEventListener('pointercancel',endLyricDrag);
-    lyricArea.addEventListener('wheel',event => {
-      if (!latestData.lines?.length) return;
-      event.preventDefault();
-      if (drag) return;
-      const delta = orientation === 'vertical' && Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      const nextIndex = clamp((previewIndex ?? Math.max(0,activeLineIndex())) + (delta > 0 ? 1 : -1),0,latestData.lines.length - 1);
-      if (nextIndex !== previewIndex) { previewIndex = nextIndex; renderLines(Math.sign(delta)); }
-      schedulePreviewReturn();
-    },{ passive:false });
-    byId('jump').addEventListener('click',event => {
-      event.stopPropagation();
-      const line = latestData.lines?.[previewIndex];
-      if (!line || !latestData.trackId) return;
-      window.desktopLyrics?.seek(latestData.trackId,line.time);
-      window.desktopLyrics?.command('play');
-      clearPreview();
-    });
+    // Lyrics are a native window drag surface; no lyric gesture changes playback.
     const slider = byId('song-progress');
     slider.addEventListener('pointerdown',() => { scrubbing = true; });
     slider.addEventListener('input',event => renderProgress(event.target.value));
@@ -511,13 +408,12 @@
       const seconds = Number(event.target.value);
       scrubbing = false;
       if (latestData.trackId && Number.isFinite(seconds)) window.desktopLyrics?.seek(latestData.trackId,seconds);
-      clearPreview();
+      renderLines();
     });
     slider.addEventListener('pointercancel',() => { scrubbing = false; renderProgress(); });
-    document.addEventListener('keydown',event => { if (event.key === 'Escape' && previewIndex !== null) clearPreview(); });
     window.desktopLyrics?.onData(data => {
       const lyricChanged = data.trackId !== latestData.trackId || data.previous !== latestData.previous || data.line !== latestData.line || data.next !== latestData.next || data.title !== latestData.title || Boolean(data.lines);
-      if (data.trackId !== latestData.trackId) { cancelPreviewReturn(); previewIndex = null; drag = null; scrubbing = false; byId('lines').style.setProperty('--drag-offset','0px'); }
+      if (data.trackId !== latestData.trackId) { scrubbing = false; byId('lines').style.setProperty('--drag-offset','0px'); }
       latestData = { ...latestData, ...data };
       const title = data.title || 'ZENIX · 桌面歌词';
       if (byId('song').textContent !== title) byId('song').textContent = title;

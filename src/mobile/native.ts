@@ -16,6 +16,7 @@ export type MobileSnapshot = {
 interface NativePlugin {
   invoke(options: { action: string; payload: Record<string, unknown> }): Promise<{ value: unknown }>;
   addListener(event: 'snapshot', callback: (event: MobileUpdate) => void): Promise<PluginListenerHandle>;
+  addListener(event:'assistantVoiceStatus',callback:(value:{token:string;phase:string})=>void):Promise<PluginListenerHandle>;
   addListener(event:'assistantOpen',callback:()=>void):Promise<PluginListenerHandle>;
 }
 export type MobileUpdate = Omit<Partial<MobileSnapshot>, 'playback'> & { playback?: Partial<PlayerState> };
@@ -30,6 +31,7 @@ export async function command<T>(action: string, payload: Record<string, unknown
   return (await plugin.invoke({ action, payload })).value as T;
 }
 export const observe = (callback: (state: MobileUpdate) => void) => plugin.addListener('snapshot', callback);
+export const observeAssistantVoice=(callback:(value:{token:string;phase:string})=>void)=>plugin.addListener('assistantVoiceStatus',callback);
 export const observeAssistantOpen=(callback:()=>void)=>plugin.addListener('assistantOpen',callback);
 export type MobileSearchPage = { items: Track[]; nextCursor: string | null };
 export const readLyrics = (track: Track) => command<RawLyrics | null>('lyrics', { track });

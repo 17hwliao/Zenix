@@ -1,0 +1,32 @@
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
+const load=require('./fixtures/load-assistant-ts.cjs'),{understand}=load(path.resolve('src/features/assistant/intent.ts')),{controlCommand}=load(path.resolve('src/features/assistant/controlCommands.ts'));
+const cases={'暂停':'pause','下一首':'next','单曲循环':'repeat-one','音量调低一点':'volume-down','找一下王菲的《红豆》':'search','这首歌是谁唱的':'song-query','前面第三首的专辑是什么':'song-query','打开纯净歌词':'pure-lyrics','歌词提前半秒':'lyrics-earlier','关闭悬浮歌词':'overlay-off','缓存这张歌单':'cache-playlist','只用缓存播放':'cache-only','看看现在有什么网络任务':'network-tasks','返回我的空间':'space-open','打开夜间分区':'space-zone','保存当前空间位置':'space-save','少听这种':'roam-reduce','暂时听一些轻音乐':'roam-light','回到刚才的漫游':'roam-return','看看这周听歌情况':'week-stats','半小时后停止播放':'sleep','把音乐接到电脑上':'handoff-pc','把这首排到电脑下一首':'submit-pc','备份歌单':'backup-playlists','检查更新':'update-check'};
+test('all requested phrases map to bounded commands and ambiguous/negative commands do not execute',()=>{
+ for(const [phrase,action] of Object.entries(cases)){assert.equal(understand(phrase).action,action,phrase);assert.equal(understand(phrase,.2).kind,'confirm',phrase);}
+ assert.match(understand('找一下王菲的《红豆》').args.query,/王菲/);assert.equal(understand('打开夜间分区').args.name,'夜间');
+ for(const text of ['不要单曲循环','缓存这张歌单然后下一首','清空所有资料','帮我写论文'])assert.equal(understand(text).kind,'unknown',text);
+});
+function fixture(){const track={id:'a',title:'原曲',artist:'原歌手',source:'custom',duration:100,path:'',audioUrl:''};const snapshot={playback:{track,queue:[track],queueIndex:0,volume:.05,quality:'high'},personal:{liked:[],favorites:[],history:[],playlists:[{id:'p',name:'夜间',tracks:[track]}]},context:{playlistId:'p'}};const calls=[];let space={revision:0,bookmarks:[],zones:[{id:'z',name:'夜间'}],roaming:{excluded:[]}};const host={library:{snapshot:async()=>structuredClone(snapshot)},invoke:async args=>{calls.push(args);if(args.operation==='offlineTasks')return {tasks:[{id:'task',name:'夜间',status:'waiting',items:[{status:'pending'}]}]};if(args.operation==='stats')return {seconds:125,plays:3,uniqueTracks:2,topTracks:[]};return true;},ui:(...args)=>calls.push(args),space:async()=>structuredClone(space),saveSpace:async value=>{assert.equal(value.revision,space.revision);space={...value,revision:space.revision+1};calls.push(['save',space]);},capture:async()=>({camera:{x:10,y:20,scale:1.2},selectedId:'a',tracks:[track]}),mode:async()=>calls.push('mode'),volume:async value=>calls.push(['volume',value]),offset:async(id,delta)=>{calls.push([id,delta]);return delta;},overlayOff:async()=>calls.push('overlayOff'),updates:async()=>({status:'available',message:'发现新版本'}),transfer:async kind=>{calls.push(kind);return {reply:'等待电脑确认'};}};return {host,calls,snapshot,get space(){return space;}};}
+test('cache preparation pins explicit playlist, cancellation makes no write, cache-only is confirmed',async()=>{
+ const f=fixture(),signal=new AbortController(),plan=await controlCommand('cache-playlist',{},f.host,signal.signal);assert.equal(plan.kind,'confirmation');assert.equal(f.calls.length,0);f.snapshot.personal.playlists[0].tracks=[];await plan.commit();assert.equal(f.calls[0].tracks[0].id,'a');assert.equal(f.calls[0].pin,true);
+ const g=fixture(),controller=new AbortController(),cancelled=await controlCommand('cache-only',{},g.host,controller.signal);controller.abort();await assert.rejects(cancelled.commit(),{name:'AbortError'});assert.equal(g.calls.length,0);
+ const policy=await controlCommand('cache-only',{},g.host);await policy.commit();assert.deepEqual(g.calls[0].policy,{audio:'never',lyrics:'never',artwork:'never',preload:'never'});
+});
+test('independent controls do not read personal data; visual changes cannot modify playback',async()=>{
+ const f=fixture();f.host.library.snapshot=async()=>{throw Error('资料不可读');};for(const action of ['repeat-one','overlay-off','space-open','space-zone','space-save','network-tasks','week-stats','sleep','update-check','roam-light','roam-return','handoff-pc','submit-pc'])await controlCommand(action,{name:'夜间'},f.host);
+ assert(f.calls.some(value=>value?.operation==='spaceFeatures'&&value.keyword==='轻音乐'&&value.count===3));assert(f.calls.some(value=>value?.operation==='timerSet'&&value.minutes===30));assert.equal(f.space.bookmarks[0].selectedId,'a');
+ const g=fixture(),before=structuredClone(g.snapshot);await controlCommand('pure-lyrics',{},g.host);await controlCommand('lyrics-earlier',{},g.host);await controlCommand('volume-down',{},g.host);assert.deepEqual(g.snapshot,before);assert(g.calls.some(value=>Array.isArray(value)&&value[0]==='volume'&&value[1]===0));
+});
+test('week statistics uses Monday to today and export cancellation is honest; missing zones never navigate',async()=>{
+ const f=fixture();await controlCommand('week-stats',{},f.host);const range=f.calls[0],now=new Date(),start=new Date(now);start.setDate(start.getDate()-(start.getDay()+6)%7);assert.equal(range.from,new Date(start.getTime()-start.getTimezoneOffset()*60000).toISOString().slice(0,10));
+ f.host.invoke=async()=>false;assert.match((await controlCommand('backup-playlists',{},f.host)).reply,/取消/);await assert.rejects(controlCommand('space-zone',{name:'不存在'},f.host),/没有找到/);
+ const controller=new AbortController();let finish;f.host.invoke=()=>new Promise(resolve=>finish=resolve);const pending=controlCommand('network-tasks',{},f.host,controller.signal);await new Promise(setImmediate);const before=f.calls.length;controller.abort();finish({tasks:[]});await assert.rejects(pending,{name:'AbortError'});assert.equal(f.calls.length,before);
+});
+test('opening task and connection panels does not immediately dismiss the workbench',()=>{
+ const previous=global.window;global.window=new EventTarget();let closed=0;const receive=event=>event.detail.accept();global.window.addEventListener('zenix-assistant-control',receive);global.window.addEventListener('zenix-assistant-navigation-applied',()=>closed++);
+ try{const {requestAssistantUi}=load(path.resolve('src/features/assistant/controlUi.ts'));requestAssistantUi('tasks');requestAssistantUi('connections');assert.equal(closed,0);requestAssistantUi('space');assert.equal(closed,1);}finally{global.window=previous;}
+});
+
+test('foreground collection cannot accidentally cache a different playing playlist',async()=>{
+ const f=fixture();f.snapshot.context={collection:'liked'};f.snapshot.playback.track.playlistId='p';await assert.rejects(controlCommand('cache-playlist',{},f.host),/先打开/);assert.equal(f.calls.length,0);
+});

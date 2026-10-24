@@ -1,10 +1,11 @@
 import React from 'react';
+import {requestAssistantUi} from '../../src/features/assistant/controlUi';
 import { createRoot } from 'react-dom/client';
 import ZenixShell from '../../src/ui/ZenixShell';
 import LatticePlayer from '../../src/ui/LatticePlayer';
 const noop = () => {};
 const root = createRoot(document.getElementById('root')!);
-const fixture = { toggles: 0, plays: [] as string[], renderWall: (count: number) => {
+const fixture = { assistantUi:requestAssistantUi, renderLyrics:()=>root.render(<LatticePlayer track={songs[0]} expandRequest={1} hasPlayback={true} displayTracks={songs} queue={songs} queueIndex={0} personal={{liked:[],favorites:[],history:[],playlists:[]}} playing={false} position={30} duration={120} volume={.5} muted={false} shuffle={false} repeat="all" lyrics={[{time:0,text:'第一句歌词'},{time:20,text:'当前播放歌词'},{time:60,text:'下一句歌词'}]} onPlayTrack={track=>fixture.plays.push(track.id)} onBack={noop} onTogglePlay={()=>fixture.toggles++} onPrevious={noop} onNext={noop} onSeek={noop} onVolumeChange={noop} onOpenQueue={noop} onExpandPlayer={noop} onOpenSettings={noop} onOpenSearch={noop}/>), toggles: 0, plays: [] as string[], renderWall: (count: number) => {
   const wall = Array.from({length:count},(_,i)=>track(String(i)));
   root.render(<LatticePlayer track={wall[0]} hasPlayback={false} displayTracks={wall} queue={[]} queueIndex={-1} personal={{liked:[],favorites:[],history:[],playlists:[]}} playing={false} position={0} duration={120} volume={.5} muted={false} shuffle={false} repeat="all" lyrics={[]} onPlayTrack={noop} onBack={noop} onTogglePlay={noop} onPrevious={noop} onNext={noop} onSeek={noop} onVolumeChange={noop} onOpenQueue={noop} onExpandPlayer={noop} onOpenSettings={noop} onOpenSearch={noop}/>);
 } };

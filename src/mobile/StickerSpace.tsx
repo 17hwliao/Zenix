@@ -30,7 +30,8 @@ function mobileLayout(count: number, selected: number, slots: ReturnType<typeof 
   }
   return layout;
 }
-export default memo(function StickerSpace({ songs:providedSongs, state, label, play, full, actions, focusRequest, seek, longPress, suspended = false }: {
+export default memo(function StickerSpace({ assistantView, songs:providedSongs, state, label, play, full, actions, focusRequest, seek, longPress, suspended = false }: {
+  assistantView?:{zone?:string;revision:number};
   songs: Track[]; state: MobileSnapshot; label: string; play: (song: Track) => void;
   full: () => void; actions: (song: Track) => ReactNode;
   seek: (seconds: number) => void;
@@ -45,6 +46,7 @@ export default memo(function StickerSpace({ songs:providedSongs, state, label, p
   const activeZone=settings.zones.find(value=>value.id===zone);
   const songs=useMemo(()=>activeZone?baseSongs.filter(song=>activeZone.trackIds.includes(song.id)):baseSongs,[baseSongs,activeZone]);
   useEffect(()=>{setRestored(undefined);setZone('');},[label]);
+  useEffect(()=>{if(assistantView)setZone(assistantView.zone||'');},[assistantView]);
   const viewport = useRef<HTMLDivElement>(null), gesture = useRef(new StickerCameraGesture()), gestureOrigin=useRef({left:0,top:0});
   const dragged = useRef(false), x = useMotionValue(0), y = useMotionValue(0), scale=useMotionValue(1), systemReduced = useReducedMotion();
   const reduced=systemReduced||settings.motion==='reduced';

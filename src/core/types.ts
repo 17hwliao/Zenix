@@ -132,7 +132,7 @@ export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: n
 
 export interface DesktopBridge {
   desktop: {invoke<T=unknown>(args:Record<string,unknown>):Promise<T>;onCommand(callback:(request:{action:string;value?:number})=>void):()=>void;};
-  companion?: { invoke(args: Record<string, unknown>): Promise<unknown> };
+  companion?: { invoke(args: Record<string, unknown>): Promise<unknown>; onVoiceStart?(callback:()=>void):()=>void; onVoice?(callback:(value:{transcript:string;confidence?:number})=>void):()=>void };
   updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };
   cache: {
     stats(): Promise<AudioCacheStats>;
@@ -146,6 +146,7 @@ export interface DesktopBridge {
     onVisibleChanged(callback: (visible: boolean) => void): () => void;
   };
   personal: {
+    collectMany(kinds: string[], tracks: Track[]): Promise<PersonalState>;
     batch(args: Record<string, unknown>, requestId?:string): Promise<PersonalState>;
     cancelBatch(requestId:string):Promise<void>;
     load(): Promise<PersonalState>;

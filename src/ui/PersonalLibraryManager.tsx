@@ -1,3 +1,4 @@
+import {useAssistantLibraryContext} from '../features/assistant/libraryContext';
 import PlatformReplacement from './PlatformReplacement';
 import {player} from '../core/player';
 import {replacementMutation} from '../core/desktopReplacement';
@@ -40,6 +41,7 @@ export default function PersonalLibraryManager({ initialSection, personal, track
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const playlist = personal.playlists.find(item => item.id === section);
+  useAssistantLibraryContext({playlistId:playlist?.id,collection:section},20);
   const playList=(song:TrackView,list:TrackView[])=>{const queue=playlist?list.map(track=>({...track,playlistId:playlist.id})):list;onPlayTrack(queue.find(track=>track.id===song.id)||song,queue);};
   const entries = section === 'liked' ? personal.liked.map(track => ({ id: track.id, track }))
     : section === 'favorites' ? personal.favorites.map(track => ({ id: track.id, track }))

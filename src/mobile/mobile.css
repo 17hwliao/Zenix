@@ -171,3 +171,7 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .mobile-toast>span{max-height:35dvh;overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap}
 
 .mobile-share-inbox{position:fixed;z-index:15000;top:12px;left:12px;right:12px;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ffffff40;border-radius:18px;background:#202737f5;color:#edf3ff;box-shadow:0 8px 28px #0006;font-size:12px}.mobile-share-inbox span{flex:1;min-width:0}.mobile-share-inbox button{flex-shrink:0;min-height:40px;padding:8px 12px;border-radius:12px;border:1px solid #ffffff30;background:#ffffff18;color:inherit}
+
+.full-player-tools{display:flex;gap:10px;align-items:center}.full-player-tools button[aria-pressed=true]{color:#c5e9ff;background:#ffffff18;border-radius:12px}.mobile-full-player .full-song{max-height:330px;overflow:hidden;transition:max-height .2s ease,opacity .16s ease,transform .2s ease}.mobile-full-player.is-pure-lyrics .full-song{max-height:0;opacity:0;transform:translateY(48px);pointer-events:none}.mobile-full-player.is-pure-lyrics .full-player-art{display:none}.mobile-full-player.is-pure-lyrics .full-controls{display:none}.mobile-full-player.is-pure-lyrics .mobile-lyrics{padding-block:16vh;min-height:0;margin-top:0}.mobile-full-player.is-pure-lyrics .lyric-controls{flex-shrink:0}
+
+.mobile-full-player.is-pure-lyrics .listening-lyric-controls{flex-shrink:0}

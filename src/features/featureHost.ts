@@ -4,10 +4,16 @@ import type {TransferPayload} from './connections/ConnectionsPanel';
 import {versionPreferences} from './playback/preferences';
 import {readSpace,writeSpace,commitSpace,rules} from './space/state';
 import {recordingFor} from './recording';
+import {libraryActions} from './assistant/libraryIntent';
+import {libraryCommand} from './assistant/libraryCommands';
+import {libraryHost} from './assistant/libraryHost';
+import {controlActions} from './assistant/controlIntent';
 type Invoke=<T>(args:Record<string,unknown>)=>Promise<T>;
 
 export async function pauseHost(mobile:boolean,expected?:{id:string;selection?:number}){if(mobile){const state=await command<MobileSnapshot>('snapshot');if(expected&&(state.playback.track?.id!==expected.id||state.playback.selectionRevision!==expected.selection))return;if(state.playback.playWhenReady??state.playback.playing)await command('toggle');}else{const {player}=await import('../core/player');if(expected&&(player.snapshot.track?.id!==expected.id||player.snapshot.selectionRevision!==expected.selection))return;player.pause();}}
-export async function executeAssistant(mobile:boolean,action:string,args:Record<string,unknown>,invoke:Invoke,openTasks:()=>void){
+export async function executeAssistant(mobile:boolean,action:string,args:Record<string,unknown>,invoke:Invoke,openTasks:()=>void,signal?:AbortSignal){
+  if(controlActions.has(action)){const [{controlCommand},{controlHost}]=await Promise.all([import('./assistant/controlCommands'),import('./assistant/controlHost')]);return controlCommand(action,args,controlHost(mobile),signal);}
+  if(libraryActions.has(action))return libraryCommand(action,args,libraryHost(mobile),signal);
   if(action==='tasks'){openTasks();return;}
   if(action==='search'){const query=String(args.query||'').trim().slice(0,120);if(!query)throw Error('请输入歌曲名称');window.dispatchEvent(new CustomEvent('zenix-assistant-search',{detail:{query}}));return;}
   if(action==='bookmark'){const snapshot=mobile?await command<MobileSnapshot>('snapshot'):null,playback=snapshot?.playback||(await import('../core/player')).player.snapshot;if(!playback.track)throw Error('请先播放一首歌');const personal=snapshot?.personal||await window.yzqxy!.personal.load();return invoke({operation:'personalFeatures',action:'bookmarkAdd',track:recordingFor(playback.track,personal),seconds:playback.position,note:''});}

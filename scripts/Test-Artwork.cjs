@@ -5,8 +5,8 @@ function isolated(file, stubs) {
   vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module, require: id => stubs[id] || requireFrom(id), Error, Buffer, Response, Headers, URL, URLSearchParams, AbortSignal, AbortController, setTimeout, clearTimeout, console });
   return module.exports;
 }
-async function folder(t) {
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'zenix-artwork-')); t.after(() => fsp.rm(root, { recursive: true, force: true }));
+async function folder(t,cleanup=async()=>{}) {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'zenix-artwork-')); t.after(async () => {await cleanup();await fsp.rm(root, { recursive: true, force: true,maxRetries:6,retryDelay:100 });});
   return root;
 }
 for (const native of [false, true]) test(`${native ? 'portable' : 'desktop'} catalogue: new and old Kugou covers never call the broken TLS endpoint or resolve audio`, async () => {
@@ -29,10 +29,10 @@ for (const native of [false, true]) test(`${native ? 'portable' : 'desktop'} cat
   assert.equal(await api.artwork({ source: 'wy', img: 'http://p1.music.126.net/album.jpg' }), 'https://p1.music.126.net/album.jpg');
 });
 async function service(t, fetcher, resolve) {
-  const root = await folder(t), metadataCache = new MetadataCache(root); await metadataCache.probeWritable();
+  let artwork,metadataCache;const root = await folder(t,async()=>{artwork?.close();clearTimeout(metadataCache?.timer);await metadataCache?.pending;});metadataCache = new MetadataCache(root); await metadataCache.probeWritable();
   const { SourceArtwork } = isolated('electron/runtime/source-artwork.cjs', { './source-network.cjs': { fetchAllowed: (url, _patterns, options) => fetcher(url, options), readLimited: async r => Buffer.from(await r.arrayBuffer()) } });
-  const artwork = new SourceArtwork({ folder: path.join(root, 'covers'), metadataCache, resolve: resolve || (async () => ({ url: 'https://images.example.test/cover', patterns: ['images.example.test'], options: {} })) });
-  t.after(() => { artwork.close(); clearTimeout(metadataCache.timer); }); return { artwork, metadataCache, root };
+  artwork = new SourceArtwork({ folder: path.join(root, 'covers'), metadataCache, resolve: resolve || (async () => ({ url: 'https://images.example.test/cover', patterns: ['images.example.test'], options: {} })) });
+  return { artwork, metadataCache, root };
 }
 const image = () => new Response(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), { headers: { 'Content-Type': 'image/jpeg' } });
 test('production artwork failure is not cached; same URL recovers and successful bytes persist independently', async t => {

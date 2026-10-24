@@ -36,15 +36,15 @@ class RoamingController {
   private completed = new Set<string>();
   private session?: { track: Track; seconds: number; clock: number; audible: boolean };
   private previousRepeat = player.snapshot.repeat;
-  private branch?:{track:Track;remaining:number;pending:Track[];cursors:Map<string,string|null>;completed:Set<string>;counted:Set<string>};
+  private branch?:{track:Track;keyword?:string;remaining:number;pending:Track[];cursors:Map<string,string|null>;completed:Set<string>;counted:Set<string>};
   private preferences():RoamPreferences{try{return readSpace().roaming;}catch{return rules.clean().roaming;}}
   async feature(args:Record<string,unknown>){
-    if(args.edit==='return'){this.returnBranch();return {branch:false};}
-    if(args.edit!=='branch'||!args.track)throw Error('未知漫游设置');
+    if(args.edit==='return'){if(!this.branch)throw Error('当前没有临时漫游路线');this.returnBranch();return {branch:false};}
+    if(args.edit!=='branch'||(!args.track&&!args.keyword))throw Error('未知漫游设置');
     if(!this.status.active)throw Error('请先开始音乐漫游，再进入临时探索');
-    const track=args.track as Track;if(!track.artist?.trim())throw Error('当前歌曲没有歌手信息');
+    const keyword=typeof args.keyword==='string'?args.keyword.trim().slice(0,120):'';const track=(args.track||{id:'temporary-keyword',artist:keyword}) as Track;if(!track.artist?.trim())throw Error('当前歌曲没有歌手信息');
     this.returnBranch();this.generation++;this.abort?.abort();this.abort=new AbortController();this.filling=undefined;this.advancing=false;
-    this.branch={track,remaining:Math.max(1,Math.min(5,Math.floor(Number(args.count)||3))),pending:this.pending,cursors:this.cursors,completed:this.completed,counted:new Set(player.snapshot.track?[player.snapshot.track.id]:[])};
+    this.branch={track,keyword,remaining:Math.max(1,Math.min(5,Math.floor(Number(args.count)||3))),pending:this.pending,cursors:this.cursors,completed:this.completed,counted:new Set(player.snapshot.track?[player.snapshot.track.id]:[])};
     this.pending=[];this.cursors=new Map();this.completed=new Set();this.wall();return {branch:true,remaining:this.branch.remaining};
   }
   private returnBranch(){if(!this.branch)return;const branch=this.branch;this.branch=undefined;this.generation++;this.abort?.abort();this.abort=new AbortController();this.filling=undefined;this.advancing=false;this.pending=branch.pending;this.cursors=branch.cursors;this.completed=branch.completed;this.wall();}
@@ -280,7 +280,7 @@ class RoamingController {
     const task = (async () => {
       const prefs=this.preferences();
       if(prefs.scope!=='all'){const refs=prefs.scope==='playlist'?this.personal.playlists.filter(v=>v.id===prefs.playlistId).flatMap(v=>v.tracks):[...this.personal.liked,...this.personal.favorites,...this.personal.playlists.flatMap(v=>v.tracks)];const unseen=await this.ledger.unseen(refs);if(generation!==this.generation)return;this.pending=this.rankCandidates(unseen).slice(0,30);this.wall();return;}
-      const plans = this.branch?[{key:'branch:'+this.branch.track.id,keyword:this.branch.track.artist}]:queries(this.learning, this.personal);
+      const plans = this.branch?[{key:'branch:'+this.branch.track.id,keyword:this.branch.keyword||this.branch.track.artist}]:queries(this.learning, this.personal);
       this.persist();
       const candidates = [...this.pending];
       const searchedPlans = new Set<string>();

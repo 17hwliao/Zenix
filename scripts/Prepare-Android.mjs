@@ -3,6 +3,8 @@ import { portableCatalog } from './Portable-Catalog.mjs';
 const out = new URL('../android/app/src/main/assets/zenix/', import.meta.url);
 mkdirSync(out, { recursive: true });
 cpSync(new URL('../config/distribution.json', import.meta.url), new URL('distribution.json', out));
+mkdirSync(new URL('assistant/',out),{recursive:true});
+for(const name of ['zenix-muse.png','zenix-muse-blink.png','zenix-muse-shy.png','zenix-muse-listening.png'])cpSync(new URL('../assets/assistant/'+name,import.meta.url),new URL('assistant/'+name,out));
 // Share our catalogue implementation; Android supplies its own HTTP/crypto adapters.
 const catalog = portableCatalog();
 writeFileSync(new URL('catalog.js', out), catalog);

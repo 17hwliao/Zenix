@@ -126,6 +126,16 @@ class PersonalStore {
     const previous=this.data,next=require('./runtime/playlist-batch.cjs').batchPlaylists(previous,args);this.data=next;const signature=JSON.stringify(next);
     try{return await this.save();}catch(error){if(this.data===next&&JSON.stringify(this.data)===signature)this.data=previous;throw error;}
   }
+  async collectMany(kinds, values) {
+    if(this.backupBarrier)await this.backupBarrier;
+    this.assertWritable();
+    if(!Array.isArray(kinds)||!kinds.length||kinds.length>2||kinds.some(kind=>!['liked','favorites'].includes(kind)))throw Error('无效收藏类型');
+    if(!Array.isArray(values)||!values.length||values.length>5000)throw Error('请选择 1–5000 首歌曲');
+    const tracks=values.map(cleanTrack);if(tracks.some(track=>!track||!track.id.trim()||!track.title.trim()))throw Error('歌曲信息无效');
+    const next=structuredClone(this.data);
+    for(const kind of new Set(kinds)){const seen=new Set(next[kind].map(track=>track.id));for(const track of tracks)if(!seen.has(track.id)){next[kind].push(track);seen.add(track.id);}}
+    this.data=next;return this.save();
+  }
   async toggle(kind, value) {
     if (this.backupBarrier) await this.backupBarrier;
     this.assertWritable();

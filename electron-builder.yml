@@ -13,6 +13,7 @@ files:
   - config/distribution.json
   - dist/**/*
   - electron/**/*.cjs
+  - electron/runtime/assistant-speech.ps1
   - src/core/backupFormat.cjs
   - src/core/sourceDiagnostics.cjs
   - src/core/searchGroups.cjs
@@ -25,6 +26,7 @@ files:
   - electron/assistant-pet.html
   - assets/zenix-icon.ico
   - assets/zenix-icon.png
+  - assets/assistant/zenix-muse*.png
   - LICENSE
   - THIRD_PARTY_NOTICES.md
   - '!**/*.map'

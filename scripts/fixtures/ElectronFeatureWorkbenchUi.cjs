@@ -3,7 +3,7 @@ app.setPath('userData',process.env.ZENIX_TEST_USER_DATA);app.disableHardwareAcce
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1000,height:850,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}}),page=win.webContents;
- const evaluate=code=>page.executeJavaScript(code,true),wait=async code=>{for(let n=0;n<200;n++){if(await evaluate(code))return;await sleep(30);}throw Error('workbench UI wait '+code);};
+ const evaluate=async code=>{try{return await page.executeJavaScript(code,true);}catch(error){console.error("Failing UI evaluation:",code);console.error(await page.executeJavaScript("JSON.stringify(window.workbenchErrors)"));throw error;}},wait=async code=>{for(let n=0;n<200;n++){if(await evaluate(code))return;await sleep(30);}throw Error('workbench UI wait '+code+' state '+JSON.stringify(await evaluate('({width:innerWidth,height:innerHeight})'))+' bounds '+JSON.stringify(win.getContentBounds()));};
  const tabs=[['私人资料','.zenix-personal-features'],['播放与版本','.playback-features'],['缓存与任务','.zenix-offline-tasks'],['空间与漫游','.space-features-panel'],['设备协作','.zenix-connections'],['音乐助手','.zenix-assistant-panel']];
  const open=async()=>{await evaluate('document.querySelector(".zenix-tools-launch").focus();document.querySelector(".zenix-tools-launch").click()');await wait('!!document.querySelector(".zenix-feature-workbench")');};
  const close=async()=>{await evaluate('document.querySelector("[aria-label=关闭音乐工作台]").click()');await wait('!document.querySelector(".zenix-feature-workbench")');};
@@ -20,12 +20,27 @@ app.whenReady().then(async()=>{
    for(const[label,selector]of tabs){
     await evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(value=>value.textContent===${JSON.stringify(label)});button.scrollIntoView({block:'nearest',inline:'nearest'});button.click();})()`);
     await wait(`!!document.querySelector(${JSON.stringify(selector)})`);await sleep(70);
+    if(label==='音乐助手'&&width===1000){
+     await wait('document.querySelector(".assistant-character .pet-portrait img")?.naturalWidth===1086');
+     await evaluate('document.querySelector(".assistant-stage").scrollIntoView({block:"center"})');
+     const hit=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
+     page.sendInputEvent({type:'mouseDown',...hit,button:'left',clickCount:1});page.sendInputEvent({type:'mouseMove',x:hit.x+100,y:hit.y+30});page.sendInputEvent({type:'mouseUp',x:hit.x+100,y:hit.y+30,button:'left',clickCount:1});
+     await wait('new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".assistant-position")).transform).m41>80');
+     assert.equal(await evaluate('document.activeElement===document.querySelector(".zenix-assistant-panel form input")'),false,'drag cannot become an assistant click');
+     const moved=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
+     page.sendInputEvent({type:'mouseDown',...moved,button:'left',clickCount:1});page.sendInputEvent({type:'mouseUp',...moved,button:'left',clickCount:1});
+     await wait('document.activeElement===document.querySelector(".zenix-assistant-panel form input")');
+    }
     const geometry=await evaluate(`(()=>{const panel=document.querySelector('.zenix-feature-workbench'),body=panel.querySelector('.zenix-feature-content'),close=panel.querySelector('[aria-label="关闭音乐工作台"]'),r=panel.getBoundingClientRect(),b=close.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:body.scrollWidth,width:body.clientWidth,document:document.documentElement.scrollWidth,viewport:innerWidth,close:document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('button')===close};})()`);
     assert(geometry.left>=0&&geometry.right<=width+1&&geometry.top>=0&&geometry.bottom<=850,mode+' dialog stays in viewport '+label+' '+width+' '+JSON.stringify(geometry));
     assert(geometry.scroll<=geometry.width+1,mode+' panel does not horizontally overflow '+label+' '+width+' '+JSON.stringify(geometry));assert(geometry.document<=width+1,'document width '+JSON.stringify(geometry));assert(geometry.close,'close remains hittable '+label);
     for(const[,other]of tabs)if(other!==selector)assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(other)})`),false,'only selected tab mounts');
    }
   }
+  await evaluate('[...document.querySelectorAll(".zenix-feature-workbench>nav button")].find(button=>button.textContent==="音乐助手").click()');await wait('document.querySelectorAll(".assistant-costumes button").length===8');
+  for(let costume=0;costume<8;costume++){await evaluate(`document.querySelectorAll('.assistant-costumes button')[${costume}].click()`);await wait('document.querySelector(".assistant-message")?.textContent.includes("皮肤已载入预览")&&!document.querySelector(".assistant-costumes button").disabled');await evaluate('document.querySelector(".assistant-message button").click()');const config=await evaluate('window.workbenchFixture.calls.filter(call=>call.action==="skinSave").length');assert.equal(config,0,'preview does not silently save skin');}
+  await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="保存当前皮肤").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinSave")');const saved=await evaluate('(()=>{const call=window.workbenchFixture.calls.find(call=>call.action==="skinSave");return {name:call.config.name,frames:call.config.frames.length,animations:Object.keys(call.config.animations),archive:call.base64.length};})()');assert.match(saved.name,/Zenix/);assert.equal(saved.frames,4);assert(saved.animations.includes('greeting'));assert(saved.archive<12*1024*1024);
+  await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="打开按住说话").click()');await wait('!!document.querySelector(".assistant-chat [data-skin]")');assert.match(await evaluate('document.querySelector(".assistant-chat [data-skin]").dataset.skin'),/海蓝女仆/);await evaluate('document.querySelector("[aria-label=关闭语音助手]").click()');await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="恢复默认").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinReset")');
   if(mode==='mobile'){
    const tab=async label=>{await evaluate(`(()=>{[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(value=>value.textContent===${JSON.stringify(label)}).click();})()`);await sleep(100);};
    const click=async label=>evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});if(!button||button.disabled)throw Error('Unavailable fixture button '+${JSON.stringify(label)});button.click();})()`);

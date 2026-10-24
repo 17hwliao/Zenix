@@ -27,6 +27,12 @@ app.whenReady().then(async()=>{
   assert.equal(await evaluate('matchMedia("(prefers-reduced-motion: reduce)").matches'),false,'animation fixture must run with motion enabled');
   await wait('window.fixture&&document.querySelector(".mobile-mini")&&!document.querySelector(".mobile-boot")');
   const initialPlayback=await evaluate('window.fixture.state.playback');
+  await evaluate(`window.dispatchEvent(new CustomEvent('zenix-assistant-control',{detail:{action:'pure-lyrics',args:{},accept(){}}}))`);
+  await wait('!!document.querySelector(".mobile-full-player.is-pure-lyrics")');
+  assert.equal(await evaluate('window.fixture.calls.filter(c=>["play","toggle","next","previous"].includes(c.action)).length'),0);
+  await click('[aria-label="收起"]');await wait('!document.querySelector(".mobile-full-player")');
+
+  await evaluate(`window.dispatchEvent(new CustomEvent('zenix-assistant-navigate',{detail:{page:'home',accept(){}}}))`);await wait('!!document.querySelector(".home-collections")');
   await evaluate('window.fixture.failAction="next"');
   await click('.mobile-mini [aria-label="下一首"]');await wait('!!document.querySelector("[aria-label=关闭提示]")');
   await click('[aria-label="关闭提示"]');await wait('!document.querySelector(".mobile-toast")');
@@ -246,6 +252,7 @@ app.whenReady().then(async()=>{
   assert.ok(coverReads.length>0&&coverReads.every(row=>row.panelTop<=1),'native cover reads wait for entrance completion');
   assert.equal(await evaluate('document.querySelector(".space-viewport").clientHeight'),detailHeight,'opening never resizes/reflows the sticker viewport');
   assert.equal(await evaluate('document.querySelector(".mobile-space").classList.contains("is-suspended")'),true);
+  await click('.mobile-full-player [aria-label="歌词纯净模式"]');await wait('document.querySelector(".mobile-full-player").classList.contains("is-pure-lyrics")');await sleep(250);assert.equal(await evaluate('getComputedStyle(document.querySelector(".mobile-full-player .full-song")).maxHeight'),'0px');assert.equal(await evaluate('getComputedStyle(document.querySelector(".mobile-full-player .full-controls")).display'),'none');assert(await evaluate('document.querySelector(".mobile-lyrics").clientHeight>innerHeight*.65'),'pure mobile dedicates space to lyrics');await click('.mobile-full-player [aria-label="退出歌词纯净模式"]');await wait('!document.querySelector(".mobile-full-player").classList.contains("is-pure-lyrics")');
   const closing=await evaluate(`new Promise((resolve,reject)=>{const start=performance.now(),samples=[];document.querySelector('.mobile-full-player [aria-label="收起"]').click();const frame=()=>{const el=document.querySelector('.mobile-full-player');if(!el)return resolve({ms:performance.now()-start,samples});samples.push({ms:performance.now()-start,top:el.getBoundingClientRect().top,suspended:document.querySelector('.mobile-space').classList.contains('is-suspended')});if(performance.now()-start>1000)return reject(Error('Player exit did not finish'));requestAnimationFrame(frame);};requestAnimationFrame(frame);})`);
   assert.ok(closing.ms<350,'player exit settles promptly: '+closing.ms);
   assert.ok(closing.samples.some(s=>s.top>20&&s.top<700),'exit still slides downwards');

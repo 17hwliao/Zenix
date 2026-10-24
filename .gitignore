@@ -30,3 +30,4 @@ ios/**/xcuserdata/
 *-signing.properties
 *.pem
 android/app/src/main/assets/zenix/distribution.json
+android/app/src/main/assets/zenix/assistant/

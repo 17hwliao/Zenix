@@ -23,14 +23,14 @@ public final class LyricOverlayService extends Service {
     private WindowManager windows;
     private WindowManager.LayoutParams frame, lockFrame;
     private LinearLayout root, controls, rows, footer;
-    private TextView previous, current, next, jump, playButton;
+    private TextView previousTwo, previous, current, next, nextTwo, playButton;
     private SeekBar progress;
     private Icon lock;
-    private boolean locked, expanded, compact, updatingSeek, previewing, destroyed;
-    private int previewIndex, shown = Integer.MIN_VALUE, fontSize = 20;
+    private boolean locked, expanded, compact, updatingSeek, destroyed;
+    private int shown = Integer.MIN_VALUE, fontSize = 20;
     private int lyricColor = Color.rgb(197,233,255);
     private String font = "sans-serif-medium";
-    private float dragX, dragY, lyricDragY;
+    private float dragX, dragY;
     private int startX, startY;
     private String trackId = "", message = "等待播放音乐";
     private List<LyricTimeline.Line> timeline = Collections.emptyList();
@@ -98,19 +98,19 @@ public final class LyricOverlayService extends Service {
         });
         controls.addView(button(compact?"☷":"≡","切换歌词布局",()->{compact=!compact;resize();save();}),new LinearLayout.LayoutParams(dp(32),dp(32)));
         controls.addView(button("×","关闭悬浮歌词",this::stopSelf),new LinearLayout.LayoutParams(dp(32),dp(32)));root.addView(controls);
-        rows=column(); previous=text(fontSize-3);current=text(fontSize);next=text(fontSize-3);
-        rows.addView(previous);rows.addView(current);rows.addView(next);root.addView(rows);
-        rows.setOnTouchListener((view,event) -> {
+        rows=column(); previousTwo=text(fontSize-7);previous=text(fontSize-3);current=text(fontSize);next=text(fontSize-3);nextTwo=text(fontSize-7);
+        for(TextView row:Arrays.asList(previousTwo,previous,current,next,nextTwo))rows.addView(row);root.addView(rows);
+        rows.setContentDescription("拖动悬浮歌词窗口，歌词不可点击跳转");
+        rows.setOnTouchListener((view,event)->{
             if(locked)return false;
-            switch(event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN: lyricDragY=event.getRawY();previewIndex=Math.max(0,LyricTimeline.active(timeline,position()));main.removeCallbacks(returnToCurrent);break;
-                case MotionEvent.ACTION_MOVE: if(timeline.isEmpty())break;float distance=event.getRawY()-lyricDragY;if(Math.abs(distance)>dp(25)){previewing=true;previewIndex=Math.max(0,Math.min(timeline.size()-1,previewIndex+(distance<0?1:-1)));lyricDragY=event.getRawY();render();}break;
-                case MotionEvent.ACTION_UP: reveal();main.removeCallbacks(returnToCurrent);main.postDelayed(returnToCurrent,3000);view.performClick();break;
-                case MotionEvent.ACTION_CANCEL: main.postDelayed(returnToCurrent,3000);break;
+            switch(event.getActionMasked()){
+                case MotionEvent.ACTION_DOWN:dragX=event.getRawX();dragY=event.getRawY();startX=frame.x;startY=frame.y;main.removeCallbacks(collapse);break;
+                case MotionEvent.ACTION_MOVE:frame.x=startX+(int)(event.getRawX()-dragX);frame.y=startY+(int)(event.getRawY()-dragY);clamp();updateWindow();break;
+                case MotionEvent.ACTION_UP:save();reveal();view.performClick();break;
+                case MotionEvent.ACTION_CANCEL:reveal();break;
             }return true;
         });
         rows.setOnClickListener(v->reveal());
-        jump=text(12);jump.setTextColor(lyricColor);jump.setOnClickListener(v->{if(previewing&&previewIndex<timeline.size()&&runtime.service!=null)runtime.service.seek(timeline.get(previewIndex).time+runtime.service.lyricOffset());previewing=false;main.removeCallbacks(returnToCurrent);render();reveal();});root.addView(jump);
         footer=column();progress=new SeekBar(this);progress.setMax(1000);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(lyricColor));progress.setThumbTintList(android.content.res.ColorStateList.valueOf(lyricColor));
         progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar bar){updatingSeek=true;main.removeCallbacks(collapse);}public void onProgressChanged(SeekBar bar,int value,boolean user){}public void onStopTrackingTouch(SeekBar bar){if(runtime.service!=null)runtime.service.seek(bar.getProgress()/1000.0*runtime.service.progress().optDouble("duration"));updatingSeek=false;reveal();}});footer.addView(progress,new LinearLayout.LayoutParams(-1,dp(26)));
         LinearLayout playback=new LinearLayout(this);playback.setGravity(Gravity.CENTER);
@@ -124,40 +124,39 @@ public final class LyricOverlayService extends Service {
         // Android 12+ only passes touches through an untrusted overlay below .8 opacity.
         frame.gravity=Gravity.TOP|Gravity.LEFT;frame.alpha=.78f;
         JSONObject settings=runtime.store.object("overlay");frame.x=settings==null?dp(15):dp(settings.optInt("x",15));frame.y=settings==null?dp(130):dp(settings.optInt("y",130));
-        lock=new Icon(this,true);lock.setContentDescription("锁定或解锁悬浮歌词");lock.setOnClickListener(v->{locked=!locked;previewing=false;expanded=!locked;shown=Integer.MIN_VALUE;resize();render();save();reveal();});
+        lock=new Icon(this,true);lock.setContentDescription("锁定或解锁悬浮歌词");lock.setOnClickListener(v->{locked=!locked;expanded=!locked;shown=Integer.MIN_VALUE;resize();render();save();reveal();});
         lockFrame=new WindowManager.LayoutParams(dp(30),dp(30),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT);lockFrame.gravity=Gravity.TOP|Gravity.LEFT;
         windows.addView(root,frame);windows.addView(lock,lockFrame);resize();reveal();
         root.addOnLayoutChangeListener((v,a,b,c,d,e,f,g,h)->{if(c-a!=g-e||d-b!=h-f){clamp();updateWindow();}});
     }
     private void saved(String kind) { if(lastTrack==null)return;JSONObject track=Json.copy(lastTrack);runtime.work.execute(()->{try{runtime.store.personal("toggle",Json.obj("kind",kind,"track",track));runtime.emit();}catch(Exception ignored){}}); }
     private double position(){return runtime.service==null?0:runtime.service.progress().optDouble("position")-runtime.service.lyricOffset();}
-    private final Runnable returnToCurrent=()->{previewing=false;shown=Integer.MIN_VALUE;render();};
     private final Runnable collapse=()->{if(!updatingSeek){expanded=false;resize();}};
     private void reveal(){if(locked)return;expanded=true;resize();main.removeCallbacks(collapse);main.postDelayed(collapse,3500);}
     private void resize(){
         if(root==null)return;
         controls.setVisibility(!locked&&expanded?View.VISIBLE:View.GONE);footer.setVisibility(!locked&&expanded?View.VISIBLE:View.GONE);
         if(frame!=null){frame.width=Math.min(dp(compact?255:330),getResources().getDisplayMetrics().widthPixels-dp(24));frame.flags=WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL|(locked?WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE:0);}
-        previous.setTextSize(fontSize-3);current.setTextSize(fontSize);next.setTextSize(fontSize-3);
+        previousTwo.setTextSize(fontSize*.48f);nextTwo.setTextSize(fontSize*.48f);previousTwo.setTextColor((lyricColor&0xffffff)|0x55_000000);nextTwo.setTextColor((lyricColor&0xffffff)|0x55_000000);previous.setTextSize(fontSize*.72f);current.setTextSize(fontSize);next.setTextSize(fontSize*.72f);
         previous.setTextColor((lyricColor&0xffffff)|0x99_000000);next.setTextColor((lyricColor&0xffffff)|0x99_000000);current.setTextColor(lyricColor);
-        for(TextView row:Arrays.asList(previous,current,next)){row.setTypeface(Typeface.create(font,Typeface.NORMAL));row.setMinHeight(dp(compact?26:34));row.setPadding(dp(3),dp(4),dp(3),dp(4));}
+        for(TextView row:Arrays.asList(previousTwo,previous,current,next,nextTwo)){row.setTypeface(Typeface.create(font,Typeface.NORMAL));row.setMinHeight(dp(compact?26:34));row.setPadding(dp(3),dp(4),dp(3),dp(4));}
         lock.locked=locked;lock.invalidate();clamp();updateWindow();
     }
     private void clamp(){if(frame==null)return;int width=getResources().getDisplayMetrics().widthPixels,height=getResources().getDisplayMetrics().heightPixels;frame.x=Math.max(dp(4),Math.min(width-frame.width-dp(4),frame.x));frame.y=Math.max(dp(42),Math.min(height-Math.max(dp(135),root.getHeight())-dp(35),frame.y));}
     private void updateWindow(){if(frame==null||root.getParent()==null)return;try{windows.updateViewLayout(root,frame);lockFrame.x=frame.x+frame.width/2-dp(15);lockFrame.y=Math.max(dp(8),frame.y-dp(30));windows.updateViewLayout(lock,lockFrame);}catch(IllegalArgumentException ignored){}}
     private void save(){try{JSONObject saved=status();Json.put(saved,"x",Math.round(frame.x/getResources().getDisplayMetrics().density));Json.put(saved,"y",Math.round(frame.y/getResources().getDisplayMetrics().density));saved.remove("enabled");saved.remove("permitted");runtime.store.enqueue(Json.obj("overlay",saved));runtime.emit();}catch(Exception ignored){}}
     private void render(){
-        int index=previewing?previewIndex:LyricTimeline.active(timeline,position());
+        int index=LyricTimeline.active(timeline,position());
         if(index==shown)return;shown=index;
-        if(timeline.isEmpty()){previous.setText("");current.setText(message);next.setText(lastTrack==null?"":lastTrack.optString("title"));}
-        else{previous.setText(index>0?timeline.get(index-1).text:"");current.setText(index>=0?timeline.get(index).text:timeline.get(0).text);next.setText(index+1<timeline.size()?timeline.get(index+1).text:"");for(TextView row:Arrays.asList(previous,current,next)){row.animate().cancel();row.setTranslationY(dp(6));row.setAlpha(.45f);row.animate().translationY(0).alpha(1).setDuration(230).start();}}
-        jump.setVisibility(previewing&&!locked?View.VISIBLE:View.GONE);if(previewing&&previewIndex<timeline.size()){int seconds=(int)timeline.get(previewIndex).time;jump.setText("▶  "+seconds/60+":"+String.format("%02d",seconds%60));}
+        if(timeline.isEmpty()){previousTwo.setText("");previous.setText("");current.setText(message);next.setText(lastTrack==null?"":lastTrack.optString("title"));nextTwo.setText("");}
+        else{TextView[] views={previousTwo,previous,current,next,nextTwo};for(int at=0;at<views.length;at++){int line=index+at-2;views[at].setText(line>=0&&line<timeline.size()?timeline.get(line).text:"");}}
+
     }
     private final Runnable tick=new Runnable(){@Override public void run(){
         if(destroyed)return;
         if(!allowed(LyricOverlayService.this)){stopSelf();return;}
         if(screenActive&&runtime.service!=null){JSONObject player=runtime.service.state();JSONObject track=player.optJSONObject("track");String id=track==null?"":track.optString("id");
-            if(!id.equals(trackId)){trackId=id;lastTrack=track==null?null:Json.copy(track);timeline=Collections.emptyList();previewing=false;shown=Integer.MIN_VALUE;message=id.isEmpty()?"等待播放音乐":"正在获取歌词";long token=++generation;render();
+            if(!id.equals(trackId)){trackId=id;lastTrack=track==null?null:Json.copy(track);timeline=Collections.emptyList();shown=Integer.MIN_VALUE;message=id.isEmpty()?"等待播放音乐":"正在获取歌词";long token=++generation;render();
                 if(track!=null){JSONObject song=Json.copy(track);loader.execute(()->{List<LyricTimeline.Line> value=Collections.emptyList();try{value=LyricTimeline.parse(runtime.sources.lyrics(song));}catch(Exception ignored){}List<LyricTimeline.Line> result=value;main.post(()->{if(!destroyed&&token==generation){timeline=result;message="暂未找到歌词";shown=Integer.MIN_VALUE;render();}});});}}
             render();if(!updatingSeek)progress.setProgress((int)(player.optDouble("position")/Math.max(1,player.optDouble("duration"))*1000));playButton.setText(player.optBoolean("playWhenReady",player.optBoolean("playing"))?"Ⅱ":"▶");
         }main.postDelayed(this,screenActive?350:2000);
