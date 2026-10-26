@@ -1,5 +1,10 @@
 import {useSpaceSettings,commitSpace,rules,type SpaceBookmark} from '../features/space/state';
 import '../features/space/space.css';
+import {useSpacePresentation} from '../features/space/presentation';
+import PresentationControls from '../features/space/PresentationControls';
+import OrbitSongSpace from '../features/space/OrbitSongSpace';
+import SimpleSongList from '../features/space/SimpleSongList';
+import type {Track} from '../core/types';
 import {BrowseLinks} from './CatalogBrowser';
 import LyricControls from './LyricControls';
 import {useLyricDisplay} from '../core/listening';
@@ -68,6 +73,7 @@ export default function LatticePlayer({ assistantView,
   const pendingRestore=useRef<SpaceBookmark|undefined>(undefined);
   const settings=useSpaceSettings(),[zone,setZone]=useState(''),[zoneEditing,setZoneEditing]=useState(false),[restored,setRestored]=useState<TrackView[]>(),[zoom,setZoom]=useState(1);
   const [pureLyrics,setPureLyrics]=useState(false);
+  const presentation=useSpacePresentation();
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const lyricRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -83,6 +89,7 @@ export default function LatticePlayer({ assistantView,
   const [dragging, setDragging] = useState(false);
   const [panning, setPanning] = useState(false);
   const [immersive, setImmersive] = useState(false);
+  const showStickers=presentation.mode==='sticker'||immersive;
   useEffect(()=>{if(!assistantView)return;setPureLyrics(Boolean(assistantView.pure));setImmersive(Boolean(assistantView.pure));setZone(assistantView.zone||'');if(assistantView.pure){setSelectedSlot(Math.max(0,queue.findIndex(song=>song.id===track?.id)));setPanning(false);}},[assistantView]);
   const [seekDraft, setSeekDraft] = useState<number | null>(null);
   const seekDraftRef = useRef<number | null>(null);
@@ -92,6 +99,8 @@ export default function LatticePlayer({ assistantView,
   const activeZone=settings.zones.find(value=>value.id===zone);
   const wallTracks=useMemo(()=>activeZone?baseTracks.filter(song=>activeZone.trackIds.includes(song.id)):baseTracks,[baseTracks,activeZone]);
   const wallTracksRef = useRef(wallTracks);
+  // Display adapters retain original records for every business operation.
+  const presentationTracks=useMemo(()=>wallTracks.map(song=>({...song,audioUrl:song.audioUrl||'',searchAlternatives:undefined})),[wallTracks]);
   wallTracksRef.current = wallTracks;
   const focusedTrackIdRef = useRef<string | null>(null);
   const displayedIdsRef = useRef<string[]>([]);
@@ -120,7 +129,7 @@ export default function LatticePlayer({ assistantView,
     };
   }, [slots]);
   const bounds = layoutBounds(expandedRects);
-  useEffect(()=>{const request=(event:Event)=>{window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:{...camera,scale:zoom},selectedId:wallTracks[selectedSlot]?.id||'',tracks:wallTracks.map(rules.reference)}}}));};const restore=(event:Event)=>{const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseTracks.map(song=>[song.id,song]));const tracks=bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song);pendingRestore.current=bookmark;setRestored(tracks);setZone('');setSelectedSlot(Math.max(0,tracks.findIndex(song=>song.id===bookmark.selectedId)));setZoom(bookmark.camera.scale);setCamera({x:bookmark.camera.x,y:bookmark.camera.y});setPanning(true);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[camera,zoom,wallTracks,selectedSlot,baseTracks]);
+  useEffect(()=>{const request=(event:Event)=>{if(presentation.mode!=='sticker'&&(event as CustomEvent).detail.purpose!=='selection'){window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,error:'请切换到贴纸拼贴后保存空间位置；环绕角度暂不属于空间书签。'}}));return;}window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:presentation.mode==='sticker'?{...camera,scale:zoom}:{x:0,y:0,scale:1},selectedId:wallTracks[selectedSlot]?.id||'',tracks:wallTracks.map(rules.reference)}}}));};const restore=(event:Event)=>{presentation.change({mode:'sticker'});const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseTracks.map(song=>[song.id,song]));const tracks=bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song);pendingRestore.current=bookmark;setRestored(tracks);setZone('');setSelectedSlot(Math.max(0,tracks.findIndex(song=>song.id===bookmark.selectedId)));setZoom(bookmark.camera.scale);setCamera({x:bookmark.camera.x,y:bookmark.camera.y});setPanning(true);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[camera,zoom,wallTracks,selectedSlot,baseTracks,presentation.mode,presentation.change]);
   const wallWidth = bounds.right * cellPitch;
   const wallHeight = bounds.bottom * cellPitch;
   const clampCamera = useCallback((x: number, y: number, target = bounds) => ({
@@ -157,7 +166,7 @@ export default function LatticePlayer({ assistantView,
   useEffect(() => {
     const node = wallRef.current;
     if (!node) return;
-    const observer = new ResizeObserver(([entry]) => setViewport({ width: entry.contentRect.width, height: entry.contentRect.height }));
+    const observer = new ResizeObserver(([entry]) => {if(entry.contentRect.width>0&&entry.contentRect.height>0)setViewport({ width: entry.contentRect.width, height: entry.contentRect.height });});
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
@@ -234,7 +243,7 @@ export default function LatticePlayer({ assistantView,
 
   useEffect(() => {
     const node = wallRef.current;
-    if (!node) return;
+    if (!node || !showStickers) return;
     const onWheel = (event: WheelEvent) => {
       if (immersive) return;if(event.ctrlKey||event.metaKey){event.preventDefault();setZoom(previous=>Math.max(.4,Math.min(2.5,previous*Math.exp(-event.deltaY*.002))));return;}
       event.preventDefault();
@@ -248,10 +257,10 @@ export default function LatticePlayer({ assistantView,
     };
     node.addEventListener('wheel', onWheel, { passive: false });
     return () => { node.removeEventListener('wheel', onWheel); if (wheelTimer.current) clearTimeout(wheelTimer.current); };
-  }, [clampCamera, immersive]);
+  }, [clampCamera, immersive, showStickers]);
 
   const pointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (zoneEditing || immersive || event.button !== 0 || !event.isPrimary || (event.target as Element).closest('.yz-sticker.is-expanded button, .yz-sticker.is-expanded input')) return;
+    if (!showStickers || zoneEditing || immersive || event.button !== 0 || !event.isPrimary || (event.target as Element).closest('.yz-sticker.is-expanded button, .yz-sticker.is-expanded input')) return;
     didDragRef.current = false;
     dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y, dragged: false };
   };
@@ -290,12 +299,42 @@ export default function LatticePlayer({ assistantView,
     if (seconds !== null) onSeek(seconds);
   };
 
+  const originalsById=useMemo(()=>new Map(wallTracks.map(song=>[song.id,song])),[wallTracks]);
+  const originalSong=(song:Track)=>originalsById.get(song.id);
+  const displayPlay=(song:Track)=>{
+    const original=originalSong(song);
+    if(!original)return;
+    const candidate=original.searchAlternatives?.find(item=>item.id===chosenVariants[original.id])
+      ||original.searchAlternatives?.find(item=>sources.some(source=>source.id===item.providerId&&source.enabled&&source.manifest.capabilities.includes('resolvePlayback')))
+      ||original;
+    const choice=chosenVariants[original.id]?{...candidate,preferredPlaybackProviderId:candidate.providerId}:candidate;
+    const current=hasPlayback&&(choice.id===track.id||containsTrack(original,track.id)&&!chosenVariants[original.id]);
+    if(current)onTogglePlay();else onPlayTrack(choice);
+  };
+  const presentationProps={
+    tracks:presentationTracks,selectedId:wallTracks[selectedSlot]?.id,
+    currentId:hasPlayback?wallTracks[activeIndex]?.id:undefined,playing,cardScale:presentation.cardScale,
+    onFocus:(song:Track)=>{const index=wallTracks.findIndex(item=>item.id===song.id);if(index>=0)focusSlot(index);},
+    onPlay:displayPlay,
+    onExpand:()=>{if(!focusedIsCurrent)return;focusSlot(activeIndex);setImmersive(true);setPanning(false);},
+    renderCover:(song:Track)=><CoverArt title={song.title} coverUrl={trackCoverUrl(originalSong(song)||song)}/>,
+    renderActions:(song:Track)=>{
+      const original=originalSong(song);
+      return original?<>
+        <TrackQuickActions track={original} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPlaylist} onCreatePlaylist={onCreatePlaylist} compact/>
+        {original.id===focusedTrack.id&&<TrackVersions track={original} selected={focusedChoice} sources={sources} load={loadSourceDiagnostics} select={candidate=>setChosenVariants(previous=>({...previous,[original.id]:candidate.id}))}/>}
+      </>:null;
+    },
+  };
+
   return <div className={`yz-lattice zenix-motion-${settings.motion}${immersive ? ' is-immersive' : ''}${immersive&&pureLyrics?' is-pure-lyrics':''}`}>
-    {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部贴纸</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} onDragOver={event=>{if(zoneEditing)event.preventDefault();}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/x-zenix-track');if(!baseTracks.some(song=>song.id===id))return;try{commitSpace({...settings,zones:settings.zones.map(zone=>zone.id===item.id?{...zone,trackIds:[...new Set([...zone.trackIds,id])]}:zone)});}catch(error){window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:error instanceof Error?error.message:String(error)}));}}} aria-pressed={zone===item.id} onClick={()=>{setZone(item.id);setSelectedSlot(0);}}>{item.name}</button>)}<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成分区整理':'拖动贴纸归类'}</button>{restored&&<button onClick={()=>{setRestored(undefined);setZone('');setZoom(1);}}>返回原空间</button>}</nav>}
-    {!wallTracks.length&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲。</p>}
-    <div className="yz-sticker-viewport" ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
+    {!immersive&&<div className="yz-space-presentation-shell"><div className="yz-space-presentation-toolbar"><PresentationControls value={presentation} onChange={patch=>{dragRef.current=null;setDragging(false);setZoneEditing(false);presentation.change(patch);}} error={presentation.error} onDismissError={presentation.dismissError}/>
+    {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部歌曲</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} onDragOver={event=>{if(zoneEditing)event.preventDefault();}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/x-zenix-track');if(!baseTracks.some(song=>song.id===id))return;try{commitSpace({...settings,zones:settings.zones.map(zone=>zone.id===item.id?{...zone,trackIds:[...new Set([...zone.trackIds,id])]}:zone)});}catch(error){window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:error instanceof Error?error.message:String(error)}));}}} aria-pressed={zone===item.id} onClick={()=>{setZone(item.id);setSelectedSlot(0);}}>{item.name}</button>)}{presentation.mode==='sticker'&&<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成分区整理':'拖动贴纸归类'}</button>}{restored&&<button onClick={()=>{setRestored(undefined);setZone('');setZoom(1);}}>返回原空间</button>}</nav>}
+    </div>{presentation.mode!=='sticker'&&<div className="yz-space-presentation-stage">{presentation.mode==='orbit'?<OrbitSongSpace {...presentationProps}/>:<SimpleSongList {...presentationProps}/>}</div>}</div>}
+    {!wallTracks.length&&showStickers&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲。</p>}
+    <div className="yz-sticker-viewport" aria-hidden={!showStickers} style={{visibility:showStickers?undefined:'hidden',pointerEvents:showStickers?undefined:'none'}} ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
       <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: immersive ? viewport.width : wallWidth, height: immersive ? viewport.height : wallHeight, transform: immersive ? 'translate3d(0,0,0)' : `translate3d(${camera.x}px,${camera.y}px,0) scale(${zoom})`,transformOrigin:'0 0' }}>
-        {slots.map((tile, slot) => {
+        {showStickers&&slots.map((tile, slot) => {
           const itemIndex = slot;
           const item = wallTracks[itemIndex];
           const rect = expandedRects.get(slot) ?? tile;

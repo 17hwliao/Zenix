@@ -271,6 +271,16 @@ html, body, #root { width: 100%; height: 100%; margin: 0; overflow: clip; }
 .yz-sticker-viewport, .yz-sticker-viewport * { user-select: none !important; -webkit-user-select: none !important; }
 .yz-sticker-viewport img { -webkit-user-drag: none; pointer-events: none; }
 .yz-sticker-viewport input { pointer-events: auto; }
+.yz-space-presentation-shell { position:absolute;inset:96px 20px 106px;z-index:6;display:flex;flex-direction:column;gap:10px;min-height:0;pointer-events:none; }
+.yz-space-presentation-toolbar { display:flex;flex-direction:column;gap:8px;flex:none;min-width:0;pointer-events:auto; }
+.yz-space-presentation-toolbar .space-presentation-controls { align-self:center; }
+.yz-space-presentation-toolbar .zenix-space-zones { position:relative;inset:auto;z-index:auto;flex:none; }
+.yz-space-presentation-stage { position:relative;flex:1;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;pointer-events:auto;-webkit-app-region:no-drag; }
+.yz-space-presentation-stage>.orbit-song-space { height:100%;min-height:620px; }
+.yz-space-presentation-stage .orbit-stage { height:auto;min-height:420px;flex:1; }
+.yz-space-presentation-stage .space-song-cover>.yz-cover { width:100%;height:100%; }
+.yz-space-presentation-stage .orbit-focus-actionbar>button { border:1px solid #ffffff30;border-radius:12px;background:#ffffff0b;color:#f0f2f9; }
+@media(max-width:620px) { .yz-space-presentation-shell { left:10px;right:10px; } .yz-space-presentation-toolbar .space-presentation-controls { align-self:stretch; } }
 .yz-lattice-search-zone { position: absolute; z-index: 84; top: 0; left: 50%; width: min(570px,calc(100vw - 240px)); height: 89px; display: flex; justify-content: center; align-items: flex-start; padding-top: 25px; transform: translateX(-50%); }
 .yz-lattice-search-zone button { min-width: 197px; height: 43px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 0 17px; border: 1px solid #ffffff61; border-radius: 999px; background: linear-gradient(160deg,#ffffff38,#a4b3c923 46%,#090d16b8); box-shadow: inset 0 1px #ffffff70,0 12px 35px #0009; color: #fff; backdrop-filter: blur(26px) saturate(155%); -webkit-backdrop-filter: blur(26px) saturate(155%); opacity: 0; transform: translateY(-17px) scale(.92); pointer-events: none; transition: opacity .2s, transform .37s cubic-bezier(.2,1.35,.4,1); -webkit-app-region: no-drag; }
 .yz-lattice-search-zone button span { font-size: 12px; font-weight: 720; letter-spacing: .06em; }

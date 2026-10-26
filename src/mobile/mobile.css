@@ -34,6 +34,12 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .space-caption>small{font-size:10px}.space-caption>button{width:38px;min-height:38px;padding:8px}.space-caption svg{width:18px;height:18px}
 .space-viewport{position:absolute;inset:48px 0 0;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
 .is-panning .space-viewport{cursor:grabbing}
+.mobile-space-presentation-shell{position:absolute;inset:52px 10px 4px;z-index:5;display:flex;flex-direction:column;gap:8px;min-height:0;pointer-events:none}
+.mobile-space-presentation-toolbar{display:flex;flex-direction:column;gap:8px;flex:none;min-width:0;pointer-events:auto}
+.mobile-space-presentation-toolbar .zenix-space-zones{position:relative;inset:auto;z-index:auto;flex:none;margin:0}
+.mobile-space-presentation-stage{position:relative;flex:1;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;pointer-events:auto}
+.mobile-space-presentation-stage>.orbit-song-space{height:100%;min-height:530px}
+.mobile-space-presentation-stage .orbit-stage{height:auto;min-height:320px;flex:1}
 .space-plane{position:absolute;left:0;top:0;will-change:transform}
 /* Blur a small surface, then composite it at full size (6px × 5 = 30px).
    The visible cover keeps its original resolution; only the blurred wash is reduced. */
