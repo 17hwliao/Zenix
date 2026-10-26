@@ -1,0 +1,39 @@
+{
+  "version": "1.3.0",
+  "build": 58,
+  "sourceCommit": "47c8c5733933cb7655998beecb3b027400c5c3ae",
+  "sourceTag": "v1.3.0-r58",
+  "mergedMainSource": "bc1dbac0dc919e0e044a10ea7837ecf25029917c",
+  "artifacts": {
+    "windows": {
+      "version": "1.3.0",
+      "build": 58,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Setup-1.3.0-r58-x64.exe",
+      "file": "release/v1.3.0-r58/Zenix-Setup-1.3.0-r58-x64.exe",
+      "size": 143500017,
+      "sha256": "348f92524fe411c502df4cc0448b397e2c191a76fe5f6fa1b8919713736fb522"
+    },
+    "android": {
+      "version": "1.3.0",
+      "build": 58,
+      "url": "https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Android-1.3.0-r58.apk",
+      "file": "release/v1.3.0-r58/Zenix-Android-1.3.0-r58.apk",
+      "size": 45806143,
+      "sha256": "029ed63181604aba73d7b100c2be399cf4c356a23a2900dd36633c98a430e89c"
+    }
+  },
+  "originalAndroidCertCompared": true,
+  "actualWindowsUpdaterBytesMatched": true,
+  "targetedTests": {
+    "pass": 36,
+    "fail": 0,
+    "skipped": 0
+  },
+  "githubChecks": {
+    "tag": 40259804707,
+    "main": 40260088183,
+    "conclusion": "success"
+  },
+  "deviceInstallationPerformed": false,
+  "userDataTouched": false
+}

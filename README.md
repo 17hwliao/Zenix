@@ -32,24 +32,26 @@ Zenix brings your music into a personal space. Browse a sticker collage, orbitin
 
 ## Download
 
-### Version 1.3.0 · build 57
+### Version 1.3.0 · build 58
 
 | Platform | Download |
 | :--- | :--- |
-| **Windows x64** | [Installer · r57](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Setup-1.3.0-r57-x64.exe) |
-| **Android** | [APK with the existing release signature · r57](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Android-1.3.0-r57.apk) |
-| **Checksums** | [SHA256SUMS · r57](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/SHA256SUMS-1.3.0-r57.txt) |
+| **Windows x64** | [Installer · r58](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Setup-1.3.0-r58-x64.exe) |
+| **Android** | [APK with the existing release signature · r58](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Android-1.3.0-r58.apk) |
+| **Checksums** | [SHA256SUMS · r58](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/SHA256SUMS-1.3.0-r58.txt) |
+
+Maintenance revision **r58** removes the fixed ten-minute update-download cutoff and adds validated resume support. Active transfers continue while making progress; connection and inactivity protection, cancellation, complete-file SHA-256, and installer identity checks remain. Older clients retain their own limits until they successfully install this revision.
 
 Version 1.3.0 adds **multi-track orbit** and **minimal list** layouts alongside the default sticker collage. Rotate the tracks from the center, browse branches independently, adjust card sizes, and use separate play and expand controls. Both platforms retain the existing song, section, and playback flows, plus the companion's fixed music commands, eight outfits, five-line floating lyrics, and clean lyrics mode from version 1.2.0.
 
-The [release notes](docs/releases/v1.3.0.md) describe public version 1.3.0 and internal build 57 on both platforms. Stable and preview metadata point to this release. Existing application identity, update keys, user-data locations, and retained download entry points are unchanged; reinstalling from scratch or clearing data is not required.
+The [release notes](docs/releases/v1.3.0-r58.md) describe public version 1.3.0 and internal build 58 on both platforms. Stable and preview metadata point to this release. Existing application identity, update keys, user-data locations, and retained download entry points are unchanged; reinstalling from scratch or clearing data is not required.
 
 <details>
 <summary><strong>Recorded review and verification scope</strong></summary>
 
-The existing release record reports a project-wide review of major call paths and shared-state boundaries, focused fixes, 302/302 local regression checks, GitHub regression and Android compilation checks, and package-identity, size, and SHA-256 verification. User-level testing was skipped under the maintainer's existing agreement; this is not a claim of installing the new artifacts on active clients or completing a new physical-device upgrade test.
+Revision r58 passed 36 targeted local checks covering progressive downloads, interruption/resume, cancellation, range validation, the existing update pipeline, release identity, and data protection. GitHub regression and Android compilation checks passed. Both packages were verified against their version, build, update configuration and original release identity. No active client data was changed, and no new physical-device installation or complete system-upgrade test is claimed.
 
-See the [review and fixes](docs/review-space-presentation-2026-10-26.md), [release notes](docs/releases/v1.3.0.md), and [layout design](docs/design/music-space-presentation.md). These are historical release records, not tests rerun for this README translation.
+See the [maintenance notes](docs/releases/v1.3.0-r58.md). The original r57 [review](docs/review-space-presentation-2026-10-26.md) and [layout design](docs/design/music-space-presentation.md) remain as historical records.
 
 </details>
 
