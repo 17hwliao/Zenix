@@ -17,11 +17,19 @@ final class UpdateHttp {
         .dns(UpdateHttp::addresses).connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS)
         .connectionPool(new ConnectionPool(2, 30, TimeUnit.SECONDS)).build();
     private final OkHttpClient client;
-    UpdateHttp() { this(BASE); }
+    private final OkHttpClient downloads;
+    UpdateHttp() { this(BASE, 90000); }
     // Injection is package-private for isolated TLS integration tests, never exposed by the native bridge.
     UpdateHttp(OkHttpClient client) {
+        this(client, client.readTimeoutMillis());
+    }
+    private UpdateHttp(OkHttpClient client, long downloadIdleMs) {
         this.client = client.newBuilder().followRedirects(false).followSslRedirects(false)
             .cookieJar(CookieJar.NO_COOKIES).authenticator(Authenticator.NONE).build();
+        // A large APK may legitimately take longer than ten minutes. A read
+        // timeout protects a stalled transfer; it must not expire active work.
+        this.downloads = this.client.newBuilder().readTimeout(downloadIdleMs, TimeUnit.MILLISECONDS)
+            .callTimeout(0, TimeUnit.MILLISECONDS).build();
     }
     private static List<InetAddress> addresses(String host) throws UnknownHostException {
         Future<InetAddress[]> lookup;
@@ -36,15 +44,25 @@ final class UpdateHttp {
         finally { if (!lookup.isDone()) lookup.cancel(true); }
     }
     Response open(String address, long timeoutMs, BooleanSupplier cancelled, Consumer<Call> register) throws IOException {
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        return open(address, timeoutMs, 0, client, cancelled, register);
+    }
+    Response openDownload(String address, long offset, BooleanSupplier cancelled, Consumer<Call> register) throws IOException {
+        if (offset < 0) throw new IOException("更新续传位置无效");
+        return open(address, 0, offset, downloads, cancelled, register);
+    }
+    private Response open(String address, long timeoutMs, long offset, OkHttpClient transport, BooleanSupplier cancelled, Consumer<Call> register) throws IOException {
+        long deadline = timeoutMs > 0 ? System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs) : 0;
         for (int hop = 0; hop <= 5; hop++) {
             UpdateUrlPolicy.validate(address);
             if (cancelled.getAsBoolean()) throw new IOException("下载已取消");
             long remaining = deadline - System.nanoTime();
-            if (remaining <= 0) throw new IOException("更新连接超时，请重试");
-            Request request = new Request.Builder().url(address).get().header("User-Agent", "Zenix Android Updates")
-                .header("Accept-Encoding", "identity").header("Cache-Control", "no-cache").build();
-            Call call = client.newCall(request); call.timeout().timeout(remaining, TimeUnit.NANOSECONDS); register.accept(call);
+            if (timeoutMs > 0 && remaining <= 0) throw new IOException("更新连接超时，请重试");
+            Request.Builder request = new Request.Builder().url(address).get().header("User-Agent", "Zenix Android Updates")
+                .header("Accept-Encoding", "identity").header("Cache-Control", "no-cache");
+            if (offset > 0) request.header("Range", "bytes=" + offset + "-");
+            Call call = transport.newCall(request.build());
+            if (timeoutMs > 0) call.timeout().timeout(remaining, TimeUnit.NANOSECONDS);
+            register.accept(call);
             if (cancelled.getAsBoolean()) { call.cancel(); throw new IOException("下载已取消"); }
             Response response = call.execute(); int status = response.code();
             if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) return response;

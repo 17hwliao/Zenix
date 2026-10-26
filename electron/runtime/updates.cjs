@@ -65,29 +65,71 @@ class Updates {
     this.downloading = true;
     const item = this.artifact; this.state.status = 'downloading'; this.state.progress = 0; this.state.message = '正在下载更新，音乐继续播放';
     const target = path.join(this.directory, item.sha256 + '.exe'), partial = target + '.part';
-    const controller = new AbortController(); this.controller = controller; const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000); timer.unref();
-    let reader, handle, complete = false;
+    const controller = new AbortController(); this.controller = controller;
+    let timer, stalled = false;
+    const progress = ms => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; controller.abort(); }, ms); timer.unref?.(); };
+    let reader, handle, complete = false, discardPartial = false;
     try {
       await fs.mkdir(this.directory, { recursive: true });
-      if (await this.matches(target, item)) { this.file = target; this.state.status = 'ready'; this.state.progress = 100; this.state.message = '已读取校验通过的更新包，确认后重启安装'; return this.state; }
-      const response = await fetchUpdate(item.url, { signal: controller.signal });
+      if (await this.matches(target, item, controller.signal)) { controller.signal.throwIfAborted(); this.file = target; this.state.status = 'ready'; this.state.progress = 100; this.state.message = '已读取校验通过的更新包，确认后重启安装'; return this.state; }
+      let size = 0;
+      try { const stat = await fs.lstat(partial); if (stat.isFile() && stat.size > 0 && stat.size <= item.size) size = stat.size; else await fs.unlink(partial); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      if (size === item.size) {
+        if (await this.matches(partial, item, controller.signal)) { controller.signal.throwIfAborted(); await fs.rename(partial, target); controller.signal.throwIfAborted(); this.file = target; this.state.status = 'ready'; this.state.progress = 100; this.state.message = '已恢复校验通过的更新包，确认后重启安装'; return this.state; }
+        await fs.unlink(partial); size = 0;
+      }
+      this.state.progress = Math.round(size / item.size * 100);
+      controller.signal.throwIfAborted(); progress(60 * 1000);
+      const response = await fetchUpdate(item.url, { signal: controller.signal, ...(size ? { rangeStart: size } : {}) });
+      if (controller.signal.aborted) { await response.body?.cancel().catch(() => {}); controller.signal.throwIfAborted(); }
+      progress(90 * 1000);
+      const invalid = async message => { discardPartial = true; await response.body?.cancel(); throw new Error(message); };
+      if (response.status === 416) await invalid('服务器拒绝续传位置，请重新下载');
       if (!response.ok) { await response.body?.cancel(); throw new Error(`下载失败（HTTP ${response.status}）`); }
-      if (Number(response.headers.get('content-length')) > item.size) { await response.body?.cancel(); throw new Error('安装包大小与发布记录不一致'); }
-      reader = response.body.getReader(); handle = await fs.open(partial, 'w'); const hash = createHash('sha256'); let size = 0;
-      while (true) { const { done, value } = await reader.read(); if (done) { complete = true; break; } size += value.length; if (size > item.size) throw new Error('安装包超过声明大小'); hash.update(value); await handle.writeFile(value); this.state.progress = Math.round(size / item.size * 100); }
+      if (response.status === 200) { size = 0; }
+      else if (response.status === 206) {
+        const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') || '');
+        if (!size || !range || +range[1] !== size || +range[2] !== item.size - 1 || +range[3] !== item.size) await invalid('安装包续传范围与发布记录不一致');
+        if (response.headers.get('content-encoding') && response.headers.get('content-encoding').toLowerCase() !== 'identity') await invalid('安装包续传内容编码无效');
+      } else await invalid('安装包下载响应无效');
+      const length = response.headers.get('content-length');
+      if (length !== null && (!/^\d+$/.test(length) || Number(length) !== item.size - size)) await invalid('安装包大小与发布记录不一致');
+      if (!response.body) await invalid('安装包响应没有内容');
+      if (controller.signal.aborted) { await response.body?.cancel().catch(() => {}); controller.signal.throwIfAborted(); }
+      reader = response.body.getReader(); handle = await fs.open(partial, size ? 'a' : 'w');
+      while (true) {
+        controller.signal.throwIfAborted();
+        const { done, value } = await reader.read();
+        controller.signal.throwIfAborted(); // A late transport completion cannot revive a canceled task.
+        if (done) { complete = true; break; }
+        if (!value.length) continue;
+        progress(90 * 1000);
+        if (size + value.length > item.size) { discardPartial = true; throw new Error('安装包超过声明大小'); }
+        await handle.writeFile(value);
+        size += value.length; // Advance only after this write has actually completed.
+        controller.signal.throwIfAborted();
+        progress(90 * 1000); this.state.progress = Math.round(size / item.size * 100);
+      }
+      clearTimeout(timer);
       await handle.close(); handle = null;
-      if (size !== item.size || hash.digest('hex') !== item.sha256) throw new Error('安装包校验失败，请重新下载');
-      await fs.rename(partial, target); this.file = target;
-      for (const file of await fs.readdir(this.directory)) if (file !== path.basename(target) && /^(?:[a-f0-9]{64}\.exe)(?:\.part)?$/.test(file)) await fs.unlink(path.join(this.directory, file)).catch(() => {});
+      controller.signal.throwIfAborted();
+      if (size !== item.size) throw new Error('下载连接提前结束，已保留进度，可继续下载');
+      // Verify the actual closed file, including a resumed prefix, rather than
+      // trusting an incremental hash of buffers that may differ from disk bytes.
+      if (!await this.matches(partial, item, controller.signal)) { discardPartial = true; throw new Error('安装包校验失败，请重新下载'); }
+      controller.signal.throwIfAborted();
+      await fs.rename(partial, target); controller.signal.throwIfAborted(); this.file = target;
+      for (const file of await fs.readdir(this.directory)) { controller.signal.throwIfAborted(); if (file !== path.basename(target) && /^(?:[a-f0-9]{64}\.exe)(?:\.part)?$/.test(file)) await fs.unlink(path.join(this.directory, file)).catch(() => {}); }
+      controller.signal.throwIfAborted();
       this.state.status = 'ready'; this.state.message = '更新已就绪，确认后重启安装';
-    } catch (error) { this.state.status = 'error'; this.state.message = controller.signal.aborted ? '下载已取消或超时，可重新尝试' : error.message; }
-    finally { clearTimeout(timer); if (reader) { if (!complete) await reader.cancel().catch(() => {}); reader.releaseLock(); } await handle?.close().catch(() => {}); await fs.unlink(partial).catch(() => {}); this.controller = null; this.downloading = false; }
+    } catch (error) { this.state.status = 'error'; this.state.message = controller.signal.aborted ? stalled ? '下载连接持续无进展，已保留进度，可继续下载' : '下载已取消，已保留进度，可继续下载' : error.message; }
+    finally { clearTimeout(timer); if (reader) { if (!complete) await reader.cancel().catch(() => {}); reader.releaseLock(); } await handle?.close().catch(() => {}); if (discardPartial) await fs.unlink(partial).catch(() => {}); this.controller = null; this.downloading = false; }
     return this.state;
   }
-  async matches(file, item) {
+  async matches(file, item, signal) {
     let handle;
-    try { if ((await fs.stat(file)).size !== item.size) return false; handle = await fs.open(file, 'r'); const hash = createHash('sha256'); for await (const chunk of handle.createReadStream()) hash.update(chunk); return hash.digest('hex') === item.sha256; }
-    catch { return false; } finally { await handle?.close().catch(() => {}); }
+    try { signal?.throwIfAborted(); if ((await fs.stat(file)).size !== item.size) return false; handle = await fs.open(file, 'r'); const hash = createHash('sha256'); for await (const chunk of handle.createReadStream()) { signal?.throwIfAborted(); hash.update(chunk); } signal?.throwIfAborted(); return hash.digest('hex') === item.sha256; }
+    catch (error) { signal?.throwIfAborted(); return false; } finally { await handle?.close().catch(() => {}); }
   }
   async install() {
     if (!this.app.isPackaged) throw new Error('开发模式不能覆盖安装，请使用发行版');

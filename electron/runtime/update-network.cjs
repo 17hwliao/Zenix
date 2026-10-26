@@ -31,11 +31,12 @@ function chromiumTransport(url, options) {
   officialTransport ||= createUpdateTransport(require('electron').session.fromPartition('zenix-official-updates', { cache: false }));
   return officialTransport(url, options);
 }
-async function fetchUpdate(raw, { signal } = {}, transport = chromiumTransport) {
+async function fetchUpdate(raw, { signal, rangeStart } = {}, transport = chromiumTransport) {
+  if (rangeStart !== undefined && (!Number.isSafeInteger(rangeStart) || rangeStart < 1)) throw new Error('更新续传位置无效');
   let url = updateUrl(raw);
   for (let hop = 0; hop <= 5; hop++) {
     signal?.throwIfAborted();
-    const response = await transport(url.href, { method: 'GET', redirect: 'manual', signal, credentials: 'omit', cache: 'no-store', bypassCustomProtocolHandlers: true, headers: { 'User-Agent': 'Zenix Windows Updates', 'Accept-Encoding': 'identity' } });
+    const response = await transport(url.href, { method: 'GET', redirect: 'manual', signal, credentials: 'omit', cache: 'no-store', bypassCustomProtocolHandlers: true, headers: { 'User-Agent': 'Zenix Windows Updates', 'Accept-Encoding': 'identity', ...(rangeStart ? { Range: `bytes=${rangeStart}-` } : {}) } });
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get('location');
     await response.body?.cancel();

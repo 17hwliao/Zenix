@@ -54,7 +54,7 @@ async function updater(t, mutate = value => value, packaged = false, currentBuil
   let corrupt = false, contacts = 0;
   const launches=[];let quits=0;
   const spawn=(file,args,options)=>{const child=new (require('node:events').EventEmitter)();child.unref=()=>{child.unreferenced=true;};launches.push({file,args,options,child});queueMicrotask(()=>child.emit('spawn'));return child;};
-  const official = async url => { contacts++; return new Response(url.includes('feed.json') ? JSON.stringify(envelope) : corrupt ? 'corrupt' : bytes); };
+  const official = async url => { contacts++; return new Response(url.includes('feed.json') ? JSON.stringify(envelope) : corrupt ? Buffer.alloc(bytes.length, 88) : bytes); };
   vm.runInNewContext(fs.readFileSync(source, 'utf8'), { module, exports: module.exports, Buffer, URL, AbortController, AbortSignal, setTimeout, clearTimeout, process: {platform:'win32'},
     require(id) { if (id === '../../package.json') return { zenixBuild: currentBuild }; if (id === '../../config/distribution.json') return { feeds: { stable: 'https://raw.githubusercontent.com/feed.json' }, publicKeySpki: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'), windowsUpdateTrust: 'signed-manifest' };
       if (id === 'node:child_process') return {spawn,execFile:require('node:child_process').execFile};

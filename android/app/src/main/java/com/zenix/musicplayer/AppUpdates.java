@@ -14,6 +14,7 @@ import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BooleanSupplier;
 
 /** Update work has its own serial worker and never blocks the music source queue. */
 final class AppUpdates {
@@ -36,7 +37,11 @@ final class AppUpdates {
     private synchronized void set(String key,Object value){Json.put(state,key,value);}
     private synchronized String status(){return state.optString("status");}
     private synchronized void reset(){state=Json.obj("status","checking","currentVersion",currentVersion,"currentBuild",currentBuild,"progress",0,"message","正在检查更新");}
-    void cancel(){cancelled=true;okhttp3.Call c=connection;if(c!=null)c.cancel();}
+    synchronized void cancel(){cancelled=true;okhttp3.Call c=connection;if(c!=null)c.cancel();}
+    private synchronized void downloadedReady(File file,String message) throws InterruptedIOException {
+        if(cancelled)throw new InterruptedIOException("下载已取消");
+        ready=file;set("status","ready");set("progress",100);set("message",message);
+    }
     private String text(String url,boolean restricted,int limit) throws Exception {
         if(!new URI(url).getScheme().equals("https"))throw new Exception("请使用 HTTPS 地址");
         JSONArray allowed=new JSONArray(HOSTS.toString());if(!restricted)allowed.put(new URI(url).getHost());
@@ -85,36 +90,34 @@ final class AppUpdates {
         // input while it is open. Each signed build/hash has its own immutable name.
         File directory=new File(context.getFilesDir(),"updates");
         String name="zenix-r"+item.getLong("build")+"-"+item.getString("sha256")+".apk";
-        File target=new File(directory,name),partial=new File(directory,name+"."+UUID.randomUUID()+".part");
+        File target=new File(directory,name),partial=new File(directory,name+".part");
         try {
             if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("无法创建更新目录");
-            if(target.isFile()&&target.length()==item.getLong("size")&&hashFile(target).equals(item.getString("sha256"))){validateApk(target,item);ready=target;set("status","ready");set("progress",100);set("message","已读取校验通过的更新包，点击后由系统确认安装");return state();}
-            long expected=item.getLong("size"),total=0,deadline=android.os.SystemClock.elapsedRealtime()+600000;
-            MessageDigest digest=MessageDigest.getInstance("SHA-256");
-            try(okhttp3.Response response=http.open(item.getString("url"),600000,()->cancelled,c->connection=c)){
-                if(response.code()!=200)throw new IOException("更新下载失败（HTTP "+response.code()+"）");
-                okhttp3.ResponseBody body=response.body();if(body==null)throw new IOException("更新安装包为空");
-                if(body.contentLength()>expected)throw new IOException("安装包大小与发布记录不一致");
-                try(InputStream input=body.byteStream();OutputStream output=new FileOutputStream(partial)){
-                    byte[] buffer=new byte[65536];int n;
-                    while((n=input.read(buffer))!=-1){if(cancelled||android.os.SystemClock.elapsedRealtime()>deadline)throw new IOException("下载已取消或超时");total+=n;if(total>expected)throw new IOException("安装包超过声明大小");digest.update(buffer,0,n);output.write(buffer,0,n);set("progress",(int)(total*100/expected));}
-                }
-            }
-            if(total!=expected||!hex(digest.digest()).equals(item.getString("sha256")))throw new IOException("安装包校验失败，请重新下载");
-            validateApk(partial,item);if(target.exists()&&!target.delete())throw new IOException("无法替换旧更新包");if(!partial.renameTo(target))throw new IOException("无法保存更新包");ready=target;
-            set("status","ready");set("message","更新已就绪，点击后由系统确认安装");
+            if(target.isFile()&&target.length()==item.getLong("size")&&hashFile(target,()->cancelled).equals(item.getString("sha256"))){validateApk(target,item,true);downloadedReady(target,"已读取校验通过的更新包，点击后由系统确认安装");return state();}
+            long expected=item.getLong("size");
+            UpdateDownload.fetch(http,item.getString("url"),partial,expected,item.getString("sha256"),()->cancelled,c->connection=c,total->set("progress",(int)(total*100/expected)));
+            if(cancelled)throw new InterruptedIOException("下载已取消");
+            try{validateApk(partial,item,true);}catch(InterruptedIOException cancelledValidation){throw cancelledValidation;}catch(Exception invalid){partial.delete();throw invalid;}
+            if(cancelled)throw new InterruptedIOException("下载已取消");
+            if(target.exists()&&!target.delete())throw new IOException("无法替换旧更新包");if(!partial.renameTo(target))throw new IOException("无法保存更新包");
+            downloadedReady(target,"更新已就绪，点击后由系统确认安装");
         }catch(Exception error){set("status","error");set("message",cancelled?"下载已取消，可重新尝试":Json.message(error));}
-        finally{if(connection!=null)connection.cancel();connection=null;partial.delete();}
+        finally{if(connection!=null)connection.cancel();connection=null;}
         return state();
     }
-    @SuppressWarnings("deprecation") private void validateApk(File file,JSONObject item) throws Exception {
+    private void validateApk(File file,JSONObject item) throws Exception {validateApk(file,item,false);}
+    private void validationActive(boolean allowCancel) throws InterruptedIOException {if(allowCancel&&cancelled)throw new InterruptedIOException("下载已取消");}
+    @SuppressWarnings("deprecation") private void validateApk(File file,JSONObject item,boolean allowCancel) throws Exception {
+        validationActive(allowCancel);
         PackageManager pm=context.getPackageManager();int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;
         PackageInfo installed=pm.getPackageInfo(context.getPackageName(),flags),incoming=pm.getPackageArchiveInfo(file.getAbsolutePath(),flags);
+        validationActive(allowCancel);
         if(incoming==null||!context.getPackageName().equals(incoming.packageName)||version(incoming)!=item.getLong("build")||!item.getString("version").equals(incoming.versionName)||version(incoming)<=currentBuild)throw new Exception("安装包标识或版本不匹配");
         android.content.pm.Signature[] a=Build.VERSION.SDK_INT>=28?installed.signingInfo.getApkContentsSigners():installed.signatures;
         android.content.pm.Signature[] b=Build.VERSION.SDK_INT>=28?incoming.signingInfo.getApkContentsSigners():incoming.signatures;
-        Set<String> own=new HashSet<>(),next=new HashSet<>();for(android.content.pm.Signature s:a)own.add(hex(MessageDigest.getInstance("SHA-256").digest(s.toByteArray())));for(android.content.pm.Signature s:b)next.add(hex(MessageDigest.getInstance("SHA-256").digest(s.toByteArray())));
+        Set<String> own=new HashSet<>(),next=new HashSet<>();for(android.content.pm.Signature s:a){validationActive(allowCancel);own.add(hex(MessageDigest.getInstance("SHA-256").digest(s.toByteArray())));}for(android.content.pm.Signature s:b){validationActive(allowCancel);next.add(hex(MessageDigest.getInstance("SHA-256").digest(s.toByteArray())));}
         if(own.isEmpty()||!own.equals(next))throw new Exception("新版本与当前应用签名不同，不能覆盖安装。请使用同一发行密钥构建");
+        validationActive(allowCancel);
     }
     JSONObject install(Activity activity) throws Exception {
         if(ready==null||!"ready".equals(status()))throw new Exception("安装包尚未就绪");
@@ -127,6 +130,7 @@ final class AppUpdates {
         set("message","请在系统窗口确认安装；取消后可再次安装");return state();
     }
     String sourceBundle(String url) throws Exception {String address=url.isEmpty()?config.optString("managedSourcesUrl"):url;if(address.isEmpty())throw new Exception("尚未配置专用源分享地址，可选择分享包文件或粘贴链接");return text(address,false,4*1024*1024);}
-    private static String hashFile(File file) throws Exception {MessageDigest digest=MessageDigest.getInstance("SHA-256");try(InputStream input=new FileInputStream(file)){byte[] bytes=new byte[65536];int n;while((n=input.read(bytes))!=-1)digest.update(bytes,0,n);}return hex(digest.digest());}
+    private static String hashFile(File file) throws Exception {return hashFile(file,()->false);}
+    private static String hashFile(File file,BooleanSupplier cancelled) throws Exception {MessageDigest digest=MessageDigest.getInstance("SHA-256");try(InputStream input=new FileInputStream(file)){byte[] bytes=new byte[65536];int n;while((n=input.read(bytes))!=-1){if(cancelled.getAsBoolean())throw new InterruptedIOException("下载已取消");digest.update(bytes,0,n);}}if(cancelled.getAsBoolean())throw new InterruptedIOException("下载已取消");return hex(digest.digest());}
     private static String hex(byte[] bytes){StringBuilder out=new StringBuilder();for(byte b:bytes)out.append(String.format(Locale.ROOT,"%02x",b&255));return out.toString();}
 }
