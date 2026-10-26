@@ -5,7 +5,7 @@
 <h1 align="center">Zenix Music Player</h1>
 
 <p align="center">你的音乐，自成宇宙。</p>
-<p align="center">桌面与移动端音乐播放器 · v1.2.0</p>
+<p align="center">桌面与移动端音乐播放器 · v1.3.0</p>
 <p align="center"><a href="./LICENSE">GPL-3.0</a> · Electron / React / TypeScript · 自定义音乐源</p>
 
 <p align="center">
@@ -47,18 +47,18 @@ Zenix 是以歌曲贴纸、个人空间和桌面歌词为主要体验的 Windows
 
 ## 获取与使用
 
-### 最新版本 v1.2.0 · r56
+### 最新版本 v1.3.0 · r57
 
-星音集成固定音乐指令：按住说话或输入文字，进行播放、歌曲资料查询、歌词校正、歌单缓存、空间与漫游、统计定时、已配对设备接力和检查更新。保留六类音乐工作台；新增五句悬浮歌词、歌词纯净模式、原创角色动作与八套换装。角色为 Live2D 风格图像/姿态，不是真正 Cubism 模型，不接通用大模型或常驻语音唤醒。
+音乐空间新增“多轨环绕”和“简约列表”，默认保留贴纸拼贴。中心滚轮／拖动转动全部轨道，分支独立浏览，支持卡片大小和明确的播放／放大入口；两端共用原歌曲、分区与播放链路。保留 v1.2.0 的星音固定音乐指令、角色动作与八套换装、五句悬浮歌词和纯净歌词模式。
 
 | 平台 | 下载 |
 | --- | --- |
-| Android | [原签名 APK · r56](https://github.com/17hwliao/Zenix/releases/download/v1.2.0/Zenix-Android-1.2.0-r56.apk) |
-| Windows x64 | [安装包 · r56](https://github.com/17hwliao/Zenix/releases/download/v1.2.0/Zenix-Setup-1.2.0-r56-x64.exe) |
+| Android | [原签名 APK · r57](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Android-1.3.0-r57.apk) |
+| Windows x64 | [安装包 · r57](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Setup-1.3.0-r57-x64.exe) |
 
-[v1.2.0 功能更新](https://github.com/17hwliao/Zenix/releases/tag/v1.2.0)公开版本 1.2.0，双端内部构建 56。正式与预览签名清单指向本版；旧版重新检查更新即可读取本版信息。保留原发行身份、公钥、资料目录和历史下载入口，无需卸载或清空资料。
+[v1.3.0 功能更新](https://github.com/17hwliao/Zenix/releases/tag/v1.3.0)公开版本 1.3.0，双端内部构建 57。正式与预览签名清单指向本版；旧版重新检查更新即可读取本版信息。保留原发行身份、公钥、资料目录和历史下载入口，无需卸载或清空资料。
 
-全量相关改动 Review、修复后本地回归 294/294 通过，GitHub 回归与 Android 编译通过，双端实际安装包身份和远程大小/SHA256 核验通过。用户层面测试按既有约定跳过，没有在用客户端安装或真机完整升级声明。见[Review 与修复](docs/review-assistant-integration-2026-10-24.md)、[发行说明](docs/releases/v1.2.0.md)、[指令范围](docs/design/assistant-fixed-controls.md)及 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.2.0/SHA256SUMS-1.2.0-r56.txt)。
+全项目主要调用与共享状态边界、变更代码及视觉截图已经审查，问题修复后本地完整回归 302/302 通过，PR 的 GitHub 回归与 Android 编译通过，双端实际包身份和远程大小/SHA256 核验通过。用户层面测试按既有约定跳过，没有在用客户端安装或新工件真机完整升级声明。见[Review 与修复](docs/review-space-presentation-2026-10-26.md)、[发行说明](docs/releases/v1.3.0.md)、[展示设计](docs/design/music-space-presentation.md)及 [SHA256 校验文件](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/SHA256SUMS-1.3.0-r57.txt)。
 
 ### 首版 v1.0.0
 
