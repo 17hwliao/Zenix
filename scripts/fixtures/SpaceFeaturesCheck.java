@@ -11,6 +11,6 @@ public class SpaceFeaturesCheck {
   ZenixRuntime runtime=new ZenixRuntime();SpaceFeatureCommands.invoke(runtime,Json.obj("action","save","value",clean));check(((JSONObject)SpaceFeatureCommands.invoke(runtime,Json.obj("action","read"))).optString("motion").equals("light"),"persisted state");boolean conflict=false;try{SpaceFeatureCommands.invoke(runtime,Json.obj("action","save","value",clean));}catch(Exception expected){conflict=true;}check(conflict,"stale settings cannot overwrite newer revision");System.out.println("SPACE_FEATURES_PASS");
  }
 }
-class PrivateStore {JSONObject value;JSONObject object(String key){return value;}void set(String key,JSONObject next){value=Json.copy(next);}}
+class PrivateStore {JSONObject value;JSONObject object(String key){return value;}<T>T backupLocked(java.util.concurrent.Callable<T> action)throws Exception{return action.call();}void replaceAtomic(JSONObject changes){value=Json.copy(changes.optJSONObject("spaceFeatures"));}}
 class PlaybackService {Object spaceFeature(JSONObject args){return Json.obj("branch",false);}}
 class ZenixRuntime {PrivateStore store=new PrivateStore();PlaybackService service=new PlaybackService();}

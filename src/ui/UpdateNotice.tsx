@@ -51,7 +51,7 @@ export default function UpdateNotice() {
       <footer><button onClick={close}>暂不更新</button>
         {['available', 'error'].includes(state.status) && <button disabled={busy} onClick={() => void action(updateIsIOS() ? 'install' : 'download')}><ArrowDownToLine size={15} />{updateIsIOS() ? '打开发行渠道' : state.status === 'error' ? '重试下载' : '下载更新'}</button>}
         {state.status === 'ready' && <button disabled={busy} onClick={() => void action('install')}>安装并重启</button>}
-        {state.status === 'downloading' && <button disabled={busy} onClick={() => void action('cancel')}>取消下载</button>}
+        {state.status === 'downloading' && <button onClick={() => void action('cancel')}>取消下载</button>}
       </footer>
     </section>
   </dialog></>;

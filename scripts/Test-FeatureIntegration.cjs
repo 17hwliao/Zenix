@@ -54,3 +54,18 @@ test('bookmark opening retains selection ownership across async preparation on b
 test('an activity can discard only the preview it owns without clearing another incoming playlist',async()=>{
  const {Companion}=require('../electron/runtime/companion.cjs'),companion=Object.create(Companion.prototype);companion.pending={token:'other',bundle:{playlists:[]}};companion.importing=false;companion.lan={status:()=>({})};await assert.rejects(companion.invoke({operation:'importDiscard',token:'mine'}),/预览已失效/);assert.equal(companion.pending.token,'other');await companion.invoke({operation:'importDiscard',token:'other'});assert.equal(companion.pending,null);
 });
+
+test('failed preference/playlist sync cannot discard a newer preview from another entry on either host',async()=>{
+ const prefs=require('../src/features/playback/preferences.cjs'),rules=require('../src/features/space/model.cjs');
+ const sync=load('src/features/connections/syncTransfer.ts',name=>name.includes('playback/preferences')?{versionPreferences:prefs}:name.includes('space/state')?{rules}:name.includes('sourceDiagnostics')?require('../src/core/sourceDiagnostics.cjs'):{},{TextEncoder});
+ for(const mobile of [false,true]){
+  const {Companion}=require('../electron/runtime/companion.cjs'),backend=Object.create(Companion.prototype),calls=[];
+  backend.importing=false;backend.lan={status:()=>({})};
+  const personal={liked:[],favorites:[],history:[],playlists:[]};
+  const invoke=async args=>{calls.push(args);if(args.operation==='playlistPreview'){backend.pending={token:'sync-owned',bundle:args.bundle};return{pending:backend.pending};}if(args.operation==='importConfirm'){backend.pending={token:'newer-incoming',bundle:{playlists:[{name:'保留预览',tracks:[]}]}};throw Error('同步预览已经变化');}if(args.operation==='importDiscard')return backend.invoke(args);throw Error('Unexpected operation '+args.operation);};
+  const host=load('src/features/featureHost.ts',name=>name.includes('connections/syncTransfer')?sync:name.includes('mobile/native')?{command:async(action,args)=>action==='snapshot'?{personal}:invoke(args)}:name.includes('playback/preferences')?{versionPreferences:prefs}:name.includes('space/state')?{rules}:{},{TextEncoder,window:{yzqxy:{personal:{load:async()=>personal},companion:{invoke}}},localStorage:{getItem:()=>null}});
+  await assert.rejects(host.receiveTransfer(mobile,{kind:'sync',sections:['playlists'],personal:{playlists:[{name:'同步歌单',tracks:[]}]}}),/未完成/);
+  assert.equal(calls.find(row=>row.operation==='importDiscard').token,'sync-owned');
+  assert.equal(backend.pending.token,'newer-incoming');assert.equal(backend.pending.bundle.playlists[0].name,'保留预览');assert.equal(personal.playlists.length,0);
+ }
+});

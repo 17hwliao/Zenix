@@ -15,6 +15,16 @@ app.whenReady().then(async()=>{
   await open();if(mode==='desktop')await evaluate('window.workbenchFixture.initialisePlayer()');
   await wait('document.querySelector(".zenix-personal-features")?.textContent.includes("片段书签")');
   assert.equal(await evaluate('window.workbenchFixture.calls.some(value=>value.operation==="offlineTasks")'),false,'unselected tasks are not mounted or polled');
+  // External assistant commands must also work while the workbench is already
+  // mounted, including returning to the same tab as the original open request.
+  await evaluate('[...document.querySelectorAll(".zenix-feature-workbench>nav button")].find(button=>button.textContent==="音乐助手").click()');
+  await wait('!!document.querySelector(".zenix-assistant-panel")');
+  for(const [tab,selector]of [['personal','.zenix-personal-features'],['tasks','.zenix-offline-tasks'],['connections','.zenix-connections']]){
+   await evaluate(`window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:${JSON.stringify(tab)}}}))`);
+   await wait(`!!document.querySelector(${JSON.stringify(selector)})`);
+  }
+  await evaluate('[...document.querySelectorAll(".zenix-feature-workbench>nav button")].find(button=>button.textContent==="音乐助手").click()');await wait('!!document.querySelector(".zenix-assistant-panel")');
+  await evaluate('window.dispatchEvent(new CustomEvent("zenix-open-workbench",{detail:{tab:"connections"}}))');await wait('!!document.querySelector(".zenix-connections")');
   for(const width of [1000,390,320]){
    win.setContentSize(width,850);await wait(`Math.abs(innerWidth-${width})<=1`);
    for(const[label,selector]of tabs){
@@ -59,7 +69,7 @@ app.whenReady().then(async()=>{
   await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="打开按住说话").click()');await wait('!!document.querySelector(".assistant-chat [data-skin]")');assert.match(await evaluate('document.querySelector(".assistant-chat [data-skin]").dataset.skin'),/海蓝女仆/);await evaluate('document.querySelector("[aria-label=关闭语音助手]").click()');await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="恢复默认").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinReset")');
   if(mode==='mobile'){
    const tab=async label=>{await evaluate(`(()=>{[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(value=>value.textContent===${JSON.stringify(label)}).click();})()`);await sleep(100);};
-   const click=async label=>evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});if(!button||button.disabled)throw Error('Unavailable fixture button '+${JSON.stringify(label)});button.click();})()`);
+   const click=async label=>{try{await wait(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});return !!button&&!button.disabled;})()`);}catch(error){throw Error(error.message+' controls '+JSON.stringify(await evaluate('({buttons:[...document.querySelectorAll(".zenix-feature-content button")].map(button=>({text:button.textContent,disabled:button.disabled})),selected:document.querySelector(".zenix-feature-workbench>nav [aria-pressed=true]")?.textContent,calls:window.workbenchFixture.calls.slice(-12)})')));}await evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});if(!button||button.disabled)throw Error('Unavailable fixture button '+${JSON.stringify(label)});button.click();})()`);};
    const recording={id:'actual-a',title:'实际录音',artist:'测试歌手',source:'custom',providerId:'actual-source',remoteId:'actual-a',duration:90,path:'',audioUrl:''};
    await tab('私人资料');await evaluate(`window.workbenchFixture.publishTrack(${JSON.stringify(recording)})`);await sleep(50);await click('标记当前片段');await wait('window.workbenchFixture.calls.some(value=>value.action==="bookmarkAdd")');assert.equal(await evaluate('window.workbenchFixture.calls.find(value=>value.action==="bookmarkAdd").track.remoteId'),'actual-a','bookmark stores the played recording rather than playlist alias');
    await evaluate('window.workbenchFixture.setDeferredLyrics(true)');await click('收录当前歌词');await wait('window.workbenchFixture.calls.some(value=>value.native==="lyrics")');await evaluate(`window.workbenchFixture.publishTrack(${JSON.stringify({...recording,id:'actual-b',remoteId:'actual-b'})})`);await sleep(30);await evaluate('window.workbenchFixture.finishLyrics()');await wait('window.workbenchFixture.calls.some(value=>value.action==="lyricsSave")');assert.equal(await evaluate('window.workbenchFixture.calls.find(value=>value.action==="lyricsSave").track.remoteId'),'actual-a','a delayed lyrics response remains bound to its original recording');

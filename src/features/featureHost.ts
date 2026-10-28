@@ -58,7 +58,7 @@ async function mergeSync(mobile:boolean,payload:TransferPayload){
     saveSpace:async next=>{if(mobile){const saved=rules.clean(await command('features',{operation:'spaceFeatures',action:'save',value:next}));if(localStorage.getItem('zenix.space.features.v1')!==spaceRaw)return '漫游偏好已保存，界面缓存已有新修改，未覆盖';try{writeSpace(saved);}catch{return '漫游偏好已保存，界面缓存写入失败，原缓存保留';}}else commitSpace(next);},
     preview:async lists=>{const value=await invoke<{pending?:{token?:string}}>({operation:'playlistPreview',bundle:{format:'zenix-playlist',schemaVersion:1,playlists:lists}});if(!value.pending?.token)throw Error('接收端没有建立歌单导入预览，尚未写入资料');return value.pending.token;},
     confirm:async token=>{await invoke({operation:'importConfirm',token});},
-    discard:async()=>{await invoke({operation:'importDiscard'});},
+    discard:async token=>{await invoke({operation:'importDiscard',token});},
     addCollection:async(kind,track)=>invoke<PersonalState>({operation:'personalFeatures',action:'collectionAdd',kind,track}),
   });
 }

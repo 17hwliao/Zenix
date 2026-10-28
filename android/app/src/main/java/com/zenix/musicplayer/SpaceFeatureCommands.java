@@ -8,7 +8,8 @@ final class SpaceFeatureCommands {
     static Object invoke(ZenixRuntime runtime,JSONObject args)throws Exception{
         switch(args.optString("action")){
             case "read":return clean(runtime.store.object("spaceFeatures"));
-            case "save":{synchronized(runtime.store){JSONObject next=clean(args.getJSONObject("value")),current=clean(runtime.store.object("spaceFeatures"));if(next.optLong("revision")!=current.optLong("revision"))throw new Exception("空间设置已有新修改，请重新打开工作台后再试");Json.put(next,"revision",current.optLong("revision")+1);runtime.store.set("spaceFeatures",next);return next;}}
+            // Use the store's disk -> state lock order, including the revision check.
+            case "save":return runtime.store.backupLocked(()->{JSONObject next=clean(args.getJSONObject("value")),current=clean(runtime.store.object("spaceFeatures"));if(next.optLong("revision")!=current.optLong("revision"))throw new Exception("空间设置已有新修改，请重新打开工作台后再试");Json.put(next,"revision",current.optLong("revision")+1);runtime.store.replaceAtomic(Json.obj("spaceFeatures",next));return next;});
             case "roaming":if(runtime.service==null)throw new Exception("播放器正在启动");return runtime.service.spaceFeature(args);
             default:throw new Exception("未知音乐空间操作");
         }

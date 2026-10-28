@@ -1,0 +1,17 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
+const {execFile}=require('node:child_process'),{promisify}=require('node:util');
+test('Android settings writes share disk/state lock order, reject stale snapshots and preserve data on failed commit',async t=>{
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'zenix-store-concurrency-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
+ const home=process.env.JAVA_HOME||(process.platform==='win32'?'C:/Program Files/Android/Android Studio/jbr':null),bin=name=>home?path.join(home,'bin',name+(process.platform==='win32'?'.exe':'')):name;
+ const cache=path.join(process.env.GRADLE_USER_HOME||path.join(os.homedir(),'.gradle'),'caches/modules-2/files-2.1/org.json/json/20250517');let jar;
+ for(const child of await fs.readdir(cache).catch(error=>{if(error.code==='ENOENT')return [];throw error;})){const candidate=path.join(cache,child,'json-20250517.jar');try{await fs.access(candidate);jar=candidate;break;}catch(error){if(error.code!=='ENOENT')throw error;}}
+ if(!jar){jar=path.join(folder,'json-20250517.jar');const response=await fetch('https://repo.maven.apache.org/maven2/org/json/json/20250517/json-20250517.jar');assert(response.ok,'fixed JVM fixture dependency unavailable');await fs.writeFile(jar,Buffer.from(await response.arrayBuffer()));}
+ const root=path.resolve(__dirname,'../android/app/src/main/java/com/zenix/musicplayer'),service=await fs.readFile(path.join(root,'PlaybackService.java'),'utf8');
+ const start=service.indexOf('        if(operation.equals("preferencesSave"))'),end=service.indexOf('\n        if(operation.equals("replacementInfo"))',start);assert(start>=0&&end>start,'production preference command missing');
+ const fixture=path.join(folder,'StoreConcurrencyCheck.java');await fs.writeFile(fixture,(await fs.readFile(path.join(__dirname,'fixtures/StoreConcurrencyCheck.java'),'utf8')).replace('/* PRODUCTION_PREFERENCES_SAVE */',service.slice(start,end)));
+ const util=path.join(folder,'AtomicFile.java');await fs.writeFile(util,`package android.util;import java.io.*;public final class AtomicFile{public static volatile boolean failNext;private final File file;public AtomicFile(File file){this.file=file;}public File getBaseFile(){return file;}public FileInputStream openRead()throws IOException{return new FileInputStream(file);}public FileOutputStream startWrite()throws IOException{if(failNext){failNext=false;throw new IOException("fixture storage failure");}return new FileOutputStream(file);}public void finishWrite(FileOutputStream output)throws IOException{output.close();}public void failWrite(FileOutputStream output)throws IOException{output.close();}}`);
+ const context=path.join(folder,'Context.java');await fs.writeFile(context,`package android.content;import java.io.File;public final class Context{private final File folder;public Context(File folder){this.folder=folder;}public File getFilesDir(){return folder;}}`);
+ const sources=['Json','PrivateStore','SpaceFeatureCommands','SpaceFeatureFormat','PlaybackPreferences'].map(name=>path.join(root,name+'.java'));
+ await promisify(execFile)(bin('javac'),['-cp',jar,'-d',folder,...sources,fixture,util,context],{timeout:30000,windowsHide:true});
+ const result=await promisify(execFile)(bin('java'),['-cp',folder+path.delimiter+jar,'com.zenix.musicplayer.StoreConcurrencyCheck',path.join(folder,'data')],{timeout:15000,windowsHide:true});assert.match(result.stdout,/STORE_CONCURRENCY_PASS/);
+});

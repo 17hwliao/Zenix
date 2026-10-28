@@ -16,6 +16,10 @@ app.whenReady().then(async () => {
   for (const status of ['downloading', 'ready', 'available']) { await evaluate(`window.updateFixture.set({status:${JSON.stringify(status)},build:21});window.updateFixture.remount()`); await sleep(180); assert.equal(await evaluate('!!document.querySelector("dialog")'), false); }
   await evaluate('window.updateFixture.set({version:"1.2.0",status:"available",notes:"Fixture 1.2 新版本亮点"})'); await wait('!!document.querySelector("dialog[open]")');
   assert.match(await evaluate('document.querySelector("#zenix-update-title").textContent'), /1.2.0/);
+  await evaluate('[...document.querySelectorAll(".zenix-update-dialog button")].find(e=>e.textContent==="下载更新").click()');
+  await wait('[...document.querySelectorAll(".zenix-update-dialog button")].some(e=>e.textContent==="取消下载")');
+  assert.equal(await evaluate('[...document.querySelectorAll(".zenix-update-dialog button")].find(e=>e.textContent==="取消下载").disabled'),false,'an unresolved download must remain cancellable');
+  await evaluate('[...document.querySelectorAll(".zenix-update-dialog button")].find(e=>e.textContent==="取消下载").click()');await wait('window.cancelled===1');await wait('document.querySelector(".zenix-update-dialog [role=status]")?.textContent.includes("下载已取消")');
   await evaluate('document.querySelector("dialog").dispatchEvent(new Event("cancel",{cancelable:true}))'); await wait('!document.querySelector("dialog")');
   await evaluate('window.updateFixture.set({version:"1.3.0",status:"ready",notes:"安装确认验证"})');await wait('!!document.querySelector(".zenix-update-dialog[open]")');
   await evaluate('[...document.querySelectorAll(".zenix-update-dialog button")].find(e=>e.textContent==="安装并重启").click()');await wait('!!document.querySelector(".zenix-glass-dialog[open]")');

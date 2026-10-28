@@ -20,9 +20,10 @@ import './FeatureWorkbench.css';
 
 const emptyPersonal:PersonalState={liked:[],favorites:[],history:[],playlists:[]};
 const emptyPlayback:PlayerState={playing:false,position:0,duration:0,volume:.75,muted:false,shuffle:false,repeat:'all',queue:[],queueIndex:-1};
-export default function FeatureWorkbench({mobile,initialMobile,initialTab='personal',close}:{mobile:boolean;initialMobile?:MobileSnapshot;initialTab?:string;close:()=>void}){
+export default function FeatureWorkbench({mobile,initialMobile,initialTab='personal',requestRevision,close}:{mobile:boolean;initialMobile?:MobileSnapshot;initialTab?:string;requestRevision?:number;close:()=>void}){
   const [tab,setTab]=useState(initialTab),[personal,setPersonal]=useState(initialMobile?.personal||emptyPersonal),[playback,setPlayback]=useState(initialMobile?.playback||emptyPlayback),[sources,setSources]=useState<InstalledSource[]>(initialMobile?.sources||[]),[error,setError]=useState('');
   const [localTracks,setLocalTracks]=useState<Track[]>(initialMobile?.localTracks||[]);
+  useEffect(()=>{setTab(initialTab);},[initialTab,requestRevision]);
   const focus=useDialogFocus(true,close);
   const opening=useRef<AbortController|null>(null);
   useEffect(()=>()=>opening.current?.abort(),[]);
