@@ -36,22 +36,22 @@ Zenix brings your music into a personal space. Browse a sticker collage, orbitin
 
 | Platform | Download |
 | :--- | :--- |
-| **Windows x64** | [Installer · r58](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Setup-1.3.0-r58-x64.exe) |
-| **Android** | [APK with the existing release signature · r58](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Android-1.3.0-r58.apk) |
-| **Checksums** | [SHA256SUMS · r58](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/SHA256SUMS-1.3.0-r58.txt) |
+| **Windows x64** | [Installer · r59](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Setup-1.3.0-r59-x64.exe) |
+| **Android** | [APK with the existing release signature · r59](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/Zenix-Android-1.3.0-r59.apk) |
+| **Checksums** | [SHA256SUMS · r59](https://github.com/17hwliao/Zenix/releases/download/v1.3.0/SHA256SUMS-1.3.0-r59.txt) |
 
-Maintenance revision **r58** removes the fixed ten-minute update-download cutoff and adds validated resume support. Active transfers continue while making progress; connection and inactivity protection, cancellation, complete-file SHA-256, and installer identity checks remain. Older clients retain their own limits until they successfully install this revision.
+Maintenance revision **r59** fixes concurrent Android settings saves, repeated workbench navigation, sync-preview ownership, and cancellation from the update reminder. It retains r58's progress-based update downloads and validated resume support. Older clients retain their own download limits until they successfully install an updated client.
 
 Version 1.3.0 adds **multi-track orbit** and **minimal list** layouts alongside the default sticker collage. Rotate the tracks from the center, browse branches independently, adjust card sizes, and use separate play and expand controls. Both platforms retain the existing song, section, and playback flows, plus the companion's fixed music commands, eight outfits, five-line floating lyrics, and clean lyrics mode from version 1.2.0.
 
-The [release notes](docs/releases/v1.3.0-r58.md) describe public version 1.3.0 and internal build 58 on both platforms. Stable and preview metadata point to this release. Existing application identity, update keys, user-data locations, and retained download entry points are unchanged; reinstalling from scratch or clearing data is not required.
+The [release notes](docs/releases/v1.3.0-r59.md) describe public version 1.3.0 and internal build 59 on both platforms. Stable and preview metadata point to this release. Existing application identity, update keys, user-data locations, and retained download entry points are unchanged; reinstalling from scratch or clearing data is not required.
 
 <details>
 <summary><strong>Recorded review and verification scope</strong></summary>
 
-Revision r58 passed 36 targeted local checks covering progressive downloads, interruption/resume, cancellation, range validation, the existing update pipeline, release identity, and data protection. GitHub regression and Android compilation checks passed. Both packages were verified against their version, build, update configuration and original release identity. No active client data was changed, and no new physical-device installation or complete system-upgrade test is claimed.
+Revision r59 passed 316 local regression checks, including the settings concurrency, sync ownership, update cancellation, existing update pipeline, installer compatibility and data-protection cases. Both packages were verified against their version, build, update configuration and original release identity. No active client data was changed, and no new physical-device installation or complete system-upgrade test is claimed.
 
-See the [maintenance notes](docs/releases/v1.3.0-r58.md). The original r57 [review](docs/review-space-presentation-2026-10-26.md) and [layout design](docs/design/music-space-presentation.md) remain as historical records.
+See the [maintenance notes](docs/releases/v1.3.0-r59.md) and [full review](docs/review-full-2026-10-27.md). The original r57 [review](docs/review-space-presentation-2026-10-26.md) and [layout design](docs/design/music-space-presentation.md) remain as historical records.
 
 </details>
 
