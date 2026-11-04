@@ -18,8 +18,6 @@ import { StickerCameraGesture } from './stickerCamera';
 import {useSpaceSettings,writeSpace,rules,type SpaceBookmark} from '../features/space/state';
 import '../features/space/space.css';
 import {useSpacePresentation} from '../features/space/presentation';
-import PresentationControls from '../features/space/PresentationControls';
-import OrbitSongSpace from '../features/space/OrbitSongSpace';
 import SimpleSongList from '../features/space/SimpleSongList';
 
 /** Uses the desktop mosaic algorithm, finite posters and a touch camera. */
@@ -44,7 +42,7 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
   suspended?: boolean;
 }) {
   const zoneDrag=useRef<{id:string;pointer:number}|undefined>(undefined);
-  const presentation=useSpacePresentation();
+  const presentation=useSpacePresentation(false);
   const showStickers=presentation.mode==='sticker';
   const settings=useSpaceSettings(),[zone,setZone]=useState(''),[zoneEditing,setZoneEditing]=useState(false),[restored,setRestored]=useState<Track[]>(),[restoreVersion,setRestoreVersion]=useState(0);
   const pendingRestore=useRef<SpaceBookmark|undefined>(undefined);
@@ -140,7 +138,7 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
     previousLayout.current = { ids, focusRequest, width: size.width, height: size.height };
   }, [signature, focusRequest, size.width, size.height, suspended,restoreVersion]);
   useEffect(() => () => stop(), []);
-  useEffect(()=>{const request=(event:Event)=>{if(suspended)return;if(presentation.mode!=='sticker'&&(event as CustomEvent).detail.purpose!=='selection'){window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,error:'请切换到贴纸拼贴后保存空间位置；环绕角度暂不属于空间书签。'}}));return;}window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:showStickers?cameraValue():{x:0,y:0,scale:1},selectedId:songs[selected]?.id||'',tracks:songs.map(rules.reference)}}}));};const restore=(event:Event)=>{if(suspended)return;presentationFocus.current=undefined;presentation.change({mode:'sticker'});const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseSongs.map(song=>[song.id,song]));setRestored(bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song));setZone('');pendingRestore.current=bookmark;setRestoreVersion(v=>v+1);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[songs,selected,baseSongs,suspended,presentation.mode,presentation.change]);
+  useEffect(()=>{const request=(event:Event)=>{if(suspended)return;if(presentation.mode!=='sticker'&&(event as CustomEvent).detail.purpose!=='selection'){window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,error:'请切换到贴纸拼贴后保存空间位置。'}}));return;}window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:showStickers?cameraValue():{x:0,y:0,scale:1},selectedId:songs[selected]?.id||'',tracks:songs.map(rules.reference)}}}));};const restore=(event:Event)=>{if(suspended)return;presentationFocus.current=undefined;presentation.change({mode:'sticker'});const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseSongs.map(song=>[song.id,song]));setRestored(bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song));setZone('');pendingRestore.current=bookmark;setRestoreVersion(v=>v+1);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[songs,selected,baseSongs,suspended,presentation.mode,presentation.change]);
   const displayedChoice=(song:Track)=>{
     const candidate=song.searchAlternatives?.find(item=>item.id===chosenVariants[song.id])
       ||song.searchAlternatives?.find(item=>state.sources.some(source=>source.id===item.providerId&&source.enabled&&source.manifest.capabilities.includes('resolvePlayback')))
@@ -154,7 +152,7 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
   };
   const presentationProps={
     tracks:songs,selectedId:songs[selected]?.id,currentId:songs.find(song=>containsTrack(song,player.track?.id))?.id,
-    playing:player.playWhenReady??player.playing,compact:true,cardScale:presentation.cardScale,
+    playing:player.playWhenReady??player.playing,compact:true,cardScale:presentation.cardScale,motionLevel:settings.motion,
     onFocus:(song:Track)=>{const index=songs.findIndex(item=>item.id===song.id);if(index>=0){if(showStickers)focus(index);else{if(songs[selected]?.id!==song.id)presentationFocus.current=song.id;setSelected(index);}}},
     onPlay:playDisplayed,onExpand:full,renderCover:(song:Track)=><Art track={song}/>,
     renderActions:(song:Track)=><>
@@ -163,10 +161,10 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
     </>,
   };
   return <section className={`mobile-space ${moving ? 'is-panning' : ''} ${suspended ? 'is-suspended' : ''}`} aria-hidden={suspended} onPointerDownCapture={showCaption} onPointerUpCapture={hideCaptionLater} onPointerCancelCapture={hideCaptionLater}>
-    <div className={`space-caption glass ${captionVisible ? "is-visible" : "is-hidden"}`} aria-hidden={!captionVisible}><span>{player.track ? `${player.playing ? "正在播放" : "已暂停"} · ${player.track.title}` : label}</span><small>{songs.length} 首 · {showStickers?'双指缩放':presentation.mode==='orbit'?'触摸转动':'清晰列表'}</small><button tabIndex={captionVisible ? 0 : -1} aria-label="聚焦当前歌曲" onClick={() => { const index = songs.findIndex(song => song.id === player.track?.id); if(showStickers)focus(index >= 0 ? index : selected);else if(index>=0){if(index!==selected)presentationFocus.current=songs[index].id;setSelected(index);} }}><Crosshair /></button></div>
-    <div className="mobile-space-presentation-shell"><div className="mobile-space-presentation-toolbar"><PresentationControls value={presentation} onChange={presentation.change} error={presentation.error} onDismissError={presentation.dismissError}/>
+    <div className={`space-caption glass ${captionVisible ? "is-visible" : "is-hidden"}`} aria-hidden={!captionVisible}><span>{player.track ? `${player.playing ? "正在播放" : "已暂停"} · ${player.track.title}` : label}</span><button tabIndex={captionVisible ? 0 : -1} aria-label="聚焦当前歌曲" onClick={() => { const index = songs.findIndex(song => song.id === player.track?.id); if(showStickers)focus(index >= 0 ? index : selected);else if(index>=0){if(index!==selected)presentationFocus.current=songs[index].id;setSelected(index);} }}><Crosshair /></button></div>
+    <div className="mobile-space-presentation-shell"><div className="mobile-space-presentation-toolbar">{presentation.error&&<div className="space-presentation-error" role="alert"><span>{presentation.error}</span><button aria-label="关闭展示偏好错误" onClick={presentation.dismissError}>×</button></div>}
     {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部歌曲</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} aria-pressed={zone===item.id} onClick={()=>setZone(item.id)}>{item.name}</button>)}{showStickers&&<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成整理':'拖动贴纸归类'}</button>}{restored&&<button onClick={()=>{setRestored(undefined);setZone('');}}>返回原空间</button>}</nav>}
-    </div>{!showStickers&&!suspended&&<div className="mobile-space-presentation-stage">{presentation.mode==='orbit'?<OrbitSongSpace {...presentationProps}/>:<SimpleSongList {...presentationProps}/>}</div>}</div>
+    </div>{!showStickers&&!suspended&&<div className="mobile-space-presentation-stage"><SimpleSongList {...presentationProps}/></div>}</div>
     {zoneEditing&&showStickers&&<p className="zenix-space-empty">将贴纸拖到上方分区按钮，松开即可归类。</p>}
     {!songs.length&&showStickers&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲，可以从工作台加入聚焦歌曲。</p>}
     <div ref={viewport} className="space-viewport" aria-hidden={!showStickers} style={{visibility:showStickers?undefined:'hidden',pointerEvents:showStickers?undefined:'none'}} onPointerDownCapture={event => {

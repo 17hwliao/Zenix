@@ -19,7 +19,7 @@ export function readPresentation():{value:SpacePresentationSettings;error:string
   }
 }
 /** Local display preference only. Commit storage first; a failed write never changes the displayed selection. */
-export function useSpacePresentation(){
+export function useSpacePresentation(allowOrbit=true){
   const [snapshot,setSnapshot]=useState(readPresentation);
   const current=useRef(snapshot.value);
   const update=useCallback((next:ReturnType<typeof readPresentation>)=>{current.current=next.value;setSnapshot(next);},[]);
@@ -34,6 +34,7 @@ export function useSpacePresentation(){
     return()=>{window.removeEventListener(eventName,sync);window.removeEventListener('storage',sync);};
   },[update]);
   const change=useCallback((patch:Partial<SpacePresentationSettings>)=>{
+    if(!allowOrbit&&patch.mode==='orbit')return;
     try {
       const next=normalizePresentation({...current.current,...patch});
       localStorage.setItem(presentationKey,JSON.stringify(next));
@@ -42,7 +43,8 @@ export function useSpacePresentation(){
     }catch{
       setSnapshot(previous=>({...previous,error:'展示偏好保存失败，已保留上次选择。请检查存储空间后重试。'}));
     }
-  },[update]);
+  },[update,allowOrbit]);
   const dismissError=useCallback(()=>setSnapshot(previous=>({...previous,error:''})),[]);
-  return {...snapshot.value,change,error:snapshot.error,dismissError};
+  const mode=!allowOrbit&&snapshot.value.mode==='orbit'?'sticker':snapshot.value.mode;
+  return {...snapshot.value,mode,change,error:snapshot.error,dismissError};
 }

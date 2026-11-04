@@ -12,6 +12,7 @@ const entries: SettingSearchEntry[] = [
   {title:'导入音乐',category:'播放与声音',description:'添加本地音乐文件夹',tab:'options',target:'[aria-label="导入音乐"]',keywords:'本地 曲库 文件夹'},
   {title:'桌面歌词',category:'播放与声音',description:'显示、锁定和调整桌面悬浮歌词',tab:'options',target:'[aria-label="桌面歌词"]',keywords:'悬浮 字体 颜色 穿透'},
   {title:'界面音效',category:'播放与声音',description:'界面提示音、音量和音色',tab:'options',target:'[aria-label="界面音效"]',keywords:'试听 进入 取消 滑动'},
+  {title:'音乐空间展示',category:'外观',description:'选择贴纸、星轨、简约列表及卡片大小',tab:'appearance',target:'[data-setting="space-presentation"]',keywords:'歌曲 展示 风格 环绕 多轨 星轨 列表 卡片'},
   {title:'背景与外观',category:'外观',description:'选择或更换图片、视频背景',tab:'appearance',target:'.yz-appearance-preview',keywords:'壁纸 动态 背景 默认 主题'},
   {title:'音乐源管理',category:'音乐源',description:'添加、配置、启用或停用音乐源',tab:'sources',target:'.zenix-source-settings',keywords:'源 网络 HTTP HTTPS 权限 顺序'},
   {title:'音源分享包',category:'音乐源',description:'打包全部音乐源，或导入朋友分享的源',tab:'sources',target:'.zenix-bundle-export',keywords:'一键 打包 分享 包 导出 导入'},

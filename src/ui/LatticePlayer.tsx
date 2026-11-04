@@ -1,7 +1,6 @@
 import {useSpaceSettings,commitSpace,rules,type SpaceBookmark} from '../features/space/state';
 import '../features/space/space.css';
 import {useSpacePresentation} from '../features/space/presentation';
-import PresentationControls from '../features/space/PresentationControls';
 import OrbitSongSpace from '../features/space/OrbitSongSpace';
 import SimpleSongList from '../features/space/SimpleSongList';
 import type {Track} from '../core/types';
@@ -90,6 +89,15 @@ export default function LatticePlayer({ assistantView,
   const [panning, setPanning] = useState(false);
   const [immersive, setImmersive] = useState(false);
   const showStickers=presentation.mode==='sticker'||immersive;
+  useEffect(()=>{
+    if(showStickers)return;
+    const drag=dragRef.current;
+    dragRef.current=null;
+    const wall=wallRef.current;
+    if(drag&&wall?.hasPointerCapture(drag.id))wall.releasePointerCapture(drag.id);
+    setDragging(false);
+    setZoneEditing(false);
+  },[showStickers]);
   useEffect(()=>{if(!assistantView)return;setPureLyrics(Boolean(assistantView.pure));setImmersive(Boolean(assistantView.pure));setZone(assistantView.zone||'');if(assistantView.pure){setSelectedSlot(Math.max(0,queue.findIndex(song=>song.id===track?.id)));setPanning(false);}},[assistantView]);
   const [seekDraft, setSeekDraft] = useState<number | null>(null);
   const seekDraftRef = useRef<number | null>(null);
@@ -313,7 +321,7 @@ export default function LatticePlayer({ assistantView,
   };
   const presentationProps={
     tracks:presentationTracks,selectedId:wallTracks[selectedSlot]?.id,
-    currentId:hasPlayback?wallTracks[activeIndex]?.id:undefined,playing,cardScale:presentation.cardScale,
+    currentId:hasPlayback?wallTracks[activeIndex]?.id:undefined,playing,cardScale:presentation.cardScale,motionLevel:settings.motion,
     onFocus:(song:Track)=>{const index=wallTracks.findIndex(item=>item.id===song.id);if(index>=0)focusSlot(index);},
     onPlay:displayPlay,
     onExpand:()=>{if(!focusedIsCurrent)return;focusSlot(activeIndex);setImmersive(true);setPanning(false);},
@@ -328,7 +336,7 @@ export default function LatticePlayer({ assistantView,
   };
 
   return <div className={`yz-lattice zenix-motion-${settings.motion}${immersive ? ' is-immersive' : ''}${immersive&&pureLyrics?' is-pure-lyrics':''}`}>
-    {!immersive&&<div className="yz-space-presentation-shell"><div className="yz-space-presentation-toolbar"><PresentationControls value={presentation} onChange={patch=>{dragRef.current=null;setDragging(false);setZoneEditing(false);presentation.change(patch);}} error={presentation.error} onDismissError={presentation.dismissError}/>
+    {!immersive&&<div className="yz-space-presentation-shell"><div className="yz-space-presentation-toolbar">{presentation.error&&<div className="space-presentation-error" role="alert"><span>{presentation.error}</span><button aria-label="关闭展示偏好错误" onClick={presentation.dismissError}>×</button></div>}
     {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部歌曲</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} onDragOver={event=>{if(zoneEditing)event.preventDefault();}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/x-zenix-track');if(!baseTracks.some(song=>song.id===id))return;try{commitSpace({...settings,zones:settings.zones.map(zone=>zone.id===item.id?{...zone,trackIds:[...new Set([...zone.trackIds,id])]}:zone)});}catch(error){window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:error instanceof Error?error.message:String(error)}));}}} aria-pressed={zone===item.id} onClick={()=>{setZone(item.id);setSelectedSlot(0);}}>{item.name}</button>)}{presentation.mode==='sticker'&&<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成分区整理':'拖动贴纸归类'}</button>}{restored&&<button onClick={()=>{setRestored(undefined);setZone('');setZoom(1);}}>返回原空间</button>}</nav>}
     </div>{presentation.mode!=='sticker'&&<div className="yz-space-presentation-stage">{presentation.mode==='orbit'?<OrbitSongSpace {...presentationProps}/>:<SimpleSongList {...presentationProps}/>}</div>}</div>}
     {!wallTracks.length&&showStickers&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲。</p>}

@@ -12,6 +12,7 @@ import { MusicToolsButton } from './MusicTools';
 import GlassSelect from './GlassSelect';
 import './SettingsModal.css';
 import SettingsSearch, { type SettingSearchEntry, type SettingsTab } from './SettingsSearch';
+import SpaceAppearanceSettings from '../features/space/SpaceAppearanceSettings';
 import FeatureLauncher from '../features/FeatureLauncher';
 
 type SettingsModalProps = {
@@ -72,7 +73,7 @@ export default function SettingsModal({ tracks=[], initialTab = 'options', reduc
         <div className="yz-setting-row"><div><strong>界面音效</strong><small>进入、取消和滑动贴纸各自独立</small></div><button className={`yz-switch ${sounds.enabled ? 'is-on' : ''}`} onClick={() => { updateSounds({ enabled: !sounds.enabled }); if (!sounds.enabled) playUiSound('enter'); }} role="switch" aria-checked={sounds.enabled} aria-label="界面音效"><span /></button></div>
         {sounds.enabled && <div className="zenix-sound-options"><label className="zenix-sound-volume"><span>音效音量</span><input type="range" min={0} max={1} step={.01} value={sounds.volume} onChange={event => updateSounds({ volume: Number(event.target.value) })} aria-label="音效音量" /><small>{Math.round(sounds.volume * 100)}%</small></label>{(['enter', 'cancel', 'slide'] as SoundKind[]).map(kind => <div className="zenix-sound-choice" key={kind}><span>{kind === 'enter' ? '进入 / 播放' : kind === 'cancel' ? '取消 / 返回' : '滑动贴纸'}</span><GlassSelect label={`${kind}音效音色`} value={String(sounds[kind])} options={[1,2,3,4,5].map(n=>({value:String(n),label:`音色 ${n}`}))} onChange={value=>{updateSounds({[kind]:Number(value)});playUiSound(kind);}}/><button onClick={() => playUiSound(kind)} title={`试听${kind === 'enter' ? '进入' : kind === 'cancel' ? '取消' : '滑动'}音效`} aria-label={`试听${kind === 'enter' ? '进入' : kind === 'cancel' ? '取消' : '滑动'}音效`}><Volume2 size={15} /></button></div>)}</div>}
       </div>}
-      {tab === 'appearance' && <div className="yz-settings-body yz-appearance-body">
+      {tab === 'appearance' && <div className="yz-settings-body yz-appearance-body"><SpaceAppearanceSettings/>
         <div className="yz-settings-intro"><h2>你的背景</h2><p>让熟悉的画面陪伴每一次聆听。</p></div>
         <div className="yz-appearance-preview">
           {appearanceBackground?.kind === 'image' && !previewError && <img src={appearanceBackground.url} alt="当前自定义背景" onError={() => setPreviewError(true)} />}
