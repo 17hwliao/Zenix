@@ -17,7 +17,7 @@ const {DesktopControls}=require('./runtime/desktop-controls.cjs');
 let desktopTray,desktopControls;
 let companion, musicWidget;
 let updates;
-let personalFeatures, offlineTasks, assistant;
+let personalFeatures, offlineTasks, assistant, assistantModel;
 
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.quit();
@@ -588,6 +588,12 @@ if (primaryInstance) app.whenReady().then(async () => {
   await companion.backup.load();
   assistant=new (require('./runtime/assistant.cjs').Assistant)({folder:app.getPath('userData'),dialog,getWindow:()=>mainWindow,BrowserWindow,ipcMain,screen,execute:async(action,value)=>action==='voiceStart'?mainWindow?.webContents.send('assistant:voice-start'):action==='voice'?mainWindow?.webContents.send('assistant:utterance',value):action==='show'?broadcast('desktop:command',{action:'assistant'}):broadcast('media:command',action)});
   await assistant.load();
+  assistantModel = new (require('./runtime/assistant-model.cjs').AssistantModel)({folder:app.getPath('userData')});
+  await assistantModel.load();
+  handleApp('assistant-model:invoke', (event, args) => {
+    if(event.sender!==mainWindow?.webContents)throw Error('无权调用远程音乐助手');
+    return assistantModel.invoke(args);
+  });
   handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');if(args?.operation==='assistant')return assistant.invoke(args);if(args?.operation==='personalFeatures')return personalFeatures.invoke(args);if(args?.operation==='offlineTasks')return offlineTasks.invoke(args);if(args?.operation==='widgetUpdate'){desktopTray?.update(args);desktopControls?.update(args);assistant?.update(args);}return companion.invoke(args || {}); });
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
   sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;
@@ -606,4 +612,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => { assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
+app.on('before-quit', () => { assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });

@@ -131,6 +131,7 @@ export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number; metadataBytes?: number; metadataLimitMiB?: number; metadataError?: string };
 
 export interface DesktopBridge {
+  assistantModel?: { invoke<T = unknown>(args: Record<string, unknown>): Promise<T> };
   desktop: {invoke<T=unknown>(args:Record<string,unknown>):Promise<T>;onCommand(callback:(request:{action:string;value?:number})=>void):()=>void;};
   companion?: { invoke(args: Record<string, unknown>): Promise<unknown>; onVoiceStart?(callback:()=>void):()=>void; onVoice?(callback:(value:{transcript:string;confidence?:number})=>void):()=>void };
   updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };

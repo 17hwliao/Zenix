@@ -55,12 +55,18 @@ app.whenReady().then(async()=>{
   if(platform==='desktop'){
   await choose('多轨环绕');await wait('!!document.querySelector(".orbit-stage")');await sleep(120);
   assert.equal(await run('!!document.querySelector(".orbit-branches")'),false,'orbit no longer renders the track control bar');
-  const orbitSize=await run(`(()=>{const stage=document.querySelector('.orbit-stage'),parent=stage.closest('.yz-space-presentation-stage'),card=stage.querySelector('.orbit-focus-card');return {stage:stage.clientHeight,parent:parent.clientHeight,card:card.clientHeight}})()`);
-  assert(orbitSize.stage>=orbitSize.parent-64&&orbitSize.card>286,'stage and center card use the additional room');
+  assert.equal(await run('!!document.querySelector(".orbit-focus-actionbar,[data-orbit-actions]")'),false,'orbit has no duplicate song action bar');
+  assert.equal(await run('!!document.querySelector(".yz-lattice-mini .yz-track-actions")'),true,'song actions remain available in the bottom-left player');
+  const orbitSize=await run(`(()=>{const stage=document.querySelector('.orbit-stage'),parent=stage.closest('.yz-space-presentation-stage'),card=stage.querySelector('.orbit-focus-card'),satellite=stage.querySelector('.orbit-card');return {stage:stage.clientHeight,parent:parent.clientHeight,card:card.clientHeight,centerWidth:parseFloat(card.style.width),satelliteWidth:parseFloat(satellite.style.width)}})()`);
+  assert(orbitSize.stage>=orbitSize.parent-12&&orbitSize.card>336,'stage and center card use the additional room');
+  assert.equal(orbitSize.centerWidth,286,'central card keeps the accepted size');
+  assert.equal(orbitSize.satelliteWidth,150,'orbit cards are larger at the existing default scale');
   await run('window.spaceHost.setMotion("reduced")');await wait('document.querySelector(".orbit-song-space").dataset.motion==="reduced"');
   await run('window.spaceHost.setMotion("light")');await wait('["light","reduced"].includes(document.querySelector(".orbit-song-space").dataset.motion)');
   await run('window.spaceHost.setMotion("full")');await wait('["full","reduced"].includes(document.querySelector(".orbit-song-space").dataset.motion)');
   const oldCount=await run('window.spaceHost.calls.played.length');await run('Array.from(document.querySelectorAll(".orbit-card-focus")).find(node=>{const r=node.getBoundingClientRect();return getComputedStyle(node.closest(".orbit-card")).visibility!=="hidden"&&node.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));}).click()');assert.equal(await run('window.spaceHost.calls.played.length'),oldCount,'orbit focus does not play');
+  await wait('!document.querySelector(".orbit-flight")');
+  assert(await run(`(()=>{const cover=document.querySelector('.orbit-focus-cover'),r=cover.getBoundingClientRect();return cover.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2))})()`),'foreground cards keep the middle of the central artwork clear');
   await screenshot(platform+'-orbit');
   }
   for(const width of [320,390,1440]){

@@ -20,15 +20,17 @@ public class ZenixNativePlugin extends Plugin {
     private ZenixRuntime runtime;
     private AppUpdates updates;
     private AssistantSpeech assistantVoice;
+    private AssistantModel assistantModel;
+    private final java.util.concurrent.ExecutorService assistantModelWork=new java.util.concurrent.ThreadPoolExecutor(2,2,0L,java.util.concurrent.TimeUnit.MILLISECONDS,new java.util.concurrent.ArrayBlockingQueue<>(8));
     private final RemoteClient remoteClient=new RemoteClient();
     private final java.util.concurrent.ExecutorService replacementWork=java.util.concurrent.Executors.newSingleThreadExecutor();
     private java.util.concurrent.FutureTask<Void> replacementTask;private String replacementToken="";
     private final java.util.Set<String> cancelledReplacements=new java.util.LinkedHashSet<>();
     private final java.util.concurrent.ExecutorService remoteWork=new java.util.concurrent.ThreadPoolExecutor(1,1,0L,java.util.concurrent.TimeUnit.MILLISECONDS,new java.util.concurrent.ArrayBlockingQueue<>(4));
-    @Override public void load(){runtime=ZenixRuntime.get(getContext());runtime.ensureService();runtime.observe(this,true);}
+    @Override public void load(){runtime=ZenixRuntime.get(getContext());assistantModel=new AssistantModel(getContext());runtime.ensureService();runtime.observe(this,true);}
     @Override protected void handleOnResume(){runtime.observe(this,true);openAssistant(getActivity().getIntent());}
     @Override protected void handleOnPause(){runtime.observe(this,false);if(assistantVoice!=null){assistantVoice.cancel(null);assistantVoice.stopSpeaking();}}
-    @Override protected void handleOnDestroy(){if(assistantVoice!=null)assistantVoice.close();runtime.removeObserver(this);if(replacementTask!=null)replacementTask.cancel(true);runtime.sources.cancelReplacement();replacementWork.shutdownNow();remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
+    @Override protected void handleOnDestroy(){if(assistantModel!=null)assistantModel.close();assistantModelWork.shutdownNow();if(assistantVoice!=null)assistantVoice.close();runtime.removeObserver(this);if(replacementTask!=null)replacementTask.cancel(true);runtime.sources.cancelReplacement();replacementWork.shutdownNow();remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
     void publish(JSONObject state){try{notifyListeners("snapshot",new JSObject(state.toString()));}catch(Exception ignored){}}
     void publishPrepared(JSObject state){notifyListeners("snapshot",state);}
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
@@ -40,6 +42,18 @@ public class ZenixNativePlugin extends Plugin {
     @ActivityCallback private void featureTextSaved(PluginCall call,ActivityResult returned){if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null||data.getData()==null){result(call,Json.obj("saved",false));return;}runtime.work.execute(()->{try{String text=call.getObject("payload",new JSObject()).optString("text");byte[] bytes=text.getBytes(StandardCharsets.UTF_8);if(bytes.length>12*1024*1024)throw new IOException("导出内容超过12 MiB");try(OutputStream output=getContext().getContentResolver().openOutputStream(data.getData(),"wt")){if(output==null)throw new IOException("无法保存文件");output.write(bytes);}result(call,Json.obj("saved",true));}catch(Exception error){call.reject(Json.message(error));}});}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("assistantModel")){
+            if(args.optString("action").equals("cancel")){
+                try{result(call,assistantModel.invoke(args));}catch(Exception error){call.reject(Json.message(error));}
+                return;
+            }
+            try{
+                assistantModelWork.execute(()->{
+                    try{result(call,assistantModel.invoke(args));}catch(Exception error){call.reject(Json.message(error));}
+                });
+            }catch(java.util.concurrent.RejectedExecutionException error){call.reject("音乐助手请求繁忙，请稍后重试");}
+            return;
+        }
         if(action.equals("replacementCancel")){synchronized(this){String token=args.optString("requestId");if(token.matches("[a-fA-F0-9-]{36}")){cancelledReplacements.add(token);while(cancelledReplacements.size()>32)cancelledReplacements.remove(cancelledReplacements.iterator().next());}if(replacementToken.equals(token)&&replacementTask!=null){replacementTask.cancel(true);runtime.sources.cancelReplacement();}}result(call,true);return;}
         if(action.equals("replacementRun")||action.equals("replacementEdit")){
             synchronized(this){

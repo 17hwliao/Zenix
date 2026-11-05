@@ -73,10 +73,15 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [assistantView,setAssistantView]=useState<{pure?:boolean;zone?:string;revision:number}>();
   useAssistantUi((action,args)=>{
     if(action==='tasks'||action==='connections'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:action}}));return true;}
-    if(!['space','pure-lyrics'].includes(action))return false;
-    if(action==='pure-lyrics'&&!currentTrack)throw Error('请先选择歌曲');
+    if(action==='stats'){window.dispatchEvent(new Event('zenix-open-assistant-stats'));return true;}
+    if(action==='search'){setSearchOpen(true);return true;}
+    if(action==='queue'){openQueue();return true;}
+    if(action==='settings'){setSettingsOpen(true);return true;}
+    if(!['space','pure-lyrics','lyrics-mode'].includes(action))return false;
+    if(action!=='space'&&!currentTrack)throw Error('请先选择歌曲');
+    const pure=action==='pure-lyrics'||action==='lyrics-mode'&&args.pure===true;
     setSettingsOpen(false);setQueueOpen(false);setManagerSection(null);setSearchOpen(false);setCatalog(undefined);
-    if(action==='pure-lyrics')setPlayerWallMode('queue');else if(view==='home')setPlayerWallMode('recent');setView('player');setAssistantView({pure:action==='pure-lyrics',zone:String(args.zone||''),revision:Date.now()});return true;
+    if(action!=='space')setPlayerWallMode('queue');else if(view==='home')setPlayerWallMode('recent');setView('player');setAssistantView({pure,zone:String(args.zone||''),revision:Date.now()});return true;
   });
   const [fullscreen, setFullscreen] = useState(false);
   const [legacyReduceMotion, setReduceMotion] = useState(false);

@@ -5,15 +5,15 @@ export type OrbitLane = {angle:number;rx:number;ry:number;stretchX:number};
 export type OrbitLayout = {width:number;height:number;rx:number;ry:number;cardWidth:number;cardHeight:number;focus:OrbitRect;lanes:OrbitLane[]};
 export function orbitLayout(width:number,height:number,scale:number,tilt=0):OrbitLayout {
  const w=Math.max(1,width),h=Math.max(1,height),s=Number.isFinite(scale)?Math.max(.65,Math.min(1.25,scale)):1,compact=w<600;
- const cardWidth=(compact?Math.min(64,w*.18):Math.min(110,w*.085))*s,cardHeight=cardWidth*1.32;
- const fw=compact?Math.min(128,w*.34):Math.min(254,w*.32),fh=Math.min(compact?194:336,h-24);
- const freeX=Math.max(.05,.5-(cardWidth*.57+12)/w),freeY=Math.max(.05,.5-(cardHeight*.57+12)/h);
+ const cardWidth=(compact?Math.min(82,w*.22):Math.min(150,w*.11))*s,cardHeight=cardWidth*1.32;
+ const fw=compact?Math.min(150,w*.39):Math.min(286,w*.36),fh=Math.min(compact?222:378,h-24);
+ const freeX=Math.max(.05,.5-(cardWidth*.64+12)/w),freeY=Math.max(.05,.5-(cardHeight*.64+12)/h);
  // Different minor radii keep the four paths apart away from their crossings.
  // Fit each lane independently, including the projected card's full footprint.
  const lanes=[.37,.30,.22,.14].map((minor,branch)=>{
   const angle=branch*Math.PI/4+tilt,major=.48-branch*.012,c=Math.cos(angle),sn=Math.sin(angle);
-  const extentX=Math.hypot(major*c,minor*sn),extentY=Math.hypot(major*sn,minor*c),fit=Math.min(1,freeX/extentX,freeY/extentY);
-  const stretchX=compact?Math.min(1.55,freeX/(extentX*fit)):1;
+  const extentX=Math.hypot(major*c,minor*sn),extentY=Math.hypot(major*sn,minor*c),fit=Math.min(1,freeX/extentX,freeY/extentY)*(1-branch*.02);
+  const stretchX=compact?Math.min(1.55,freeX/(extentX*fit)):.94;
   return {angle,rx:major*fit,ry:minor*fit,stretchX};
  });
  return {width:w,height:h,rx:lanes[0].rx*w,ry:lanes[0].ry*h,cardWidth,cardHeight,focus:{x:(w-fw)/2,y:(h-fh)/2,width:fw,height:fh},lanes};
@@ -51,12 +51,15 @@ export function orbitDragDelta(layout:OrbitLayout,branch:number,x:number,y:numbe
 export function orbitProjection(layout:OrbitLayout,branch:number,virtualIndex:number,phase:number,count:number){
  const capacity=orbitCapacity(layout),step=Math.PI*2/Math.min(count,capacity),t=(virtualIndex-phase)*step;
  const theta=count<=capacity?((t+Math.PI/2)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI/2:t;
- const angle=theta+branch*.16,p=orbitPoint(layout,branch,angle),depth=Math.sin(angle),scale=.88+depth*.14;
+ const angle=theta+branch*.16,p=orbitPoint(layout,branch,angle),depth=Math.sin(angle),scale=.92+depth*.16;
  // Recycle identities only at the rear midpoint; entering and leaving cards fade
  // behind the centre, instead of swapping a visible cover at a phase boundary.
  const edge=Math.min(theta+Math.PI/2,Math.PI*1.5-theta),fade=count<=capacity?1:Math.max(0,Math.min(1,edge/.24));
  const width=layout.cardWidth*scale,height=layout.cardHeight*scale;
- return {theta,depth,scale,opacity:fade*(.72+.28*(depth+1)/2),zIndex:10+Math.round(depth*(depth>0?16:8)),rotateY:Math.cos(angle)*-12,rotateZ:Math.cos(angle)*Math.sin(layout.lanes[branch].angle)*3,rect:{x:p.x-width/2,y:p.y-height/2,width,height},x:p.x-layout.cardWidth/2,y:p.y-layout.cardHeight/2};
+ // Let foreground cards cross the cover's edges, keeping its middle readable.
+ const overCover=Math.abs(p.x-layout.width/2)<layout.focus.width/2&&p.y>layout.focus.y&&p.y<layout.focus.y+layout.focus.height-90;
+ const zIndex=depth>0&&overCover?10:10+Math.round(depth*(depth>0?16:8));
+ return {theta,depth,scale,opacity:fade*(.75+.25*(depth+1)/2),zIndex,rotateX:depth*-5,rotateY:Math.cos(angle)*-24,rotateZ:Math.cos(angle)*Math.sin(layout.lanes[branch].angle)*4,rect:{x:p.x-width/2,y:p.y-height/2,width,height},x:p.x-layout.cardWidth/2,y:p.y-layout.cardHeight/2};
 }
 export type OrbitSlot={branch:number;index:number;virtualIndex:number;key:string};
 export function orbitSlots(layout:OrbitLayout,counts:number[],phases:number[]):OrbitSlot[]{

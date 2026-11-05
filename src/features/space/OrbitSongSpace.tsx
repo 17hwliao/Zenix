@@ -21,7 +21,7 @@ function Rail({layout,branch,front}:{layout:MotionValue<OrbitLayout>;branch:numb
 }
 function Satellite({slot,layout,oriented,phase,count,track,current,cover,onFocus,light,hidden}:{slot:OrbitSlot;layout:OrbitLayout;oriented:MotionValue<OrbitLayout>;phase:MotionValue<number>;count:number;track:SongPresentationProps['tracks'][number];current:boolean;cover:SongPresentationProps['renderCover'];onFocus:(id:string,node:HTMLElement)=>void;light:boolean;hidden:boolean}){
  const projection=useTransform(()=>orbitProjection(oriented.get(),slot.branch,slot.virtualIndex,phase.get(),count));
- const transform=useTransform(projection,p=>`translate3d(${p.x}px,${p.y}px,0) scale(${p.scale}) rotateY(${light?0:p.rotateY}deg) rotateZ(${light?0:p.rotateZ}deg)`);
+ const transform=useTransform(projection,p=>`translate3d(${p.x}px,${p.y}px,0) scale(${p.scale}) rotateX(${light?0:p.rotateX}deg) rotateY(${light?0:p.rotateY}deg) rotateZ(${light?0:p.rotateZ}deg)`);
  const opacity=useTransform(projection,p=>p.opacity),zIndex=useTransform(projection,p=>p.zIndex),visibility=useTransform(projection,p=>p.opacity>.01?'visible' as const:'hidden' as const);
  const [visible,setVisible]=useState(()=>projection.get().opacity>.01);
  const visibleRef=useRef(visible);
@@ -31,7 +31,7 @@ function Satellite({slot,layout,oriented,phase,count,track,current,cover,onFocus
  </motion.article>;
 }
 export default function OrbitSongSpace(props:SongPresentationProps){
- const {tracks,selectedId,currentId,playing,cardScale,motionLevel='full',onFocus,onPlay,onExpand,renderCover,renderActions}=props;
+ const {tracks,selectedId,currentId,playing,cardScale,motionLevel='full',onFocus,onPlay,onExpand,renderCover}=props;
  const stage=useRef<HTMLDivElement>(null),[size,setSize]=useState({width:800,height:560}),[bases,setBases]=useState([0,0,0,0]);
  const target=useRef([0,0,0,0]),controls=useRef<(AnimationPlaybackControls|undefined)[]>([]),systemReduced=useReducedMotion();
  const reduced=Boolean(systemReduced||motionLevel==='reduced'),light=Boolean(systemReduced||motionLevel!=='full');
@@ -103,7 +103,7 @@ export default function OrbitSongSpace(props:SongPresentationProps){
  useEffect(()=>{const release=(event:PointerEvent)=>{pointers.current.delete(event.pointerId);if(drag.current?.pointer===event.pointerId){suppress.current=drag.current.moved;drag.current=null;}};const clear=()=>{if(drag.current)suppress.current=true;drag.current=null;pointers.current.clear();controls.current.forEach(control=>control?.stop());motionPhases.forEach((phase,i)=>phase.set(target.current[i]));};window.addEventListener('pointerup',release);window.addEventListener('pointercancel',release);window.addEventListener('blur',clear);document.addEventListener('visibilitychange',clear);return()=>{window.removeEventListener('pointerup',release);window.removeEventListener('pointercancel',release);window.removeEventListener('blur',clear);document.removeEventListener('visibilitychange',clear);};},[motionPhases]);
  useEffect(()=>{const node=stage.current;if(!node)return;const observer=new ResizeObserver(([entry])=>{const {width,height}=entry.contentRect;if(width>0&&height>0)setSize({width,height});});observer.observe(node);return()=>observer.disconnect();},[]);
  useEffect(()=>{const node=stage.current;if(!node)return;const wheel=(event:WheelEvent)=>{
-  if(document.hidden||(event.target as Element).closest('button:not(.orbit-card-focus),a,input,select,[data-orbit-actions]')||event.ctrlKey)return;
+  if(document.hidden||(event.target as Element).closest('button:not(.orbit-card-focus),a,input,select')||event.ctrlKey)return;
   event.preventDefault();const branch=locate(event.target as Element,event.clientX,event.clientY),unit=event.deltaMode===1?16:event.deltaMode===2?size.height:1,delta=Math.max(-.45,Math.min(.45,(event.deltaY||event.deltaX)*unit/650));
   turn(branch,delta);
  };node.addEventListener('wheel',wheel,{passive:false});return()=>node.removeEventListener('wheel',wheel);},[layout,reduced,light,motionPhases,branches,oriented]);
@@ -125,7 +125,7 @@ export default function OrbitSongSpace(props:SongPresentationProps){
   if(event.button!==0)return;
   if(pointers.current.size===0)suppress.current=false;
   pointers.current.add(event.pointerId);if(pointers.current.size!==1){drag.current=null;suppress.current=true;return;}
-  if((event.target as Element).closest('button:not(.orbit-card-focus),a,input,select,[data-orbit-actions]'))return;
+  if((event.target as Element).closest('button:not(.orbit-card-focus),a,input,select'))return;
   const branch=locate(event.target as Element,event.clientX,event.clientY);
   axisAnimation.current?.stop();axisTarget.current=axis.get();
   // Continue from the visible position when interrupting a spring, never its old destination.
@@ -179,6 +179,5 @@ export default function OrbitSongSpace(props:SongPresentationProps){
      transition={{duration:light?.22:.38,ease:[.22,.7,.25,1]}} onAnimationComplete={()=>{if(index===0)setFlight(current=>current?.id===flight.id?null:current);}}>{renderCover(song)}</motion.div>;
    })}
   </div>
-  {focused&&renderActions&&<div data-orbit-actions className="orbit-actions orbit-focus-actionbar" aria-label={`${focused.title} 的歌曲操作`}>{renderActions(focused)}</div>}
  </section>;
 }

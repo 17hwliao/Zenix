@@ -109,10 +109,15 @@ export default function MobileApp() {
   const [assistantView,setAssistantView]=useState<{pure?:boolean;zone?:string;revision:number}>();
   useAssistantUi((action,args)=>{
     if(action==='tasks'||action==='connections'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:action}}));return true;}
-    if(!['space','pure-lyrics'].includes(action))return false;
-    if(action==='pure-lyrics'&&!track)throw Error('请先选择歌曲');
-    setModal(null);setSearchOpen(false);setPreview(undefined);setFull(action==='pure-lyrics');
-    if(action==='pure-lyrics')collection('当前队列',player.queue,'queue');else if(page!=='space')enter();setAssistantView({pure:action==='pure-lyrics',zone:String(args.zone||''),revision:Date.now()});return true;
+    if(action==='stats'){window.dispatchEvent(new Event('zenix-open-assistant-stats'));return true;}
+    if(action==='search'){setSearchOpen(true);return true;}
+    if(action==='queue'){setModal('queue');return true;}
+    if(action==='settings'){setModal(null);setFull(false);setSettingsCategory('playback');setPage('settings');return true;}
+    if(!['space','pure-lyrics','lyrics-mode'].includes(action))return false;
+    if(action!=='space'&&!track)throw Error('请先选择歌曲');
+    const pure=action==='pure-lyrics'||action==='lyrics-mode'&&args.pure===true;
+    setModal(null);setSearchOpen(false);setPreview(undefined);setFull(action!=='space');
+    if(action!=='space')collection('当前队列',player.queue,'queue');else if(page!=='space')enter();setAssistantView({pure,zone:String(args.zone||''),revision:Date.now()});return true;
   });
   const playbackWanted=player.playWhenReady??player.playing;
   const fallbackActivity=useMemo(()=>player.error?{phase:'failed' as const,message:'播放失败',detail:player.error,startedAt:Date.now()}:undefined,[player.error,track?.id]);

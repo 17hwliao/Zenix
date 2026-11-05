@@ -8,7 +8,7 @@ import org.json.*;
 
 /** User-initiated LAN remote control. Does not use source or update networking. */
 final class RemoteClient {
-    private String base="",token="";private boolean approved;private long pairedAt;
+    private String base="",token="",connectionId="";private boolean approved;private long pairedAt;
     private volatile boolean closed;private volatile HttpURLConnection active;
     static String address(String raw)throws Exception {
         String value=raw.trim().replaceFirst("^http://","");
@@ -43,10 +43,10 @@ final class RemoteClient {
             String next=address(args.getString("address")),code=args.optString("code");if(!code.matches("[0-9]{6}"))throw new IOException("请输入电脑显示的六位配对码");
             disconnect();Object raw=post(next,Json.obj("action","pair","code",code,"label","Zenix Android"));if(!(raw instanceof JSONObject))throw new IOException("电脑未返回有效配对信息");
             JSONObject pair=(JSONObject)raw;String nextToken=pair.optString("token");if(!nextToken.matches("[a-f0-9]{48}"))throw new IOException("电脑返回的配对信息无效");
-            base=next;token=nextToken;approved=false;pairedAt=System.nanoTime();return Json.obj("phase","waiting","address",base.substring(7));
+            base=next;token=nextToken;connectionId=java.util.UUID.randomUUID().toString();approved=false;pairedAt=System.nanoTime();return Json.obj("phase","waiting","address",base.substring(7),"connectionId",connectionId);
         }
         if(token.isEmpty())return Json.obj("phase","idle");
-        if(!approved){if(System.nanoTime()-pairedAt>120_000_000_000L){disconnect();throw new IOException("等待电脑确认已超时，请重新配对");}approved=request("pairStatus",null).optBoolean("approved");if(!approved)return Json.obj("phase","waiting","address",base.substring(7));}
+        if(!approved){if(System.nanoTime()-pairedAt>120_000_000_000L){disconnect();throw new IOException("等待电脑确认已超时，请重新配对");}approved=request("pairStatus",null).optBoolean("approved");if(!approved)return Json.obj("phase","waiting","address",base.substring(7),"connectionId",connectionId);}
         if(operation.equals("collaboration")){JSONObject extra=new JSONObject(args.toString());extra.remove("operation");return request("collaboration",Json.obj("request",extra));}
         if(!operation.equals("status")){
             if(Set.of("play-pause","previous","next").contains(operation))request(operation,null);
@@ -54,9 +54,9 @@ final class RemoteClient {
             else if(operation.equals("volume")){double volume=args.optDouble("volume",Double.NaN);if(!Double.isFinite(volume)||volume<0||volume>1)throw new IOException("音量无效");request("volume",Json.obj("volume",volume));}
             else throw new IOException("无效遥控操作");
         }
-        JSONObject state=request("status",null);return Json.obj("phase","connected","address",base.substring(7),"title",state.optString("title").substring(0,Math.min(300,state.optString("title").length())),"artist",state.optString("artist").substring(0,Math.min(300,state.optString("artist").length())),"playing",state.optBoolean("playing"),"position",finite(state.optDouble("position"),86400),"duration",finite(state.optDouble("duration"),86400),"volume",finite(state.optDouble("volume"),1));
+        JSONObject state=request("status",null);return Json.obj("phase","connected","address",base.substring(7),"connectionId",connectionId,"title",state.optString("title").substring(0,Math.min(300,state.optString("title").length())),"artist",state.optString("artist").substring(0,Math.min(300,state.optString("artist").length())),"playing",state.optBoolean("playing"),"position",finite(state.optDouble("position"),86400),"duration",finite(state.optDouble("duration"),86400),"volume",finite(state.optDouble("volume"),1));
     }
     private static double finite(double value,double max){return Double.isFinite(value)?Math.max(0,Math.min(max,value)):0;}
-    private void disconnect(){String previous=base,secret=token;base="";token="";approved=false;if(!previous.isEmpty()&&!secret.isEmpty())try{post(previous,Json.obj("action","disconnect","token",secret));}catch(Exception ignored){}}
-    void close(){closed=true;token="";base="";HttpURLConnection connection=active;if(connection!=null)connection.disconnect();}
+    private void disconnect(){String previous=base,secret=token;base="";token="";connectionId="";approved=false;if(!previous.isEmpty()&&!secret.isEmpty())try{post(previous,Json.obj("action","disconnect","token",secret));}catch(Exception ignored){}}
+    void close(){closed=true;token="";base="";connectionId="";HttpURLConnection connection=active;if(connection!=null)connection.disconnect();}
 }
