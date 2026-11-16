@@ -1,8 +1,8 @@
 import {useSpaceSettings,commitSpace,rules,type SpaceBookmark} from '../features/space/state';
 import '../features/space/space.css';
 import {useSpacePresentation} from '../features/space/presentation';
-import OrbitSongSpace from '../features/space/OrbitSongSpace';
 import SimpleSongList from '../features/space/SimpleSongList';
+import SpaceDisplayOnboarding from '../features/space/SpaceDisplayOnboarding';
 import type {Track} from '../core/types';
 import {BrowseLinks} from './CatalogBrowser';
 import LyricControls from './LyricControls';
@@ -87,7 +87,7 @@ export default function LatticePlayer({ assistantView,
   const [selectedSlot, setSelectedSlot] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [panning, setPanning] = useState(false);
-  const [immersive, setImmersive] = useState(false);
+  const [immersive, setImmersive] = useState(Boolean(assistantView?.pure));
   const showStickers=presentation.mode==='sticker'||immersive;
   useEffect(()=>{
     if(showStickers)return;
@@ -137,7 +137,7 @@ export default function LatticePlayer({ assistantView,
     };
   }, [slots]);
   const bounds = layoutBounds(expandedRects);
-  useEffect(()=>{const request=(event:Event)=>{if(presentation.mode!=='sticker'&&(event as CustomEvent).detail.purpose!=='selection'){window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,error:'请切换到贴纸拼贴后保存空间位置；环绕角度暂不属于空间书签。'}}));return;}window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:presentation.mode==='sticker'?{...camera,scale:zoom}:{x:0,y:0,scale:1},selectedId:wallTracks[selectedSlot]?.id||'',tracks:wallTracks.map(rules.reference)}}}));};const restore=(event:Event)=>{presentation.change({mode:'sticker'});const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseTracks.map(song=>[song.id,song]));const tracks=bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song);pendingRestore.current=bookmark;setRestored(tracks);setZone('');setSelectedSlot(Math.max(0,tracks.findIndex(song=>song.id===bookmark.selectedId)));setZoom(bookmark.camera.scale);setCamera({x:bookmark.camera.x,y:bookmark.camera.y});setPanning(true);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[camera,zoom,wallTracks,selectedSlot,baseTracks,presentation.mode,presentation.change]);
+  useEffect(()=>{const request=(event:Event)=>{if(presentation.mode!=='sticker'&&(event as CustomEvent).detail.purpose!=='selection'){window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,error:'请切换到贴纸拼贴后保存空间位置。'}}));return;}window.dispatchEvent(new CustomEvent('zenix-space-response',{detail:{token:(event as CustomEvent).detail.token,snapshot:{camera:presentation.mode==='sticker'?{...camera,scale:zoom}:{x:0,y:0,scale:1},selectedId:wallTracks[selectedSlot]?.id||'',tracks:wallTracks.map(rules.reference)}}}));};const restore=(event:Event)=>{presentation.change({mode:'sticker'});const bookmark=(event as CustomEvent<SpaceBookmark>).detail;const known=new Map(baseTracks.map(song=>[song.id,song]));const tracks=bookmark.tracks.filter(song=>song.source!=='local'||known.has(song.id)).map(song=>known.get(song.id)||song);pendingRestore.current=bookmark;setRestored(tracks);setZone('');setSelectedSlot(Math.max(0,tracks.findIndex(song=>song.id===bookmark.selectedId)));setZoom(bookmark.camera.scale);setCamera({x:bookmark.camera.x,y:bookmark.camera.y});setPanning(true);};window.addEventListener('zenix-space-request',request);window.addEventListener('zenix-space-restore',restore);return()=>{window.removeEventListener('zenix-space-request',request);window.removeEventListener('zenix-space-restore',restore);};},[camera,zoom,wallTracks,selectedSlot,baseTracks,presentation.mode,presentation.change]);
   const wallWidth = bounds.right * cellPitch;
   const wallHeight = bounds.bottom * cellPitch;
   const clampCamera = useCallback((x: number, y: number, target = bounds) => ({
@@ -338,7 +338,7 @@ export default function LatticePlayer({ assistantView,
   return <div className={`yz-lattice zenix-motion-${settings.motion}${immersive ? ' is-immersive' : ''}${immersive&&pureLyrics?' is-pure-lyrics':''}`}>
     {!immersive&&<div className="yz-space-presentation-shell"><div className="yz-space-presentation-toolbar">{presentation.error&&<div className="space-presentation-error" role="alert"><span>{presentation.error}</span><button aria-label="关闭展示偏好错误" onClick={presentation.dismissError}>×</button></div>}
     {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部歌曲</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} onDragOver={event=>{if(zoneEditing)event.preventDefault();}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/x-zenix-track');if(!baseTracks.some(song=>song.id===id))return;try{commitSpace({...settings,zones:settings.zones.map(zone=>zone.id===item.id?{...zone,trackIds:[...new Set([...zone.trackIds,id])]}:zone)});}catch(error){window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:error instanceof Error?error.message:String(error)}));}}} aria-pressed={zone===item.id} onClick={()=>{setZone(item.id);setSelectedSlot(0);}}>{item.name}</button>)}{presentation.mode==='sticker'&&<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成分区整理':'拖动贴纸归类'}</button>}{restored&&<button onClick={()=>{setRestored(undefined);setZone('');setZoom(1);}}>返回原空间</button>}</nav>}
-    </div>{presentation.mode!=='sticker'&&<div className="yz-space-presentation-stage">{presentation.mode==='orbit'?<OrbitSongSpace {...presentationProps}/>:<SimpleSongList {...presentationProps}/>}</div>}</div>}
+    </div>{presentation.mode==='list'&&<div className="yz-space-presentation-stage"><SimpleSongList {...presentationProps}/></div>}</div>}
     {!wallTracks.length&&showStickers&&<p className="zenix-space-empty">分区内没有当前空间中的歌曲。</p>}
     <div className="yz-sticker-viewport" aria-hidden={!showStickers} style={{visibility:showStickers?undefined:'hidden',pointerEvents:showStickers?undefined:'none'}} ref={wallRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onClickCapture={clickCapture}>
       <div className={`yz-sticker-world${dragging || panning ? ' is-panning' : ''}`} style={{ width: immersive ? viewport.width : wallWidth, height: immersive ? viewport.height : wallHeight, transform: immersive ? 'translate3d(0,0,0)' : `translate3d(${camera.x}px,${camera.y}px,0) scale(${zoom})`,transformOrigin:'0 0' }}>
@@ -377,6 +377,7 @@ export default function LatticePlayer({ assistantView,
           </div>;
         })}
       </div>
+    <SpaceDisplayOnboarding open={presentation.needsOnboarding&&!immersive} error={presentation.error} onChoose={mode=>presentation.change({mode})}/>
     </div>
     <button className="yz-lattice-back" onClick={onBack} aria-label="个人主页" title="个人主页"><Home size={19} /></button>
     {searchAvailable && <div className={`yz-lattice-search-zone${searchRevealed ? ' is-revealed' : ''}`}><button onClick={onOpenSearch} title="搜索歌曲" aria-label="搜索歌曲"><Search size={17} /><span>搜索音乐</span><kbd>Ctrl K</kbd></button></div>}

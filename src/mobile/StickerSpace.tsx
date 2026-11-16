@@ -19,6 +19,7 @@ import {useSpaceSettings,writeSpace,rules,type SpaceBookmark} from '../features/
 import '../features/space/space.css';
 import {useSpacePresentation} from '../features/space/presentation';
 import SimpleSongList from '../features/space/SimpleSongList';
+import SpaceDisplayOnboarding from '../features/space/SpaceDisplayOnboarding';
 
 /** Uses the desktop mosaic algorithm, finite posters and a touch camera. */
 const layouts = new Map<string, ReturnType<typeof expandedStickerLayout>>();
@@ -42,7 +43,7 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
   suspended?: boolean;
 }) {
   const zoneDrag=useRef<{id:string;pointer:number}|undefined>(undefined);
-  const presentation=useSpacePresentation(false);
+  const presentation=useSpacePresentation();
   const showStickers=presentation.mode==='sticker';
   const settings=useSpaceSettings(),[zone,setZone]=useState(''),[zoneEditing,setZoneEditing]=useState(false),[restored,setRestored]=useState<Track[]>(),[restoreVersion,setRestoreVersion]=useState(0);
   const pendingRestore=useRef<SpaceBookmark|undefined>(undefined);
@@ -160,7 +161,7 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
       {songs[selected]?.id===song.id&&<TrackVersions track={song} selected={displayedChoice(song)} sources={state.sources} select={candidate=>setChosenVariants(previous=>({...previous,[song.id]:candidate.id}))} load={loadSourceDiagnostics}/>}
     </>,
   };
-  return <section className={`mobile-space ${moving ? 'is-panning' : ''} ${suspended ? 'is-suspended' : ''}`} aria-hidden={suspended} onPointerDownCapture={showCaption} onPointerUpCapture={hideCaptionLater} onPointerCancelCapture={hideCaptionLater}>
+  return <><section className={`mobile-space ${moving ? 'is-panning' : ''} ${suspended ? 'is-suspended' : ''}`} aria-hidden={suspended} onPointerDownCapture={showCaption} onPointerUpCapture={hideCaptionLater} onPointerCancelCapture={hideCaptionLater}>
     <div className={`space-caption glass ${captionVisible ? "is-visible" : "is-hidden"}`} aria-hidden={!captionVisible}><span>{player.track ? `${player.playing ? "正在播放" : "已暂停"} · ${player.track.title}` : label}</span><button tabIndex={captionVisible ? 0 : -1} aria-label="聚焦当前歌曲" onClick={() => { const index = songs.findIndex(song => song.id === player.track?.id); if(showStickers)focus(index >= 0 ? index : selected);else if(index>=0){if(index!==selected)presentationFocus.current=songs[index].id;setSelected(index);} }}><Crosshair /></button></div>
     <div className="mobile-space-presentation-shell"><div className="mobile-space-presentation-toolbar">{presentation.error&&<div className="space-presentation-error" role="alert"><span>{presentation.error}</span><button aria-label="关闭展示偏好错误" onClick={presentation.dismissError}>×</button></div>}
     {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部歌曲</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} aria-pressed={zone===item.id} onClick={()=>setZone(item.id)}>{item.name}</button>)}{showStickers&&<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成整理':'拖动贴纸归类'}</button>}{restored&&<button onClick={()=>{setRestored(undefined);setZone('');}}>返回原空间</button>}</nav>}
@@ -210,7 +211,7 @@ export default memo(function StickerSpace({ assistantView, songs:providedSongs, 
         </MosaicSticker>;
       })}</motion.div>
     </div>
-  </section>;
+  </section><SpaceDisplayOnboarding open={presentation.needsOnboarding&&!suspended} error={presentation.error} onChoose={mode=>presentation.change({mode})}/></>;
 }, (previous,next) => Boolean(previous.suspended && next.suspended));
 
 function MosaicSticker({id,className,left,top,width,height,register,children}:{id:string;className:string;left:number;top:number;width:number;height:number;register:(id:string,element:HTMLElement|null)=>void;children:ReactNode}){
