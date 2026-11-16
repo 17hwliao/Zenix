@@ -1,4 +1,4 @@
-import {useCallback,useEffect,useState,useRef} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useState,useRef} from 'react';
 import type {InstalledSource,PersonalState,PlayerState,Track,RawLyrics} from '../core/types';
 import {command,observe,type MobileSnapshot} from '../mobile/native';
 import {desktopTool} from '../ui/MusicTools';
@@ -18,6 +18,7 @@ import {recordingFor} from './recording';
 import {openRecording} from './openRecording';
 import './FeatureWorkbench.css';
 
+const KaraokePanel=lazy(()=>import('./karaoke/KaraokePanel'));
 const emptyPersonal:PersonalState={liked:[],favorites:[],history:[],playlists:[]};
 const emptyPlayback:PlayerState={playing:false,position:0,duration:0,volume:.75,muted:false,shuffle:false,repeat:'all',queue:[],queueIndex:-1};
 export default function FeatureWorkbench({mobile,initialMobile,initialTab='personal',requestRevision,close}:{mobile:boolean;initialMobile?:MobileSnapshot;initialTab?:string;requestRevision?:number;close:()=>void}){
@@ -40,6 +41,7 @@ export default function FeatureWorkbench({mobile,initialMobile,initialTab='perso
     return()=>{alive=false;stops.forEach(stop=>stop());};
   },[mobile]);
   const lyrics=useCallback((track:Track):Promise<RawLyrics|null>=>mobile?command<RawLyrics|null>('lyrics',{track}):track.source==='local'?window.yzqxy!.library.readLyrics(track.id):window.yzqxy!.sources.lyrics(track),[mobile]);
+  const readKaraokeLyrics=useCallback((track:Track)=>lyrics(recordingFor(track,personal)),[lyrics,personal]);
   const open=async(reference:Partial<Track>&{id:string},seconds:number|null)=>{
     const all=[...localTracks,...playback.queue,...personal.liked,...personal.favorites,...personal.history.map(row=>row.track),...personal.playlists.flatMap(list=>list.tracks)];
     if(reference.source==='local'&&!all.some(track=>track.id===reference.id&&track.path))throw Error('本机尚未找到此书签对应的音频，请先导入原文件');
@@ -50,10 +52,11 @@ export default function FeatureWorkbench({mobile,initialMobile,initialTab='perso
   };
   return <div className="zenix-feature-backdrop" onPointerDown={event=>{if(event.target===event.currentTarget)close();}}><section className="zenix-feature-workbench" ref={focus} role="dialog" aria-modal="true" aria-label="音乐工作台" tabIndex={-1}>
     <header><h2>音乐工作台</h2><button aria-label="关闭音乐工作台" onClick={close}>关闭</button></header>
-    <nav aria-label="音乐工作台分类">{[['personal','私人资料'],['playback','播放与版本'],['tasks','缓存与任务'],['space','空间与漫游'],['connections','设备协作'],['assistant','音乐助手']].map(([key,label])=><button key={key} aria-pressed={tab===key} onClick={()=>setTab(key)}>{label}</button>)}</nav>
-    <div className="zenix-feature-content">{error&&<p role="alert">{error}<button onClick={()=>setError('')}>关闭提示</button></p>}
+    <nav aria-label="音乐工作台分类">{[['personal','私人资料'],['playback','播放与版本'],['karaoke','K歌'],['tasks','缓存与任务'],['space','空间与漫游'],['connections','设备协作'],['assistant','音乐助手']].map(([key,label])=><button key={key} aria-pressed={tab===key} onClick={()=>setTab(key)}>{label}</button>)}</nav>
+    <div className={`zenix-feature-content${tab==='karaoke'?' is-karaoke':''}`}>{error&&<p role="alert">{error}<button onClick={()=>setError('')}>关闭提示</button></p>}
       {tab==='personal'&&<PersonalFeaturesPanel personal={personal} playback={playback} invoke={invoke} onOpen={open} readLyrics={lyrics} saveText={async(name,text)=>{const result=await invoke<{saved:boolean}>({operation:'featureTextSave',name,text});if(!result.saved)throw Error('已取消保存');}}/>}
       {tab==='playback'&&<><PlaybackFeaturesPanel playback={playback} sources={sources} invoke={playbackInvoke} diagnostics={mobile?()=>command('sourceDiagnostics'):()=>window.yzqxy!.sources.diagnostics()}/><LyricPractice track={playback.track} readLyrics={track=>lyrics(recordingFor(track,personal))} invoke={playbackInvoke}/></>}
+      {tab==='karaoke'&&<Suspense fallback={<div className="zenix-feature-karaoke-loading" role="status">正在准备单人 K 歌</div>}><KaraokePanel mobile={mobile} track={playback.track} playbackWasPlaying={playback.playing} readLyrics={readKaraokeLyrics} onBack={()=>setTab('personal')} onOpenConnections={()=>setTab('connections')}/></Suspense>}
       {tab==='tasks'&&<><TasksPanel invoke={invoke} personal={personal} current={playback.track}/><ActivitiesPanel invoke={invoke}/></>}
       {tab==='space'&&<SpaceFeaturesPanel mobile={mobile} playback={playback} personal={personal} invoke={invoke}/>}
       {tab==='connections'&&<ConnectionsPanel mobile={mobile} playback={playback} personal={personal} invoke={invoke} onReceive={payload=>receiveTransfer(mobile,payload)} onPause={expected=>pauseHost(mobile,expected)} preferences={{version:versionPreferences.read(),roaming:space.roaming}}/>}
