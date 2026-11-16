@@ -3,6 +3,7 @@ import {
   type KaraokeClientEvent,
   type KaraokeHostEvent,
   type KaraokeMember,
+  type KaraokeLineScore,
   type KaraokeQueueItem,
   type KaraokeQueueMode,
   type KaraokeRole,
@@ -108,13 +109,72 @@ function cloneQueueItem(value: unknown): KaraokeQueueItem | null {
   if (!Array.isArray(item.singerIds) || item.singerIds.length === 0) return null;
   const singerIds = [...new Set(item.singerIds.filter((id): id is string => typeof id === 'string' && !!id.trim()))];
   if (singerIds.length === 0) return null;
+  const score = item.score === undefined ? undefined : cloneScore(item.score);
+  if (item.score !== undefined && !score) return null;
   return deepFreezeClone({
     id,
     recordingId,
     mode: item.mode as KaraokeQueueMode,
     singerIds: frozenArray(singerIds),
     state: item.state as KaraokeQueueItem['state'],
-    ...(item.score ? { score: item.score } : {}),
+    ...(score ? { score } : {}),
+  });
+}
+
+function scorePercentage(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+}
+
+function cloneScore(value: unknown): KaraokeScore | null {
+  if (!value || typeof value !== 'object') return null;
+  const score = value as Partial<KaraokeScore>;
+  const {total, stability, longestCombo, bestLine, pitchEvaluated} = score;
+  if (score.schema !== 1
+    || !scorePercentage(total)
+    || !scorePercentage(stability)
+    || typeof longestCombo !== 'number'
+    || !Number.isSafeInteger(longestCombo)
+    || Number(longestCombo) < 0
+    || !(bestLine === null || typeof bestLine === 'number' && Number.isSafeInteger(bestLine) && bestLine >= 0)
+    || typeof pitchEvaluated !== 'boolean'
+    || !Array.isArray(score.lines)
+    || score.lines.length > KARAOKE_LIMITS.maxLyricLines) {
+    return null;
+  }
+  const lines = (score.lines as readonly KaraokeLineScore[]).map((line) => {
+    if (!line || typeof line !== 'object'
+      || !Number.isSafeInteger(line.lineIndex)
+      || line.lineIndex < 0
+      || !Number.isFinite(line.startMs)
+      || line.startMs < 0
+      || !Number.isFinite(line.endMs)
+      || line.endMs <= line.startMs
+      || !(line.pitch === null || scorePercentage(line.pitch))
+      || !(line.rhythm === null || scorePercentage(line.rhythm))
+      || !scorePercentage(line.lyrics)
+      || !scorePercentage(line.completeness)
+      || !scorePercentage(line.breath)
+      || !scorePercentage(line.total)
+      || !Array.isArray(line.feedback)
+      || line.feedback.length > 32
+      || line.feedback.some((text) => typeof text !== 'string' || text.length > 500)) {
+      return null;
+    }
+    return {
+      ...line,
+      feedback: frozenArray(line.feedback),
+    };
+  });
+  if (lines.some((line) => line === null)) return null;
+  if (bestLine !== null && !lines.some((line) => line?.lineIndex === bestLine)) return null;
+  return deepFreezeClone({
+    schema: 1,
+    total,
+    stability,
+    longestCombo,
+    bestLine,
+    lines: frozenArray(lines as NonNullable<(typeof lines)[number]>[]),
+    pitchEvaluated,
   });
 }
 
@@ -299,6 +359,7 @@ export class KaraokeSession {
     if (!actor) return failure('MEMBER_NOT_FOUND', '操作成员不存在', this.roomState);
     if (!target) return failure('MEMBER_NOT_FOUND', '目标成员不存在', this.roomState);
     if (this.roomState.status === 'closed') return failure('INVALID_TRANSITION', '房间已关闭', this.roomState);
+    if (target.role === 'listener') return failure('INVALID_INPUT', '听众不能准备演唱', this.roomState);
     if (actor.id !== target.id && actor.role !== 'host') return failure('HOST_REQUIRED', '只有本人或主持人可修改准备状态', this.roomState);
     if (!target.connected) return failure('INVALID_TRANSITION', '断线成员不能准备', this.roomState);
     const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
@@ -321,11 +382,18 @@ export class KaraokeSession {
     if (this.roomState.queue.length >= KARAOKE_LIMITS.maxQueueItems) return failure('QUEUE_FULL', 'K 歌队列已满', this.roomState);
     const recordingId = text(input?.recordingId);
     if (!recordingId || !QUEUE_MODES.has(input?.mode)) return failure('INVALID_INPUT', '歌曲或 K 歌模式无效', this.roomState);
+    if (this.roomState.queue.some((item) => item.recordingId === recordingId
+      && ['queued', 'countdown', 'singing'].includes(item.state))) {
+      return failure('INVALID_INPUT', '同一歌曲已经在当前 K 歌队列中', this.roomState);
+    }
     const singerIds = [...new Set((input.singerIds?.length ? input.singerIds : [actor.id])
       .filter((id): id is string => typeof id === 'string' && !!id.trim()))];
     if (singerIds.length === 0) return failure('INVALID_INPUT', '至少需要一位演唱成员', this.roomState);
     if (input.mode === 'solo' && singerIds.length !== 1) return failure('INVALID_INPUT', 'solo 队列必须只有一位演唱者', this.roomState);
     if (singerIds.some((id) => !this.member(id))) return failure('MEMBER_NOT_FOUND', '队列包含不存在的成员', this.roomState);
+    if (singerIds.some((id) => this.member(id)?.role === 'listener')) {
+      return failure('INVALID_INPUT', '听众不能加入演唱队列', this.roomState);
+    }
     const itemId = text(input.itemId) || `${recordingId}:${this.roomState.revision + 1}`;
     if (this.roomState.queue.some((item) => item.id === itemId)) return failure('DUPLICATE_ID', '队列项 ID 已存在', this.roomState);
     const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
@@ -347,7 +415,7 @@ export class KaraokeSession {
     const actor = this.member(actorId);
     const item = this.roomState.queue.find((candidate) => candidate.id === itemId);
     if (!actor) return failure('MEMBER_NOT_FOUND', '操作成员不存在', this.roomState);
-    if (!item) return failure('QUEUE_FULL', '队列项不存在', this.roomState);
+    if (!item) return failure('ITEM_NOT_FOUND', '队列项不存在', this.roomState);
     if (item.id === this.roomState.currentItemId) return failure('INVALID_TRANSITION', '当前歌曲不能直接从队列移除', this.roomState);
     if (actor.role !== 'host' && !item.singerIds.includes(actor.id)) {
       return failure('HOST_REQUIRED', '只有主持人或该曲演唱者可移除', this.roomState);

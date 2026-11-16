@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Mic2, Radio, Sparkles, Users } from 'lucide-react';
 import {
+  activeKaraokeRecordingIds,
   currentQueueItem,
   findTrack,
   findViewerMember,
@@ -67,10 +68,10 @@ export default function DesktopKaraokePage({
   const currentItem = room ? currentQueueItem(room) : null;
   const currentTrack = room ? findTrack(tracks, currentItem?.recordingId) : null;
   const queuedRecordingIds = useMemo(
-    () => new Set(room?.queue.map((item) => item.recordingId) || []),
-    [room?.queue],
+    () => activeKaraokeRecordingIds(room),
+    [room],
   );
-  const blocked = phase === 'loading' || phase === 'failed' || phase === 'host-stopped';
+  const blocked = phase === 'loading' || phase === 'failed' || phase === 'disconnected' || phase === 'host-stopped';
   const showWaiting = phase === 'waiting';
 
   return (
@@ -191,6 +192,7 @@ export default function DesktopKaraokePage({
               onRemove={onRemoveQueueItem}
               onStart={onStartQueueItem}
               isHost={isHost}
+              viewerMemberId={viewerMemberId}
             />
           </aside>
         </div>

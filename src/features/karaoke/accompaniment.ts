@@ -45,6 +45,10 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function sameFingerprint(left: string, right: string): boolean {
+  return left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase();
+}
+
 export function accompanimentCacheKey(identity: AccompanimentCacheIdentity): KaraokeResult<string> {
   if (!nonEmpty(identity.recordingId)
     || !nonEmpty(identity.audioContentFingerprint)
@@ -85,6 +89,9 @@ export function resolveAccompaniment(request: AccompanimentRequest): KaraokeResu
   let invalidCandidate: ReturnType<typeof karaokeFailure<AccompanimentDescriptor>> | undefined;
   for (const candidate of candidates) {
     if (!ACCOMPANIMENT_PRIORITY.includes(candidate.kind)) continue;
+    if (nonEmpty(candidate.fingerprint) && !sameFingerprint(candidate.fingerprint, request.audioContentFingerprint)) {
+      continue;
+    }
     if (!nonEmpty(candidate.uri)) {
       invalidCandidate = karaokeFailure(candidateFailureCode(candidate.kind), `${candidate.kind} 候选缺少 URI`);
       continue;
@@ -106,7 +113,7 @@ export function resolveAccompaniment(request: AccompanimentRequest): KaraokeResu
       }
       const key = accompanimentCacheKey({
         recordingId: request.recordingId,
-        audioContentFingerprint: candidate.fingerprint || request.audioContentFingerprint,
+        audioContentFingerprint: request.audioContentFingerprint,
         modelVersion: candidate.modelVersion,
         outputFormat: candidate.outputFormat,
       });

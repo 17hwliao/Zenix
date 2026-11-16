@@ -4,11 +4,11 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1440,height:900,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}});
  const errors=[];win.webContents.on('console-message',(_event,level,message)=>{if(level===3)errors.push(message);});
- const run=code=>win.webContents.executeJavaScript(code,true),wait=async code=>{for(let index=0;index<180;index++){if(await run(code))return;await sleep(30);}throw Error('UI wait: '+code);};
+ const run=code=>win.webContents.executeJavaScript(code,true),wait=async code=>{for(let index=0;index<180;index++){if(await run(code))return;await sleep(30);}const state=await run('JSON.stringify({body:document.body?.innerText?.slice(0,1200),dialogs:[...document.querySelectorAll("[role=dialog]")].map(node=>node.className),tabs:[...document.querySelectorAll("[role=tab]")].map(node=>node.textContent),settings:[...document.querySelectorAll("[data-setting]")].map(node=>node.getAttribute("data-setting"))})');throw Error('UI wait: '+code+'\n'+state+'\n'+errors.join('\n'));};
  const screenshot=async name=>{await sleep(140);const image=await win.webContents.capturePage();await fs.mkdir(process.env.ZENIX_TEST_SCREENSHOTS,{recursive:true});await fs.writeFile(path.join(process.env.ZENIX_TEST_SCREENSHOTS,name+'.png'),image.toPNG());};
  const choose=async label=>{
   await run('window.spaceHost.openSettings()');await wait('!!document.querySelector("[data-setting=space-presentation]")');
-  await run('document.querySelector("button[aria-label=歌曲展示方式]").click()');await wait('!!document.querySelector("[role=listbox] [role=option]")');
+  await run('document.querySelector("button[aria-label=歌曲展示方式]").click()');await wait('document.querySelectorAll("[role=listbox] [role=option]").length===2');
   await run(`Array.from(document.querySelectorAll('[role=option]')).find(button=>button.textContent.trim()===${JSON.stringify(label)}).click()`);
   await run('window.spaceHost.closeSettings()');await wait('!document.querySelector("[data-setting=space-presentation]")');
  };

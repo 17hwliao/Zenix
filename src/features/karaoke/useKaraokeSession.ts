@@ -21,6 +21,7 @@ export type KaraokeSessionStatus = 'loading' | 'idle' | 'requesting' | 'singing'
 interface KaraokeResourceState extends KaraokeCaptureResources {
   audio?: HTMLAudioElement | null;
   analyser?: AnalyserNode | null;
+  microphoneListeners?: readonly (() => void)[];
 }
 
 class AccompanimentStartError extends Error {}
@@ -47,6 +48,29 @@ function microphoneError(error: unknown): KaraokeUiError {
     message: error instanceof Error ? error.message : '无法启动麦克风',
     recoverable: true,
   };
+}
+
+function releaseMicrophoneCapture(resources: KaraokeResourceState): void {
+  for (const remove of resources.microphoneListeners ?? []) {
+    try { remove(); } catch {}
+  }
+  resources.microphoneListeners = [];
+  for (const node of resources.nodes ?? []) {
+    try { node?.disconnect(); } catch {}
+  }
+  for (const mediaTrack of resources.stream?.getTracks() ?? []) {
+    try { mediaTrack.stop(); } catch {}
+  }
+  if (resources.context) {
+    try {
+      const closing = resources.context.close();
+      if (closing && typeof closing.catch === 'function') void closing.catch(() => {});
+    } catch {}
+  }
+  resources.stream = null;
+  resources.nodes = [];
+  resources.context = null;
+  resources.analyser = null;
 }
 
 export function useKaraokeSession({track, readLyrics}: UseKaraokeSessionOptions) {
@@ -88,7 +112,15 @@ export function useKaraokeSession({track, readLyrics}: UseKaraokeSessionOptions)
     clearTimer();
     const resources = resourcesRef.current;
     resourcesRef.current = null;
-    if (resources) releaseKaraokeCapture(resources);
+    if (resources) {
+      releaseKaraokeCapture({
+        ...resources,
+        listeners: [
+          ...(resources.listeners ?? []),
+          ...(resources.microphoneListeners ?? []),
+        ],
+      });
+    }
     if (mountedRef.current) setMicrophoneGranted(false);
   }, [clearTimer]);
 
@@ -150,23 +182,26 @@ export function useKaraokeSession({track, readLyrics}: UseKaraokeSessionOptions)
     clearTimer();
     const resources = resourcesRef.current;
     const analyser = resources?.analyser;
-    if (!resources || !analyser) return;
-    const samples = new Float32Array(analyser.fftSize);
+    const context = resources?.context as AudioContext | null | undefined;
+    if (!resources) return;
+    const samples = analyser ? new Float32Array(analyser.fftSize) : null;
     activeStartedAtRef.current = performance.now();
     const timer = setInterval(() => {
       const liveResources = resourcesRef.current;
-      const context = liveResources?.context as AudioContext | null | undefined;
-      if (!liveResources || !context) return;
-      analyser.getFloatTimeDomainData(samples);
+      if (!liveResources) return;
       const audio = liveResources.audio;
       const elapsed = audio
         ? Math.max(0, audio.currentTime * 1000)
         : audioElapsedRef.current + Math.max(0, performance.now() - activeStartedAtRef.current);
-      const frame = analyzePitchSamples(samples, context.sampleRate, elapsed);
-      framesRef.current.push(frame);
+      const liveAnalyser = liveResources.analyser;
+      if (liveAnalyser && samples && context) {
+        liveAnalyser.getFloatTimeDomainData(samples);
+        const frame = analyzePitchSamples(samples, context.sampleRate, elapsed);
+        framesRef.current.push(frame);
+        if (mountedRef.current) setLatestFrame(frame);
+      }
       if (mountedRef.current) {
         setElapsedMs(elapsed);
-        setLatestFrame(frame);
       }
       const duration = descriptorRef.current?.durationMs ?? 0;
       if (duration > 0 && elapsed >= duration) finishRef.current();
@@ -195,40 +230,10 @@ export function useKaraokeSession({track, readLyrics}: UseKaraokeSessionOptions)
     const resources: KaraokeResourceState = {};
     resourcesRef.current = resources;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') {
-        throw new Error('当前环境不支持麦克风实时音高分析');
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      });
-      resources.stream = stream;
-      if (!mountedRef.current || resourcesRef.current !== resources) {
-        releaseKaraokeCapture(resources);
-        return;
-      }
-      const context = new AudioContext();
-      resources.context = context;
-      const source = context.createMediaStreamSource(stream);
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 4096;
-      analyser.smoothingTimeConstant = 0.2;
-      source.connect(analyser);
-      resources.nodes = [source, analyser];
-      resources.analyser = analyser;
-      await context.resume();
-      if (!mountedRef.current || resourcesRef.current !== resources) {
-        releaseKaraokeCapture(resources);
-        return;
-      }
-
       const uri = current.accompaniment.uri;
+      let hasAccompaniment = false;
       if (!uri.startsWith('unavailable:')) {
+        hasAccompaniment = true;
         const audio = new Audio(uri);
         resources.audio = audio;
         audio.preload = 'auto';
@@ -253,21 +258,71 @@ export function useKaraokeSession({track, readLyrics}: UseKaraokeSessionOptions)
           throw new AccompanimentStartError('独立伴奏无法播放。麦克风已释放，普通播放器未被修改。');
         }
       }
-      for (const mediaTrack of stream.getTracks()) {
-        const unreadable = () => {
-          if (!mountedRef.current) return;
-          setError({code: 'MIC_ENDED', message: '麦克风已断开，本次演唱已停止。', recoverable: true});
+
+      let microphoneFailure: KaraokeUiError | null = null;
+      try {
+        if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') {
+          throw new Error('当前环境不支持麦克风实时音高分析');
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: false,
+        });
+        resources.stream = stream;
+        if (!mountedRef.current || resourcesRef.current !== resources) {
           releaseResources();
-          setStatus('failed');
-        };
-        mediaTrack.addEventListener('ended', unreadable);
-        resources.listeners = [...(resources.listeners ?? []), () => mediaTrack.removeEventListener('ended', unreadable)];
+          return;
+        }
+        const context = new AudioContext();
+        resources.context = context;
+        const source = context.createMediaStreamSource(stream);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 4096;
+        analyser.smoothingTimeConstant = 0.2;
+        source.connect(analyser);
+        resources.nodes = [source, analyser];
+        resources.analyser = analyser;
+        await context.resume();
+        if (!mountedRef.current || resourcesRef.current !== resources) {
+          releaseResources();
+          return;
+        }
+        for (const mediaTrack of stream.getTracks()) {
+          const unreadable = () => {
+            if (!mountedRef.current) return;
+            releaseMicrophoneCapture(resources);
+            setMicrophoneGranted(false);
+            setError({code: 'MIC_ENDED', message: '麦克风已断开；独立伴奏仍会继续，这一轮不再评分。', recoverable: true});
+          };
+          mediaTrack.addEventListener('ended', unreadable);
+          resources.microphoneListeners = [
+            ...(resources.microphoneListeners ?? []),
+            () => mediaTrack.removeEventListener('ended', unreadable),
+          ];
+        }
+      } catch (cause) {
+        microphoneFailure = microphoneError(cause);
+        releaseMicrophoneCapture(resources);
       }
-      if (!mountedRef.current || resourcesRef.current !== resources) {
-        releaseKaraokeCapture(resources);
+
+      if (!hasAccompaniment && microphoneFailure) {
+        releaseResources();
+        if (!mountedRef.current) return;
+        setError(microphoneFailure);
+        setStatus('failed');
         return;
       }
-      setMicrophoneGranted(true);
+      if (!mountedRef.current || resourcesRef.current !== resources) {
+        releaseResources();
+        return;
+      }
+      setMicrophoneGranted(!microphoneFailure);
+      setError(microphoneFailure);
       setStatus('singing');
       startTimer();
     } catch (cause) {

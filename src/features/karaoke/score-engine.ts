@@ -75,6 +75,22 @@ function normalizeOptions(options: KaraokeScoreOptions | undefined): NormalizedO
     completeness: Math.max(0, finite(custom?.completeness, DEFAULT_KARAOKE_SCORE_WEIGHTS.completeness)),
     breath: Math.max(0, finite(custom?.breath, DEFAULT_KARAOKE_SCORE_WEIGHTS.breath)),
   };
+  // Keep custom weights scale-free without allowing finite near-MAX values to
+  // overflow the weighted sum. The internal weights still add up to a stable ratio.
+  const weightScale = Math.max(
+    weights.pitch,
+    weights.rhythm,
+    weights.lyrics,
+    weights.completeness,
+    weights.breath,
+  );
+  if (weightScale > 0) {
+    weights.pitch /= weightScale;
+    weights.rhythm /= weightScale;
+    weights.lyrics /= weightScale;
+    weights.completeness /= weightScale;
+    weights.breath /= weightScale;
+  }
   return {
     latencyCompensationMs: Math.max(-5000, Math.min(5000, finite(options?.latencyCompensationMs, 0))),
     minConfidence: clamp(finite(options?.minConfidence, 0.55)),
@@ -134,8 +150,9 @@ function median(values: readonly number[]): number {
 
 function octaveAdjustedDistance(left: number, right: number): { raw: number; adjusted: number; octave: boolean } {
   const raw = Math.abs(left - right);
-  const adjusted = Math.min(raw, Math.abs(raw - 12), Math.abs(raw - 24), Math.abs(raw - 36));
-  return { raw, adjusted, octave: raw >= 10.5 && raw <= 13.5 && adjusted <= 0.75 };
+  const octaves = Math.round(raw / 12);
+  const adjusted = octaves > 0 ? Math.abs(raw - octaves * 12) : raw;
+  return { raw, adjusted, octave: octaves > 0 && adjusted <= 0.75 };
 }
 
 function dtwPitchScore(notes: readonly PitchNote[], frames: readonly (PitchFrame & { midi: number })[]): {

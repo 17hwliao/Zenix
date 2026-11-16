@@ -1183,7 +1183,7 @@
 }
 
 .zenix-karaoke-mode-switch button {
-  min-height: 39px;
+  min-height: 44px;
   padding: 7px;
   border-radius: 9px;
   font-size: 10px;
@@ -1640,6 +1640,20 @@
   min-width: 118px;
 }
 
+.zenix-karaoke-listener-badge {
+  min-width: 118px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  color: #b8bcc9;
+  white-space: nowrap;
+}
+
 .zenix-karaoke-mobile-current {
   display: flex;
   align-items: flex-start;
@@ -1952,6 +1966,10 @@
   }
 
   .zenix-karaoke-ready-button {
+    width: 100%;
+  }
+
+  .zenix-karaoke-listener-badge {
     width: 100%;
   }
 

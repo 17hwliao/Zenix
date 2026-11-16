@@ -1,5 +1,6 @@
 import { Mic2, Radio, Users } from 'lucide-react';
 import {
+  activeKaraokeRecordingIds,
   currentQueueItem,
   findTrack,
   findViewerMember,
@@ -17,6 +18,7 @@ import {
   KaraokeRoomActions,
   KaraokeRoomCode,
   KaraokeRoomSummary,
+  KaraokeSongPicker,
   KaraokeStatusNotice,
   KaraokeWaitingPanel,
 } from './components';
@@ -41,6 +43,7 @@ export default function MobileKaraokeRoom({
   onRetry,
   onCopyRoomCode,
   onSetReady,
+  onAddToQueue,
   onRemoveQueueItem,
   onStartQueueItem,
   onPause,
@@ -63,7 +66,9 @@ export default function MobileKaraokeRoom({
   const current = currentQueueItem(room);
   const currentTrack = findTrack(tracks, current?.recordingId);
   const approvalBlocked = phase === 'waiting' || phase === 'rejected';
-  const blocked = phase === 'loading' || phase === 'host-stopped' || phase === 'failed' || approvalBlocked;
+  const blocked = phase === 'loading' || phase === 'host-stopped' || phase === 'failed' || phase === 'disconnected' || approvalBlocked;
+  const queuedRecordingIds = activeKaraokeRecordingIds(room);
+  const canSetReady = viewer?.role !== 'listener';
 
   return (
     <KaraokePageFrame
@@ -91,16 +96,20 @@ export default function MobileKaraokeRoom({
         <>
           <div className="zenix-karaoke-mobile-room-top">
             <KaraokeRoomCode roomCode={room.roomCode} onCopy={onCopyRoomCode} compact />
-            <button
-              type="button"
-              className="zenix-karaoke-ready-button"
-              aria-pressed={viewer?.ready || false}
-              disabled={!onSetReady || !viewer?.connected}
-              onClick={() => void onSetReady?.(!viewer?.ready)}
-            >
-              <Users aria-hidden="true" />
-              {viewer?.ready ? '取消准备' : '准备演唱'}
-            </button>
+            {canSetReady ? (
+              <button
+                type="button"
+                className="zenix-karaoke-ready-button"
+                aria-pressed={viewer?.ready || false}
+                disabled={!onSetReady || !viewer?.connected}
+                onClick={() => void onSetReady?.(!viewer?.ready)}
+              >
+                <Users aria-hidden="true" />
+                {viewer?.ready ? '取消准备' : '准备演唱'}
+              </button>
+            ) : (
+              <span className="zenix-karaoke-listener-badge"><Users aria-hidden="true" />仅听众</span>
+            )}
           </div>
 
           <KaraokePerformanceStage
@@ -137,12 +146,21 @@ export default function MobileKaraokeRoom({
             {isHost && <KaraokeJoinRequests requests={joinRequests} onApprove={onApproveJoin} onReject={onRejectJoin} />}
           </details>
 
+          {isHost && (
+            <KaraokeSongPicker
+              tracks={tracks}
+              queuedRecordingIds={queuedRecordingIds}
+              onAdd={onAddToQueue}
+            />
+          )}
+
           <KaraokeQueue
             room={room}
             tracks={tracks}
             onRemove={onRemoveQueueItem}
             onStart={onStartQueueItem}
             isHost={Boolean(isHost)}
+            viewerMemberId={viewerMemberId}
           />
 
           {result && phase === 'complete' && (

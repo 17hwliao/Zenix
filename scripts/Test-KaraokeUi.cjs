@@ -38,6 +38,10 @@ test('karaoke UI helpers and synthetic state props render without business or ne
   assert.equal(windowAtEnd[4].line, null);
   assert.equal(ui.formatKaraokeTime(212_000), '3:32');
   assert.equal(ui.feedbackRows(fixture.desktopCompleteProps.result, fixture.desktopCompleteProps.lyrics).length, 5);
+  assert.deepEqual(
+    [...ui.activeKaraokeRecordingIds(fixture.desktopHostProps.room)].sort(),
+    ['recording-light', 'recording-wind'],
+  );
 
   const phases = ['loading', 'ready', 'empty', 'waiting', 'approved', 'rejected', 'disconnected', 'reconnecting', 'host-stopped', 'failed', 'complete'];
   for (const phase of phases) {
@@ -62,6 +66,37 @@ test('karaoke UI helpers and synthetic state props render without business or ne
   assert.match(desktop, />批准</);
   assert.match(desktop, />拒绝</);
   assert.match(desktop, /type="submit"[^>]*>加入队列/);
+  assert.match(desktop, /从队列移除 夜航/);
+  const desktopPicker = desktop.match(/<select[\s\S]*?<\/select>/)?.[0] || '';
+  assert.match(desktopPicker, /夜航/);
+  assert.doesNotMatch(desktopPicker, /像风一样|落在生命里的光/);
+
+  const disconnectedDesktop = render(ui.DesktopKaraokePage, {
+    ...fixture.desktopHostProps,
+    phase: 'disconnected',
+    onRetry: () => undefined,
+  });
+  assert.match(disconnectedDesktop, /重新连接/);
+  assert.doesNotMatch(disconnectedDesktop, /取消准备|加入队列/);
+
+  const guest = render(ui.DesktopKaraokePage, fixture.desktopGuestProps);
+  assert.doesNotMatch(guest, /从队列移除 夜航/);
+  assert.match(guest, /从队列移除 落在生命里的光/);
+
+  const listenerRoom = {
+    ...fixture.desktopHostProps.room,
+    members: fixture.desktopHostProps.room.members.map((member) => member.id === 'listener'
+      ? {...member, connected: true}
+      : member),
+  };
+  const desktopListener = render(ui.DesktopKaraokePage, {
+    ...fixture.desktopGuestProps,
+    room: listenerRoom,
+    viewerMemberId: 'listener',
+  });
+  assert.match(desktopListener, /听众小岚（你）/);
+  assert.match(desktopListener, /听众 · 仅听众/);
+  assert.doesNotMatch(desktopListener, /aria-label="准备演唱"/);
 
   const complete = render(ui.DesktopKaraokePage, fixture.desktopCompleteProps);
   assert.match(complete, /role="dialog"/);
@@ -86,9 +121,23 @@ test('karaoke UI helpers and synthetic state props render without business or ne
   assert.match(solo, /aria-label="暂停演唱"/);
 
   const mobileRoom = render(ui.MobileKaraokeRoom, fixture.mobileRoomProps);
-  assert.equal((mobileRoom.match(/data-karaoke-lyric-slot=/g) || []).length, 5);
   assert.match(mobileRoom, /data-karaoke-phase="disconnected"/);
-  assert.match(mobileRoom, /aria-pressed="true"/);
+  assert.match(mobileRoom, /重新连接/);
+  assert.doesNotMatch(mobileRoom, /取消准备|加入队列/);
+
+  const mobileRoomReady = render(ui.MobileKaraokeRoom, fixture.mobileRoomReadyProps);
+  assert.equal((mobileRoomReady.match(/data-karaoke-lyric-slot=/g) || []).length, 5);
+  assert.match(mobileRoomReady, /取消准备/);
+  assert.match(mobileRoomReady, /type="submit"[^>]*>加入队列/);
+
+  const mobileListener = render(ui.MobileKaraokeRoom, {
+    ...fixture.mobileRoomReadyProps,
+    room: listenerRoom,
+    viewerMemberId: 'listener',
+  });
+  assert.match(mobileListener, /zenix-karaoke-listener-badge/);
+  assert.match(mobileListener, /仅听众/);
+  assert.doesNotMatch(mobileListener, /zenix-karaoke-ready-button/);
 
   const css = await fs.readFile(path.resolve(__dirname, '../src/features/karaoke/ui/karaoke-ui.css'), 'utf8');
   assert.match(css, /min-height:\s*44px/);

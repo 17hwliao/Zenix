@@ -94,6 +94,12 @@ export function currentQueueItem(room: KaraokeRoomState): KaraokeQueueItem | nul
   return room.queue.find((item) => item.state === 'countdown' || item.state === 'singing') ?? null;
 }
 
+export function activeKaraokeRecordingIds(room?: KaraokeRoomState): ReadonlySet<string> {
+  return new Set((room?.queue ?? [])
+    .filter((item) => item.state === 'queued' || item.state === 'countdown' || item.state === 'singing')
+    .map((item) => item.recordingId));
+}
+
 export function memberNames(room: KaraokeRoomState, memberIds: readonly string[]): readonly string[] {
   return memberIds.map((id) => room.members.find((member) => member.id === id)?.displayName ?? id);
 }

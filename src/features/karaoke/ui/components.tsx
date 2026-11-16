@@ -269,9 +269,9 @@ export function KaraokeMemberList({
             <span className="zenix-karaoke-avatar" aria-hidden="true">{member.displayName.slice(0, 1)}</span>
             <span className="zenix-karaoke-member-copy">
               <strong>{member.displayName}{member.id === viewerMemberId ? '（你）' : ''}</strong>
-              <small>{memberRoleLabel(member)} · {member.connected ? (member.ready ? '已准备' : '未准备') : '已断开'}</small>
+              <small>{memberRoleLabel(member)} · {!member.connected ? '已断开' : member.role === 'listener' ? '仅听众' : member.ready ? '已准备' : '未准备'}</small>
             </span>
-            {member.id === viewerMemberId && (
+            {member.id === viewerMemberId && member.role !== 'listener' && (
               <button
                 type="button"
                 className="zenix-karaoke-pill"
@@ -333,12 +333,14 @@ export function KaraokeQueue({
   onRemove,
   onStart,
   isHost,
+  viewerMemberId,
 }: {
   room: KaraokeRoomState;
   tracks: readonly KaraokeUiTrack[];
   onRemove?: KaraokeUiValueAction<string>;
   onStart?: KaraokeUiValueAction<string>;
   isHost: boolean;
+  viewerMemberId?: string;
 }) {
   return (
     <section className="zenix-karaoke-panel zenix-karaoke-queue" aria-labelledby="zenix-karaoke-queue-title">
@@ -358,6 +360,7 @@ export function KaraokeQueue({
             const track = findTrack(tracks, item.recordingId);
             const singers = memberNames(room, item.singerIds);
             const current = item.id === room.currentItemId || item.state === 'countdown' || item.state === 'singing';
+            const canRemove = isHost || Boolean(viewerMemberId && item.singerIds.includes(viewerMemberId));
             return (
               <li key={item.id} className={current ? 'is-current' : undefined}>
                 <span className="zenix-karaoke-queue-index">{String(index + 1).padStart(2, '0')}</span>
@@ -378,15 +381,17 @@ export function KaraokeQueue({
                     <Mic2 aria-hidden="true" />
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="zenix-karaoke-icon-button zenix-karaoke-remove"
-                  aria-label={`从队列移除 ${track?.title || item.recordingId}`}
-                  disabled={!onRemove || current}
-                  onClick={() => void onRemove?.(item.id)}
-                >
-                  <X aria-hidden="true" />
-                </button>
+                {canRemove && (
+                  <button
+                    type="button"
+                    className="zenix-karaoke-icon-button zenix-karaoke-remove"
+                    aria-label={`从队列移除 ${track?.title || item.recordingId}`}
+                    disabled={!onRemove || current}
+                    onClick={() => void onRemove?.(item.id)}
+                  >
+                    <X aria-hidden="true" />
+                  </button>
+                )}
               </li>
             );
           })}

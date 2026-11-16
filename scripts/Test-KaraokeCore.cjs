@@ -179,6 +179,19 @@ test('accompaniment policy uses strict priority, cache identity and rehearsal-on
   assert.match(separated.value.cacheKey, /model=uvr-v5/);
   assert.match(separated.value.cacheKey, /format=wav/);
 
+  const mismatched = karaoke.resolveAccompaniment({
+    recordingId: 'recording-42',
+    audioContentFingerprint: 'sha256:aabb',
+    candidates: [
+      { kind: 'separated', uri: 'file:///cache/wrong.wav', fingerprint: 'sha256:other', modelVersion: 'uvr-v5', outputFormat: 'wav' },
+      { kind: 'source-official', uri: 'https://source.example/fallback.accompaniment' },
+    ],
+  });
+  assert.equal(mismatched.ok, true);
+  assert.equal(mismatched.value.kind, 'source-official');
+  assert.equal(mismatched.value.fingerprint, undefined);
+  assert.equal(mismatched.value.cacheKey, undefined);
+
   const unsafeCancel = karaoke.resolveAccompaniment({
     recordingId: 'recording-42',
     audioContentFingerprint: 'sha256:aabb',
@@ -202,6 +215,8 @@ test('score engine rejects pitch, octave, high, low and timing errors while igno
   const low = scoreWith(framesForLine(notes, { midiOffset: -2 }));
   const high = scoreWith(framesForLine(notes, { midiOffset: 2 }));
   const octave = scoreWith(framesForLine(notes, { midiOffset: 12 }));
+  const twoOctaves = scoreWith(framesForLine(notes, { midiOffset: 24 }));
+  const threeOctaves = scoreWith(framesForLine(notes, { midiOffset: 36 }));
   const early = scoreWith(framesForLine(notes, { shiftMs: -160 }));
   const late = scoreWith(framesForLine(notes, { shiftMs: 160 }));
   const noise = scoreWith(framesForLine(notes, { energy: 0.005 }));
@@ -209,9 +224,13 @@ test('score engine rejects pitch, octave, high, low and timing errors while igno
   assert.ok(correct.lines[0].pitch > low.lines[0].pitch);
   assert.ok(correct.lines[0].pitch > high.lines[0].pitch);
   assert.ok(correct.lines[0].pitch > octave.lines[0].pitch);
+  assert.ok(correct.lines[0].pitch > twoOctaves.lines[0].pitch);
+  assert.ok(correct.lines[0].pitch > threeOctaves.lines[0].pitch);
   assert.ok(low.lines[0].feedback.some((line) => line.includes('偏低')));
   assert.ok(high.lines[0].feedback.some((line) => line.includes('偏高')));
   assert.ok(octave.lines[0].feedback.some((line) => line.includes('八度')));
+  assert.ok(twoOctaves.lines[0].feedback.some((line) => line.includes('八度')));
+  assert.ok(threeOctaves.lines[0].feedback.some((line) => line.includes('八度')));
   assert.ok(early.lines[0].feedback.some((line) => line.includes('提前约0.16秒')));
   assert.ok(late.lines[0].feedback.some((line) => line.includes('延后约0.16秒')));
   assert.equal(noise.lines[0].completeness, 0);
@@ -250,6 +269,20 @@ test('latency compensation, no-pitch fallback and malformed input remain determi
   });
   assert.doesNotThrow(() => karaoke.scoreKaraoke(malformed));
   assert.equal(karaoke.safeScoreKaraoke(malformed).ok, true);
+
+  const hugeWeights = scoreWith(framesForLine(notes), {
+    options: {
+      weights: {
+        pitch: Number.MAX_VALUE,
+        rhythm: Number.MAX_VALUE,
+        lyrics: Number.MAX_VALUE,
+        completeness: Number.MAX_VALUE,
+        breath: Number.MAX_VALUE,
+      },
+    },
+  });
+  assert.ok(Number.isFinite(hugeWeights.total));
+  assert.ok(hugeWeights.lines.every((line) => Number.isFinite(line.total)));
 
   const first = scoreWith(framesForLine(notes, { midiOffset: -2 })).lines[0].feedback;
   const second = scoreWith(framesForLine(notes, { midiOffset: -2 })).lines[0].feedback;
@@ -306,6 +339,10 @@ test('session enforces ready/countdown/singing/results, supports all queue modes
   assert.equal(session.state.status, 'lobby');
   assert.equal(session.state.queue[0].state, 'scored');
   assert.ok(session.state.queue[0].score);
+  const completedRecordingId = session.state.queue[0].recordingId;
+  result = session.addQueueItem('host', { recordingId: completedRecordingId, mode: 'solo' }, 3100);
+  assert.equal(result.ok, true);
+  assert.equal(result.state.queue.at(-1).recordingId, completedRecordingId);
 });
 
 test('session errors are structured, input snapshots stay frozen and host stop closes independently', () => {
@@ -320,8 +357,30 @@ test('session errors are structured, input snapshots stay frozen and host stop c
   let session = created.session;
   session = session.joinMember('a', 'A', 2).session;
   session = session.joinMember('b', 'B', 3).session;
+  session = session.joinMember('listener', '听众', 3, 'listener').session;
+  const listenerReady = session.setReady('listener', 'listener', true, 3);
+  assert.equal(listenerReady.ok, false);
+  assert.equal(listenerReady.error.code, 'INVALID_INPUT');
+  const listenerQueue = session.addQueueItem('host', {
+    recordingId: 'listener-song',
+    mode: 'solo',
+    singerIds: ['listener'],
+  }, 3);
+  assert.equal(listenerQueue.ok, false);
+  assert.equal(listenerQueue.error.code, 'INVALID_INPUT');
+  session = session.setReady('a', 'a', true, 3).session;
+  const duplicateSource = session.addQueueItem('a', { recordingId: 'same-song', mode: 'solo' }, 4);
+  assert.equal(duplicateSource.ok, true);
+  session = duplicateSource.session;
+  const duplicate = session.addQueueItem('a', { recordingId: 'same-song', mode: 'solo' }, 5);
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.error.code, 'INVALID_INPUT');
+  const missingItem = session.removeQueueItem('a', 'missing-item', 5);
+  assert.equal(missingItem.ok, false);
+  assert.equal(missingItem.error.code, 'ITEM_NOT_FOUND');
+
   const before = frozen(structuredClone(session.state));
-  const failed = session.addQueueItem('a', { recordingId: 'bad', mode: 'solo', singerIds: ['a', 'b'] }, 4);
+  const failed = session.addQueueItem('a', { recordingId: 'bad', mode: 'solo', singerIds: ['a', 'b'] }, 6);
   assert.equal(failed.ok, false);
   assert.equal(failed.error.code, 'INVALID_INPUT');
   assert.deepEqual(session.state, before);
@@ -357,4 +416,11 @@ test('session errors are structured, input snapshots stay frozen and host stop c
   assert.equal(restored.ok, true);
   assert.equal(restored.state.queue[0].recordingId, 'saved-song');
   assert.equal(restored.state.queue[0].state, 'queued');
+
+  const corruptScore = karaoke.KaraokeSession.restore(frozen({
+    ...restored.state,
+    queue: [{...restored.state.queue[0], state: 'scored', score: 'not-a-score'}],
+  }));
+  assert.equal(corruptScore.ok, false);
+  assert.equal(corruptScore.error.code, 'INVALID_INPUT');
 });

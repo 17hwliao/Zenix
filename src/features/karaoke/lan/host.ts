@@ -129,6 +129,7 @@ function mapSessionError(code: KaraokeErrorCode): KaraokeLanError['code'] {
     case 'HOST_REQUIRED':
     case 'INVALID_TRANSITION':
     case 'LIMIT_EXCEEDED':
+    case 'ITEM_NOT_FOUND':
       return code;
     case 'DUPLICATE_ID':
       return 'DUPLICATE_JOIN';

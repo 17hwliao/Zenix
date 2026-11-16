@@ -22,6 +22,7 @@ export {
   KaraokeWaitingPanel,
 } from './components';
 export {
+  activeKaraokeRecordingIds,
   clampUnit,
   currentQueueItem,
   feedbackRows,

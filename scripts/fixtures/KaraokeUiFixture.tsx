@@ -133,6 +133,12 @@ export const desktopCompleteProps: DesktopKaraokePageProps = {
   result: score,
 };
 
+export const desktopGuestProps: DesktopKaraokePageProps = {
+  ...desktopHostProps,
+  viewerMode: 'guest',
+  viewerMemberId: 'singer',
+};
+
 export const mobileSoloProps: MobileKaraokeSoloPageProps = {
   track: tracks[0],
   singerName: '移动端演唱者',
@@ -159,12 +165,20 @@ export const mobileRoomProps: MobileKaraokeRoomProps = {
   onRetryConnection: noop,
 };
 
+export const mobileRoomReadyProps: MobileKaraokeRoomProps = {
+  ...desktopHostProps,
+  phase: 'ready',
+  onRetryConnection: noop,
+};
+
 if (typeof document !== 'undefined' && typeof location !== 'undefined') {
   const root = document.getElementById('root');
   const mode = new URLSearchParams(location.search).get('mode') || 'mobile-solo';
   if (root) {
     createRoot(root).render(mode === 'mobile-room'
       ? <MobileKaraokeRoom {...mobileRoomProps} />
+      : mode === 'mobile-room-ready'
+        ? <MobileKaraokeRoom {...mobileRoomReadyProps} />
       : mode === 'desktop-complete'
         ? <DesktopKaraokePage {...desktopCompleteProps} />
       : mode === 'desktop'

@@ -25,7 +25,7 @@ const invoke=async <T,>(args:Record<string,unknown>):Promise<T>=>{
 };
 function Fixture(){
  const [songs,setSongs]=useState(tracks),[focusRequest,setFocusRequest]=useState(0);
- const [panel,setPanel]=useState(false),[settings,setSettings]=useState(false),[category,setCategory]=useState('appearance');
+ const [panel,setPanel]=useState(false),[settings,setSettings]=useState(false),[category,setCategory]=useState(platform==='mobile'?'space':'appearance');
  const play=(song:Track)=>{calls.played.push(song.id);calls.sameObject&&=tracks.includes(song);};
  const no=()=>{};
  const playback={track:tracks[0],playing:false,position:12,duration:240,volume:.75,muted:false,shuffle:false,repeat:'all' as const,queue:songs,queueIndex:0};

@@ -13,6 +13,7 @@ export type KaraokeErrorCode =
   | 'ROOM_FULL'
   | 'QUEUE_FULL'
   | 'DUPLICATE_ID'
+  | 'ITEM_NOT_FOUND'
   | 'LIMIT_EXCEEDED';
 
 export interface KaraokeError {

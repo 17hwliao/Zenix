@@ -87,7 +87,7 @@ app.whenReady().then(async () => {
   for (const {mode, widths, mobile} of [
     {mode: 'desktop', widths: [1200], mobile: false},
     {mode: 'mobile-solo', widths: [390, 320], mobile: true},
-    {mode: 'mobile-room', widths: [390, 320], mobile: true},
+    {mode: 'mobile-room-ready', widths: [390, 320], mobile: true},
   ]) {
     for (const width of widths) {
       window.setContentSize(width, 844);
