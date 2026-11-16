@@ -15,6 +15,29 @@ app.whenReady().then(async () => {
   await window.loadURL(process.env.ZENIX_TEST_UI_URL);
   checkpoint('fixture loaded');
   await wait('!!document.querySelector(".yz-playerbar-track")');
+  await evaluate(`(()=>{window.yzqxy={sources:{list:async()=>[],onChanged:()=>()=>{},diagnostics:async()=>({smooth:false,sources:{}}),configureDiagnostics:async smooth=>({smooth,sources:{}})},cache:{stats:async()=>({usedBytes:0,limitMiB:512,metadataBytes:0,metadataLimitMiB:32})}};return true;})()`);
+  await evaluate(`[...document.querySelectorAll("button")].find(button=>button.textContent.includes("播放器设置")).click()`);
+  await wait('!!document.querySelector(".yz-settings-redesign")');
+  for(const [width,height]of [[1440,900],[1000,800]]){
+    window.setContentSize(width,height);await wait(`innerWidth===${width}&&innerHeight===${height}`);await sleep(120);
+    assert.equal(await evaluate('(()=>{const modal=document.querySelector(".yz-settings-redesign").getBoundingClientRect(),content=document.querySelector(".yz-settings-content");return modal.left>=0&&modal.right<=innerWidth&&modal.top>=0&&modal.bottom<=innerHeight&&content.scrollWidth<=content.clientWidth+1;})()'),true,'settings fit '+width+'x'+height);
+    const categories=await evaluate('(()=>{const nav=document.querySelector(".yz-settings-category-tabs"),tabs=[...nav.querySelectorAll("button")],area=nav.getBoundingClientRect();return {count:tabs.length,height:area.height,visible:tabs.every(tab=>{const rect=tab.getBoundingClientRect();return rect.top>=area.top&&rect.bottom<=area.bottom&&rect.width>100;} )};})()');
+    assert.equal(categories.count,6,'desktop category count at '+width);assert(categories.height>300,'desktop categories are not collapsed at '+width+': '+JSON.stringify(categories));assert(categories.visible,'every desktop category is visible at '+width+': '+JSON.stringify(categories));
+  }
+  await evaluate(`(()=>{const input=document.querySelector(".yz-settings-search input");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"主题");input.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+  await wait(`document.querySelector(".yz-settings-result-list")?.textContent.includes("歌词主题")`);
+  await evaluate(`[...document.querySelectorAll(".yz-settings-result-list>button")].find(button=>button.textContent.includes("歌词主题")).click()`);
+  await wait('document.querySelectorAll(".zenix-theme-card").length===4&&document.querySelector("[data-setting=themes]")?.classList.contains("yz-setting-search-target")');
+  await evaluate('document.querySelector(".zenix-theme-card[data-theme-preview=minimal-ivory] .zenix-theme-card-select").click()');
+  await wait('localStorage.getItem("zenix.theme.active.v1")==="minimal-ivory"&&document.querySelector(".zenix-theme-card.is-selected")?.dataset.themePreview==="minimal-ivory"');
+  await evaluate(`(()=>{const input=document.querySelector(".yz-settings-search input");Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,"纯歌词");input.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+  await wait(`document.querySelector(".yz-settings-result-list")?.textContent.includes("纯歌词")`);
+  await evaluate(`[...document.querySelectorAll(".yz-settings-result-list>button")].find(button=>button.textContent.includes("纯歌词")).click()`);
+  await wait('document.querySelector("[data-setting=pure-lyrics]")?.classList.contains("yz-setting-search-target")');
+  await evaluate(`(()=>{const tab=document.querySelector('[role=tab][aria-selected=true]');tab.focus();tab.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}));})()`);
+  await wait('document.activeElement?.getAttribute("role")==="tab"&&document.activeElement?.getAttribute("aria-selected")==="true"&&document.activeElement?.textContent.includes("音乐源")');
+  await evaluate('document.querySelector(".yz-settings-close").click()');
+  await wait('!document.querySelector(".yz-settings-redesign")');
   const homeSizes=[];
   for(const [width,height]of [[960,640],[1200,800],[1920,1080],[2560,1600]]){
     window.setContentSize(width,height);await wait(`innerWidth===${width}&&innerHeight===${height}`);

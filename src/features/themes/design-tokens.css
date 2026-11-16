@@ -1,0 +1,46 @@
+:root {
+  --zx-bg: #090909;
+  --zx-bg-elevated: #111111;
+  --zx-surface: #151515;
+  --zx-surface-hover: #1b1b1b;
+  --zx-surface-active: #222222;
+  --zx-border: #2d2d2d;
+  --zx-border-strong: #494949;
+  --zx-silver: #c9cdce;
+  --zx-silver-dark: #717779;
+  --zx-text: #f1f1ef;
+  --zx-text-secondary: #b9b9b5;
+  --zx-text-muted: #8e8e89;
+  --zx-accent: #d7e0e2;
+  --zx-accent-soft: #d7e0e21a;
+  --zx-success: #b7c9bf;
+  --zx-danger: #d6a7a7;
+  --zx-focus: #f1f1ef;
+  --zx-space-1: 4px;
+  --zx-space-2: 8px;
+  --zx-space-3: 12px;
+  --zx-space-4: 16px;
+  --zx-space-5: 20px;
+  --zx-space-6: 24px;
+  --zx-space-7: 32px;
+  --zx-radius-sm: 8px;
+  --zx-radius-md: 12px;
+  --zx-radius-lg: 18px;
+  --zx-radius-xl: 24px;
+  --zx-motion-fast: 120ms;
+  --zx-motion: 180ms;
+  --zx-ease: cubic-bezier(.22, 1, .36, 1);
+  --zx-list-background: #101010;
+  --zx-list-surface: #151515;
+  --zx-list-border: #3a3a3a;
+  --zx-list-highlight: #232323;
+  --zx-list-text: #ededeb;
+  --zx-list-secondary: #aaa9a5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --zx-motion-fast: 0ms;
+    --zx-motion: 0ms;
+  }
+}

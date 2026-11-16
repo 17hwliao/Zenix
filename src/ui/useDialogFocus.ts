@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-export function useDialogFocus(open: boolean, close: () => void) {
-  const ref = useRef<HTMLElement>(null), closeRef = useRef(close); closeRef.current = close;
+export function useDialogFocus<T extends HTMLElement = HTMLElement>(open: boolean, close: () => void) {
+  const ref = useRef<T>(null), closeRef = useRef(close); closeRef.current = close;
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null; ref.current?.focus();

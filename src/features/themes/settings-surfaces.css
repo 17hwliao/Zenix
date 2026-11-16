@@ -1,0 +1,142 @@
+.yz-settings-redesign .zenix-source-settings,
+.mobile-settings .zenix-source-settings,
+.yz-settings-redesign .zenix-updates,
+.mobile-settings .zenix-updates,
+.yz-settings-redesign .reliability-card,
+.mobile-settings .reliability-card {
+  color: var(--zx-text);
+}
+
+.yz-settings-redesign .zenix-source-card,
+.yz-settings-redesign .zenix-audio-cache,
+.yz-settings-redesign .zenix-source-presets,
+.yz-settings-redesign .zenix-source-preview,
+.yz-settings-redesign .zenix-source-empty,
+.yz-settings-redesign .zenix-bundle-import,
+.yz-settings-redesign .zenix-updates,
+.yz-settings-redesign .reliability-card,
+.mobile-settings .zenix-source-card,
+.mobile-settings .zenix-audio-cache,
+.mobile-settings .zenix-source-presets,
+.mobile-settings .zenix-source-preview,
+.mobile-settings .zenix-source-empty,
+.mobile-settings .zenix-bundle-import,
+.mobile-settings .zenix-updates,
+.mobile-settings .reliability-card {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-lg);
+  color: var(--zx-text);
+  background: var(--zx-bg-elevated);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.yz-settings-redesign .zenix-source-settings small,
+.yz-settings-redesign .zenix-source-settings p,
+.yz-settings-redesign .zenix-source-hint,
+.yz-settings-redesign .zenix-source-domains,
+.yz-settings-redesign .zenix-updates small,
+.yz-settings-redesign .reliability-card p,
+.yz-settings-redesign .reliability-card small,
+.mobile-settings .zenix-source-settings small,
+.mobile-settings .zenix-source-settings p,
+.mobile-settings .zenix-source-hint,
+.mobile-settings .zenix-source-domains,
+.mobile-settings .zenix-updates small,
+.mobile-settings .reliability-card p,
+.mobile-settings .reliability-card small {
+  color: var(--zx-text-muted);
+}
+
+.yz-settings-redesign .zenix-source-settings button,
+.yz-settings-redesign .zenix-source-settings select,
+.yz-settings-redesign .zenix-updates button,
+.yz-settings-redesign .zenix-updates select,
+.yz-settings-redesign .reliability-card button,
+.mobile-settings .zenix-source-settings button,
+.mobile-settings .zenix-source-settings select,
+.mobile-settings .zenix-updates button,
+.mobile-settings .zenix-updates select,
+.mobile-settings .reliability-card button {
+  min-height: 44px;
+  border: 1px solid var(--zx-border-strong);
+  border-radius: var(--zx-radius-md);
+  color: var(--zx-text-secondary);
+  background: var(--zx-surface);
+  font: inherit;
+  font-size: 12px;
+}
+
+.yz-settings-redesign .zenix-source-settings button:hover,
+.yz-settings-redesign .zenix-updates button:hover,
+.yz-settings-redesign .reliability-card button:hover,
+.mobile-settings .zenix-source-settings button:hover,
+.mobile-settings .zenix-updates button:hover,
+.mobile-settings .reliability-card button:hover {
+  color: var(--zx-text);
+  background: var(--zx-surface-hover);
+}
+
+.yz-settings-redesign .zenix-source-preset:first-child,
+.mobile-settings .zenix-source-preset:first-child {
+  border-color: var(--zx-border-strong);
+  background: var(--zx-surface);
+}
+
+.yz-settings-redesign .zenix-source-preset:first-child button,
+.yz-settings-redesign .zenix-source-import form button,
+.yz-settings-redesign .zenix-source-preview button:last-child,
+.mobile-settings .zenix-source-preset:first-child button,
+.mobile-settings .zenix-source-import form button,
+.mobile-settings .zenix-source-preview button:last-child {
+  border-color: var(--zx-text);
+  color: #121212;
+  background: var(--zx-text);
+}
+
+.yz-settings-redesign .zenix-source-import form,
+.mobile-settings .zenix-source-import form {
+  border: 1px solid var(--zx-border-strong);
+  background: var(--zx-surface);
+}
+
+.yz-settings-redesign .zenix-source-import form input,
+.yz-settings-redesign .zenix-source-options input,
+.yz-settings-redesign .zenix-source-options select,
+.yz-settings-redesign .zenix-network-options input:not([type=checkbox]),
+.mobile-settings .zenix-source-import form input,
+.mobile-settings .zenix-source-options input,
+.mobile-settings .zenix-source-options select,
+.mobile-settings .zenix-network-options input:not([type=checkbox]) {
+  border: 1px solid var(--zx-border-strong);
+  border-radius: var(--zx-radius-sm);
+  color: var(--zx-text);
+  background: var(--zx-bg-elevated);
+}
+
+.yz-settings-redesign .zenix-network-options,
+.mobile-settings .zenix-network-options {
+  border-color: var(--zx-border);
+  background: var(--zx-surface);
+}
+
+.yz-settings-redesign .zenix-source-options,
+.mobile-settings .zenix-source-options {
+  border-top-color: var(--zx-border);
+}
+
+.yz-settings-redesign .zenix-source-dot,
+.mobile-settings .zenix-source-dot {
+  background: var(--zx-success);
+  box-shadow: none;
+}
+
+.yz-settings-redesign .zenix-source-error,
+.mobile-settings .zenix-source-error,
+.yz-settings-redesign .zenix-updates [role=alert],
+.mobile-settings .zenix-updates [role=alert] {
+  color: var(--zx-danger);
+}

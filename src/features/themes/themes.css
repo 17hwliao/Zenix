@@ -1,0 +1,500 @@
+@import './design-tokens.css';
+
+.zenix-theme-settings {
+  box-sizing: border-box;
+  min-width: 0;
+  color: var(--zx-text);
+}
+
+.zenix-theme-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--zx-space-4);
+  margin-bottom: var(--zx-space-4);
+}
+
+.zenix-theme-settings-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.zenix-theme-settings-head p {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: var(--zx-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.zenix-theme-current {
+  flex: none;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid var(--zx-border);
+  border-radius: 999px;
+  color: var(--zx-text-secondary);
+  background: var(--zx-surface);
+  font-size: 12px;
+}
+
+.zenix-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--zx-space-3);
+}
+
+.zenix-theme-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-lg);
+  background: var(--zx-surface);
+  overflow: hidden;
+}
+
+.zenix-theme-card.is-selected {
+  border-color: var(--zx-border-strong);
+  box-shadow: inset 0 0 0 1px #ffffff12;
+}
+
+.zenix-theme-card-select {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--zx-space-3);
+  width: 100%;
+  min-height: 116px;
+  padding: 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zenix-theme-card-select:hover {
+  background: var(--zx-surface-hover);
+}
+
+.zenix-theme-card-select:focus-visible,
+.zenix-theme-delete:focus-visible,
+.zenix-theme-import-row button:focus-visible,
+.zenix-theme-import-row summary:focus-visible {
+  outline: 2px solid var(--zx-focus);
+  outline-offset: 2px;
+}
+
+.zenix-theme-card-select:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.zenix-theme-swatch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 94px;
+  padding: 12px;
+  border: 1px solid #ffffff1c;
+  border-radius: var(--zx-radius-md);
+  background-position: center;
+  background-size: cover;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.zenix-theme-swatch>img {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zenix-theme-card[data-theme-preview="vinyl-night"] .zenix-theme-swatch {
+  background-image: radial-gradient(circle at center, transparent 0 8%, #252525 9% 10%, transparent 11% 20%, #181818 21% 22%, transparent 23% 34%, #161616 35% 36%, transparent 37%), linear-gradient(135deg, #050505, #161616);
+}
+
+.zenix-theme-card[data-theme-preview="cinema-curtain"] .zenix-theme-swatch {
+  background-image: linear-gradient(90deg, #2b0d10, transparent 20% 80%, #2b0d10), linear-gradient(#0b0808, #1a0d0d);
+}
+
+.zenix-theme-card[data-theme-preview="cd-player"] .zenix-theme-swatch {
+  background-image: conic-gradient(from 40deg, #202325, #d9dee0 16%, #5a6063 22%, #111314 39%, #eef1f2 51%, #303437 63%, #0b0c0d 78%, #a8adb0 91%, #202325);
+}
+
+.zenix-theme-card[data-theme-preview="minimal-ivory"] .zenix-theme-swatch {
+  background-image: linear-gradient(135deg, #f5f3ee, #e6e3dc);
+  color: #1b1b19;
+}
+
+.zenix-theme-swatch-line {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zenix-theme-swatch-line.is-muted {
+  opacity: .52;
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.zenix-theme-card-copy {
+  align-self: center;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zenix-theme-card-copy strong {
+  overflow: hidden;
+  color: var(--zx-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zenix-theme-card-copy small,
+.zenix-theme-card-copy em {
+  color: var(--zx-text-muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.zenix-theme-card-copy em {
+  color: var(--zx-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.zenix-theme-check {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #101010;
+  background: var(--zx-text);
+}
+
+.zenix-theme-delete {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--zx-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.zenix-theme-delete:hover {
+  border-color: #8d575744;
+  color: var(--zx-danger);
+  background: #8d57571a;
+}
+
+.zenix-theme-import-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zx-space-3);
+  margin-top: var(--zx-space-4);
+}
+
+.zenix-theme-import-row>button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--zx-border-strong);
+  border-radius: var(--zx-radius-md);
+  color: var(--zx-text);
+  background: var(--zx-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.zenix-theme-import-row>button:hover {
+  background: var(--zx-surface-hover);
+}
+
+.zenix-theme-import-row details {
+  flex: 1;
+  min-width: 0;
+}
+
+.zenix-theme-import-row summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--zx-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.zenix-theme-import-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.zenix-theme-import-row details p {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 1px solid var(--zx-border-strong);
+  color: var(--zx-text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.zenix-theme-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: var(--zx-space-3);
+  padding: 11px 13px;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-md);
+  color: var(--zx-success);
+  background: #b7c9bf0d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.zenix-theme-status.is-error {
+  color: var(--zx-danger);
+  background: #d6a7a70d;
+}
+
+.zenix-theme-status>span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.zenix-theme-status>button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+}
+
+/* These variables are the integration boundary for the separately owned simple list. */
+.space-song-list {
+  --space-edge: linear-gradient(145deg, var(--zx-silver) 0%, var(--zx-border-strong) 18%, var(--zx-border) 58%, var(--zx-silver-dark) 100%);
+  background: var(--zx-list-background) padding-box, var(--space-edge) border-box;
+  color: var(--zx-list-text);
+}
+
+.space-song-list li {
+  border-bottom-color: #ffffff12;
+}
+
+.space-song-list li.is-focused {
+  background: var(--zx-list-highlight);
+}
+
+.space-song-title {
+  color: var(--zx-list-text);
+}
+
+.space-song-artist,
+.space-song-album,
+.space-song-number,
+.space-song-duration {
+  color: var(--zx-list-secondary);
+}
+
+.yz-lattice.is-pure-lyrics,
+.mobile-full-player.is-pure-lyrics {
+  --zenix-theme-effective-motion: var(--zenix-theme-motion, 220ms);
+  isolation: isolate;
+  color: var(--zenix-theme-active, #f4f2ec);
+  background-color: var(--zenix-theme-bg, #080808);
+  background-image: var(--zenix-theme-background-image, none);
+  background-position: center;
+  background-size: cover;
+}
+
+.yz-lattice.is-pure-lyrics::before,
+.mobile-full-player.is-pure-lyrics::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  opacity: .14;
+  background-image: var(--zenix-theme-texture-image, none);
+  background-position: center;
+  background-size: cover;
+  pointer-events: none;
+}
+
+.yz-lattice.is-pure-lyrics .yz-sticker.is-expanded {
+  background: transparent;
+}
+
+.yz-lattice.is-pure-lyrics .yz-sticker.is-expanded .yz-lattice-lyrics.is-theme-window,
+.mobile-full-player.is-pure-lyrics .mobile-lyrics.is-theme-window {
+  width: min(var(--zenix-theme-max-width, 760px), calc(100% - 32px));
+  max-width: var(--zenix-theme-max-width, 760px);
+  margin-inline: auto;
+  color: var(--zenix-theme-lyrics, #aaa9a5);
+  font-family: var(--zenix-theme-font, Inter, "Segoe UI", "Noto Sans SC", sans-serif);
+  font-size: var(--zenix-theme-font-size, 34px);
+  line-height: var(--zenix-theme-line-height, 1.55);
+}
+
+.yz-lattice.is-pure-lyrics .yz-lattice-lyric,
+.mobile-full-player.is-pure-lyrics .mobile-lyrics button {
+  transform-origin: center;
+  color: var(--zenix-theme-lyrics, #aaa9a5);
+  opacity: .28;
+  transition: color var(--zenix-theme-effective-motion) var(--zx-ease), opacity var(--zenix-theme-effective-motion) var(--zx-ease), transform var(--zenix-theme-effective-motion) var(--zx-ease);
+}
+
+.yz-lattice.is-pure-lyrics .yz-lattice-lyric[data-distance="0"],
+.mobile-full-player.is-pure-lyrics .mobile-lyrics button[data-distance="0"] {
+  color: var(--zenix-theme-active, #f4f2ec);
+  opacity: 1;
+  transform: scale(var(--zenix-theme-active-scale, 1.1));
+}
+
+.yz-lattice.is-pure-lyrics .yz-lattice-lyric[data-distance="1"],
+.mobile-full-player.is-pure-lyrics .mobile-lyrics button[data-distance="1"] {
+  opacity: .61;
+  transform: scale(.94);
+}
+
+.yz-lattice.is-pure-lyrics .yz-lattice-lyric[data-distance="2"],
+.mobile-full-player.is-pure-lyrics .mobile-lyrics button[data-distance="2"] {
+  opacity: .38;
+  transform: scale(.87);
+}
+
+.yz-lattice.is-pure-lyrics .yz-lattice-lyric small,
+.mobile-full-player.is-pure-lyrics .mobile-lyrics small {
+  color: var(--zenix-theme-translation, #777673);
+  font-size: .55em;
+  opacity: .9;
+}
+
+.yz-lattice.is-pure-lyrics .yz-pure-lyrics-toggle,
+.yz-lattice.is-pure-lyrics .listening-lyric-controls,
+.mobile-full-player.is-pure-lyrics>header,
+.mobile-full-player.is-pure-lyrics .full-player-tools,
+.mobile-full-player.is-pure-lyrics .listening-lyric-controls {
+  color: var(--zenix-theme-controls, #deddd8);
+}
+
+.yz-lattice.is-pure-lyrics .yz-pure-lyrics-toggle,
+.yz-lattice.is-pure-lyrics .listening-lyric-controls,
+.yz-lattice.is-pure-lyrics .yz-sticker-focus-controls {
+  z-index: 14;
+  pointer-events: auto;
+}
+
+.mobile-full-player.is-pure-lyrics>header>span,
+.mobile-full-player.is-pure-lyrics>header button {
+  color: var(--zenix-theme-controls, #deddd8);
+}
+
+.yz-lattice.is-pure-lyrics .yz-lattice-lyrics {
+  padding-block: 22vh;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+}
+
+.mobile-full-player.is-pure-lyrics .mobile-lyrics {
+  padding-block: 22vh;
+  scroll-behavior: smooth;
+}
+
+.mobile-full-player.is-pure-lyrics .mobile-lyrics button {
+  min-height: clamp(58px, 10vh, 92px);
+  font-weight: 560;
+  line-height: var(--zenix-theme-line-height, 1.55);
+}
+
+.zenix-theme-card[data-theme-preview="minimal-ivory"] .zenix-theme-card-copy strong {
+  color: var(--zx-text);
+}
+
+@media (max-width: 700px) {
+  .zenix-theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .zenix-theme-card-select {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 430px) {
+  .zenix-theme-settings-head {
+    display: grid;
+  }
+
+  .zenix-theme-current {
+    justify-self: start;
+  }
+
+  .zenix-theme-card-select {
+    grid-template-columns: 88px minmax(0, 1fr);
+    min-height: 104px;
+    gap: 10px;
+  }
+
+  .zenix-theme-swatch {
+    min-height: 82px;
+    padding: 9px;
+  }
+
+  .zenix-theme-import-row {
+    flex-direction: column;
+  }
+
+  .zenix-theme-import-row>button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yz-lattice.is-pure-lyrics .yz-lattice-lyrics,
+  .mobile-full-player.is-pure-lyrics .mobile-lyrics {
+    scroll-behavior: auto;
+  }
+
+  .yz-lattice.is-pure-lyrics .yz-lattice-lyric,
+  .mobile-full-player.is-pure-lyrics .mobile-lyrics button {
+    transition-duration: 0s;
+  }
+}
