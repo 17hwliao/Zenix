@@ -88,7 +88,7 @@ app.whenReady().then(async()=>{
   await wait(`document.querySelector('[aria-label="播放品质"]')?.textContent.includes('无损')`);
   if(await evaluate('!!document.querySelector("[aria-label=关闭提示]")'))await click('[aria-label="关闭提示"]');
   await screenshot('mobile-settings-playback.png');
-  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='设备连接').click()`);
+  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='设备与下载').click()`);
   await wait('!!document.querySelector("[aria-label=电脑遥控地址]")');
   for(const width of [320,390,430]){window.setContentSize(width,820);await sleep(60);assert.equal(await evaluate('document.querySelector(".mobile-content").scrollWidth<=document.querySelector(".mobile-content").clientWidth+1'),true,'categorized settings fit mobile width '+width);}
   window.setContentSize(390,820);await screenshot('mobile-settings-devices.png');
@@ -100,11 +100,18 @@ app.whenReady().then(async()=>{
   await click('[aria-label="遥控播放"]');await wait('!!document.querySelector("[aria-label=遥控暂停]")');await click('[aria-label="遥控下一首"]');await wait('document.querySelector(".mobile-remote-player")?.textContent.includes("电脑下一首")');
   assert.equal(await evaluate('JSON.stringify(window.fixture.state.playback)'),localBeforeRemote,'remote controls do not replace local playback');await screenshot('mobile-remote-connected.png');
   await evaluate('[...document.querySelectorAll(".mobile-remote button")].find(button=>button.textContent==="断开连接").click()');await wait('!!document.querySelector(".mobile-remote form")');
+  await evaluate(`(()=>{const input=document.querySelector('[aria-label="搜索设置"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'主题');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait(`document.querySelector(".yz-settings-result-list")?.textContent.includes("歌词主题")`);
+  await evaluate(`[...document.querySelectorAll(".yz-settings-result-list>button")].find(button=>button.textContent.includes("歌词主题")).click()`);
+  await wait('document.querySelectorAll(".zenix-theme-card").length===4&&document.querySelector("[data-mobile-setting=themes]")?.classList.contains("is-search-target")');
+  for(const width of [320,390,430]){window.setContentSize(width,820);await sleep(60);assert.equal(await evaluate('document.querySelector(".zenix-theme-settings").scrollWidth<=document.querySelector(".zenix-theme-settings").clientWidth+1'),true,'theme settings fit mobile width '+width);}
+  await evaluate('document.querySelector(".zenix-theme-card[data-theme-preview=cinema-curtain] .zenix-theme-card-select").click()');
+  await wait('localStorage.getItem("zenix.theme.active.v1")==="cinema-curtain"&&document.querySelector(".zenix-theme-card.is-selected")?.dataset.themePreview==="cinema-curtain"');
+  window.setContentSize(390,820);
   await evaluate(`(()=>{const input=document.querySelector('[aria-label="搜索设置"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'歌词校正');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait('!!document.querySelector(".yz-settings-result-list")');await screenshot('mobile-settings-search.png');
-  await evaluate('document.querySelector(".yz-settings-result-list>button").click()');await wait('!!document.querySelector("[data-mobile-setting=lyric-display] details[open]")');
+  await evaluate('document.querySelector(".yz-settings-result-list>button").click()');await wait('document.querySelector("[data-mobile-setting=lyric-display]")?.classList.contains("is-search-target")');
   await wait('!!document.querySelector(".mobile-settings input[aria-label=搜索设置]")');
   await evaluate(`(()=>{const input=document.querySelector('.mobile-settings input[aria-label="搜索设置"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'全局快捷键');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait('!!document.querySelector(".yz-settings-empty")');await click('[aria-label="清空设置搜索"]');
-  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='播放').click()`);await wait('!!document.querySelector(".settings-card")');
+  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='资料与更新').click()`);await wait('!!document.querySelector(".tool-actions .zenix-tools-launch")');
   // Native personal updates must reach tools while the memoized settings page stays open.
   const settingsPersonal=await evaluate('window.fixture.state.personal');
   await evaluate(`window.fixture.setSnapshot({personal:{...window.fixture.state.personal,playlists:[...window.fixture.state.personal.playlists,{id:'fresh-settings-list',name:'新收到的歌单',tracks:[]}]}})`);
@@ -133,6 +140,7 @@ app.whenReady().then(async()=>{
     await wait('window.fixture.state.personal.playlists.some(list=>list.name==="文本导入歌单"&&list.autoReplacement&&list.tracks.length===2)');
   await click('[aria-label="关闭音乐工具"]');
   await evaluate(`window.fixture.setSnapshot({personal:${JSON.stringify(settingsPersonal)}})`);
+  await evaluate(`[...document.querySelectorAll('[aria-label="设置分类"] button')].find(button=>button.textContent==='播放').click()`);await wait('!!document.querySelector(".settings-card button")');
   await evaluate('[...document.querySelectorAll(".settings-card button")].find(el=>el.textContent.includes("管理音乐源")).click()');await wait('!!document.querySelector(".source-priority")');
   await click('[aria-label="上移 Source B"]');assert.equal(await evaluate('window.fixture.state.sources[0].id'),'Source B');
   await click('.zenix-bundle-export button');await wait('document.querySelector(".zenix-bundle-export [role=status]")?.textContent.includes("2 份")');
@@ -242,7 +250,7 @@ app.whenReady().then(async()=>{
   const detailHeight=await evaluate('document.querySelector(".space-viewport").clientHeight');
   await evaluate(`window.fixture.setSnapshot({playback:{...window.fixture.state.playback,track:{...window.fixture.state.playback.track,source:'custom',providerId:'Source A',remoteId:'art-fixture'}}})`);await sleep(100);
   await evaluate('window.fixture.artReads=[]');
-  await evaluate(`window.fixture.lyrics={text:Array.from({length:240},(_,i)=>'['+Math.floor(i/60).toString().padStart(2,'0')+':'+(i%60).toString().padStart(2,'0')+']Stress lyric '+i).join(String.fromCharCode(10)),format:'lrc',source:'custom'};window.fixture.lyricReads=[];window.fixture.playbackTicks=setInterval(()=>window.fixture.setSnapshot({playback:{...window.fixture.state.playback,position:window.fixture.state.playback.position+.04}}),40)`);
+  await evaluate(`window.fixture.lyrics={text:Array.from({length:240},(_,i)=>'['+Math.floor(i/60).toString().padStart(2,'0')+':'+(i%60).toString().padStart(2,'0')+']Stress lyric '+i).join(String.fromCharCode(10)),format:'lrc',source:'custom'};window.fixture.lyricReads=[];window.fixture.setSnapshot({playback:{...window.fixture.state.playback,position:120}});window.fixture.playbackTicks=setInterval(()=>window.fixture.setSnapshot({playback:{...window.fixture.state.playback,position:window.fixture.state.playback.position+.04}}),40)`);
   const opening=await evaluate(`new Promise((resolve,reject)=>{const start=performance.now(),samples=[];document.querySelector('.is-focused [aria-label="打开完整播放器"]').click();const frame=()=>{const el=document.querySelector('.mobile-full-player'),top=el?.getBoundingClientRect().top;samples.push({ms:performance.now()-start,top});if(el&&top<=1&&el.querySelector('.full-player-art .mobile-art'))return resolve({ms:performance.now()-start,samples,reads:window.fixture.lyricReads});if(performance.now()-start>1000)return reject(Error('Player entrance did not settle'));requestAnimationFrame(frame);};requestAnimationFrame(frame);})`);
   assert.ok(opening.ms<400,'player entrance settles promptly: '+opening.ms);
   assert.ok(opening.samples.some(s=>s.top>20&&s.top<700),'entrance still slides upwards');
@@ -252,7 +260,16 @@ app.whenReady().then(async()=>{
   assert.ok(coverReads.length>0&&coverReads.every(row=>row.panelTop<=1),'native cover reads wait for entrance completion');
   assert.equal(await evaluate('document.querySelector(".space-viewport").clientHeight'),detailHeight,'opening never resizes/reflows the sticker viewport');
   assert.equal(await evaluate('document.querySelector(".mobile-space").classList.contains("is-suspended")'),true);
-  await click('.mobile-full-player [aria-label="歌词纯净模式"]');await wait('document.querySelector(".mobile-full-player").classList.contains("is-pure-lyrics")');await sleep(250);assert.equal(await evaluate('getComputedStyle(document.querySelector(".mobile-full-player .full-song")).maxHeight'),'0px');assert.equal(await evaluate('getComputedStyle(document.querySelector(".mobile-full-player .full-controls")).display'),'none');assert(await evaluate('document.querySelector(".mobile-lyrics").clientHeight>innerHeight*.65'),'pure mobile dedicates space to lyrics');await click('.mobile-full-player [aria-label="退出歌词纯净模式"]');await wait('!document.querySelector(".mobile-full-player").classList.contains("is-pure-lyrics")');
+  await click('.mobile-full-player [aria-label="歌词纯净模式"]');await wait('document.querySelector(".mobile-full-player").classList.contains("is-pure-lyrics")');await sleep(250);
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".mobile-full-player .full-song")).maxHeight'),'0px');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".mobile-full-player .full-controls")).display'),'none');
+  assert(await evaluate('document.querySelector(".mobile-lyrics").clientHeight>innerHeight*.65'),'pure mobile dedicates space to lyrics');
+  assert.equal(await evaluate('document.querySelectorAll(".mobile-lyrics button").length'),5,'pure mobile keeps the current line and two neighbors');
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".mobile-lyrics button")].map(button=>Number(button.dataset.distance))'),[2,1,0,1,2]);
+  await wait(`(()=>{const area=document.querySelector(".mobile-lyrics").getBoundingClientRect(),line=document.querySelector('.mobile-lyrics button[data-distance="0"]').getBoundingClientRect();return Math.abs((area.top+area.height/2)-(line.top+line.height/2))<12;})()`);
+  assert(await evaluate(`(()=>{const current=getComputedStyle(document.querySelector('.mobile-lyrics button[data-distance="0"]')),near=getComputedStyle(document.querySelector('.mobile-lyrics button[data-distance="1"]')),far=getComputedStyle(document.querySelector('.mobile-lyrics button[data-distance="2"]'));return Number(current.opacity)>Number(near.opacity)&&Number(near.opacity)>Number(far.opacity);})()`),'distance tiers lower opacity');
+  assert.equal(await evaluate('document.querySelector(".mobile-full-player").dataset.lyricTheme'),'cinema-curtain','selected lyric theme reaches the mobile player');
+  await click('.mobile-full-player [aria-label="退出歌词纯净模式"]');await wait('!document.querySelector(".mobile-full-player").classList.contains("is-pure-lyrics")');
   const closing=await evaluate(`new Promise((resolve,reject)=>{const start=performance.now(),samples=[];document.querySelector('.mobile-full-player [aria-label="收起"]').click();const frame=()=>{const el=document.querySelector('.mobile-full-player');if(!el)return resolve({ms:performance.now()-start,samples});samples.push({ms:performance.now()-start,top:el.getBoundingClientRect().top,suspended:document.querySelector('.mobile-space').classList.contains('is-suspended')});if(performance.now()-start>1000)return reject(Error('Player exit did not finish'));requestAnimationFrame(frame);};requestAnimationFrame(frame);})`);
   assert.ok(closing.ms<350,'player exit settles promptly: '+closing.ms);
   assert.ok(closing.samples.some(s=>s.top>20&&s.top<700),'exit still slides downwards');

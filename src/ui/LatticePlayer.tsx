@@ -22,6 +22,9 @@ import { formatTime } from './library';
 import type { PersonalState } from '../core/types';
 import { STICKER_GAP, expandedStickerLayout, stickerSlotsForCount, type StickerRect } from './stickerMosaic';
 import type { LyricLineView, RepeatMode, TrackView } from './types';
+import {lyricWindow, themeVariables} from '../features/themes/model';
+import {useActiveTheme} from '../features/themes/storage';
+import '../features/themes/themes.css';
 
 type LatticePlayerProps = {
   assistantView?: {pure?:boolean;zone?:string;revision:number};
@@ -73,6 +76,7 @@ export default function LatticePlayer({ assistantView,
   const settings=useSpaceSettings(),[zone,setZone]=useState(''),[zoneEditing,setZoneEditing]=useState(false),[restored,setRestored]=useState<TrackView[]>(),[zoom,setZoom]=useState(1);
   const [pureLyrics,setPureLyrics]=useState(false);
   const presentation=useSpacePresentation();
+  const {theme}=useActiveTheme();
   const wallRef = useRef<HTMLDivElement>(null);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const lyricRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -127,6 +131,10 @@ export default function LatticePlayer({ assistantView,
   const shownPosition = seekDraft ?? position;
   const [lyricDisplay,changeLyricDisplay]=useLyricDisplay(track);
   const activeLyric = lyrics.reduce((found, line, index) => position >= line.time + lyricDisplay.offset ? index : found, -1);
+  const highlightedLyric = lyricPreview ?? activeLyric;
+  const visibleLyrics = pureLyrics
+    ? lyricWindow(lyrics, highlightedLyric, 2)
+    : lyrics.map((line,index)=>({line,sourceIndex:index,distance:Math.abs(index-highlightedLyric)}));
   const expandedRects = useMemo(() => expandedStickerLayout(selectedSlot, slots), [selectedSlot, slots]);
   const layoutBounds = useCallback((layout: Map<number, StickerRect>) => {
     const rects = slots.map((slot, index) => layout.get(index) ?? slot);
@@ -208,8 +216,8 @@ export default function LatticePlayer({ assistantView,
     const line = lyricRefs.current[lyricPreview ?? activeLyric];
     if (!container || !line || !focusedIsCurrent) return;
     const lineTop = line.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-    container.scrollTo({ top: Math.max(0, lineTop - (pureLyrics&&immersive?container.clientHeight/2-line.clientHeight/2:22)), behavior: 'smooth' });
-  }, [activeLyric, lyricPreview, focusedIsCurrent, track.id, immersive, pureLyrics, viewport.height]);
+    container.scrollTo({ top: Math.max(0, lineTop - (pureLyrics&&immersive?container.clientHeight/2-line.clientHeight/2:22)), behavior: settings.motion==='reduced'?'auto':'smooth' });
+  }, [activeLyric, lyricPreview, focusedIsCurrent, track.id, immersive, pureLyrics, viewport.height, settings.motion]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -335,7 +343,7 @@ export default function LatticePlayer({ assistantView,
     },
   };
 
-  return <div className={`yz-lattice zenix-motion-${settings.motion}${immersive ? ' is-immersive' : ''}${immersive&&pureLyrics?' is-pure-lyrics':''}`}>
+  return <div className={`yz-lattice zenix-motion-${settings.motion}${immersive ? ' is-immersive' : ''}${immersive&&pureLyrics?' is-pure-lyrics':''}`} data-lyric-theme={theme.id} style={themeVariables(theme)}>
     {!immersive&&<div className="yz-space-presentation-shell"><div className="yz-space-presentation-toolbar">{presentation.error&&<div className="space-presentation-error" role="alert"><span>{presentation.error}</span><button aria-label="关闭展示偏好错误" onClick={presentation.dismissError}>×</button></div>}
     {(settings.zones.length>0||restored)&&<nav className="zenix-space-zones" aria-label="音乐空间分区"><button aria-pressed={!activeZone} onClick={()=>setZone('')}>全部歌曲</button>{settings.zones.map(item=><button key={item.id} data-space-zone={item.id} onDragOver={event=>{if(zoneEditing)event.preventDefault();}} onDrop={event=>{event.preventDefault();const id=event.dataTransfer.getData('application/x-zenix-track');if(!baseTracks.some(song=>song.id===id))return;try{commitSpace({...settings,zones:settings.zones.map(zone=>zone.id===item.id?{...zone,trackIds:[...new Set([...zone.trackIds,id])]}:zone)});}catch(error){window.dispatchEvent(new CustomEvent('zenix-audio-notice',{detail:error instanceof Error?error.message:String(error)}));}}} aria-pressed={zone===item.id} onClick={()=>{setZone(item.id);setSelectedSlot(0);}}>{item.name}</button>)}{presentation.mode==='sticker'&&<button aria-pressed={zoneEditing} onClick={()=>setZoneEditing(value=>!value)}>{zoneEditing?'完成分区整理':'拖动贴纸归类'}</button>}{restored&&<button onClick={()=>{setRestored(undefined);setZone('');setZoom(1);}}>返回原空间</button>}</nav>}
     </div>{presentation.mode!=='sticker'&&<div className="yz-space-presentation-stage">{presentation.mode==='orbit'?<OrbitSongSpace {...presentationProps}/>:<SimpleSongList {...presentationProps}/>}</div>}</div>}
@@ -362,8 +370,8 @@ export default function LatticePlayer({ assistantView,
             {expanded ? <>
               <div className="yz-sticker-focus-shade" />
               <div className="yz-sticker-focus-meta"><small>{focusedIsCurrent ? '正在播放 · ' : itemIndex < activeIndex ? '此前播放 · ' : ''}{String(itemIndex + 1).padStart(2, '0')}</small><h1>{item.title}</h1><BrowseLinks track={item}/></div>
-              {focusedIsCurrent && <div className={`yz-lattice-lyrics${lyricDisplay.focus?' listening-lyric-focus':''}`} data-custom-size={lyricDisplay.customSize} data-custom-height={lyricDisplay.customLineHeight} data-custom-weight={lyricDisplay.customWeight} style={{fontSize:lyricDisplay.customSize?lyricDisplay.fontSize:undefined,lineHeight:lyricDisplay.customLineHeight?lyricDisplay.lineHeight:undefined,fontWeight:lyricDisplay.customWeight?lyricDisplay.weight:undefined}} ref={lyricsContainerRef}>
-                {lyrics.length ? lyrics.map((line, index) => <button key={`${line.time}-${index}`} ref={element => { lyricRefs.current[index] = element; }} className={`yz-lattice-lyric ${index === (lyricPreview ?? activeLyric) ? 'is-current' : ''} ${index < (lyricPreview ?? activeLyric) ? 'is-past' : ''}`} onClick={() => { onSeek(Math.max(0,line.time+lyricDisplay.offset)); lyricPreviewRef.current = null; setLyricPreview(null); if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); }} title={`跳转到 ${formatTime(line.time)}`}>{line.text}{lyricDisplay.translation&&<small>{line.translation}</small>}</button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
+              {focusedIsCurrent && <div className={`yz-lattice-lyrics${lyricDisplay.focus?' listening-lyric-focus':''}${pureLyrics?' is-theme-window':''}`} data-custom-size={lyricDisplay.customSize} data-custom-height={lyricDisplay.customLineHeight} data-custom-weight={lyricDisplay.customWeight} style={{fontSize:lyricDisplay.customSize&&!pureLyrics?lyricDisplay.fontSize:undefined,lineHeight:lyricDisplay.customLineHeight&&!pureLyrics?lyricDisplay.lineHeight:undefined,fontWeight:lyricDisplay.customWeight&&!pureLyrics?lyricDisplay.weight:undefined}} ref={lyricsContainerRef}>
+                {lyrics.length ? visibleLyrics.map(({line,sourceIndex,distance}) => <button key={`${line.time}-${sourceIndex}`} ref={element => { lyricRefs.current[sourceIndex] = element; }} data-distance={pureLyrics?Math.min(2,distance):undefined} className={`yz-lattice-lyric ${sourceIndex === highlightedLyric ? 'is-current' : ''} ${sourceIndex < highlightedLyric ? 'is-past' : ''}`} onClick={() => { onSeek(Math.max(0,line.time+lyricDisplay.offset)); lyricPreviewRef.current = null; setLyricPreview(null); if (lyricResetTimer.current) clearTimeout(lyricResetTimer.current); }} title={`跳转到 ${formatTime(line.time)}`}>{line.text}{lyricDisplay.translation&&<small>{line.translation}</small>}</button>) : <div className="yz-lattice-no-lyrics">暂无歌词</div>}
               </div>}
               {focusedIsCurrent&&<button className="yz-pure-lyrics-toggle" aria-label={pureLyrics&&immersive?"退出歌词纯净模式":"歌词纯净模式"} aria-pressed={pureLyrics&&immersive} onClick={()=>{if(pureLyrics&&immersive)setPureLyrics(false);else{setPureLyrics(true);setImmersive(true);setPanning(false);}}}><Captions size={17}/>{pureLyrics&&immersive?"还原歌曲界面":"歌词纯净模式"}</button>}{focusedIsCurrent&&immersive&&<LyricControls value={lyricDisplay} change={changeLyricDisplay}/>}<div className="yz-sticker-focus-controls">
                 <TrackVersions track={item} selected={focusedChoice} sources={sources} load={loadSourceDiagnostics} select={candidate=>setChosenVariants(previous=>({...previous,[item.id]:candidate.id}))}/>
