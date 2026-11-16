@@ -20,6 +20,7 @@ Every local setting uses a versioned schema and atomic replacement. Unknown or c
 - Missing accompaniment: return to single-player selection or ordinary playback.
 - Microphone denial: play accompaniment without scoring.
 - LAN failure: keep the local solo session and queue independent of the normal player queue.
+- Delivery boundary (2026-11-17): the LAN host runtime, client snapshot protocol, media manager and desktop/mobile UI fixtures are complete and tested, but production wiring is not. `FeatureWorkbench` still opens only the local solo practice page; `KaraokeLanHost` is exercised by tests only. Real LAN sessions still need the transport binding, join approval UI, reconnect recovery and per-platform entry points before any release claims LAN karaoke. This gap must ship separately; it is not part of the UI-refresh/karaoke-solo scope.
 
 ## Score contract
 
