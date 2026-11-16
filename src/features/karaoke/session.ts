@@ -429,11 +429,31 @@ export class KaraokeSession {
   }
 
   startCountdown(actorId: string, nowMs: number, durationMs = 3000): KaraokeSessionResult {
+    const item = this.roomState.queue.find((candidate) => candidate.state === 'queued');
+    if (!item) {
+      const actor = this.member(actorId);
+      if (!actor || actor.role !== 'host') {
+        return failure('HOST_REQUIRED', '只有主持人可开始倒计时', this.roomState);
+      }
+      return failure('INVALID_TRANSITION', 'K 歌队列为空', this.roomState);
+    }
+    return this.startQueueItem(actorId, item.id, nowMs, durationMs);
+  }
+
+  startQueueItem(
+    actorId: string,
+    itemId: string,
+    nowMs: number,
+    durationMs = 3000,
+  ): KaraokeSessionResult {
     const actor = this.member(actorId);
     if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可开始倒计时', this.roomState);
     if (this.roomState.status !== 'lobby') return failure('INVALID_TRANSITION', '只有 lobby 可开始倒计时', this.roomState);
-    const item = this.roomState.queue.find((candidate) => candidate.state === 'queued');
-    if (!item) return failure('INVALID_TRANSITION', 'K 歌队列为空', this.roomState);
+    const targetId = text(itemId);
+    const item = this.roomState.queue.find((candidate) => (
+      candidate.id === targetId && candidate.state === 'queued'
+    ));
+    if (!item) return failure('INVALID_TRANSITION', '所选歌曲不在待唱队列', this.roomState);
     for (const singerId of item.singerIds) {
       const singer = this.member(singerId);
       if (!singer?.connected || !singer.ready) return failure('INVALID_TRANSITION', '演唱成员尚未在线并准备', this.roomState);

@@ -398,6 +398,56 @@ test('reconnect attempts are bounded and successful recovery keeps the existing 
   assert.deepEqual(host.state.queue, queue);
 });
 
+test('host controls start, pause, resume, finish and skip queue items', () => {
+  const { host, auth } = startHost({ roomId: 'room-controls', roomCode: '555555' });
+  const singer = joinMember(host, auth, 'controls-client', '演唱者', 1_100);
+  assert.equal(host.handleClientEvent(
+    singer.authorization,
+    { type: 'member.ready', ready: true },
+    1_200,
+  ).value.status, 'applied');
+  assert.equal(host.handleClientEvent(
+    singer.authorization,
+    { type: 'queue.add', recordingId: 'song-one', mode: 'solo' },
+    1_300,
+  ).value.status, 'applied');
+  assert.equal(host.handleClientEvent(
+    singer.authorization,
+    { type: 'queue.add', recordingId: 'song-two', mode: 'solo' },
+    1_350,
+  ).value.status, 'applied');
+
+  const firstItemId = host.state.queue[0].id;
+  assert.equal(host.startQueueItem(singer.authorization, firstItemId, 1_400).error.code, 'PERMISSION_DENIED');
+  assert.equal(host.startQueueItem(auth, 'missing-item', 1_405).error.code, 'INVALID_TRANSITION');
+  const started = host.startQueueItem(auth, firstItemId, 1_400);
+  assert.equal(started.ok, true, started.error?.message);
+  assert.equal(host.state.status, 'singing');
+  assert.equal(host.state.currentItemId, firstItemId);
+  assert.equal(host.startQueueItem(auth, host.state.queue[1].id, 1_405).error.code, 'INVALID_TRANSITION');
+
+  const paused = host.pause(auth, 1_500);
+  assert.equal(paused.ok, true, paused.error?.message);
+  assert.equal(host.state.status, 'paused');
+  assert.equal(host.resume(auth, 1_600).ok, true);
+  assert.equal(host.state.status, 'singing');
+
+  const finished = host.finishCurrent(auth, 1_700);
+  assert.equal(finished.ok, true, finished.error?.message);
+  assert.equal(host.state.status, 'lobby');
+  assert.equal(host.state.queue.find((item) => item.id === firstItemId).state, 'scored');
+
+  const secondItemId = host.state.queue.find((item) => item.state === 'queued').id;
+  const secondStart = host.startQueueItem(auth, secondItemId, 1_800);
+  assert.equal(secondStart.ok, true, secondStart.error?.message);
+  assert.equal(host.state.status, 'singing');
+  const skipped = host.skipCurrent(auth, 1_900);
+  assert.equal(skipped.ok, true, skipped.error?.message);
+  assert.equal(host.state.status, 'results');
+  assert.equal(host.state.queue.find((item) => item.id === secondItemId).state, 'skipped');
+  assert.equal(host.startQueueItem(auth, secondItemId, 2_000).error.code, 'INVALID_TRANSITION');
+});
+
 test('protocol rejects oversized/versioned messages and enforces rate and serialized size limits', () => {
   const oversized = lan.parseKaraokeLanEnvelope(
     'x'.repeat(lan.KARAOKE_LAN_LIMITS.maxMessageBytes + 1),

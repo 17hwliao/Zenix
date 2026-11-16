@@ -794,6 +794,68 @@ export class KaraokeLanHost {
     return this.stopInternal(nowMs, reason);
   }
 
+  startQueueItem(
+    hostAuthorization: KaraokeLanAuthorization,
+    itemId: string,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    const normalizedItemId = boundedText(itemId, 256);
+    if (!normalizedItemId) return lanFailure('INVALID_INPUT', '队列项 ID 无效', false);
+    const countedDown = this.session.startQueueItem(
+      host.value.memberId,
+      normalizedItemId,
+      nowMs,
+      0,
+    );
+    if (!countedDown.ok) return this.fromSessionFailure(countedDown);
+    const singing = countedDown.session.beginSinging(host.value.memberId, nowMs);
+    return this.commitHostMutation(singing, nowMs);
+  }
+
+  pause(
+    hostAuthorization: KaraokeLanAuthorization,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    return this.commitHostMutation(this.session.pause(host.value.memberId, nowMs), nowMs);
+  }
+
+  resume(
+    hostAuthorization: KaraokeLanAuthorization,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    return this.commitHostMutation(this.session.resume(host.value.memberId, nowMs), nowMs);
+  }
+
+  skipCurrent(
+    hostAuthorization: KaraokeLanAuthorization,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    return this.commitHostMutation(
+      this.session.skipCurrent(host.value.memberId, nowMs),
+      nowMs,
+    );
+  }
+
+  finishCurrent(
+    hostAuthorization: KaraokeLanAuthorization,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    return this.commitHostMutation(
+      this.session.finishCurrent(host.value.memberId, nowMs),
+      nowMs,
+    );
+  }
+
   tick(nowMs: number): KaraokeLanResult<{
     readonly disconnected: readonly string[];
     readonly removed: readonly string[];
@@ -1064,6 +1126,17 @@ export class KaraokeLanHost {
       type,
       payload: Object.freeze({ ...payload, revision: result.state.revision }),
     }));
+  }
+
+  private commitHostMutation(
+    result: KaraokeSessionResult,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    if (!result.ok) return this.fromSessionFailure(result);
+    if (this.snapshotFailure(result.state)) return this.snapshotFailure(result.state)!;
+    this.session = result.session;
+    this.broadcastSnapshot(nowMs);
+    return lanOk(this.session.state);
   }
 
   private removeMember(
