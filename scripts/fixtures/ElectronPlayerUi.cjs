@@ -40,14 +40,16 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`document.querySelector('.zenix-stage-scroll-hint button').getAttribute('aria-label')`),'上滑返回个人空间');
   assert(await evaluate(`(()=>{const b=document.querySelector('.zenix-stage-scroll-hint button'),r=b.getBoundingClientRect();return b.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));})()`),'return button remains visible after revealing songs');
   await wait(`document.querySelector('.zenix-home-scroll').scrollTop>0`);
+  // Wait for the reveal animation to settle before establishing the wheel baseline.
+  await evaluate(`new Promise(resolve=>{const scroll=document.querySelector('.zenix-home-scroll');let stable=0,last=scroll.scrollTop,start=performance.now();const sample=()=>{const current=scroll.scrollTop;stable=Math.abs(current-last)<.5?stable+1:0;last=current;if(stable>=4||performance.now()-start>2500)resolve(true);else requestAnimationFrame(sample);};requestAnimationFrame(sample);})`);
   // A real wheel gesture must return toward the cards without toggling the button.
-  await sleep(450);
+  window.showInactive();await sleep(80);
   const expandedTop=await evaluate(`document.querySelector('.zenix-home-scroll').scrollTop`);
-  window.webContents.sendInputEvent({type:'mouseWheel',x:150,y:270,deltaY:Math.max(1,expandedTop-65),deltaX:0});
-  await wait(`document.querySelector('.zenix-home-scroll').scrollTop<${expandedTop}`);
-  window.showInactive();
+  window.webContents.sendInputEvent({type:'mouseWheel',x:150,y:270,deltaY:120,deltaX:0,wheelTicksY:1,canScroll:true});await sleep(250);
+  const returnedTop=await evaluate(`document.querySelector('.zenix-home-scroll').scrollTop`);
+  assert(returnedTop<expandedTop-1,'wheel returns toward the cards: '+JSON.stringify({expandedTop,returnedTop}));
   await window.webContents.capturePage({stayHidden:false,stayAwake:true});
-  await evaluate(`document.querySelector('.zenix-home-scroll').scrollTo({top:55,behavior:'instant'})`);
+  await evaluate(`document.querySelector('.zenix-home-scroll').scrollTo({top:55,behavior:'auto'})`);
   await wait(`Math.abs(document.querySelector('.zenix-home-scroll').scrollTop-55)<2`);
   const dragPoint=await evaluate(`(()=>{const stage=document.querySelector('.zenix-space-stage');window.homePointerTrace=[];for(const name of ['pointerdown','pointermove','pointercancel'])stage.addEventListener(name,e=>window.homePointerTrace.push([name,e.clientX,e.isPrimary,e.target.className]),true);const r=stage.getBoundingClientRect();return{x:Math.round(r.x+r.width/2-235),y:Math.round(r.y+r.height*.46)}})()`);
   window.webContents.sendInputEvent({type:'mouseMove',...dragPoint});
