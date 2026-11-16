@@ -13,7 +13,16 @@ import {
 export {defaultPresentation,legacyPresentationKey,normalizePresentation,presentationKey};
 const eventName='zenix-space-presentation';
 export function readPresentation():DisplayPreferenceSnapshot {
-  return readDisplayPreference(localStorage);
+  try {
+    return readDisplayPreference(localStorage);
+  } catch {
+    return {
+      value:{...defaultPresentation},
+      status:'error',
+      needsOnboarding:false,
+      error:'无法访问音乐空间展示偏好，暂用默认贴纸。原歌单和其他设置未改动。',
+    };
+  }
 }
 /** Local display preference only. Commit storage first; a failed write never changes the displayed selection. */
 export function useSpacePresentation(){
