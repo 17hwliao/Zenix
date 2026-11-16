@@ -121,3 +121,32 @@ Electron 同时用于开发启动与软件运行，版本及通知已列在上�
 iOS 适配使用 Capacitor 的 iOS 桥接，Apple SDK 的 AVFoundation、MediaPlayer、JavaScriptCore、Security、CommonCrypto 以及系统 zlib；新增 Swift 播放器、缓存、资料与源适配代码位于 `ios/App/App/`。目录接口与兼容协议继续复用本项目已有实现及上文所列参考关系。`Prepare-iOS.mjs` 将许可文档和便携宿主生成到应用资源中，不复制用户音乐源脚本或资料。
 
 Zenix 自有代码的 GPL-3.0-only 原文位于根目录 [LICENSE](LICENSE)。Paper Shaders 的 LICENSE 与 NOTICE，以及上表列出的已保存运行组件许可证位于 [`licenses/`](licenses/)。安装包将这些文档放在安装目录的 `resources/`；Electron 的 `LICENSE.electron.txt` 与 `LICENSES.chromium.html` 位于安装根目录。第三方组件的许可证、版权声明和通知随对应组件保留。
+
+## 助手晓伊在线音色（2026-11-06）
+
+PC 使用 node-edge-tts 1.2.12 及其运行依赖生成用户选择的晓伊音色；Android 的 EdgeVoiceToken 兼容适配参考同版本 MIT 实现，保留 SchneeHertz 署名与完整许可。语音通过第三方客户端访问微软在线朗读服务，开源客户端许可不等于服务商承诺永久免费或可用性保证。依赖按本次 package-lock.json 列出：
+
+| 组件 | 版本 | 许可证 | 保留的原文 |
+| --- | --- | --- | --- |
+| node-edge-tts | 1.2.12 | MIT | [LICENSE](licenses/node-edge-tts/LICENSE) |
+| https-proxy-agent | 7.0.6 | MIT | [LICENSE](licenses/https-proxy-agent/LICENSE) |
+| agent-base | 7.1.4 | MIT | [LICENSE](licenses/agent-base/LICENSE) |
+| debug | 4.4.3 | MIT | [LICENSE](licenses/debug/LICENSE) |
+| ms | 2.1.3 | MIT | [license.md](licenses/ms/license.md) |
+| ws | 8.22.1 | MIT | [LICENSE](licenses/ws/LICENSE) |
+| yargs | 17.7.2 | MIT | [LICENSE](licenses/yargs/LICENSE) |
+| cliui | 8.0.1 | ISC | [LICENSE.txt](licenses/cliui/LICENSE.txt) |
+| string-width | 4.2.3 | MIT | [license](licenses/string-width/license) |
+| emoji-regex | 8.0.0 | MIT | [LICENSE-MIT.txt](licenses/emoji-regex/LICENSE-MIT.txt) |
+| is-fullwidth-code-point | 3.0.0 | MIT | [license](licenses/is-fullwidth-code-point/license) |
+| strip-ansi | 6.0.1 | MIT | [license](licenses/strip-ansi/license) |
+| ansi-regex | 5.0.1 | MIT | [license](licenses/ansi-regex/license) |
+| wrap-ansi | 7.0.0 | MIT | [license](licenses/wrap-ansi/license) |
+| ansi-styles | 4.3.0 | MIT | [license](licenses/ansi-styles/license) |
+| color-convert | 2.0.1 | MIT | [LICENSE](licenses/color-convert/LICENSE) |
+| color-name | 1.1.4 | MIT | [LICENSE](licenses/color-name/LICENSE) |
+| escalade | 3.2.0 | MIT | [license](licenses/escalade/license) |
+| get-caller-file | 2.0.5 | ISC | [LICENSE.md](licenses/get-caller-file/LICENSE.md) |
+| require-directory | 2.1.1 | MIT | [LICENSE](licenses/require-directory/LICENSE) |
+| y18n | 5.0.8 | ISC | [LICENSE](licenses/y18n/LICENSE) |
+| yargs-parser | 21.1.1 | ISC | [LICENSE.txt](licenses/yargs-parser/LICENSE.txt) |

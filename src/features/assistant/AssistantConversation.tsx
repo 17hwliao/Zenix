@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {isAndroid, isNativeMobile, observeAssistantVoice} from '../../mobile/native';
 import {speechChunks} from './speechText';
+import {speakReply} from './replyVoice';
 import {HoldRecording} from './recording';
 import SkinCharacter from './SkinCharacter';
 import {getAssistantRuntime} from './remote/runtime';
@@ -69,42 +70,35 @@ export default function AssistantConversation({mobile = false, invoke: provided,
     if (!alive.current || token !== revision.current) return;
     experience(emotion, message);
     if (!spoken) return;
-    const output: {stop?: () => void} = {};
+    const controller = new AbortController();
+    const output: {stop?: () => void} = {stop: () => controller.abort()};
     speech.current?.stop?.();
     speech.current = output;
     const valid = () => alive.current && token === revision.current && speech.current === output;
     void (async () => {
+      let fallback = false;
       experience(emotion === 'shy' ? 'shy' : 'talking', message);
       try {
         for (const part of speechChunks([message, ...messages])) {
           if (!valid()) return;
           if (native) {
-            const value = await invoke<{spoken: boolean}>({operation: 'assistant', action: 'speechSpeak', text: part});
+            const value = await invoke<{spoken: boolean; voice?: string}>({operation: 'assistant', action: 'speechSpeak', text: part});
             if (!valid()) return;
             if (!value.spoken) throw Error('系统语音不可用');
+            if (value.voice === 'system') fallback = true;
           } else {
-            if (typeof speechSynthesis === 'undefined') throw Error('系统语音不可用');
-            await new Promise<void>((resolve, reject) => {
-              const utterance = new SpeechSynthesisUtterance(part);
-              utterance.lang = 'zh-CN';
-              utterance.rate = 1.04;
-              const voice = speechSynthesis.getVoices().find(item => /^zh/i.test(item.lang));
-              if (voice) utterance.voice = voice;
-              output.stop = resolve;
-              utterance.onend = () => {output.stop = undefined; resolve();};
-              utterance.onerror = () => {output.stop = undefined; reject(Error('语音回复未完成'));};
-              speechSynthesis.speak(utterance);
-            });
+            await speakReply(part, invoke, controller.signal, {online: !mobile && !provided && !fallback,
+              onFallback: () => {fallback = true;}});
           }
         }
-        if (valid()) experience(emotion, message);
+        if (valid()) experience(emotion, message + (fallback ? '（晓伊在线语音暂不可用，本次使用系统音色）' : ''));
       } catch {
         if (valid()) experience(emotion, message + '（语音回复未完成，文字结果已保留）');
       } finally {
         if (speech.current === output) speech.current = undefined;
       }
     })();
-  }, [spoken, native, invoke, experience]);
+  }, [spoken, native, invoke, experience, mobile, provided]);
 
   useEffect(() => {
     if (active.current) return;
@@ -341,6 +335,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
         if (!event.target.checked) silence();
         try {localStorage.setItem('zenix.assistant.spoken.v1', String(event.target.checked));} catch {}
       }}/>语音回复</label>
+      {!provided && (!mobile || native) && <small>晓伊 · 在线音色，朗读文本会发送至微软语音服务；不可用时使用系统音色。</small>}
       <details className="assistant-model-details"><summary>模型连接设置</summary>
         <ModelSettings mobile={mobile} transport={runtime.transport} onConfigurationChanged={()=>session.configurationChanged()}/>
       </details>

@@ -36,10 +36,10 @@ app.whenReady().then(async()=>{
      const hit=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
      page.sendInputEvent({type:'mouseDown',...hit,button:'left',clickCount:1});page.sendInputEvent({type:'mouseMove',x:hit.x+100,y:hit.y+30});page.sendInputEvent({type:'mouseUp',x:hit.x+100,y:hit.y+30,button:'left',clickCount:1});
      await wait('new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".assistant-position")).transform).m41>80');
-     assert.equal(await evaluate('document.activeElement===document.querySelector(".zenix-assistant-panel form input")'),false,'drag cannot become an assistant click');
+     assert.equal(await evaluate('document.activeElement===document.querySelector(".zenix-assistant-panel input[aria-label=\'音乐指令\']")'),false,'drag cannot become an assistant click');
      const moved=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
      page.sendInputEvent({type:'mouseDown',...moved,button:'left',clickCount:1});page.sendInputEvent({type:'mouseUp',...moved,button:'left',clickCount:1});
-     await wait('document.activeElement===document.querySelector(".zenix-assistant-panel form input")');
+     await wait('document.activeElement===document.querySelector(".zenix-assistant-panel input[aria-label=\'音乐指令\']")');
     }
     const geometry=await evaluate(`(()=>{const panel=document.querySelector('.zenix-feature-workbench'),body=panel.querySelector('.zenix-feature-content'),close=panel.querySelector('[aria-label="关闭音乐工作台"]'),r=panel.getBoundingClientRect(),b=close.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:body.scrollWidth,width:body.clientWidth,document:document.documentElement.scrollWidth,viewport:innerWidth,close:document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('button')===close};})()`);
     assert(geometry.left>=0&&geometry.right<=width+1&&geometry.top>=0&&geometry.bottom<=850,mode+' dialog stays in viewport '+label+' '+width+' '+JSON.stringify(geometry));
