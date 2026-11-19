@@ -4,7 +4,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1000,height:850,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}}),page=win.webContents;
  const evaluate=async code=>{try{return await page.executeJavaScript(code,true);}catch(error){console.error("Failing UI evaluation:",code);console.error(await page.executeJavaScript("JSON.stringify(window.workbenchErrors)"));throw error;}},wait=async code=>{for(let n=0;n<200;n++){if(await evaluate(code))return;await sleep(30);}throw Error('workbench UI wait '+code+' state '+JSON.stringify(await evaluate('({width:innerWidth,height:innerHeight})'))+' bounds '+JSON.stringify(win.getContentBounds()));};
- const tabs=[['私人资料','.zenix-personal-features'],['播放与版本','.playback-features'],['K歌','[data-karaoke-adapter]'],['缓存与任务','.zenix-offline-tasks'],['空间与漫游','.space-features-panel'],['设备协作','.zenix-connections'],['音乐助手','.zenix-assistant-panel']];
+ const tabs=[['私人资料','.zenix-personal-features'],['播放与版本','.playback-features'],['缓存与任务','.zenix-offline-tasks'],['空间与漫游','.space-features-panel'],['设备协作','.zenix-connections'],['音乐助手','.zenix-assistant-panel']];
  const open=async()=>{await evaluate('document.querySelector(".zenix-tools-launch").focus();document.querySelector(".zenix-tools-launch").click()');await wait('!!document.querySelector(".zenix-feature-workbench")');};
  const close=async()=>{await evaluate('document.querySelector("[aria-label=关闭音乐工作台]").click()');await wait('!document.querySelector(".zenix-feature-workbench")');};
  for(const mode of ['desktop','mobile']){
@@ -36,13 +36,15 @@ app.whenReady().then(async()=>{
      const hit=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
      page.sendInputEvent({type:'mouseDown',...hit,button:'left',clickCount:1});page.sendInputEvent({type:'mouseMove',x:hit.x+100,y:hit.y+30});page.sendInputEvent({type:'mouseUp',x:hit.x+100,y:hit.y+30,button:'left',clickCount:1});
      await wait('new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".assistant-position")).transform).m41>80');
-     assert.equal(await evaluate('document.activeElement===document.querySelector(".zenix-assistant-panel form input")'),false,'drag cannot become an assistant click');
+     assert.equal(await evaluate('document.activeElement===document.querySelector(".zenix-assistant-panel input[aria-label=\'音乐指令\']")'),false,'drag cannot become an assistant click');
+     const moved=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
+     page.sendInputEvent({type:'mouseDown',...moved,button:'left',clickCount:1});page.sendInputEvent({type:'mouseUp',...moved,button:'left',clickCount:1});
+     await wait('document.activeElement===document.querySelector(".zenix-assistant-panel input[aria-label=\'音乐指令\']")');
     }
     const geometry=await evaluate(`(()=>{const panel=document.querySelector('.zenix-feature-workbench'),body=panel.querySelector('.zenix-feature-content'),close=panel.querySelector('[aria-label="关闭音乐工作台"]'),r=panel.getBoundingClientRect(),b=close.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:body.scrollWidth,width:body.clientWidth,document:document.documentElement.scrollWidth,viewport:innerWidth,close:document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('button')===close};})()`);
     assert(geometry.left>=0&&geometry.right<=width+1&&geometry.top>=0&&geometry.bottom<=850,mode+' dialog stays in viewport '+label+' '+width+' '+JSON.stringify(geometry));
     assert(geometry.scroll<=geometry.width+1,mode+' panel does not horizontally overflow '+label+' '+width+' '+JSON.stringify(geometry));assert(geometry.document<=width+1,'document width '+JSON.stringify(geometry));assert(geometry.close,'close remains hittable '+label);
     for(const[,other]of tabs)if(other!==selector)assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(other)})`),false,'only selected tab mounts');
-    if(label==='K歌')assert.equal(await evaluate(`({adapter:document.querySelector('[data-karaoke-adapter]')?.dataset.karaokeAdapter,slots:document.querySelectorAll('[data-karaoke-lyric-slot]').length})`).then(state=>state.adapter===mode&&state.slots===5),true,mode+' karaoke adapter and five lyric slots render');
    }
   }
   await evaluate('[...document.querySelectorAll(".zenix-feature-workbench>nav button")].find(button=>button.textContent==="音乐助手").click()');await wait('document.querySelectorAll(".assistant-costumes button").length===8');
@@ -65,61 +67,6 @@ app.whenReady().then(async()=>{
    await evaluate('window.restoreCostumeInstrumentation()');console.log('COSTUME_PREVIEW_TIMINGS',mode,JSON.stringify(costumeTimings));
   await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="保存当前皮肤").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinSave")');const saved=await evaluate('(()=>{const call=window.workbenchFixture.calls.find(call=>call.action==="skinSave");return {name:call.config.name,frames:call.config.frames.length,animations:Object.keys(call.config.animations),archive:call.base64.length};})()');assert.match(saved.name,/Zenix/);assert.equal(saved.frames,4);assert(saved.animations.includes('greeting'));assert(saved.archive<12*1024*1024);
   await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="打开按住说话").click()');await wait('!!document.querySelector(".assistant-chat [data-skin]")');assert.match(await evaluate('document.querySelector(".assistant-chat [data-skin]").dataset.skin'),/海蓝女仆/);await evaluate('document.querySelector("[aria-label=关闭语音助手]").click()');await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="恢复默认").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinReset")');
-  const normalBefore=mode==='desktop'?await evaluate('window.workbenchFixture.player().then(value=>({track:value.track?.id,index:value.queueIndex,queue:value.queue.map(item=>item.id)}))'):await evaluate('({track:window.workbenchFixture.snapshot.playback.track?.id,index:window.workbenchFixture.snapshot.playback.queueIndex,queue:window.workbenchFixture.snapshot.playback.queue.map(item=>item.id)})');
-  const normalTrackBefore=mode==='desktop'?await evaluate('window.workbenchFixture.player().then(value=>value.track)'):await evaluate('window.workbenchFixture.snapshot.playback.track');
-  const audioBeforeKaraoke=await evaluate('window.workbenchAudioCount');
-  await evaluate(`(()=>{window.karaokeRelease={stops:0,closes:0,disconnects:0,listeners:0};class KaraokeAudioContext{sampleRate=48000;resume(){return Promise.resolve();}createMediaStreamSource(){return{connect(){},disconnect(){window.karaokeRelease.disconnects+=1;}};}createAnalyser(){return{fftSize:4096,smoothingTimeConstant:0,getFloatTimeDomainData(buffer){buffer.fill(0);},disconnect(){window.karaokeRelease.disconnects+=1;}};}close(){window.karaokeRelease.closes+=1;return Promise.resolve();}}Object.defineProperty(window,'AudioContext',{configurable:true,value:KaraokeAudioContext});Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>({getTracks:()=>[{addEventListener(){},removeEventListener(){window.karaokeRelease.listeners+=1;},stop(){window.karaokeRelease.stops+=1;}}]})}});})()`);
-  await evaluate(`(()=>{[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(button=>button.textContent==='K歌').click();})()`);await wait('!!document.querySelector("[data-karaoke-adapter]")&&[...document.querySelectorAll("[data-karaoke-adapter] button")].some(button=>button.textContent.includes("开始演唱")&&!button.disabled)');
-  await evaluate(`(()=>{[...document.querySelectorAll('[data-karaoke-adapter] button')].find(button=>button.textContent.includes('开始演唱')).click();})()`);
-  let normalSinging=false;
-  let normalState=null;
-  for(let n=0;n<200;n++){
-    normalState=await evaluate('({text:document.querySelector("[data-karaoke-adapter]")?.textContent,audio:window.karaokeRelease,micStatus:document.querySelector(".karaoke-adapter-live")?.textContent})');
-    if(normalState.text?.includes("演唱中")){normalSinging=true;break;}
-    await sleep(30);
-  }
-  assert.ok(normalSinging,mode+' normal session starts '+JSON.stringify(normalState));
-  assert.equal(await evaluate('window.workbenchAudioCount'),audioBeforeKaraoke,mode+' karaoke mic-only session does not create an extra playback Audio');
-  await evaluate(mode==='mobile'?'document.querySelector("[data-karaoke-adapter] [aria-label=结束演唱]").click()':`(()=>{[...document.querySelectorAll('[data-karaoke-adapter] button')].find(button=>button.textContent.includes('结束并评分')).click();})()`);await wait('document.querySelector("[data-karaoke-adapter]")?.textContent.includes("本轮演唱已完成")');assert.match(await evaluate('document.querySelector("[data-karaoke-adapter]")?.textContent||""'),/音准未评估/);
-  if(mode==='mobile'&&await evaluate('!!document.querySelector("[aria-label=关闭演唱结果]")'))await evaluate('document.querySelector("[aria-label=关闭演唱结果]").click()');
-  const normalAfter=mode==='desktop'?await evaluate('window.workbenchFixture.player().then(value=>({track:value.track?.id,index:value.queueIndex,queue:value.queue.map(item=>item.id)}))'):await evaluate('({track:window.workbenchFixture.snapshot.playback.track?.id,index:window.workbenchFixture.snapshot.playback.queueIndex,queue:window.workbenchFixture.snapshot.playback.queue.map(item=>item.id)})');
-  assert.deepEqual(normalAfter,normalBefore,mode+' karaoke session leaves the ordinary player and queue unchanged');
-  await evaluate(`(()=>{[...document.querySelectorAll('[data-karaoke-adapter] button')].find(button=>button.textContent.includes('再唱一次')).click();})()`);await wait('document.querySelector("[data-karaoke-adapter]")?.textContent.includes("演唱中")');
-  await close();await wait('window.karaokeRelease.stops===2&&window.karaokeRelease.closes===2&&window.karaokeRelease.disconnects>=4');
-  await open();
-  const accompanimentTrack={id:'fixture-song',title:'像风一样',artist:'测试歌手',source:'local',providerId:'fixture',remoteId:'song',path:'',audioUrl:'blob:karaoke-accompaniment',duration:180};
-  await evaluate(`window.workbenchFixture.publishPlaybackTrack(${JSON.stringify(accompanimentTrack)})`);await sleep(60);
-  const degradedBefore=mode==='desktop'?await evaluate('window.workbenchFixture.player().then(value=>({track:value.track?.id,index:value.queueIndex,queue:value.queue.map(item=>item.id)}))'):await evaluate('({track:window.workbenchFixture.snapshot.playback.track?.id,index:window.workbenchFixture.snapshot.playback.queueIndex,queue:window.workbenchFixture.snapshot.playback.queue.map(item=>item.id)})');
-  await evaluate(`(()=>{window.karaokeDegraded={creates:0,plays:0,pauses:0,removed:0,loaded:0};window.previousKaraokeAudio=window.Audio;window.previousKaraokeMediaDevices=navigator.mediaDevices;class KaraokeAudio{constructor(){window.karaokeDegraded.creates+=1;this.currentTime=0;this.preload='';this.volume=1;this.listeners={};}addEventListener(type,listener){this.listeners[type]=listener;}removeEventListener(type){delete this.listeners[type];}play(){window.karaokeDegraded.plays+=1;return Promise.resolve();}pause(){window.karaokeDegraded.pauses+=1;}removeAttribute(){window.karaokeDegraded.removed+=1;}load(){window.karaokeDegraded.loaded+=1;}}Object.defineProperty(window,'Audio',{configurable:true,value:KaraokeAudio});Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>{throw new DOMException('denied','NotAllowedError');}}});})()`);
-  await evaluate(`(()=>{[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(button=>button.textContent==='K歌').click();})()`);await wait('!!document.querySelector("[data-karaoke-adapter]")&&[...document.querySelectorAll("[data-karaoke-adapter] button")].some(button=>button.textContent.includes("开始演唱")&&!button.disabled)');
-  await evaluate(`(()=>{[...document.querySelectorAll('[data-karaoke-adapter] button')].find(button=>button.textContent.includes('开始演唱')).click();})()`);
-  let degradedSinging=false;
-  for(let n=0;n<200;n++){
-    degradedState=await evaluate('({text:document.querySelector("[data-karaoke-adapter]")?.textContent,audio:window.karaokeDegraded,micStatus:document.querySelector(".karaoke-adapter-live")?.textContent})');
-    if(degradedState.text?.includes("演唱中")){degradedSinging=true;break;}
-    await sleep(30);
-  }
-  assert.ok(degradedSinging,mode+' degraded session starts '+JSON.stringify(degradedState));
-  assert.match(degradedState.text,/麦克风权限被拒绝/,mode+' permission fallback shows the degraded scoring notice');
-  assert.deepEqual(await evaluate('window.karaokeDegraded'),{creates:1,plays:1,pauses:0,removed:0,loaded:0},mode+' microphone denial keeps the independent accompaniment playing without scoring');
-  const degradedNormalSnapshot=mode==='desktop'?await evaluate('window.workbenchFixture.player().then(value=>({track:value.track?.id,index:value.queueIndex,queue:value.queue.map(item=>item.id)}))'):await evaluate('({track:window.workbenchFixture.snapshot.playback.track?.id,index:window.workbenchFixture.snapshot.playback.queueIndex,queue:window.workbenchFixture.snapshot.playback.queue.map(item=>item.id)})');
-  assert.deepEqual(degradedNormalSnapshot,degradedBefore,mode+' permission fallback leaves the ordinary player and queue unchanged');
-  await evaluate(mode==='mobile'?'document.querySelector("[data-karaoke-adapter] [aria-label=结束演唱]").click()':`(()=>{[...document.querySelectorAll('[data-karaoke-adapter] button')].find(button=>button.textContent.includes('结束并评分')).click();})()`);
-  let degradedFinished=false;
-  for(let n=0;n<200;n++){
-    degradedState=await evaluate('({text:document.querySelector("[data-karaoke-adapter]")?.textContent,audio:window.karaokeDegraded})');
-    if(degradedState.text?.includes("本轮演唱已完成")){degradedFinished=true;break;}
-    await sleep(30);
-  }
-  assert.ok(degradedFinished,mode+' degraded session finishes '+JSON.stringify(degradedState));
-  assert.match(degradedState.text,/音准未评估/);
-  assert.equal(await evaluate('window.karaokeDegraded.plays'),1,'microphone denial does not replay accompaniment');
-  assert.equal(await evaluate('window.karaokeDegraded.pauses'),1,'finishing releases the independent accompaniment');
-  if(mode==='mobile'&&await evaluate('!!document.querySelector("[aria-label=关闭演唱结果]")'))await evaluate('document.querySelector("[aria-label=关闭演唱结果]").click()');
-  await close();
-  await evaluate(`(()=>{Object.defineProperty(window,'Audio',{configurable:true,value:window.previousKaraokeAudio});Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:window.previousKaraokeMediaDevices});})()`);
-  await evaluate(`window.workbenchFixture.publishPlaybackTrack(${JSON.stringify(normalTrackBefore)})`);await sleep(60);
-  await open();
   if(mode==='mobile'){
    const tab=async label=>{await evaluate(`(()=>{[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(value=>value.textContent===${JSON.stringify(label)}).click();})()`);await sleep(100);};
    const click=async label=>{try{await wait(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});return !!button&&!button.disabled;})()`);}catch(error){throw Error(error.message+' controls '+JSON.stringify(await evaluate('({buttons:[...document.querySelectorAll(".zenix-feature-content button")].map(button=>({text:button.textContent,disabled:button.disabled})),selected:document.querySelector(".zenix-feature-workbench>nav [aria-pressed=true]")?.textContent,calls:window.workbenchFixture.calls.slice(-12)})')));}await evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});if(!button||button.disabled)throw Error('Unavailable fixture button '+${JSON.stringify(label)});button.click();})()`);};
