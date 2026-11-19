@@ -405,10 +405,12 @@ export function KaraokeSongPicker({
   tracks,
   queuedRecordingIds,
   onAdd,
+  chorusOnly = false,
 }: {
   tracks: readonly KaraokeUiTrack[];
   queuedRecordingIds?: ReadonlySet<string>;
   onAdd?: KaraokeUiValueAction<{ recordingId: string; mode: KaraokeQueueMode }>;
+  chorusOnly?: boolean;
 }) {
   const [recordingId, setRecordingId] = useState(tracks[0]?.recordingId || '');
   const [mode, setMode] = useState<KaraokeQueueMode>('solo');
@@ -430,23 +432,23 @@ export function KaraokeSongPicker({
       </header>
       <h3 id="zenix-karaoke-picker-title">从可演唱曲目选择</h3>
       {tracks.length === 0 ? (
-        <p className="zenix-karaoke-muted">当前没有可演唱曲目。主 Agent 可通过 <code>tracks</code> 注入曲目资料。</p>
+        <p className="zenix-karaoke-muted">还没有可选曲目。可以先在音乐库添加歌曲。</p>
       ) : (
         <form onSubmit={(event) => {
           event.preventDefault();
-          if (recordingId && onAdd) void onAdd({recordingId, mode});
+          if (recordingId && onAdd) void onAdd({recordingId, mode: chorusOnly ? 'chorus' : mode});
         }}>
           <label htmlFor={selectId}>歌曲</label>
           <select id={selectId} value={recordingId} onChange={(event) => setRecordingId(event.target.value)}>
             {selectable.map((track) => <option key={track.recordingId} value={track.recordingId}>{track.title} · {track.artist}</option>)}
           </select>
-          <div className="zenix-karaoke-mode-switch" role="group" aria-label="演唱模式">
+          {!chorusOnly && <div className="zenix-karaoke-mode-switch" role="group" aria-label="演唱模式">
             {(['solo', 'relay', 'chorus'] as const).map((value) => (
               <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)}>
                 {queueModeLabel(value)}
               </button>
             ))}
-          </div>
+          </div>}
           <button type="submit" className="zenix-karaoke-primary" disabled={!onAdd || !recordingId || selectable.length === 0}>
             加入队列
           </button>

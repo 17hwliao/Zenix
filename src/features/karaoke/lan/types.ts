@@ -14,6 +14,7 @@ export const KARAOKE_LAN_LIMITS = Object.freeze({
   maxClientIdLength: 128,
   maxPasswordLength: 128,
   eventRateLimit: 20,
+  scoreEventRateLimit: 120,
   eventRateWindowMs: 10_000,
   heartbeatIntervalMs: 5_000,
   heartbeatTimeoutMs: 15_000,
@@ -122,6 +123,7 @@ export type KaraokeLanEnvelopeType =
   | 'member.ready'
   | 'queue.add'
   | 'queue.remove'
+  | 'score.line'
   | 'session.leave'
   | 'clock.sample'
   | 'clock.ping'

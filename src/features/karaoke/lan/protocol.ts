@@ -24,6 +24,7 @@ const ENVELOPE_TYPES = new Set<KaraokeLanEnvelopeType>([
   'member.ready',
   'queue.add',
   'queue.remove',
+  'score.line',
   'session.leave',
   'clock.sample',
   'clock.ping',
@@ -189,7 +190,7 @@ export class KaraokeLanRateLimiter {
   private readonly events = new Map<string, number[]>();
 
   constructor(
-    private readonly limit = KARAOKE_LAN_LIMITS.eventRateLimit,
+    private readonly limit: number = KARAOKE_LAN_LIMITS.eventRateLimit,
     private readonly windowMs = KARAOKE_LAN_LIMITS.eventRateWindowMs,
   ) {}
 

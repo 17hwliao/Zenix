@@ -1,0 +1,96 @@
+.zenix-karaoke-lan-launch {
+  display: grid;
+  gap: 16px;
+}
+
+.zenix-karaoke-room-layout[data-lan-room="true"] .zenix-karaoke-room-head {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.zenix-karaoke-room-layout[data-lan-room="true"] .zenix-karaoke-room-head h2 {
+  margin-block: 0;
+  font-size: clamp(19px, 2.5vw, 30px);
+}
+
+.zenix-karaoke-lan-mode,
+.zenix-karaoke-lan-approve-actions,
+.zenix-karaoke-lan-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.zenix-karaoke-lan-setup {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr);
+  background: var(--zk-panel);
+}
+
+.zenix-karaoke-lan-setup form {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.zenix-karaoke-lan-invite {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--zk-line);
+  border-radius: 14px;
+  color: var(--zk-soft);
+}
+
+.zenix-karaoke-lan-invite ul,
+.zenix-karaoke-lan-approvals {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zenix-karaoke-lan-invite li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.zenix-karaoke-lan-approvals li,
+.zenix-karaoke-lan-assignments {
+  display: grid;
+  gap: 8px;
+}
+
+.zenix-karaoke-lan-approvals li + li {
+  padding-top: 12px;
+  border-top: 1px solid var(--zk-line);
+}
+
+.zenix-karaoke-lan-assignments label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(88px, .7fr);
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.zenix-karaoke-lan-pick .zenix-karaoke-mode-switch {
+  display: none;
+}
+
+.zenix-karaoke-room-layout[data-karaoke-room-status="singing"] .zenix-karaoke-grade:empty {
+  height: 52px;
+}
+
+@media (max-width: 720px) {
+  .zenix-karaoke-lan-setup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zenix-karaoke-lan-setup form {
+    grid-column: 1;
+  }
+}

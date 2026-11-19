@@ -8,6 +8,7 @@ import {getAssistantRuntime} from './remote/runtime';
 import ModelSettings from './remote/ModelSettings';
 import SessionContent, {remoteCharacterPhase} from './remote/SessionContent';
 import {resultSummaryLines} from './remote/presentation';
+import {karaokeOwnsMicrophone} from '../karaoke/voice-lock';
 import './conversation.css';
 
 type Invoke = <T = unknown>(args: Record<string, unknown>) => Promise<T>;
@@ -137,6 +138,10 @@ export default function AssistantConversation({mobile = false, invoke: provided,
   }, [session, silence]);
 
   const begin = useCallback(async (source: 'pointer' | 'keyboard') => {
+    if (karaokeOwnsMicrophone()) {
+      experience('idle', '离开 K 歌房间后即可继续使用语音。');
+      return;
+    }
     if (active.current || session.getSnapshot().busy) return;
     clearTimeout(reactionTimer.current);
     silence();
@@ -241,7 +246,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
       if (event.key === 'Escape' && (active.current || state.busy || state.confirmation || speech.current)) {
         event.preventDefault(); event.stopImmediatePropagation(); handlers.current.cancel(); return;
       }
-      if (mobile || event.code !== 'Space' || event.altKey || event.ctrlKey || event.metaKey
+      if (mobile || karaokeOwnsMicrophone() || event.code !== 'Space' || event.altKey || event.ctrlKey || event.metaKey
         || event.shiftKey || event.isComposing) return;
       if (event.target instanceof Element
         && event.target.closest('input,textarea,select,[contenteditable="true"],button,a,[role="button"],[role="slider"]')) return;
@@ -265,9 +270,10 @@ export default function AssistantConversation({mobile = false, invoke: provided,
     window.addEventListener('zenix-assistant-conversation', request);
     window.addEventListener('zenix-assistant-input', input);
     window.addEventListener('zenix-assistant-cancel', cancelRequest);
+    window.addEventListener('zenix-karaoke-voice-lock', blur);
     const startStop = mobile ? undefined : window.yzqxy?.companion?.onVoiceStart?.(() => {blur(); silence();});
     const stop = mobile ? undefined : window.yzqxy?.companion?.onVoice?.(value => {
-      if (!active.current) void handlers.current.accept(value);
+      if (!active.current && !karaokeOwnsMicrophone()) void handlers.current.accept(value);
     });
     return () => {
       alive.current = false;
@@ -283,6 +289,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
       window.removeEventListener('zenix-assistant-conversation', request);
       window.removeEventListener('zenix-assistant-input', input);
       window.removeEventListener('zenix-assistant-cancel', cancelRequest);
+      window.removeEventListener('zenix-karaoke-voice-lock', blur);
       runtime.detach();
     };
   }, [runtime, session, mobile, native, invoke, experience, stopRecording, silence]);

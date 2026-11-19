@@ -4,7 +4,7 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1000,height:850,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}}),page=win.webContents;
  const evaluate=async code=>{try{return await page.executeJavaScript(code,true);}catch(error){console.error("Failing UI evaluation:",code);console.error(await page.executeJavaScript("JSON.stringify(window.workbenchErrors)"));throw error;}},wait=async code=>{for(let n=0;n<200;n++){if(await evaluate(code))return;await sleep(30);}throw Error('workbench UI wait '+code+' state '+JSON.stringify(await evaluate('({width:innerWidth,height:innerHeight})'))+' bounds '+JSON.stringify(win.getContentBounds()));};
- const tabs=[['私人资料','.zenix-personal-features'],['播放与版本','.playback-features'],['缓存与任务','.zenix-offline-tasks'],['空间与漫游','.space-features-panel'],['设备协作','.zenix-connections'],['音乐助手','.zenix-assistant-panel']];
+ const tabs=[['私人资料','.zenix-personal-features'],['播放与版本','.playback-features'],['K歌','.zenix-karaoke-page'],['缓存与任务','.zenix-offline-tasks'],['空间与漫游','.space-features-panel'],['设备协作','.zenix-connections'],['音乐助手','.zenix-assistant-panel']];
  const open=async()=>{await evaluate('document.querySelector(".zenix-tools-launch").focus();document.querySelector(".zenix-tools-launch").click()');await wait('!!document.querySelector(".zenix-feature-workbench")');};
  const close=async()=>{await evaluate('document.querySelector("[aria-label=关闭音乐工作台]").click()');await wait('!document.querySelector(".zenix-feature-workbench")');};
  for(const mode of ['desktop','mobile']){
@@ -30,6 +30,11 @@ app.whenReady().then(async()=>{
    for(const[label,selector]of tabs){
     await evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(value=>value.textContent===${JSON.stringify(label)});button.scrollIntoView({block:'nearest',inline:'nearest'});button.click();})()`);
     await wait(`!!document.querySelector(${JSON.stringify(selector)})`);await sleep(70);
+    if(label==='K歌'){
+     const labels=await evaluate('[...document.querySelectorAll(".zenix-karaoke-page button")].map(button=>button.textContent.trim())');
+     assert(labels.includes(mode==='desktop'?'创建房间':'申请加入'),'K 歌 opens the platform-specific room setup');
+     assert.equal(labels.includes('开始练唱'),false,'solo practice is no longer the workbench entry');
+    }
     if(label==='音乐助手'&&width===1000){
      await wait('document.querySelector(".assistant-character .pet-portrait img")?.naturalWidth===1086');
      await evaluate('document.querySelector(".assistant-stage").scrollIntoView({block:"center"})');

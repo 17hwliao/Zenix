@@ -13,8 +13,17 @@ export type MobileSnapshot = {
   localTracks?: Track[];
   overlay?: { enabled: boolean; permitted: boolean; locked: boolean; compact: boolean; fontSize: number; color: string; font?: string };
 };
+export type KaraokeAudioStatus = {
+  round: string;
+  state: 'playing' | 'paused' | 'ended' | 'stopped' | 'error';
+  message: string;
+  positionMs: number;
+};
+export type KaraokeAudioPosition = {positionMs: number; playing: boolean; buffering: boolean};
 interface NativePlugin {
   invoke(options: { action: string; payload: Record<string, unknown> }): Promise<{ value: unknown }>;
+  addListener(event: 'karaokeNetwork', callback: (event: unknown) => void): Promise<PluginListenerHandle>;
+  addListener(event: 'karaokeAudioStatus', callback: (event: KaraokeAudioStatus) => void): Promise<PluginListenerHandle>;
   addListener(event: 'snapshot', callback: (event: MobileUpdate) => void): Promise<PluginListenerHandle>;
   addListener(event:'assistantVoiceStatus',callback:(value:{token:string;phase:string})=>void):Promise<PluginListenerHandle>;
   addListener(event:'assistantOpen',callback:()=>void):Promise<PluginListenerHandle>;
@@ -30,6 +39,8 @@ export async function command<T>(action: string, payload: Record<string, unknown
   if (!isNativeMobile) throw new Error(`此操作需要安装 ${mobilePlatform} 应用；浏览器只提供界面预览。`);
   return (await plugin.invoke({ action, payload })).value as T;
 }
+export const observeKaraokeNetwork = (callback: (event: unknown) => void) => plugin.addListener("karaokeNetwork", callback);
+export const observeKaraokeAudio = (callback: (event: KaraokeAudioStatus) => void) => plugin.addListener('karaokeAudioStatus', callback);
 export const observe = (callback: (state: MobileUpdate) => void) => plugin.addListener('snapshot', callback);
 export const observeAssistantVoice=(callback:(value:{token:string;phase:string})=>void)=>plugin.addListener('assistantVoiceStatus',callback);
 export const observeAssistantOpen=(callback:()=>void)=>plugin.addListener('assistantOpen',callback);

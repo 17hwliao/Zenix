@@ -1,5 +1,6 @@
 import {
   KARAOKE_LIMITS,
+  type KaraokeBattleState,
   type KaraokeClientEvent,
   type KaraokeHostEvent,
   type KaraokeMember,
@@ -8,8 +9,12 @@ import {
   type KaraokeQueueMode,
   type KaraokeRole,
   type KaraokeRoomState,
+  type KaraokeSide,
+  type KaraokeSongSummary,
   type KaraokeScore,
 } from './contracts';
+import { resetBattleState } from './lan/battle';
+import { karaokeSongSummary } from './song-summary';
 import { deepFreezeClone, frozenArray } from './immutable';
 import type { KaraokeError, KaraokeErrorCode } from './result';
 
@@ -45,6 +50,7 @@ export interface KaraokeSessionCreateInput {
 export interface KaraokeQueueAdd {
   recordingId: string;
   mode: KaraokeQueueMode;
+  song?: KaraokeSongSummary;
   itemId?: string;
   singerIds?: readonly string[];
 }
@@ -111,9 +117,12 @@ function cloneQueueItem(value: unknown): KaraokeQueueItem | null {
   if (singerIds.length === 0) return null;
   const score = item.score === undefined ? undefined : cloneScore(item.score);
   if (item.score !== undefined && !score) return null;
+  const song = karaokeSongSummary(item.song);
+  if (item.song !== undefined && !song) return null;
   return deepFreezeClone({
     id,
     recordingId,
+    ...(song ? {song} : {}),
     mode: item.mode as KaraokeQueueMode,
     singerIds: frozenArray(singerIds),
     state: item.state as KaraokeQueueItem['state'],
@@ -185,14 +194,52 @@ function cloneMember(value: unknown): KaraokeMember | null {
   const displayName = text(member.displayName);
   if (!id || !displayName) return null;
   if (!['host', 'singer', 'listener'].includes(member.role as KaraokeRole)) return null;
+  if (!['blue', 'red', 'none'].includes(member.side as KaraokeSide)) return null;
   return deepFreezeClone({
     id,
     displayName,
     role: member.role as KaraokeRole,
+    side: member.side as KaraokeSide,
     ready: member.ready === true,
     connected: member.connected === true,
     joinedAtMs: timestamp(member.joinedAtMs),
     lastSeenAtMs: timestamp(member.lastSeenAtMs, timestamp(member.joinedAtMs)),
+  });
+}
+
+function cloneBattle(value: unknown): KaraokeBattleState | null {
+  if (!value || typeof value !== 'object') return null;
+  const battle = value as Partial<KaraokeBattleState>;
+  if (battle.mode !== 'versus') return null;
+  const leadingSide = battle.leadingSide;
+  if (leadingSide !== 'blue' && leadingSide !== 'red' && leadingSide !== 'tie') return null;
+  const maxScore = KARAOKE_LIMITS.maxMembers * KARAOKE_LIMITS.maxLyricLines * 100;
+  const validTotal = (total: unknown): total is number =>
+    typeof total === 'number' && Number.isFinite(total) && total >= 0 && total <= maxScore;
+  if (!validTotal(battle.blueScore) || !validTotal(battle.redScore)) return null;
+  const expectedLead = battle.blueScore === battle.redScore ? 'tie' : battle.blueScore > battle.redScore ? 'blue' : 'red';
+  if (leadingSide !== expectedLead) return null;
+  if (!Array.isArray(battle.submittedMembers)) return null;
+  const submittedMembers = [...new Set(battle.submittedMembers
+    .filter((id): id is string => typeof id === 'string' && !!id.trim()))];
+  if (submittedMembers.length !== battle.submittedMembers.length || submittedMembers.length > KARAOKE_LIMITS.maxMembers) return null;
+  const itemId = battle.itemId === undefined ? undefined : text(battle.itemId);
+  if (battle.itemId !== undefined && !itemId) return null;
+  for (const value of [battle.revision, battle.startedAtMs, battle.pausedAtMs, battle.pausedTotalMs, battle.settlingUntilMs]) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) return null;
+  }
+  return deepFreezeClone({
+    mode: 'versus',
+    ...(itemId ? { itemId } : {}),
+    ...(battle.revision === undefined ? {} : { revision: battle.revision }),
+    ...(battle.startedAtMs === undefined ? {} : { startedAtMs: battle.startedAtMs }),
+    ...(battle.pausedAtMs === undefined ? {} : { pausedAtMs: battle.pausedAtMs }),
+    ...(battle.pausedTotalMs === undefined ? {} : { pausedTotalMs: battle.pausedTotalMs }),
+    ...(battle.settlingUntilMs === undefined ? {} : { settlingUntilMs: battle.settlingUntilMs }),
+    blueScore: battle.blueScore,
+    redScore: battle.redScore,
+    leadingSide,
+    submittedMembers: frozenArray(submittedMembers),
   });
 }
 
@@ -204,6 +251,8 @@ function normalizeRestoredState(value: KaraokeRoomState): KaraokeRoomState | nul
   if (!ROOM_STATUSES.has(value.status)) return null;
   if (!Array.isArray(value.members) || value.members.length === 0 || value.members.length > KARAOKE_LIMITS.maxMembers) return null;
   if (!Array.isArray(value.queue) || value.queue.length > KARAOKE_LIMITS.maxQueueItems) return null;
+  const battle = cloneBattle(value.battle);
+  if (!battle) return null;
   const members = value.members.map(cloneMember);
   if (members.some((member) => member === null)) return null;
   const memberIds = new Set(members.map((member) => member!.id));
@@ -211,7 +260,7 @@ function normalizeRestoredState(value: KaraokeRoomState): KaraokeRoomState | nul
   const parsedQueue = value.queue
     .map(cloneQueueItem)
     .filter((item): item is KaraokeQueueItem => item !== null)
-    .filter((item) => item.singerIds.every((id) => memberIds.has(id)));
+    .filter((item) => item.state === 'scored' || item.state === 'skipped' || item.singerIds.every((id) => memberIds.has(id)));
   if (parsedQueue.length !== value.queue.length || new Set(parsedQueue.map((item) => item.id)).size !== parsedQueue.length) return null;
 
   let status = value.status;
@@ -246,6 +295,7 @@ function normalizeRestoredState(value: KaraokeRoomState): KaraokeRoomState | nul
     hostMonotonicMs: timestamp(value.hostMonotonicMs),
     members: frozenArray(members as KaraokeMember[]),
     queue: frozenArray(queue),
+    battle,
     ...(currentItemId ? { currentItemId } : {}),
     ...(countdownEndsAtMs !== undefined && status === 'countdown' ? { countdownEndsAtMs } : {}),
   });
@@ -269,6 +319,13 @@ export class KaraokeSession {
       hostMonotonicMs: nowMs,
       members: [],
       queue: [],
+      battle: {
+        mode: 'versus',
+        blueScore: 0,
+        redScore: 0,
+        leadingSide: 'tie',
+        submittedMembers: [],
+      },
     });
     if (!roomId || !new RegExp(`^\\d{${KARAOKE_LIMITS.roomCodeLength}}$`).test(roomCode)) {
       return failure('INVALID_INPUT', '房间 ID 或六位房间码无效', emptyState);
@@ -278,6 +335,7 @@ export class KaraokeSession {
       id: hostId,
       displayName: hostDisplayName,
       role: 'host' as const,
+      side: 'none' as const,
       ready: true,
       connected: true,
       joinedAtMs: nowMs,
@@ -300,6 +358,13 @@ export class KaraokeSession {
         hostMonotonicMs: 0,
         members: [],
         queue: [],
+        battle: {
+          mode: 'versus',
+          blueScore: 0,
+          redScore: 0,
+          leadingSide: 'tie',
+          submittedMembers: [],
+        },
       });
       return failure('INVALID_INPUT', '房间快照损坏，无法恢复', fallback);
     }
@@ -328,6 +393,12 @@ export class KaraokeSession {
     return this.roomState.members.find((member) => member.role === 'host');
   }
 
+  private nextSingerSide(): KaraokeSide {
+    const balance = this.roomState.members.reduce((count, member) =>
+      member.side === 'blue' ? count + 1 : member.side === 'red' ? count - 1 : count, 0);
+    return balance > 0 ? 'red' : 'blue';
+  }
+
   joinMember(memberId: string, displayName: string, nowMs: number, role: KaraokeRole = 'singer'): KaraokeSessionResult {
     if (this.roomState.status === 'closed') return failure('INVALID_TRANSITION', '房间已关闭', this.roomState);
     if (this.roomState.members.length >= KARAOKE_LIMITS.maxMembers) return failure('ROOM_FULL', '房间成员已满', this.roomState);
@@ -341,6 +412,7 @@ export class KaraokeSession {
       id,
       displayName: name,
       role,
+      side: role === 'listener' ? 'none' as const : this.nextSingerSide(),
       ready: false,
       connected: true,
       joinedAtMs: at,
@@ -382,6 +454,8 @@ export class KaraokeSession {
     if (this.roomState.queue.length >= KARAOKE_LIMITS.maxQueueItems) return failure('QUEUE_FULL', 'K 歌队列已满', this.roomState);
     const recordingId = text(input?.recordingId);
     if (!recordingId || !QUEUE_MODES.has(input?.mode)) return failure('INVALID_INPUT', '歌曲或 K 歌模式无效', this.roomState);
+    const song = karaokeSongSummary(input.song);
+    if (input.song !== undefined && !song) return failure('INVALID_INPUT', '歌曲摘要无效', this.roomState);
     if (this.roomState.queue.some((item) => item.recordingId === recordingId
       && ['queued', 'countdown', 'singing'].includes(item.state))) {
       return failure('INVALID_INPUT', '同一歌曲已经在当前 K 歌队列中', this.roomState);
@@ -400,6 +474,7 @@ export class KaraokeSession {
     const item: KaraokeQueueItem = Object.freeze({
       id: itemId,
       recordingId,
+      ...(song ? {song} : {}),
       mode: input.mode,
       singerIds: frozenArray(singerIds),
       state: 'queued',
@@ -445,6 +520,7 @@ export class KaraokeSession {
     itemId: string,
     nowMs: number,
     durationMs = 3000,
+    roundSingers?: readonly string[],
   ): KaraokeSessionResult {
     const actor = this.member(actorId);
     if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可开始倒计时', this.roomState);
@@ -454,9 +530,13 @@ export class KaraokeSession {
       candidate.id === targetId && candidate.state === 'queued'
     ));
     if (!item) return failure('INVALID_TRANSITION', '所选歌曲不在待唱队列', this.roomState);
-    for (const singerId of item.singerIds) {
+    const singerIds = roundSingers ?? item.singerIds;
+    if (!singerIds.length) return failure('INVALID_TRANSITION', '请先让至少一位已分队的演唱者准备', this.roomState);
+    for (const singerId of singerIds) {
       const singer = this.member(singerId);
-      if (!singer?.connected || !singer.ready) return failure('INVALID_TRANSITION', '演唱成员尚未在线并准备', this.roomState);
+      if (!singer?.connected || !singer.ready || singer.role === 'listener') {
+        return failure('INVALID_TRANSITION', '演唱成员尚未在线并准备', this.roomState);
+      }
     }
     const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
     const safeDuration = Math.max(0, Math.min(30_000, Number.isFinite(durationMs) ? durationMs : 3000));
@@ -466,8 +546,9 @@ export class KaraokeSession {
       hostMonotonicMs: at,
       currentItemId: item.id,
       countdownEndsAtMs: at + safeDuration,
+      battle: {...resetBattleState(), itemId: item.id, revision: this.roomState.revision + 1},
       queue: frozenArray(this.roomState.queue.map((candidate) => candidate.id === item.id
-        ? itemWith(candidate, { state: 'countdown' })
+        ? itemWith(candidate, { state: 'countdown', singerIds: frozenArray(singerIds) })
         : candidate)),
     });
   }
@@ -491,6 +572,7 @@ export class KaraokeSession {
       status: 'singing',
       hostMonotonicMs: at,
       countdownEndsAtMs: undefined,
+      battle: {...this.roomState.battle, startedAtMs: this.roomState.countdownEndsAtMs ?? at, pausedTotalMs: 0},
       queue: frozenArray(this.roomState.queue.map((candidate) => candidate.id === this.roomState.currentItemId
         ? itemWith(candidate, { state: 'singing' })
         : candidate)),
@@ -501,17 +583,23 @@ export class KaraokeSession {
     const actor = this.member(actorId);
     if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可暂停', this.roomState);
     if (this.roomState.status !== 'singing') return failure('INVALID_TRANSITION', '只有演唱中可暂停', this.roomState);
-    return this.succeed({ ...this.roomState, status: 'paused', hostMonotonicMs: monotonic(nowMs, this.roomState.hostMonotonicMs) });
+    const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
+    return this.succeed({ ...this.roomState, status: 'paused', hostMonotonicMs: at, battle: {...this.roomState.battle, pausedAtMs: at} });
   }
 
   resume(actorId: string, nowMs: number): KaraokeSessionResult {
     const actor = this.member(actorId);
     if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可继续', this.roomState);
     if (this.roomState.status !== 'paused') return failure('INVALID_TRANSITION', '当前未暂停', this.roomState);
-    return this.succeed({ ...this.roomState, status: 'singing', hostMonotonicMs: monotonic(nowMs, this.roomState.hostMonotonicMs) });
+    const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
+    const {pausedAtMs, ...battle} = this.roomState.battle;
+    return this.succeed({ ...this.roomState, status: 'singing', hostMonotonicMs: at, battle: {
+      ...battle,
+      pausedTotalMs: (battle.pausedTotalMs ?? 0) + (pausedAtMs === undefined ? 0 : at - pausedAtMs),
+    } });
   }
 
-  finishCurrent(actorId: string, nowMs: number, score?: KaraokeScore): KaraokeSessionResult {
+  finishCurrent(actorId: string, nowMs: number, score?: KaraokeScore, settlingUntilMs?: number): KaraokeSessionResult {
     const actor = this.member(actorId);
     if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可结算', this.roomState);
     if ((this.roomState.status !== 'singing' && this.roomState.status !== 'paused') || !this.roomState.currentItemId) {
@@ -529,6 +617,7 @@ export class KaraokeSession {
       currentItemId: undefined,
       countdownEndsAtMs: undefined,
       queue: frozenArray(queue),
+      battle: {...this.roomState.battle, settlingUntilMs},
     });
   }
 
@@ -594,6 +683,36 @@ export class KaraokeSession {
     });
   }
 
+  updateBattle(battle: KaraokeBattleState, nowMs: number): KaraokeSessionResult {
+    if (this.roomState.status === 'closed') return failure('INVALID_TRANSITION', '房间已关闭', this.roomState);
+    const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
+    return this.succeed({
+      ...this.roomState,
+      hostMonotonicMs: at,
+      battle: deepFreezeClone(battle),
+    });
+  }
+
+  setMemberSide(actorId: string, memberId: string, side: KaraokeSide, nowMs: number): KaraokeSessionResult {
+    const actor = this.member(actorId);
+    if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可调整阵营', this.roomState);
+    const target = this.member(memberId);
+    if (!target) return failure('MEMBER_NOT_FOUND', '成员不存在', this.roomState);
+    if (!['blue', 'red', 'none'].includes(side)) return failure('INVALID_INPUT', '阵营无效', this.roomState);
+    if (['singing', 'countdown', 'paused'].includes(this.roomState.status)) {
+      return failure('INVALID_TRANSITION', '演唱中不能调整阵营，请先重置对局', this.roomState);
+    }
+    const resolvedSide: KaraokeSide = target.role === 'listener' ? 'none' : side;
+    const at = monotonic(nowMs, this.roomState.hostMonotonicMs);
+    return this.succeed({
+      ...this.roomState,
+      hostMonotonicMs: at,
+      members: frozenArray(this.roomState.members.map((member) => member.id === memberId
+        ? memberWith(member, { side: resolvedSide })
+        : member)),
+    });
+  }
+
   restoreQueue(actorId: string, items: readonly KaraokeQueueItem[], nowMs: number): KaraokeSessionResult {
     const actor = this.member(actorId);
     if (!actor || actor.role !== 'host') return failure('HOST_REQUIRED', '只有主持人可恢复 K 歌队列', this.roomState);
@@ -615,6 +734,7 @@ export class KaraokeSession {
       currentItemId: undefined,
       countdownEndsAtMs: undefined,
       queue: frozenArray(queue),
+      battle: resetBattleState(),
     });
   }
 

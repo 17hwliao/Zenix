@@ -27,9 +27,9 @@ document.querySelectorAll('[data-action]').forEach(button=>button.addEventListen
 document.getElementById('close').onclick=()=>window.close();render();
 
 function shy(){if(voiceSession)return;clearTimeout(resetTimer);state=['shy','greeting','cheer'][reaction++%3];message.textContent=state==='shy'?'有一点点害羞…… ♡':state==='greeting'?'你好呀，星音在这里':'和你一起听歌很开心！';render();resetTimer=setTimeout(()=>{state='idle';message.textContent='';render();},3500);}
-let voiceSession=null,reaction=0;
+let voiceSession=null,reaction=0,karaokeVoiceLocked=false;
 async function beginVoice(source){
- if(voiceSession)return;clearTimeout(resetTimer);const session={token:crypto.randomUUID(),source,held:true,ready:false,recording:new window.zenixHoldRecording.HoldRecording()};voiceSession=session;
+ if(karaokeVoiceLocked){message.textContent='K 歌房间正在使用麦克风';return;}if(voiceSession)return;clearTimeout(resetTimer);const session={token:crypto.randomUUID(),source,held:true,ready:false,recording:new window.zenixHoldRecording.HoldRecording()};voiceSession=session;
  state='thinking';message.textContent='正在准备麦克风…';document.body.dataset.voice='true';render();
  try{await window.zenixPet.speech({action:'speechStart',token:session.token});if(voiceSession!==session)return;const ready=await session.recording.start();if(voiceSession!==session||!session.held){session.recording.cancel();return;}session.ready=ready;state='listening';message.textContent='正在听 · 松开发送，Escape 取消';render();}catch(error){if(voiceSession===session){voiceSession=null;session.recording.cancel();state='failure';message.textContent=String(error);document.body.dataset.voice='false';render();}}
 }
@@ -43,4 +43,4 @@ const voiceButton=document.getElementById('voice');
 voiceButton.addEventListener('pointerdown',event=>{if(event.button!==0||!event.isPrimary)return;event.preventDefault();voiceButton.setPointerCapture(event.pointerId);void beginVoice('pointer');});
 voiceButton.addEventListener('pointerup',event=>{void endVoice();if(voiceButton.hasPointerCapture(event.pointerId))voiceButton.releasePointerCapture(event.pointerId);});
 voiceButton.addEventListener('pointercancel',cancelVoice);voiceButton.addEventListener('lostpointercapture',()=>{if(voiceSession?.held)cancelVoice();});
-window.zenixPet.onFeedback?.(value=>{if(voiceSession?.held)return;if(!['idle','listening','thinking','executing','success','failure','talking','shy','greeting','cheer'].includes(value?.state))return;clearTimeout(resetTimer);state=value.state;message.textContent=String(value.text||'');render();});
+window.zenixPet.onFeedback?.(value=>{if(typeof value?.karaokeVoiceLocked==='boolean'){karaokeVoiceLocked=value.karaokeVoiceLocked;if(karaokeVoiceLocked&&voiceSession)cancelVoice();return;}if(voiceSession?.held)return;if(!['idle','listening','thinking','executing','success','failure','talking','shy','greeting','cheer'].includes(value?.state))return;clearTimeout(resetTimer);state=value.state;message.textContent=String(value.text||'');render();});

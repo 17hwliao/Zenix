@@ -7,6 +7,7 @@ function subscribe(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld('yzqxy', {
+  karaokeNetwork: { invoke: args => ipcRenderer.invoke('karaoke:network', args), observe: callback => subscribe('karaoke:network-event', callback) },
   assistantModel: { invoke: args => ipcRenderer.invoke('assistant-model:invoke', args) },
   desktop: {invoke: args => ipcRenderer.invoke('desktop:invoke',args), onCommand: callback => subscribe('desktop:command',callback)},
   companion: { invoke: args => ipcRenderer.invoke('companion:invoke', args), onVoice:callback=>subscribe('assistant:utterance',callback),onVoiceStart:callback=>subscribe('assistant:voice-start',callback) },

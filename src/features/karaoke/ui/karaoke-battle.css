@@ -1,0 +1,164 @@
+.zenix-karaoke-battle {
+  --zk-battle-blue: #8ccaef;
+  --zk-battle-red: #f2a4a6;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px clamp(12px, 2vw, 22px) 12px;
+  border: 1px solid var(--zk-line);
+  border-radius: 16px;
+  background: #10141f;
+}
+
+.zenix-karaoke-battle-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.zenix-karaoke-battle-team {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  color: var(--zk-battle-blue);
+}
+
+.zenix-karaoke-battle-team[data-side="red"] {
+  justify-items: end;
+  color: var(--zk-battle-red);
+  text-align: right;
+}
+
+.zenix-karaoke-battle-label {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.zenix-karaoke-battle-team > strong {
+  font-size: clamp(24px, 3.5vw, 36px);
+  line-height: 1.1;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+.zenix-karaoke-battle-team > strong > small {
+  font-size: 12px;
+}
+
+.zenix-karaoke-battle-team ul {
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--zk-soft);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.zenix-karaoke-battle-bar {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--zk-battle-red);
+}
+
+.zenix-karaoke-battle-fill,
+.zenix-karaoke-battle-collision {
+  position: absolute;
+  inset: 0;
+  transition: transform .38s cubic-bezier(.2, .75, .25, 1);
+}
+
+.zenix-karaoke-battle-fill {
+  background: var(--zk-battle-blue);
+  transform-origin: left center;
+}
+
+.zenix-karaoke-battle-collision::before {
+  position: absolute;
+  inset: 0 auto 0 -1px;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 9px #fff;
+  content: '';
+}
+
+.zenix-karaoke-battle-outcome {
+  color: var(--zk-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.zenix-karaoke-grade {
+  position: relative;
+  z-index: 1;
+  height: 52px;
+  pointer-events: none;
+}
+
+.zenix-karaoke-grade:empty {
+  height: 0;
+}
+
+.zenix-karaoke-grade-mark {
+  position: absolute;
+  inset: 3px 0 auto;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px;
+  color: var(--zk-soft);
+  text-align: center;
+  animation: zenix-karaoke-grade-enter 700ms both;
+}
+
+.zenix-karaoke-grade-mark[data-side="blue"] { color: #a8e0ff; }
+.zenix-karaoke-grade-mark[data-side="red"] { color: #ffbdbe; }
+.zenix-karaoke-grade-mark[data-grade="perfect"] { color: #ffdf8a; }
+
+.zenix-karaoke-grade-mark strong {
+  font-size: clamp(18px, 3vw, 27px);
+  font-weight: 850;
+  letter-spacing: .035em;
+  line-height: 1.05;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 2px #10141f;
+  text-shadow: 0 2px 12px #050811;
+}
+
+.zenix-karaoke-grade-mark small {
+  color: inherit;
+  text-shadow: 0 1px 5px #050811, 0 1px 5px #050811;
+}
+
+@keyframes zenix-karaoke-grade-enter {
+  0% { opacity: 0; transform: scale(.83); }
+  22% { opacity: 1; transform: scale(1.09); }
+  46%, 70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes zenix-karaoke-grade-fade {
+  0%, 100% { opacity: 0; }
+  25%, 70% { opacity: 1; }
+}
+
+.zenix-karaoke-battle[data-reduced-motion="true"] :is(.zenix-karaoke-battle-fill, .zenix-karaoke-battle-collision) {
+  transition: none;
+}
+
+.zenix-karaoke-grade[data-reduced-motion="true"] .zenix-karaoke-grade-mark {
+  animation-name: zenix-karaoke-grade-fade;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zenix-karaoke-battle :is(.zenix-karaoke-battle-fill, .zenix-karaoke-battle-collision) {
+    transition: none;
+  }
+
+  .zenix-karaoke-grade-mark {
+    animation-name: zenix-karaoke-grade-fade;
+  }
+}

@@ -21,6 +21,9 @@ import {
   type KaraokeRoomCodeCollisionGuard,
 } from './code';
 import { randomKaraokeLanId } from './crypto';
+import { nextBattleState, resetBattleState } from './battle';
+import { normalizeScoreLine } from './score';
+import { isPublicKaraokeText, karaokeSongSummary } from '../song-summary';
 import {
   KaraokeLanMediaManager,
   type KaraokeMediaAdapterFactory,
@@ -65,6 +68,7 @@ const MEMBER_EVENT_TYPES = new Set<KaraokeLanEnvelopeType>([
   'member.ready',
   'queue.add',
   'queue.remove',
+  'score.line',
   'session.leave',
   'clock.sample',
   'clock.ping',
@@ -149,6 +153,8 @@ export class KaraokeLanHost {
   private readonly generatedClientSequences = new Map<string, number>();
   private readonly cachedControls = new Map<string, CachedControl>();
   private readonly rateLimiter = new KaraokeLanRateLimiter();
+  private readonly scoreRateLimiter = new KaraokeLanRateLimiter(KARAOKE_LAN_LIMITS.scoreEventRateLimit, KARAOKE_LAN_LIMITS.eventRateWindowMs);
+  private readonly submittedLineKeys = new Set<string>();
   private hostAuthorization: KaraokeLanAuthorization;
 
   private constructor(
@@ -174,7 +180,7 @@ export class KaraokeLanHost {
       input?.hostDisplayName,
       KARAOKE_LAN_LIMITS.maxDisplayNameLength,
     );
-    if (!hostId || !hostDisplayName || !validTime(input?.nowMs)) {
+    if (!hostId || !hostDisplayName || !isPublicKaraokeText(hostDisplayName, KARAOKE_LAN_LIMITS.maxDisplayNameLength) || !validTime(input?.nowMs)) {
       return lanFailure('INVALID_INPUT', '主持人或启动时间无效', false);
     }
     if (input.joinPassword !== undefined && typeof input.joinPassword !== 'string') {
@@ -347,7 +353,7 @@ export class KaraokeLanHost {
     }
     const displayName = boundedText(input?.displayName, KARAOKE_LAN_LIMITS.maxDisplayNameLength);
     const clientNonce = boundedText(input?.clientNonce, KARAOKE_LAN_LIMITS.maxClientIdLength);
-    if (!displayName || !clientNonce) {
+    if (!displayName || !isPublicKaraokeText(displayName, KARAOKE_LAN_LIMITS.maxDisplayNameLength) || !clientNonce) {
       return lanFailure('INVALID_INPUT', '昵称或客户端 nonce 无效', false);
     }
     if (nowMs >= this.inviteExpiresAtMs
@@ -403,6 +409,7 @@ export class KaraokeLanHost {
     pendingId: string,
     nowMs: number,
     role: Exclude<KaraokeRole, 'host'> = 'singer',
+    side?: 'blue' | 'red' | 'none',
   ): KaraokeLanResult<KaraokeLanApprovalResult> {
     const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
     if (!host.ok) return host;
@@ -422,13 +429,17 @@ export class KaraokeLanHost {
     }
     const memberId = randomKaraokeLanId(`karaoke-${role}`, 10);
     if (!memberId.ok) return memberId;
-    const joined = this.session.joinMember(
+    let joined = this.session.joinMember(
       memberId.value,
       entry.pending.displayName,
       nowMs,
       role,
     );
     if (!joined.ok) return this.fromSessionFailure(joined);
+    if (side && role === 'singer') {
+      joined = joined.session.setMemberSide(host.value.memberId, memberId.value, side, nowMs);
+      if (!joined.ok) return this.fromSessionFailure(joined);
+    }
     const tooLarge = this.snapshotFailure(joined.state);
     if (tooLarge) return tooLarge;
     const authorization = this.grants.issue({
@@ -627,10 +638,12 @@ export class KaraokeLanHost {
       || !MEMBER_EVENT_TYPES.has(envelope.type)) {
       return lanFailure('INVALID_ENVELOPE', '成员消息来源、成员或目标无效', false);
     }
-    const limit = this.rateLimiter.consume(valid.value.memberId, nowMs);
-    if (!limit.ok) return limit;
-    const duplicate = this.duplicateControl(envelope.senderId, envelope.sequence);
-    if (duplicate) return lanOk(duplicate);
+    if (envelope.type !== 'score.line') {
+      const limit = this.rateLimiter.consume(valid.value.memberId, nowMs);
+      if (!limit.ok) return limit;
+      const duplicate = this.duplicateControl(envelope.senderId, envelope.sequence);
+      if (duplicate) return lanOk(duplicate);
+    }
     this.touch(valid.value.memberId, nowMs);
     let result: KaraokeLanResult<KaraokeLanControlResponse>;
     switch (envelope.type) {
@@ -642,6 +655,9 @@ export class KaraokeLanHost {
         break;
       case 'queue.remove':
         result = this.handleQueueRemove(authorization, envelope, nowMs);
+        break;
+      case 'score.line':
+        result = this.handleScoreLine(authorization, envelope, nowMs);
         break;
       case 'session.leave':
         result = this.handleLeaveEnvelope(authorization, envelope, nowMs);
@@ -656,7 +672,9 @@ export class KaraokeLanHost {
       default:
         result = lanFailure('INVALID_ENVELOPE', '不支持的成员消息', false);
     }
-    if (result.ok) this.rememberControl(envelope.senderId, envelope.sequence, result.value);
+    if (result.ok && envelope.type !== 'score.line') {
+      this.rememberControl(envelope.senderId, envelope.sequence, result.value);
+    }
     return result;
   }
 
@@ -668,7 +686,9 @@ export class KaraokeLanHost {
     if (!event || typeof event !== 'object' || event.type === 'join.requested') {
       return lanFailure('INVALID_INPUT', '成员事件无效', false);
     }
-    const sequence = this.nextIncomingSequence(authorization.memberId);
+    const valid = this.requireAuthorization(authorization, nowMs);
+    if (!valid.ok) return valid;
+    const sequence = this.nextIncomingSequence(valid.value.memberId);
     const envelope = createKaraokeLanEnvelope({
       type: event.type,
       source: 'client',
@@ -794,24 +814,66 @@ export class KaraokeLanHost {
     return this.stopInternal(nowMs, reason);
   }
 
-  startQueueItem(
+  assignSide(
     hostAuthorization: KaraokeLanAuthorization,
-    itemId: string,
+    memberId: string,
+    side: 'blue' | 'red' | 'none',
     nowMs: number,
   ): KaraokeLanResult<KaraokeRoomState> {
     const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
     if (!host.ok) return host;
+    const normalizedMemberId = boundedText(memberId, 128);
+    if (!normalizedMemberId) return lanFailure('INVALID_INPUT', '成员 ID 无效', false);
+    const changed = this.session.setMemberSide(host.value.memberId, normalizedMemberId, side, nowMs);
+    return this.commitHostMutation(changed, nowMs);
+  }
+
+  startQueueItem(
+    hostAuthorization: KaraokeLanAuthorization,
+    itemId: string,
+    nowMs: number,
+    countdownMs = 0,
+  ): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    if ((this.state.battle.settlingUntilMs ?? 0) > nowMs) return lanFailure('INVALID_TRANSITION', '正在确认上一轮分数', true);
     const normalizedItemId = boundedText(itemId, 256);
     if (!normalizedItemId) return lanFailure('INVALID_INPUT', '队列项 ID 无效', false);
+    const item = this.session.state.queue.find(item => item.id === normalizedItemId);
+    const roundSingers = item?.mode === 'chorus' ? this.session.state.members
+      .filter(member => member.side !== 'none' && member.connected && member.ready).map(member => member.id) : undefined;
     const countedDown = this.session.startQueueItem(
       host.value.memberId,
       normalizedItemId,
       nowMs,
-      0,
+      countdownMs,
+      roundSingers,
     );
     if (!countedDown.ok) return this.fromSessionFailure(countedDown);
-    const singing = countedDown.session.beginSinging(host.value.memberId, nowMs);
-    return this.commitHostMutation(singing, nowMs);
+    const next = countdownMs > 0 ? countedDown : countedDown.session.beginSinging(host.value.memberId, nowMs);
+    const result = this.commitHostMutation(next, nowMs);
+    if (result.ok) this.submittedLineKeys.clear();
+    return result;
+  }
+
+  restart(hostAuthorization: KaraokeLanAuthorization, nowMs: number): KaraokeLanResult<KaraokeRoomState> {
+    const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
+    if (!host.ok) return host;
+    if ((this.state.battle.settlingUntilMs ?? 0) > nowMs) return lanFailure('INVALID_TRANSITION', '正在确认上一轮分数', true);
+    const {status, members, queue} = this.session.state;
+    if (status !== 'results' && status !== 'lobby') {
+      return lanFailure('INVALID_TRANSITION', '请先结束当前歌曲，再重新开始对局', true);
+    }
+    const available = new Set(members.map(member => member.id));
+    const seen = new Set<string>();
+    const replay = queue.filter(item => {
+      if (seen.has(item.recordingId) || !item.singerIds.every(id => available.has(id))) return false;
+      seen.add(item.recordingId);
+      return true;
+    });
+    const result = this.commitHostMutation(this.session.restoreQueue(host.value.memberId, replay, nowMs), nowMs);
+    if (result.ok) this.submittedLineKeys.clear();
+    return result;
   }
 
   pause(
@@ -847,11 +909,18 @@ export class KaraokeLanHost {
   finishCurrent(
     hostAuthorization: KaraokeLanAuthorization,
     nowMs: number,
+    acceptLateScores = false,
   ): KaraokeLanResult<KaraokeRoomState> {
     const host = this.requireHost(hostAuthorization, nowMs, 'room-control');
     if (!host.ok) return host;
+    const state = this.session.state;
+    const singers = state.queue.find(item => item.id === state.currentItemId)?.singerIds ?? [];
+    const waitingForReconnect = singers.some(id => state.members.find(member => member.id === id)?.connected === false);
+    const settlingUntilMs = acceptLateScores
+      ? nowMs + (waitingForReconnect ? KARAOKE_LAN_LIMITS.disconnectGraceMs : 2500)
+      : undefined;
     return this.commitHostMutation(
-      this.session.finishCurrent(host.value.memberId, nowMs),
+      this.session.finishCurrent(host.value.memberId, nowMs, undefined, settlingUntilMs),
       nowMs,
     );
   }
@@ -914,7 +983,15 @@ export class KaraokeLanHost {
         if (result.ok) removed.push(memberId);
       }
     }
-    if (disconnected.length || removed.length) this.broadcastSnapshot(nowMs);
+    const {status, countdownEndsAtMs} = this.session.state;
+    const {settlingUntilMs, ...battle} = this.session.state.battle;
+    if (settlingUntilMs !== undefined && nowMs >= settlingUntilMs) {
+      this.commitHostMutation(this.session.updateBattle(battle, nowMs), nowMs);
+    }
+    if (status === 'countdown' && countdownEndsAtMs !== undefined && nowMs >= countdownEndsAtMs) {
+      const begun = this.commitHostMutation(this.session.beginSinging(this.hostId, nowMs), nowMs);
+      if (!begun.ok) this.commitHostMutation(this.session.skipCurrent(this.hostId, nowMs), nowMs);
+    } else if (disconnected.length || removed.length) this.broadcastSnapshot(nowMs);
     return lanOk(Object.freeze({
       disconnected: frozenArray(disconnected),
       removed: frozenArray(removed),
@@ -1011,15 +1088,18 @@ export class KaraokeLanHost {
     const payload = envelope.payload as {
       readonly recordingId?: unknown;
       readonly mode?: unknown;
+      readonly song?: unknown;
     };
     const recordingId = safeRecordingId(payload.recordingId);
     const mode = payload.mode;
+    const song = karaokeSongSummary(payload.song);
     if (!recordingId || (mode !== 'solo' && mode !== 'relay' && mode !== 'chorus')) {
       return lanFailure('INVALID_INPUT', '队列歌曲或模式无效', false);
     }
+    if (payload.song !== undefined && !song) return lanFailure('INVALID_INPUT', '歌曲摘要无效', false);
     const changed = this.session.addQueueItem(
       authorization.memberId,
-      { recordingId, mode: mode as KaraokeQueueMode },
+      { recordingId, mode: mode as KaraokeQueueMode, song },
       nowMs,
     );
     return this.commitMutation(changed, envelope.type, nowMs, { recordingId, mode });
@@ -1109,6 +1189,69 @@ export class KaraokeLanHost {
     }));
   }
 
+  private handleScoreLine(
+    authorization: KaraokeLanAuthorization,
+    envelope: KaraokeLanEnvelope,
+    nowMs: number,
+  ): KaraokeLanResult<KaraokeLanControlResponse> {
+    const permission = this.grants.requireCapability(
+      authorization,
+      this.roomId,
+      'sing',
+      nowMs,
+    );
+    if (!permission.ok) return permission;
+    const scoreRate = this.scoreRateLimiter.consume(authorization.memberId, nowMs);
+    if (!scoreRate.ok) return scoreRate;
+    const payload = envelope.payload as {
+      readonly itemId?: unknown;
+      readonly lineIndex?: unknown;
+      readonly revision?: unknown;
+      readonly lineScore?: unknown;
+      readonly clientSentAtMs?: unknown;
+    };
+    const normalized = normalizeScoreLine(payload);
+    if (!normalized.ok) return normalized;
+    const state = this.session.state;
+    const current = state.queue.find((item) => item.id === normalized.value.itemId);
+    const singing = current?.id === state.currentItemId && current?.state === 'singing';
+    const settling = current?.id === state.battle.itemId && current?.state === 'scored'
+      && (state.battle.settlingUntilMs ?? 0) > nowMs;
+    if (!current || (!singing && !settling)) {
+      return lanFailure('INVALID_TRANSITION', '分数事件不属于当前演唱歌曲', false);
+    }
+    if (normalized.value.revision !== state.battle.revision) {
+      return lanFailure('INVALID_TRANSITION', '分数事件修订号已过期', true, {
+        revision: state.battle.revision ?? state.revision,
+      });
+    }
+    const member = state.members.find((candidate) => candidate.id === authorization.memberId);
+    if (!member?.connected || member.side === 'none' || !current.singerIds.includes(member.id)) {
+      return lanFailure('PERMISSION_DENIED', '只有本轮在线演唱成员可以提交分数', false);
+    }
+    const lineKey = `${authorization.memberId}:${normalized.value.itemId}:${normalized.value.lineIndex}:${normalized.value.revision}`;
+    if (this.submittedLineKeys.has(lineKey)) {
+      return lanOk(Object.freeze({
+        status: 'duplicate' as const,
+        duplicate: true,
+        type: 'score.line' as const,
+        payload: Object.freeze({ itemId: normalized.value.itemId, lineIndex: normalized.value.lineIndex }),
+      }));
+    }
+    const battle = nextBattleState(state.battle, normalized.value.itemId, {
+      memberId: authorization.memberId,
+      side: member.side === 'blue' ? 'blue' : 'red',
+      delta: normalized.value.lineScore.total,
+    });
+    const changed = this.session.updateBattle(battle, nowMs);
+    const committed = this.commitMutation(changed, envelope.type, nowMs, {
+      itemId: normalized.value.itemId,
+      lineIndex: normalized.value.lineIndex,
+    });
+    if (committed.ok) this.submittedLineKeys.add(lineKey);
+    return committed;
+  }
+
   private commitMutation(
     result: KaraokeSessionResult,
     type: KaraokeLanEnvelopeType,
@@ -1175,35 +1318,30 @@ export class KaraokeLanHost {
     if (!current.members.some((member) => member.id === memberId)) return null;
     if (memberId === this.hostId) return null;
     const members = current.members.filter((member) => member.id !== memberId);
-    const queue = current.queue.flatMap((item) => {
+    const queue = current.queue.map((item) => {
+      if (item.state === 'scored' || item.state === 'skipped') return item;
       const singerIds = item.singerIds.filter((id) => id !== memberId);
-      if (singerIds.length === 0) return [];
-      const mode = item.mode === 'solo' && singerIds.length !== 1 ? 'relay' as const : item.mode;
-      return [{ ...item, singerIds: frozenArray(singerIds), mode }];
+      if (singerIds.length) return {...item, singerIds: frozenArray(singerIds)};
+      if (item.id === current.currentItemId) return {...item, state: 'skipped' as const};
+      return {...item, singerIds: frozenArray([this.hostId])};
     });
-    const currentItemExists = current.currentItemId
-      ? queue.some((item) => item.id === current.currentItemId)
-      : false;
     const active = current.status === 'countdown'
       || current.status === 'singing'
       || current.status === 'paused';
+    const lostActiveItem = active && queue.find(item => item.id === current.currentItemId)?.state === 'skipped';
     const candidate: KaraokeRoomState = deepFreezeClone({
       ...current,
       revision: current.revision + 1,
       hostMonotonicMs: Math.max(current.hostMonotonicMs, nowMs),
       members: frozenArray(members),
-      queue: frozenArray(queue.map((item) => active && item.id === current.currentItemId
-        ? { ...item, state: current.status === 'countdown' ? 'countdown' as const : 'singing' as const }
-        : item.state === 'countdown' || item.state === 'singing'
-          ? { ...item, state: 'queued' as const }
-          : item)),
-      ...(currentItemExists
-        ? {}
-        : {
-          status: 'lobby' as const,
+      queue: frozenArray(queue),
+      ...(lostActiveItem
+        ? {
+          status: queue.some(item => item.state === 'queued') ? 'lobby' as const : 'results' as const,
           currentItemId: undefined,
           countdownEndsAtMs: undefined,
-        }),
+          battle: resetBattleState(),
+        } : {}),
     } as KaraokeRoomState);
     const restored = KaraokeSession.restore(candidate);
     return restored.ok ? restored.session : null;
@@ -1232,6 +1370,7 @@ export class KaraokeLanHost {
       }, nowMs);
     }
     this.grants.revokeRoom(this.roomId);
+    this.submittedLineKeys.clear();
     this.mediaManager?.closeRoom(this.roomId, reason);
     this.members.clear();
     this.subscribers.clear();

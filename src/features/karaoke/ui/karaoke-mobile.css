@@ -1,0 +1,81 @@
+.zenix-karaoke-mobile-join {
+  width: min(420px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: clamp(16px, 5vw, 24px);
+  border: 1px solid var(--zk-line);
+  border-radius: 20px;
+  background: var(--zk-panel);
+}
+
+.zenix-karaoke-mobile-join p {
+  margin-bottom: 8px;
+  color: var(--zk-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.zenix-karaoke-mobile-join label {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.zenix-karaoke-mobile-join label span {
+  margin-inline-start: 4px;
+  color: var(--zk-muted);
+  font-weight: 400;
+}
+
+.zenix-karaoke-mobile-join input {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 11px 12px;
+  border: 1px solid var(--zk-line-strong);
+  border-radius: 10px;
+  background: var(--zk-bg);
+  color: var(--zk-text);
+  font-size: 16px;
+}
+
+.zenix-karaoke-mobile-join input[aria-invalid='true'] {
+  border-color: var(--zk-danger);
+}
+
+.zenix-karaoke-mobile-join small {
+  color: var(--zk-danger);
+}
+
+.zenix-karaoke-mobile-join button[type='submit'] {
+  margin-top: 8px;
+}
+
+.zenix-karaoke-mobile-sync {
+  margin-block: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--zk-line);
+  border-radius: 12px;
+  color: var(--zk-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.zenix-karaoke-mobile-mic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zenix-karaoke-page.is-mobile .zenix-karaoke-ready-button,
+.zenix-karaoke-page.is-mobile .zenix-karaoke-error-actions button,
+.zenix-karaoke-page.is-mobile .zenix-karaoke-status > button {
+  min-height: 44px;
+}
+
+.zenix-karaoke-page.is-mobile .zenix-karaoke-status > button,
+.zenix-karaoke-page.is-mobile .zenix-karaoke-error-actions button[aria-label] {
+  min-width: 44px;
+}

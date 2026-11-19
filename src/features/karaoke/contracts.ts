@@ -77,6 +77,12 @@ export interface KaraokeLineScore {
   feedback: readonly string[];
 }
 
+export interface KaraokeLineGradeFields {
+  grade: KaraokeGrade;
+  combo: number;
+  confidence: number;
+}
+
 export interface KaraokeScore {
   schema: 1;
   total: number;
@@ -88,13 +94,62 @@ export interface KaraokeScore {
   pitchEvaluated: boolean;
 }
 
+export type KaraokeGrade =
+  | 'perfect'
+  | 'excellent'
+  | 'veryGood'
+  | 'good'
+  | 'nice'
+  | 'pass'
+  | 'retry';
+
+export const KARAOKE_GRADE_ORDER: readonly KaraokeGrade[] = Object.freeze([
+  'perfect',
+  'excellent',
+  'veryGood',
+  'good',
+  'nice',
+  'pass',
+  'retry',
+]);
+
+export function karaokeGradeForScore(value: number): KaraokeGrade {
+  if (!Number.isFinite(value)) return 'retry';
+  if (value >= 100) return 'perfect';
+  if (value >= 95) return 'excellent';
+  if (value >= 90) return 'veryGood';
+  if (value >= 80) return 'good';
+  if (value >= 70) return 'nice';
+  if (value >= 60) return 'pass';
+  return 'retry';
+}
+
 export type KaraokeRoomStatus = 'lobby' | 'countdown' | 'singing' | 'paused' | 'results' | 'closed';
 export type KaraokeQueueMode = 'solo' | 'relay' | 'chorus';
+
+export type KaraokeSide = 'blue' | 'red' | 'none';
+
+export type KaraokeBattleMode = 'versus';
+
+export interface KaraokeBattleState {
+  mode: KaraokeBattleMode;
+  itemId?: string;
+  revision?: number;
+  startedAtMs?: number;
+  pausedAtMs?: number;
+  pausedTotalMs?: number;
+  settlingUntilMs?: number;
+  blueScore: number;
+  redScore: number;
+  leadingSide: 'blue' | 'red' | 'tie';
+  submittedMembers: readonly string[];
+}
 
 export interface KaraokeMember {
   id: string;
   displayName: string;
   role: KaraokeRole;
+  side: KaraokeSide;
   ready: boolean;
   connected: boolean;
   joinedAtMs: number;
@@ -104,10 +159,17 @@ export interface KaraokeMember {
 export interface KaraokeQueueItem {
   id: string;
   recordingId: string;
+  song?: KaraokeSongSummary;
   mode: KaraokeQueueMode;
   singerIds: readonly string[];
   state: 'queued' | 'countdown' | 'singing' | 'scored' | 'skipped';
   score?: KaraokeScore;
+}
+
+export interface KaraokeSongSummary {
+  title: string;
+  artist: string;
+  durationMs: number;
 }
 
 export interface KaraokeRoomState {
@@ -121,14 +183,16 @@ export interface KaraokeRoomState {
   queue: readonly KaraokeQueueItem[];
   currentItemId?: string;
   countdownEndsAtMs?: number;
+  battle: KaraokeBattleState;
 }
 
 export type KaraokeClientEvent =
   | {type: 'join.requested'; roomCode: string; displayName: string; clientNonce: string}
   | {type: 'member.ready'; ready: boolean}
-  | {type: 'queue.add'; recordingId: string; mode: KaraokeQueueMode}
+  | {type: 'queue.add'; recordingId: string; mode: KaraokeQueueMode; song?: KaraokeSongSummary}
   | {type: 'queue.remove'; itemId: string}
   | {type: 'clock.sample'; clientSendMs: number; clientReceiveMs?: number}
+  | {type: 'score.line'; itemId: string; lineIndex: number; revision: number; lineScore: KaraokeLineScore & Partial<KaraokeLineGradeFields>; clientSentAtMs: number}
   | {type: 'session.leave'};
 
 export type KaraokeHostEvent =

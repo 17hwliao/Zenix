@@ -15,6 +15,8 @@ const { MusicWidget } = require('./runtime/music-widget.cjs');
 const {DesktopTray} = require('./runtime/desktop-tray.cjs');
 const {DesktopControls}=require('./runtime/desktop-controls.cjs');
 let desktopTray,desktopControls;
+const { KaraokeSockets } = require('./runtime/karaoke-sockets.cjs');
+const karaokeSockets = new KaraokeSockets(payload => broadcast('karaoke:network-event', payload));
 let companion, musicWidget;
 let updates;
 let personalFeatures, offlineTasks, assistant, assistantModel;
@@ -142,6 +144,15 @@ function createWindow() {
     if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close();
     // An invisible source sandbox must not keep a closed desktop application alive.
     if (process.platform !== 'darwin') app.quit();
+  });
+  const releaseKaraokeRoom = () => {
+    karaokeSockets.stop();
+    void assistant?.invoke({action: 'karaokeVoiceLock', active: false});
+  };
+  mainWindow.webContents.on('render-process-gone', releaseKaraokeRoom);
+  mainWindow.webContents.on('destroyed', releaseKaraokeRoom);
+  mainWindow.webContents.on('did-start-navigation', details => {
+    if (details.isMainFrame && !details.isSameDocument) releaseKaraokeRoom();
   });
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
   mainWindow.webContents.on('will-redirect', event => event.preventDefault());
@@ -444,6 +455,10 @@ function registerHandlers() {
     broadcast('appearance:changed', state);
     return state;
   });
+  handleApp('karaoke:network', (event, args) => {
+    if (event.sender !== mainWindow?.webContents) throw Error('无权访问 K 歌连接');
+    return karaokeSockets.invoke(args);
+  });
   handleApp('sources:list', () => { sourceManager.assertWritable(); return sourceManager.list(); });
   handleApp('sources:import-file', () => sourceManager.choosePackage(mainWindow));
   handleApp('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
@@ -612,4 +627,4 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => { assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
+app.on('before-quit', () => { karaokeSockets.stop(); assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
