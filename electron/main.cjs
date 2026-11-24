@@ -16,6 +16,8 @@ const {DesktopTray} = require('./runtime/desktop-tray.cjs');
 const {DesktopControls}=require('./runtime/desktop-controls.cjs');
 let desktopTray,desktopControls;
 const { KaraokeSockets } = require('./runtime/karaoke-sockets.cjs');
+const { KaraokeSeparation } = require('./runtime/karaoke-separation.cjs');
+const { normalizeGenerationRequest, normalizeRequestId } = require('./runtime/karaoke-generation-request.cjs');
 const karaokeSockets = new KaraokeSockets(payload => broadcast('karaoke:network-event', payload));
 let companion, musicWidget;
 let updates;
@@ -62,6 +64,127 @@ let appearance = null;
 let personal = null;
 let sourceManager = null;
 let audioCache = null;
+let karaokeSeparation = null;
+const separationRequests = new Map();
+
+async function trustedSeparationSource(track,signal) {
+  signal.throwIfAborted();
+  if (!track || typeof track.id !== 'string' || !track.id || track.id.length > 32768) return null;
+  if (track.source === 'local') {
+    const input = library.getAudioPath(track.id);
+    if (!input) return null;
+    const canonical = library.snapshot().tracks.find(row => row.id === track.id);
+    return {input,track:canonical || track};
+  }
+  if (!['custom','online'].includes(track.source) || typeof track.providerId !== 'string' || typeof track.remoteId !== 'string' || !track.providerId || !track.remoteId) return null;
+  for (const quality of ['lossless24','lossless','high','standard']) {
+    const cached = await audioCache.find(track.id,quality);
+    signal.throwIfAborted();
+    if (cached?.recording?.providerId === track.providerId && cached.recording.remoteId === track.remoteId) {
+      try {
+        await karaokeSeparation.verify(cached.path,signal);
+      } catch {
+        signal.throwIfAborted();
+        continue;
+      }
+      const recording = cached.recording;
+      return {
+        input:cached.path,
+        track:{
+          ...track,
+          title:typeof recording.title === 'string' ? recording.title : track.title,
+          artist:typeof recording.artist === 'string' ? recording.artist : track.artist,
+          duration:Number.isFinite(recording.duration) ? recording.duration : track.duration,
+        },
+      };
+    }
+  }
+  return null;
+}
+
+async function separationInput(track,signal) {
+  return (await trustedSeparationSource(track,signal))?.input || null;
+}
+
+async function generationSource(track,signal) {
+  return trustedSeparationSource(track,signal);
+}
+
+async function separationTask(owner,action,track,id) {
+  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) throw Error('本地分离请求标识无效');
+  const key = `${owner}:${id}`;
+  if (action === 'cancel') {separationRequests.get(key)?.abort();return;}
+  if (!['lookup','inspect','generate'].includes(action) || separationRequests.has(key) || separationRequests.size >= 3) throw Error('本地分离正在处理，请稍后再试');
+  const request = new AbortController();
+  separationRequests.set(key,request);
+  const {signal} = request;
+  try {
+    const input = await separationInput(track,signal);
+    if (!input) return {status:'unavailable',message:'需要本地音乐库文件，或这版原曲的完整音频缓存。'};
+    const hit = await karaokeSeparation.cached(input,signal);
+    if (hit) return {status:'cached',key:hit.key,duration:hit.duration};
+    if (action === 'lookup') return {status:'unavailable'};
+    if (action === 'generate') {
+      const result = await karaokeSeparation.start(input,{signal,requestId:key});
+      return {status:'cached',key:result.key,duration:result.duration};
+    }
+    const dependency = await karaokeSeparation.inspect(signal);
+    signal.throwIfAborted();
+    return dependency.available
+      ? {
+        status:'available',
+        chartAvailable:dependency.chartAvailable,
+        message:dependency.message,
+      }
+      : {status:'unavailable',message:dependency.message};
+  } catch (error) {
+    signal.throwIfAborted();
+    if (['DEPENDENCY','MODEL','INPUT','DISK','EXECUTION','OUTPUT','BUSY','CLOSED'].includes(error?.code)) return {status:'unavailable',message:error.message};
+    return {status:'unavailable',message:'无法读写本地分离资料，请检查原曲缓存或磁盘空间。'};
+  } finally {separationRequests.delete(key);}
+}
+
+async function generationTask(sender,track,id,lyrics,options) {
+  let normalizedId;
+  try { normalizedId = normalizeRequestId(id); }
+  catch (error) { return {status:'unavailable',code:'input',message:error.message}; }
+  const key = `${sender.id}:${normalizedId}`;
+  if (separationRequests.has(key) || separationRequests.size >= 3) {
+    return {status:'unavailable',code:'busy',message:'本地生成正在处理，请稍后再试。'};
+  }
+  const request = new AbortController();
+  separationRequests.set(key,request);
+  const {signal} = request;
+  const progress = stage => {
+    if (!sender.isDestroyed()) sender.send('karaoke:generation-progress',{requestId:normalizedId,status:'generating',stage});
+  };
+  try {
+    const source = await generationSource(track,signal);
+    if (!source) return {status:'unavailable',code:'input',message:'需要本地音乐库文件，或这版原曲的完整音频缓存。'};
+    const durationMs = Number.isFinite(source.track?.duration) && source.track.duration > 0
+      ? source.track.duration * 1000 : 0;
+    const accepted = normalizeGenerationRequest(source.track,normalizedId,lyrics,options,durationMs);
+    progress('separating');
+    const result = await karaokeSeparation.startWithChart(source.input,{
+      signal,requestId:key,lyrics:accepted.lyrics,
+      metadata:{title:accepted.metadata.title,artist:accepted.metadata.artist},
+      options:{},
+      onProgress:progress,
+    });
+    signal.throwIfAborted();
+    return result;
+  } catch (error) {
+    if (signal.aborted) return {status:'cancelled'};
+    const code = String(error?.code || '').toUpperCase();
+    if (code === 'DEPENDENCY') return {status:'unavailable',code:'dependency',message:error.message};
+    if (code === 'MODEL') return {status:'unavailable',code:'model',message:error.message};
+    if (code === 'LYRICS') return {status:'unavailable',code:'lyrics',message:error.message};
+    if (code === 'DISK') return {status:'unavailable',code:'disk',message:error.message};
+    if (code === 'BUSY') return {status:'unavailable',code:'busy',message:error.message};
+    if (code === 'INPUT') return {status:'unavailable',code:'input',message:error.message};
+    return {status:'unavailable',code:'input',message:error?.message || '无法完成本地伴奏与曲谱生成。'};
+  } finally {separationRequests.delete(key);}
+}
 let lyricsDelivery = { contentsId: 0, lines: null, saved: '' };
 let lastLyricsRaise = 0;
 const lyricsHover = new LyricsHoverTracker({
@@ -145,8 +268,10 @@ function createWindow() {
     // An invisible source sandbox must not keep a closed desktop application alive.
     if (process.platform !== 'darwin') app.quit();
   });
+  const karaokeOwner = win.webContents.id;
   const releaseKaraokeRoom = () => {
     karaokeSockets.stop();
+    for (const [key,request] of separationRequests) if (key.startsWith(`${karaokeOwner}:`)) request.abort();
     void assistant?.invoke({action: 'karaokeVoiceLock', active: false});
   };
   mainWindow.webContents.on('render-process-gone', releaseKaraokeRoom);
@@ -459,6 +584,8 @@ function registerHandlers() {
     if (event.sender !== mainWindow?.webContents) throw Error('无权访问 K 歌连接');
     return karaokeSockets.invoke(args);
   });
+  handleApp('karaoke:separation',(event,action,track,id)=>separationTask(event.sender.id,action,track,id));
+  handleApp('karaoke:generation',(event,track,id,lyrics,options)=>generationTask(event.sender,track,id,lyrics,options));
   handleApp('sources:list', () => { sourceManager.assertWritable(); return sourceManager.list(); });
   handleApp('sources:import-file', () => sourceManager.choosePackage(mainWindow));
   handleApp('sources:import-folder', () => sourceManager.chooseFolder(mainWindow));
@@ -496,7 +623,7 @@ function registerHandlers() {
   handleApp('sources:diagnostics', () => sourceManager.diagnostics.state());
   handleApp('sources:diagnosticsConfigure', (_event, smooth) => sourceManager.diagnostics.configure(smooth));
   handleApp('sources:outcome', (_event, id, played, reason) => sourceManager.diagnostics.outcome(String(id).slice(0, 80), played === true, reason));
-  handleApp('sources:resolve', (event, track, quality, cacheAsId, skipCache, requestId,replacement) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.resolve(track, quality, cacheAsId, skipCache, signal,replacement===true),true));
+  handleApp('sources:resolve', (event, track, quality, cacheAsId, skipCache, requestId,replacement,preserveCache) => sourceManager.request(event.sender.id, requestId, signal => sourceManager.resolve(track, quality, cacheAsId, skipCache, signal,replacement===true,preserveCache===true),true));
   handleApp('sources:lyrics', (_event, track) => sourceManager.lyrics(track));
   handleApp('cache:stats', async () => ({ ...audioCache.stats(), ...await sourceManager.metadataCache.stats() }));
   handleApp('cache:configure', async (_event, options) => { const stats = await audioCache.configure(options); sourceManager.metadataCache.limit = Math.max(8, Math.min(64, stats.limitMiB / 8)) * 1024 * 1024; await sourceManager.metadataCache.prune(); return { ...stats, ...await sourceManager.metadataCache.stats() }; });
@@ -580,6 +707,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   personal = new PersonalStore(app.getPath('userData'));
   sourceManager = new SourceManager(app.getPath('userData'), broadcast);
   audioCache = new AudioCache(app.getPath('userData'));
+  karaokeSeparation = new KaraokeSeparation({folder:path.join(app.getPath('userData'),'karaoke-backing')});
   sourceManager.audioCache = audioCache;
   updates = new Updates(app);
   handleApp('updates:invoke', (event, args) => {
@@ -613,7 +741,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
   sourceManager.metadataCache.limit = Math.max(8, Math.min(64, audioCache.stats().limitMiB / 8)) * 1024 * 1024;
   await sourceManager.metadataCache.prune({ bestEffort: true });
-  registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance });
+  registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance, karaokeSeparation });
   registerHandlers();
   desktopControls=new DesktopControls({folder:app.getPath('userData'),globalShortcut,show:showMainWindow,command:(action,value)=>broadcast('desktop:command',{action,value})});
   handleApp('desktop:invoke', (event,args)=>{if(event.sender!==mainWindow?.webContents)throw Error('无权调用桌面设置');return desktopControls.invoke(args||{});});
@@ -627,4 +755,18 @@ if (primaryInstance) app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => { karaokeSockets.stop(); assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork(); });
+let separationClosed = false;
+let closingSeparation = false;
+app.on('before-quit', event => {
+  if (karaokeSeparation && !separationClosed && (separationRequests.size || karaokeSeparation.active || closingSeparation)) {
+    event.preventDefault();
+    if (!closingSeparation) {
+      closingSeparation = true;
+      for (const request of separationRequests.values()) request.abort();
+      void karaokeSeparation.close().finally(() => {separationClosed = true;app.quit();});
+    }
+    return;
+  }
+  void karaokeSeparation?.close();
+  karaokeSockets.stop(); assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork();
+});

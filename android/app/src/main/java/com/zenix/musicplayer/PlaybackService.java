@@ -191,7 +191,31 @@ public final class PlaybackService extends MediaSessionService {
         for(Iterator<String> it=mappings.keys();it.hasNext();){String id=it.next();JSONObject saved=mappings.optJSONObject(id);if(saved==null)continue;boolean same=id.equals(song.optString("id"))&&ReplacementRules.cacheMatches(song,saved,runtime.store.object("personal"));boolean bound=!song.optString("remoteId").isEmpty()&&candidate.equals(saved.optString("replacementKey"));if(!same&&!bound)continue;String key=saved.optString("cacheKey");if(key.isEmpty())continue;long length=ContentMetadata.getContentLength(cache.getContentMetadata(key));if(length>0&&cache.isCached(key,0,length)){JSONObject local=Json.copy(saved);Json.put(local,"mediaHosts",new JSONArray());Json.put(local,"allowHttp",false);Json.put(local,"cacheHit","complete");return local;}}
         return null;
     }
-    JSONObject completeKaraokeCache(JSONObject song){return completePreviewCache(song);}
+    JSONObject completeKaraokeCache(JSONObject song){
+        JSONObject direct=completePreviewCache(song);
+        if(clearingCache||cache==null)return null;
+        JSONObject mappings=runtime.store.object("cacheMappings");
+        if(mappings==null)return null;
+        String requested=runtime.sources.currentRecordingKey(song);
+        JSONObject directRecording=direct==null?null:direct.optJSONObject("playbackRecording");
+        if(directRecording!=null&&requested.equals(runtime.sources.persistedRecordingKey(directRecording)))return direct;
+        for(Iterator<String> it=mappings.keys();it.hasNext();){
+            JSONObject saved=mappings.optJSONObject(it.next());
+            if(saved==null||saved.optJSONObject("playbackRecording")==null
+                ||!requested.equals(runtime.sources.persistedRecordingKey(saved.optJSONObject("playbackRecording"))))continue;
+            String key=saved.optString("cacheKey");
+            if(key.isEmpty())continue;
+            long length=ContentMetadata.getContentLength(cache.getContentMetadata(key));
+            if(length>0&&cache.isCached(key,0,length)){
+                JSONObject local=Json.copy(saved);
+                Json.put(local,"mediaHosts",new JSONArray());
+                Json.put(local,"allowHttp",false);
+                Json.put(local,"cacheHit","complete");
+                return local;
+            }
+        }
+        return null;
+    }
     private String cacheStatus(){if(track==null)return "none";boolean local=track.optString("source").equals("local");String key=resolution==null?"":resolution.optString("cacheKey"),url=resolution==null?"":resolution.optString("url");if(url.toLowerCase(Locale.ROOT).contains(".m3u8"))return "stream";if(cache==null||key.isEmpty())return AudioCachePlan.status(cacheEnabled,local,url.toLowerCase(Locale.ROOT).contains(".m3u8"),0,-1,false);long length=ContentMetadata.getContentLength(cache.getContentMetadata(key));return AudioCachePlan.status(cacheEnabled,local,false,cache.getCachedBytes(key,0,Long.MAX_VALUE),length,length>0&&cache.isCached(key,0,length));}
     private void start(JSONObject result,long token) {
         if(token!=generation)return;if(practiceStart>=0&&(!track.optString("playbackProviderId").equals(result.optString("providerId"))||!track.optString("replacementPlayback").equals(result.optString("replacementKey")))){practiceStart=-1;practiceEnd=-1;practiceTrack="";player.setPlaybackSpeed(1);schedulePracticeTick();}resolution=result;http=new OkHttpDataSource.Factory(SourceHttp.playbackClient(result.optJSONArray("mediaHosts"),result.optBoolean("allowHttp"))).setUserAgent("Zenix Android").setDefaultRequestProperties(headers(result.optJSONObject("headers")));cacheFactory.setUpstreamDataSourceFactory(http);

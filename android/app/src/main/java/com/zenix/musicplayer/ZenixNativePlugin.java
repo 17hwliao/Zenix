@@ -22,6 +22,7 @@ public class ZenixNativePlugin extends Plugin {
     private AssistantSpeech assistantVoice;
     private AssistantModel assistantModel;
     private KaraokeAudio karaokeAudio;
+    private KaraokeAudio karaokeProbe;
     private final java.util.concurrent.ExecutorService assistantModelWork=new java.util.concurrent.ThreadPoolExecutor(2,2,0L,java.util.concurrent.TimeUnit.MILLISECONDS,new java.util.concurrent.ArrayBlockingQueue<>(8));
     private final RemoteClient remoteClient=new RemoteClient();
     private final KaraokeSocket karaokeSocket=new KaraokeSocket();
@@ -35,14 +36,15 @@ public class ZenixNativePlugin extends Plugin {
         karaokeAudio=new KaraokeAudio(getContext(),runtime,event->notifyListeners("karaokeAudioStatus",
             new JSObject().put("round",event.optString("round")).put("state",event.optString("state"))
                 .put("message",event.optString("message")).put("positionMs",event.optLong("positionMs"))));
+        karaokeProbe=new KaraokeAudio(getContext(),runtime,event->{},true);
         runtime.ensureService();
         runtime.observe(this,true);
     }
     @Override protected void handleOnResume(){runtime.observe(this,true);openAssistant(getActivity().getIntent());}
     @Override protected void handleOnPause(){runtime.observe(this,false);if(assistantVoice!=null){assistantVoice.cancel(null);assistantVoice.stopSpeaking();}}
-    @Override protected void handleOnStop(){if(karaokeAudio!=null)karaokeAudio.foreground(false);}
-    @Override protected void handleOnStart(){if(karaokeAudio!=null)karaokeAudio.foreground(true);}
-    @Override protected void handleOnDestroy(){if(karaokeAudio!=null)karaokeAudio.destroy();karaokeSocket.destroy();if(assistantModel!=null)assistantModel.close();assistantModelWork.shutdownNow();if(assistantVoice!=null)assistantVoice.close();runtime.removeObserver(this);if(replacementTask!=null)replacementTask.cancel(true);runtime.sources.cancelReplacement();replacementWork.shutdownNow();remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
+    @Override protected void handleOnStop(){if(karaokeAudio!=null)karaokeAudio.foreground(false);if(karaokeProbe!=null)karaokeProbe.foreground(false);}
+    @Override protected void handleOnStart(){if(karaokeAudio!=null)karaokeAudio.foreground(true);if(karaokeProbe!=null)karaokeProbe.foreground(true);}
+    @Override protected void handleOnDestroy(){if(karaokeAudio!=null)karaokeAudio.destroy();if(karaokeProbe!=null)karaokeProbe.destroy();karaokeSocket.destroy();if(assistantModel!=null)assistantModel.close();assistantModelWork.shutdownNow();if(assistantVoice!=null)assistantVoice.close();runtime.removeObserver(this);if(replacementTask!=null)replacementTask.cancel(true);runtime.sources.cancelReplacement();replacementWork.shutdownNow();remoteClient.close();remoteWork.shutdownNow();if(updates!=null){updates.cancel();updates.worker.shutdown();}}
     void publish(JSONObject state){try{notifyListeners("snapshot",new JSObject(state.toString()));}catch(Exception ignored){}}
     void publishPrepared(JSObject state){notifyListeners("snapshot",state);}
     private void result(PluginCall call,Object value){JSObject response=new JSObject();response.put("value",value==null?JSONObject.NULL:value);call.resolve(response);}
@@ -54,6 +56,19 @@ public class ZenixNativePlugin extends Plugin {
     @ActivityCallback private void featureTextSaved(PluginCall call,ActivityResult returned){if(call==null)return;Intent data=returned.getData();if(returned.getResultCode()!=Activity.RESULT_OK||data==null||data.getData()==null){result(call,Json.obj("saved",false));return;}runtime.work.execute(()->{try{String text=call.getObject("payload",new JSObject()).optString("text");byte[] bytes=text.getBytes(StandardCharsets.UTF_8);if(bytes.length>12*1024*1024)throw new IOException("导出内容超过12 MiB");try(OutputStream output=getContext().getContentResolver().openOutputStream(data.getData(),"wt")){if(output==null)throw new IOException("无法保存文件");output.write(bytes);}result(call,Json.obj("saved",true));}catch(Exception error){call.reject(Json.message(error));}});}
     @PluginMethod public void invoke(PluginCall call){
         String action=call.getString("action","");JSONObject args=call.getObject("payload",new JSObject());
+        if(action.equals("karaokeProbe")){
+            runtime.main.post(()->{
+                String operation=args.optString("operation"), round=args.optString("round");
+                if(!round.matches("solo-probe:[a-fA-F0-9-]{36}")||(!operation.equals("probe")&&!operation.equals("stop"))){call.reject("练唱验证请求无效");return;}
+                JSONObject probe=Json.copy(args);
+                Json.put(probe,"operation",operation.equals("probe")?"play":"stop");
+                karaokeProbe.invoke(probe,error->{
+                    if(error==null)result(call,operation.equals("probe")?Json.obj("durationMs",karaokeProbe.decodedDurationMs()):true);
+                    else call.reject(Json.message(error));
+                });
+            });
+            return;
+        }
         if(action.equals("karaokeAudio")){
             runtime.main.post(()->{
                 if(args.optString("operation").equals("status")){

@@ -18,7 +18,7 @@ import {recordingFor} from './recording';
 import {openRecording} from './openRecording';
 import './FeatureWorkbench.css';
 
-const KaraokeLanPanel=lazy(()=>import('./karaoke/KaraokeLanPanel'));
+const KaraokeModes=lazy(()=>import('./karaoke/KaraokeModes'));
 const emptyPersonal:PersonalState={liked:[],favorites:[],history:[],playlists:[]};
 const emptyPlayback:PlayerState={playing:false,position:0,duration:0,volume:.75,muted:false,shuffle:false,repeat:'all',queue:[],queueIndex:-1};
 export default function FeatureWorkbench({mobile,initialMobile,initialTab='personal',requestRevision,close}:{mobile:boolean;initialMobile?:MobileSnapshot;initialTab?:string;requestRevision?:number;close:()=>void}){
@@ -43,7 +43,7 @@ export default function FeatureWorkbench({mobile,initialMobile,initialTab='perso
   const lyrics=useCallback((track:Track):Promise<RawLyrics|null>=>mobile?command<RawLyrics|null>('lyrics',{track}):track.source==='local'?window.yzqxy!.library.readLyrics(track.id):window.yzqxy!.sources.lyrics(track),[mobile]);
   const readKaraokeLyrics=useCallback((track:Track)=>lyrics(recordingFor(track,personal)),[lyrics,personal]);
   const karaokeTracks=useMemo(()=>[...(playback.track?[playback.track]:[]),...localTracks,...playback.queue,
-    ...personal.liked,...personal.favorites,...personal.playlists.flatMap(list=>list.tracks)], [playback.track,localTracks,playback.queue,personal]);
+    ...personal.liked,...personal.favorites,...personal.history.map(entry=>entry.track),...personal.playlists.flatMap(list=>list.tracks)], [playback.track,localTracks,playback.queue,personal]);
   const open=async(reference:Partial<Track>&{id:string},seconds:number|null)=>{
     const all=[...localTracks,...playback.queue,...personal.liked,...personal.favorites,...personal.history.map(row=>row.track),...personal.playlists.flatMap(list=>list.tracks)];
     if(reference.source==='local'&&!all.some(track=>track.id===reference.id&&track.path))throw Error('本机尚未找到此书签对应的音频，请先导入原文件');
@@ -58,7 +58,7 @@ export default function FeatureWorkbench({mobile,initialMobile,initialTab='perso
     <div className={`zenix-feature-content${tab==='karaoke'?' is-karaoke':''}`}>{error&&<p role="alert">{error}<button onClick={()=>setError('')}>关闭提示</button></p>}
       {tab==='personal'&&<PersonalFeaturesPanel personal={personal} playback={playback} invoke={invoke} onOpen={open} readLyrics={lyrics} saveText={async(name,text)=>{const result=await invoke<{saved:boolean}>({operation:'featureTextSave',name,text});if(!result.saved)throw Error('已取消保存');}}/>}
       {tab==='playback'&&<><PlaybackFeaturesPanel playback={playback} sources={sources} invoke={playbackInvoke} diagnostics={mobile?()=>command('sourceDiagnostics'):()=>window.yzqxy!.sources.diagnostics()}/><LyricPractice track={playback.track} readLyrics={track=>lyrics(recordingFor(track,personal))} invoke={playbackInvoke}/></>}
-      {tab==='karaoke'&&<Suspense fallback={<div className="zenix-feature-karaoke-loading" role="status">正在准备局域网 K 歌</div>}><KaraokeLanPanel mobile={mobile} tracks={karaokeTracks} sources={sources} readLyrics={readKaraokeLyrics} reducedMotion={space.motion==='reduced'} onBack={()=>setTab('personal')}/></Suspense>}
+      {tab==='karaoke'&&<Suspense fallback={<div className="zenix-feature-karaoke-loading" role="status">正在准备 K 歌</div>}><KaraokeModes mobile={mobile} tracks={karaokeTracks} sources={sources} readLyrics={readKaraokeLyrics} reducedMotion={space.motion==='reduced'} playbackWasPlaying={playback.playing} onBack={()=>setTab('personal')}/></Suspense>}
       {tab==='tasks'&&<><TasksPanel invoke={invoke} personal={personal} current={playback.track}/><ActivitiesPanel invoke={invoke}/></>}
       {tab==='space'&&<SpaceFeaturesPanel mobile={mobile} playback={playback} personal={personal} invoke={invoke}/>}
       {tab==='connections'&&<ConnectionsPanel mobile={mobile} playback={playback} personal={personal} invoke={invoke} onReceive={payload=>receiveTransfer(mobile,payload)} onPause={expected=>pauseHost(mobile,expected)} preferences={{version:versionPreferences.read(),roaming:space.roaming}}/>}

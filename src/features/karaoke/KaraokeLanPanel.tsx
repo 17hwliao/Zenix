@@ -41,11 +41,11 @@ export default function KaraokeLanPanel({mobile, tracks, sources, readLyrics, re
     clockOffsetMs: state.clockOffsetMs, submit: event => transport.send(event), closed: !ownsVoice});
 
   const catalog = useMemo(() => {
-    const map = new Map<string, {source: Track; display: KaraokeUiTrack}>();
+    const map = new Map<string, {entry: NonNullable<ReturnType<typeof publicKaraokeTrack>>; display: KaraokeUiTrack}>();
     for (const track of tracks) {
       const entry = publicKaraokeTrack(track);
       if (!entry || map.has(entry.recordingId)) continue;
-      map.set(entry.recordingId, {source: track, display: {...entry.song, recordingId: entry.recordingId, artworkUrl: track.coverUrl}});
+      map.set(entry.recordingId, {entry, display: {...entry.song, recordingId: entry.recordingId, artworkUrl: track.coverUrl}});
     }
     return map;
   }, [tracks]);
@@ -81,9 +81,8 @@ export default function KaraokeLanPanel({mobile, tracks, sources, readLyrics, re
       if (ready) void round.enableMicrophone();
     },
     onAddToQueue: ({recordingId}: {recordingId: string}) => {
-      const entry = catalog.get(recordingId);
-      const selected = entry ? publicKaraokeTrack(entry.source) : undefined;
-      if (selected) transport.send({type: 'queue.add', ...selected, mode: 'chorus'});
+      const song = catalog.get(recordingId)?.entry.song ?? state.room?.queue.find(item => item.recordingId === recordingId && item.song)?.song;
+      if (song) transport.send({type: 'queue.add', recordingId, song, mode: 'chorus'});
     },
     onRemoveQueueItem: (itemId: string) => transport.send({type: 'queue.remove', itemId}),
   };
@@ -111,7 +110,7 @@ export default function KaraokeLanPanel({mobile, tracks, sources, readLyrics, re
         onBack={onBack} /></>
       : <MobileKaraokeJoin {...notice} onJoin={value => transport.join(value)} onBack={onBack} />;
   }
-  return <>{microphone}<DesktopKaraokePage {...roomView}
+  return <DesktopKaraokePage {...roomView} microphoneControl={microphone}
     viewerMode={mode} room={state.room} invite={state.invitation} joinRequests={state.requests.map(request => ({...request, status: 'waiting'}))}
     onChangeViewerMode={value => {setMode(value); void transport.close();}}
     onCreateLanRoom={value => transport.create({displayName: value.hostDisplayName, password: value.password})}
@@ -124,5 +123,5 @@ export default function KaraokeLanPanel({mobile, tracks, sources, readLyrics, re
     onPause={() => transport.pause()} onResume={() => transport.resume()} onSkip={() => transport.skip()}
     onFinishCurrent={() => transport.finish()} onRestart={() => transport.restart()}
     onStopRoom={() => transport.closeRoom()} onClose={onBack}
-  /></>;
+  />;
 }

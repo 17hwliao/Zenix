@@ -15,6 +15,35 @@ for (const extension of ['.ts', '.tsx']) {
 const adapter = require('../src/features/karaoke/adapter.ts');
 const {getFiveLineLyricWindow} = require('../src/features/karaoke/ui/model.ts');
 const {scoreKaraoke} = require('../src/features/karaoke/score-engine.ts');
+const {scoreSoloLine, summarizeSolo} = require('../src/features/karaoke/solo-score.ts');
+const {isInstrumentalVersion} = require('../src/features/karaoke/solo-assets.ts');
+const {findOpenCharts, matchesOpenChart} = require('../src/features/karaoke/open-charts.ts');
+
+test('solo scoring uses its own sentence, separates missing capture from silence, and averages lyric lines equally', () => {
+  const line = (index,startMs,endMs) => ({index,startMs,endMs,text:'句'+index,notes:[{startMs,endMs,midi:69}]});
+  const first=line(0,1000,2000),second=line(1,2000,5000),third=line(2,5000,6000);
+  const frames=(from,to,midi)=>Array.from({length:(to-from)/50},(_,i)=>({atMs:from+i*50,midi,confidence:midi===null?0:1,energy:midi===null?0:.2}));
+  const rated=scoreSoloLine(first,frames(1000,2000,69));
+  assert.ok(rated.total>=98);
+  assert.equal(scoreSoloLine(second,[...frames(1900,2000,69),...frames(2000,5000,null)]).total,0,'the previous line must not score for this one');
+  assert.equal(scoreSoloLine(second,[]),null,'no capture is not a silent attempt');
+  const partial=summarizeSolo([first,second,third],[{...rated,total:100},{...rated,lineIndex:1,total:0}]);
+  assert.equal(partial.total,50);
+  assert.equal(partial.full,false);
+  assert.equal(partial.totalLines,3);
+  assert.deepEqual(partial.sections.map(part=>part.label),['前段','中段']);
+});
+
+test('accompaniment and curated charts never silently substitute a different song', () => {
+  const original={...track(),duration:180};
+  assert.ok(isInstrumentalVersion(original,{...original,id:'backing',title:'测试歌曲（纯伴奏）'}));
+  assert.ok(!isInstrumentalVersion(original,{...original,id:'guide'}));
+  assert.ok(!isInstrumentalVersion(original,{...original,id:'other',title:'另一首（伴奏）'}));
+  assert.ok(!isInstrumentalVersion(original,{...original,id:'cut',title:'测试歌曲 Instrumental',duration:130}));
+  const [chart]=findOpenCharts('Code  Monkey');
+  assert.ok(matchesOpenChart(chart,'Code Monkey','JONATHAN COULTON'));
+  assert.ok(!matchesOpenChart(chart,'Code Monkey','another singer'));
+});
 
 function track() {
   return Object.freeze({

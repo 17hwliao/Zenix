@@ -29,6 +29,7 @@ public final class MobilePlaybackContractCheck {
     }
     static JSONObject source(String id){return Json.obj("id",id,"kind","zenix","enabled",true,"settings",new JSONObject(),"manifest",Json.obj("name",id,"capabilities",Json.array("search","resolvePlayback"),"qualities",Json.array("high","standard","lossless")));}
     static JSONObject track(String origin){return Json.obj("id","fixture-track","providerId",origin,"remoteId","fixture-remote","title","Fixture","artist","Artist","source","custom","duration",90);}
+    static String lxRemote(Object songmid,String platform)throws Exception{return android.util.Base64.encodeToString(Json.obj("source",platform,"songmid",songmid).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|android.util.Base64.NO_PADDING);}
     static void sources(File folder)throws Exception {
         File packs=new File(folder,"sources");packs.mkdirs();PrivateStore store=new PrivateStore();
         for(String id:List.of("slowA","B","C")){store.sources.put(source(id));Files.writeString(new File(packs,id+".json").toPath(),Json.obj("script",id).toString());}
@@ -118,6 +119,47 @@ public final class MobilePlaybackContractCheck {
     }
     static void matchingAndBackgrounds(File folder)throws Exception{
         JSONObject original=track("A"),exact=track("B");check(MusicSources.sameRecordingMetadata(original,exact),"exact recording matches");
+        String lxRecording=lxRemote(42,"tx"),otherLxRecording=lxRemote(43,"tx");
+        JSONObject lxOne=track("lx.one"),lxTwo=track("lx.two"),lxOther=track("lx.two");
+        Json.put(lxOne,"remoteId",lxRecording);Json.put(lxTwo,"remoteId",lxRecording);Json.put(lxOther,"remoteId",otherLxRecording);
+        check(ReplacementRules.recordingKey(lxOne,true).equals(ReplacementRules.recordingKey(lxTwo,true)),"same LX platform recording is cache-compatible across scripts");
+        check(!ReplacementRules.recordingKey(lxOne,true).equals(ReplacementRules.recordingKey(lxOther,true)),"different LX recording is never treated as a cache alias");
+        JSONObject lxStringKey=track("lx.two");Json.put(lxStringKey,"remoteId",lxRemote("42","tx"));
+        check(ReplacementRules.recordingKey(lxOne,true).equals(ReplacementRules.recordingKey(lxStringKey,true)),"numeric and string song IDs normalize consistently");
+        JSONObject invalidNull=track("lx.one"),validStringNull=track("lx.two"),invalidObject=track("lx.one"),validStringObject=track("lx.two"),unsupportedOne=track("lx.one"),unsupportedTwo=track("lx.two");
+        Json.put(invalidNull,"remoteId",lxRemote(JSONObject.NULL,"tx"));Json.put(validStringNull,"remoteId",lxRemote("null","tx"));
+        JSONObject objectId=Json.obj("nested",1);Json.put(invalidObject,"remoteId",lxRemote(objectId,"tx"));Json.put(validStringObject,"remoteId",lxRemote(objectId.toString(),"tx"));
+        Json.put(unsupportedOne,"remoteId",lxRemote(42,"xx"));Json.put(unsupportedTwo,"remoteId",lxRemote(42,"xx"));
+        check(!ReplacementRules.recordingKey(invalidNull,true).equals(ReplacementRules.recordingKey(validStringNull,true)),"null song ID never aliases the string null");
+        check(!ReplacementRules.recordingKey(invalidObject,true).equals(ReplacementRules.recordingKey(validStringObject,true)),"object song ID never aliases its string form");
+        check(!ReplacementRules.recordingKey(unsupportedOne,true).equals(ReplacementRules.recordingKey(unsupportedTwo,true)),"unsupported catalogue platform stays provider-scoped");
+        JSONObject sameProviderInvalid=track("switched");Json.put(sameProviderInvalid,"remoteId","not-lx");
+        check(!ReplacementRules.recordingKey(sameProviderInvalid,true).equals(ReplacementRules.recordingKey(sameProviderInvalid,false)),"invalid LX identity never collides with a Zenix identity on the same provider ID");
+        JSONObject nonLx=track("regular.source");Json.put(nonLx,"remoteId",lxRecording);
+        check(!ReplacementRules.recordingKey(nonLx,false).equals(ReplacementRules.recordingKey(lxOne,true)),"non-LX source never aliases an LX-shaped remote ID");
+        check(!ReplacementRules.recordingKey(lxOne).equals(ReplacementRules.recordingKey(lxTwo)),"default recording identity remains provider-scoped");
+        PrivateStore identityStore=new PrivateStore();identityStore.sources.put(source("regular.source"));JSONObject lxSource=source("lx.current");lxSource.put("kind","lx");identityStore.sources.put(lxSource);
+        MusicSources identitySources=new MusicSources(new android.content.Context(folder),identityStore);
+        try{
+            JSONObject lxA=track("lx.current"),lxB=track("lx.current"),imported=track("lx.playlist:catalog"),regular=track("regular.source");
+            for(JSONObject item:List.of(lxA,lxB,imported,regular))Json.put(item,"remoteId",lxRecording);
+            check(identitySources.currentRecordingKey(lxA).equals(identitySources.currentRecordingKey(lxB)),"installed LX provider enables LX recording identity");
+            check(identitySources.currentRecordingKey(lxA).equals(identitySources.currentRecordingKey(imported)),"imported playlist catalogue reuses the same LX recording identity");
+            check(!identitySources.currentRecordingKey(lxA).equals(identitySources.currentRecordingKey(regular)),"regular provider stays isolated even with an LX-shaped remote ID");
+            JSONObject persistedLx=Json.copy(lxA);Json.put(persistedLx,"providerKind","lx");
+            check(identitySources.persistedRecordingKey(persistedLx).equals(identitySources.currentRecordingKey(imported)),"persisted LX kind keeps cross-script identity after source changes");
+        }finally{identitySources.close();}
+        PrivateStore migratedStore=new PrivateStore();JSONObject switched=source("switched");switched.put("kind","lx");migratedStore.sources.put(switched);
+        MusicSources migrated=new MusicSources(new android.content.Context(folder),migratedStore);
+        try{
+            JSONObject persistedNormal=track("switched"),legacyNormal=track("switched"),currentLx=track("lx.playlist:catalog");
+            for(JSONObject item:List.of(persistedNormal,legacyNormal,currentLx))Json.put(item,"remoteId",lxRecording);
+            Json.put(persistedNormal,"providerKind","zenix");
+            check(!migrated.persistedRecordingKey(persistedNormal).equals(migrated.currentRecordingKey(currentLx)),"persisted normal kind is never reinterpreted after an LX source takes the ID");
+            check(!migrated.persistedRecordingKey(legacyNormal).equals(migrated.currentRecordingKey(currentLx)),"legacy records without provider kind stay provider-scoped");
+            JSONObject invalidCurrent=track("switched");Json.put(invalidCurrent,"remoteId","not-lx");
+            check(!migrated.persistedRecordingKey(persistedNormal).equals(migrated.currentRecordingKey(invalidCurrent)),"same-ID invalid LX metadata stays isolated from persisted Zenix identity");
+        }finally{migrated.close();}
         for(JSONObject patch:List.of(Json.obj("artist","Artist & Guest"),Json.obj("title","Fix-ture"),Json.obj("title","Fixture (Live)"),Json.obj("duration",0),Json.obj("duration",95),Json.obj("artist",""))){JSONObject candidate=Json.copy(exact);for(Iterator<String> keys=patch.keys();keys.hasNext();){String key=keys.next();Json.put(candidate,key,patch.opt(key));}check(!MusicSources.sameRecordingMetadata(original,candidate),"ambiguous fallback rejected: "+patch);}
         Json.put(original,"album","Studio");Json.put(exact,"album","Live");check(!MusicSources.sameRecordingMetadata(original,exact),"different known album rejected");
         JSONObject metadata=Json.obj("providerId","zenix.import:metadata","title","Fixture","artist","","duration",0);
@@ -168,7 +210,7 @@ final class SourceHttp {
 final class ScriptEngine implements AutoCloseable {
     static JSONArray catalogRows=new JSONArray();static Runnable afterResolve;
     static final List<String> searchKeywords=new java.util.concurrent.CopyOnWriteArrayList<>();
-    static boolean failReplacement,failSearch;
+    static boolean failReplacement,failSearch,forgedPlaybackRecording;
     static int resets;
     static final List<String> calls=new java.util.concurrent.CopyOnWriteArrayList<>();
     final String script;boolean closed;
@@ -189,7 +231,10 @@ final class ScriptEngine implements AutoCloseable {
         if(script.equals("patient")){checkStateWait(timeout);android.os.SystemClock.now+=300000;}
         if(script.startsWith("slow")){android.os.SystemClock.now+=45000;throw new java.net.SocketTimeoutException("transport explicitly failed");}
         if(script.equals("B")&&quality.equals("high"))throw new Exception("quality unavailable");
-        if(afterResolve!=null)afterResolve.run();return Json.obj("url",script.equals("probeBad")?"https://audio.example.test/probe-bad.mp3":"https://audio.example.test/fixture.mp3");
+        if(afterResolve!=null)afterResolve.run();
+        JSONObject result=Json.obj("url",script.equals("probeBad")?"https://audio.example.test/probe-bad.mp3":"https://audio.example.test/fixture.mp3");
+        if(method.equals("resolvePlayback")&&forgedPlaybackRecording)Json.put(result,"playbackRecording",Json.obj("providerId","forged","providerKind","lx","remoteId","forged"));
+        return result;
     }
     public void close(){closed=true;}
 }

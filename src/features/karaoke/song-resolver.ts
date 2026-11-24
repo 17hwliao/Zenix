@@ -211,67 +211,80 @@ export function parseLrcPitchTrack(
 interface UltraStarNote {
   beat: number;
   duration: number;
-  midi: number;
+  midi: number | null;
   text: string;
 }
 
 export function parseUltraStarPitchTrack(text: string, durationMs: number): ParsedKaraokePitch {
   if (typeof text !== 'string' || !text.trim()) throw new ParseFailure('INVALID_LYRIC', 'UltraStar 内容为空');
   if (!Number.isFinite(durationMs) || durationMs <= 0) throw new ParseFailure('INVALID_PITCH', '歌曲时长无效');
-  const bpmMatch = text.match(/^#BPM:([0-9.]+)/im);
-  const bpm = bpmMatch ? Number(bpmMatch[1]) : 0;
-  if (!Number.isFinite(bpm) || bpm <= 0) throw new ParseFailure('INVALID_PITCH', 'UltraStar 缺少有效 BPM');
-  const gapMatch = text.match(/^#GAP:(-?\d+)/im);
-  const gapMs = gapMatch ? Number(gapMatch[1]) : 0;
-  const beatMs = 60_000 / bpm;
+  const bpm = Number(ultraStarMetadataValue(text,'BPM')?.replace(',','.'));
+  if (!Number.isFinite(bpm) || bpm <= 0 || bpm > 4000) throw new ParseFailure('INVALID_PITCH', 'UltraStar 缺少有效 BPM');
+  const gapMs = Number(ultraStarMetadataValue(text,'GAP')?.replace(',','.') || 0);
+  if (!Number.isFinite(gapMs)) throw new ParseFailure('INVALID_PITCH','UltraStar GAP 无效');
+  const version = ultraStarMetadataValue(text,'VERSION') || '';
+  const draftV2 = version.startsWith('2.');
+  const explicitMidi = /^yes$/i.test(ultraStarMetadataValue(text,'ZENIX-MIDI') || '');
+  // Classic UltraStar ticks are quarter-beats. Spec v2 declares BPM in ticks.
+  const beatMs = 60_000 / (bpm * (draftV2 || explicitMidi ? 1 : 4));
+  const relative = /^yes$/i.test(ultraStarMetadataValue(text,'RELATIVE') || '');
+  let baseBeat = 0;
   const groups: UltraStarNote[][] = [];
   let current: UltraStarNote[] = [];
   for (const row of text.split(/\r?\n/)) {
     const trimmed = row.trim();
     if (!trimmed) continue;
-    if (trimmed === '-' || trimmed === 'E') {
+    if (/^P\s*[12]\b/i.test(trimmed)) throw new ParseFailure('INVALID_PITCH','此曲谱是双人轨，请选择单人版');
+    if (/^-(?:\s|$)/.test(trimmed) || trimmed === 'E') {
       if (current.length) groups.push(current);
       current = [];
+      if (trimmed === 'E') break;
+      if (relative) {
+        const relativeBreak = trimmed.match(/^-[\t ]+(-?\d+)(?:[\t ]+(-?\d+))?/);
+        if (!relativeBreak) throw new ParseFailure('INVALID_PITCH','UltraStar 相对时间缺少换行节拍');
+        baseBeat += Number(relativeBreak[2] ?? relativeBreak[1]);
+      }
       continue;
     }
-    const note = trimmed.match(/^[:\*RF]\s+(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*(.*)$/i);
+    const note = trimmed.match(/^([:*RFG])\s+(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*(.*)$/i);
     if (!note) continue;
-    const beat = Number(note[1]);
-    const beatDuration = Number(note[2]);
-    const midi = Number(note[3]);
+    const beat = Number(note[2]) + baseBeat;
+    const beatDuration = Number(note[3]);
+    const midi = ['R','F','G'].includes(note[1].toUpperCase()) ? null : Number(note[4]) + (explicitMidi ? 0 : 60);
     if (!Number.isFinite(beat) || !Number.isFinite(beatDuration) || beatDuration <= 0) {
       throw new ParseFailure('INVALID_PITCH', 'UltraStar 音符时长无效');
     }
-    if (!Number.isInteger(midi) || midi < 0 || midi > 127) {
-      throw new ParseFailure('INVALID_PITCH', `UltraStar MIDI 音高越界：${note[3]}`);
+    if (midi !== null && (!Number.isInteger(midi) || midi < 0 || midi > 127)) {
+      throw new ParseFailure('INVALID_PITCH', `UltraStar 音高越界：${note[4]}`);
     }
     current.push({
       beat,
       duration: beatDuration,
       midi,
-      text: note[4].replace(/_/g, ' ').trim(),
+      text: note[5].replace(/_/g, ' ').trim(),
     });
   }
   if (current.length) groups.push(current);
   if (groups.length === 0) throw new ParseFailure('INVALID_PITCH', 'UltraStar 中没有音高音符');
 
   const lines = groups.map((group, index) => {
-    const notes = group.map((note) => Object.freeze({
+    const timed = group.map((note) => ({
       startMs: Math.max(0, Math.min(durationMs, gapMs + note.beat * beatMs)),
       endMs: Math.max(0, Math.min(durationMs, gapMs + (note.beat + note.duration) * beatMs)),
       midi: note.midi,
       ...(note.text ? { lyric: note.text } : {}),
     })).filter((note) => note.endMs > note.startMs);
-    const startMs = notes[0]?.startMs ?? 0;
-    const endMs = notes[notes.length - 1]?.endMs ?? Math.min(durationMs, startMs + MIN_LINE_DURATION_MS);
+    const notes = timed.flatMap(note => note.midi === null ? [] : [Object.freeze({...note,midi:note.midi})]);
+    const startMs = timed[0]?.startMs ?? durationMs;
+    const endMs = timed.reduce((end,note) => Math.max(end,note.endMs),startMs);
     return Object.freeze({
       index,
       startMs,
-      endMs: Math.max(startMs + MIN_LINE_DURATION_MS, endMs),
+      endMs,
       text: group.map((note) => note.text).filter(Boolean).join(' ').trim() || `UltraStar 音高句 ${index + 1}`,
       notes: frozenArray(notes),
     });
-  }).filter((line) => line.startMs < durationMs && line.notes.length > 0);
+  }).filter((line) => line.endMs > line.startMs);
 
   return Object.freeze({
     track: Object.freeze({ schema: 1, source: 'ultrastar', lines: frozenArray(lines) }),

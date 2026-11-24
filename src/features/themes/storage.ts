@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {parseThemeArchive, resourceMime} from './archive';
+import {parseThemeArchive, resourceMime, THEME_ARCHIVE_LIMIT} from './archive';
 import {BUILTIN_THEME_IDS, DEFAULT_THEME_ID, builtinThemes, defaultTheme, type ResolvedTheme, type ThemeAssets, type ThemePackage} from './model';
 
 const databaseName = 'zenix-visual-themes';
@@ -46,7 +46,8 @@ async function databaseRequest<T>(mode: IDBTransactionMode, run: (store: IDBObje
       const transaction = database.transaction(storeName, mode);
       const request = run(transaction.objectStore(storeName));
       request.onerror = () => reject(request.error ?? Error('主题存储操作失败'));
-      request.onsuccess = () => resolve(request.result);
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onabort = () => reject(transaction.error ?? Error('主题存储操作已取消'));
       transaction.onerror = () => reject(transaction.error ?? Error('主题存储事务失败'));
     });
   } finally {
@@ -128,15 +129,17 @@ function installFont(theme: ResolvedTheme) {
   if (!url || !config || !('fonts' in document)) return () => {};
   const family = `ZenixTheme-${theme.id.replace(/[^a-z0-9-]/gi, '')}`;
   let face: FontFace | undefined;
+  let disposed = false;
   try {
     face = new FontFace(family, `url("${url}")`, {weight: String(config.weight)});
     void face.load().then(loaded => {
-      document.fonts.add(loaded);
+      if (!disposed) document.fonts.add(loaded);
     }).catch(() => {});
   } catch {
     face = undefined;
   }
   return () => {
+    disposed = true;
     if (face) {
       try {
         document.fonts.delete(face);
@@ -195,6 +198,7 @@ export function useThemeLibrary() {
   }, [refresh]);
 
   const importTheme = useCallback(async (file: File) => {
+    if (file.size > THEME_ARCHIVE_LIMIT) throw Error('主题包不能超过 12 MiB');
     const bytes = new Uint8Array(await file.arrayBuffer());
     const parsed = parseThemeArchive(bytes, {name: file.name, type: file.type, size: file.size});
     const record: StoredTheme = {

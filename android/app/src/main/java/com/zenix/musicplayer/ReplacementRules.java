@@ -5,6 +5,7 @@ import java.text.Normalizer;
 
 /** Matches catalogue identities, never temporary URLs. Kept in parity with platformReplacement.cjs. */
 final class ReplacementRules {
+    private static final Set<String> LX_PLATFORMS=Set.of("kw","kg","wy","tx","mg");
     static String text(String s){return Normalizer.normalize(s,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("[\\u200b-\\u200d\\ufeff]","").trim().replaceAll("\\s+"," ");}
     static String title(String s){return text(s).replaceAll("[\\s\\p{P}]","");}
     static String recordingTitle(String s){java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\([^)]*\\)|\\[[^\\]]*\\]|【[^】]*】").matcher(text(s));StringBuffer value=new StringBuffer();while(m.find())m.appendReplacement(value,java.util.regex.Matcher.quoteReplacement(edition(m.group()).isEmpty()?m.group():""));m.appendTail(value);return title(value.toString());}
@@ -19,6 +20,28 @@ final class ReplacementRules {
         return text(original.optString("title")).equals(text(candidate.optString("title")))&&text(original.optString("artist")).equals(text(candidate.optString("artist")))?3:2;
     }
     static String key(JSONObject song){return song.optString("providerId")+"\n"+song.optString("remoteId");}
+    /**
+     * Normal sources keep their provider boundary. LX identity is only enabled
+     * after the caller confirms that the provider is an LX music source.
+     */
+    static String recordingKey(JSONObject song){return key(song);}
+    /** LX scripts sharing a catalog can resolve the same recording under different installation IDs. */
+    static String recordingKey(JSONObject song,boolean lxCompatible){
+        if(song==null)return "\n";
+        if(!lxCompatible)return key(song);
+        try{
+            String encoded=song.optString("remoteId");
+            if(encoded.length()>6000)return "lx-invalid\0"+key(song);
+            String normalized=encoded.replace('-','+').replace('_','/');
+            normalized+= "=".repeat((4-normalized.length()%4)%4);
+            JSONObject info=new JSONObject(new String(Base64.getDecoder().decode(normalized),java.nio.charset.StandardCharsets.UTF_8));
+            String source=info.optString("source");Object rawKey=info.opt("songmid");
+            String key=rawKey instanceof String?(String)rawKey:rawKey instanceof Number?String.valueOf(rawKey):"";
+            if(LX_PLATFORMS.contains(source)&&!key.isEmpty()&&key.length()<=250&&key.chars().noneMatch(Character::isISOControl))
+                return "lx\0"+source+"\0"+key;
+        }catch(Exception ignored){}
+        return "lx-invalid\0"+key(song);
+    }
     static boolean cacheMatches(JSONObject song,JSONObject saved,JSONObject personal){
         if(saved==null)return false;JSONObject target=null;JSONArray lists=personal==null?null:personal.optJSONArray("playlists");
         if(lists!=null)for(int i=0;i<lists.length();i++){JSONObject list=lists.optJSONObject(i);if(!list.optString("id").equals(song.optString("playlistId")))continue;JSONArray tracks=list.optJSONArray("tracks");if(tracks!=null)for(int j=0;j<tracks.length();j++){JSONObject track=tracks.optJSONObject(j);if(track.optString("id").equals(song.optString("id"))){JSONObject state=track.optJSONObject("replacement");target=state==null?null:state.optJSONObject("target");break;}}break;}

@@ -130,6 +130,10 @@ export async function importKaraokePitchReference(
       pitchSource,
     });
     if (!resolved.ok) return resolved;
+    const titleKey = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
+    if (titleKey(resolved.value.title) !== titleKey(track.title) || titleKey(resolved.value.artist) !== titleKey(track.artist)) {
+      return karaokeFailure('INVALID_PITCH','曲谱标注的歌曲或歌手与当前录音不一致。');
+    }
     const trusted = resolved.value.pitchTrack?.lines.some((line) => line.notes.length > 0);
     if (!trusted) return karaokeFailure('INVALID_PITCH', '文件里没有可用的可信音高音符');
     return resolved;

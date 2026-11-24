@@ -1,5 +1,46 @@
 export type SourceDiagnosticsState = { smooth: boolean; sources: Record<string, { attempts: number; resolved: number; played: number; averageMs: number; lastPlayedAt: number; lastFailure: string }> };
 
+export type KaraokeSeparationState =
+  | {status:'cached';key:string;duration:number}
+  | {status:'available';chartAvailable?:boolean;message?:string}
+  | {status:'unavailable';message?:string};
+export type KaraokeGenerationStage = 'separating' | 'publishing' | 'pitching' | 'aligning' | 'validating';
+export type KaraokeGenerationProgress = {
+  requestId: string;
+  status: 'generating';
+  stage: KaraokeGenerationStage;
+};
+export type KaraokeGenerationLyricLine = {
+  startMs: number;
+  endMs: number;
+  text: string;
+};
+export type KaraokeGeneratedBacking = {
+  key: string;
+  duration: number;
+  model: string;
+};
+export type KaraokeGeneratedChart = {
+  name: string;
+  data: string;
+  warnings: readonly string[];
+  noteCount: number;
+  lineCount: number;
+  bpm: number;
+  bpmFallback: boolean;
+  lyricsSha256: string;
+  models: Readonly<{
+    pitch: string;
+    aligner: string;
+    generator: string;
+  }>;
+};
+export type KaraokeGenerationResult =
+  | {status:'ready';backing:KaraokeGeneratedBacking;chart:KaraokeGeneratedChart}
+  | {status:'partial';backing:KaraokeGeneratedBacking;chartFailure:string}
+  | {status:'unavailable';code:'dependency'|'model'|'lyrics'|'input'|'disk'|'busy';message:string}
+  | {status:'cancelled'};
+
 export interface Track {
   playbackRecording?:Pick<Track,'id'|'title'|'artist'|'album'|'source'|'providerId'|'remoteId'|'duration'>;
   playlistId?: string;
@@ -131,6 +172,19 @@ export type SourceSearchPage = { items: Track[]; nextCursor: string | null };
 export type AudioCacheStats = { enabled: boolean; limitMiB: number; usedBytes: number; trackCount: number; metadataBytes?: number; metadataLimitMiB?: number; metadataError?: string };
 
 export interface DesktopBridge {
+  karaokeSeparation?: {
+    lookup(track:Track,requestId:string):Promise<KaraokeSeparationState>;
+    inspect(track:Track,requestId:string):Promise<KaraokeSeparationState>;
+    generate(track:Track,requestId:string):Promise<KaraokeSeparationState>;
+    generateWithChart(
+      track:Track,
+      requestId:string,
+      lyrics:readonly KaraokeGenerationLyricLine[],
+      options:{schemaVersion:1},
+    ):Promise<KaraokeGenerationResult>;
+    onGenerationProgress(callback:(progress:KaraokeGenerationProgress)=>void):()=>void;
+    cancel(requestId:string):Promise<void>;
+  };
   assistantModel?: { invoke<T = unknown>(args: Record<string, unknown>): Promise<T> };
   desktop: {invoke<T=unknown>(args:Record<string,unknown>):Promise<T>;onCommand(callback:(request:{action:string;value?:number})=>void):()=>void;};
   companion?: { invoke(args: Record<string, unknown>): Promise<unknown>; onVoiceStart?(callback:()=>void):()=>void; onVoice?(callback:(value:{transcript:string;confidence?:number})=>void):()=>void };
@@ -190,10 +244,11 @@ export interface DesktopBridge {
     cancelRequest(requestId: string): Promise<void>;
     cached(track: Track, quality?: string): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackRecording?:Track['playbackRecording'] } | null>;
     cachedBest(track: Track, qualities: string[]): Promise<{ audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackQuality: string; playbackRecording?:Track['playbackRecording'] } | null>;
-    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string, replacement?:boolean): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackRecording?:Track['playbackRecording'] }>;
+    resolve(track: Track, quality?: string, cacheAsId?: string, skipCache?: boolean, requestId?: string, replacement?:boolean,preserveCache?:boolean): Promise<{ diagnosticAttemptId?: string; audioUrl: string; actualQuality: string; coverUrl?: string; playbackProviderId: string; playbackRecording?:Track['playbackRecording'] }>;
     lyrics(track: Track): Promise<RawLyrics | null>;
     openFolder(): Promise<string>;
     onChanged(callback: (sources: InstalledSource[]) => void): () => void;
+    onStreamFailure?(callback: (failure: {token: string; status: number}) => void): () => void;
   };
   library: {
     load(): Promise<LibrarySnapshot>;

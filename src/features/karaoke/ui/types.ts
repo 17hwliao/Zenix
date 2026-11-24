@@ -136,6 +136,7 @@ export interface MobileKaraokeSoloPageProps extends KaraokeUiStatusProps {
   result?: KaraokeScore | null;
   onBack?: KaraokeUiAction;
   onStart?: KaraokeUiAction;
+  onCancel?: KaraokeUiAction;
   onPause?: KaraokeUiAction;
   onResume?: KaraokeUiAction;
   onFinish?: KaraokeUiAction;

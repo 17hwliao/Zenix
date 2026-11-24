@@ -17,9 +17,12 @@ import {useDialogFocus} from './useDialogFocus';
 import {playableTrack} from './types';
 import '../features/themes/settings-surfaces.css';
 import './SettingsModal.css';
+import type {DesktopHomeStyle} from './DesktopLibraryHome';
 
 type SettingsModalProps = {
   initialTab?: 'options' | 'appearance' | 'sources';
+  homeStyle?: DesktopHomeStyle;
+  onHomeStyleChange?: (style: DesktopHomeStyle) => void;
   tracks?: import('./types').TrackView[];
   reduceMotion: boolean;
   libraryBusy: boolean;
@@ -71,6 +74,8 @@ function SettingRow({setting,title,description,status,children,className=''}:{
 export default function SettingsModal({
   tracks=[],
   initialTab='options',
+  homeStyle,
+  onHomeStyleChange,
   reduceMotion,
   libraryBusy,
   appearanceBackground,
@@ -89,8 +94,12 @@ export default function SettingsModal({
   const [destination,setDestination] = useState<SettingSearchEntry>();
   const searchInput = useRef<HTMLInputElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  const dialog = useDialogFocus<HTMLDivElement>(true,onClose);
+  const dialog = useDialogFocus<HTMLDivElement>(true,() => {
+    if (query && document.activeElement === searchInput.current) {setQuery(''); return;}
+    onClose();
+  });
   const [previewError,setPreviewError] = useState(false);
+  const [homeStyleError,setHomeStyleError] = useState(false);
   const [sounds,setSounds] = useState(getSoundSettings);
   const updateSounds = (change:Partial<typeof sounds>) => {
     const next = {...sounds,...change};
@@ -147,7 +156,6 @@ export default function SettingsModal({
       <header className="yz-settings-top">
         <div className="yz-settings-heading">
           <h2 id="zenix-settings-title">设置</h2>
-          <p>找到一项设置，或直接搜索。</p>
         </div>
         <div className="yz-settings-search">
           <Search size={18}/>
@@ -198,25 +206,17 @@ export default function SettingsModal({
           }}/> : <div className="yz-settings-tab-content" role="tabpanel" id={`settings-panel-${tab}`} aria-labelledby={`settings-tab-${tab}`}>
             {tab === 'playback' && <div className="yz-settings-body">
               <div className="yz-settings-intro"><h2>播放</h2><p>声音、输出、歌词和本地曲库。</p></div>
+              <section className="yz-settings-group" aria-label="声音与动效">
+              <h3>声音与动效</h3>
               <details className="yz-settings-advanced" data-setting="audio-advanced">
-                <summary><span><strong>高级音频</strong><small>输出设备、均衡器与预设</small></span><span className="yz-setting-status">按需展开</span></summary>
+                <summary><span><strong>高级音频</strong><small>输出设备、均衡器与预设</small></span></summary>
                 <DesktopAudioSettings/>
               </details>
-              <div className="yz-settings-quick-tools"><MusicToolsButton initial="timer"/></div>
               <div className="yz-settings-list">
-                <SettingRow setting="pure-lyrics" title="纯歌词" description="当前句与前后各两句；越远越小并降低透明度。" status="五句景深">
-                  <Captions size={18}/>
-                </SettingRow>
-                <SettingRow setting="lyrics" title="歌词显示" description="字号、行距、翻译和当前歌曲的时间校正。" status="跟随主题 / 可校正">
-                  <span className="yz-setting-value">主题接管</span>
-                </SettingRow>
-                <SettingRow setting="desktop-lyrics" title="桌面歌词" description="在其他窗口上方显示同步歌词。" status={desktopLyricsVisible ? '已显示' : '已关闭'}>
-                  <button type="button" className={`yz-switch ${desktopLyricsVisible ? 'is-on' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} role="switch" aria-checked={Boolean(desktopLyricsVisible)} aria-label="桌面歌词"><span/></button>
-                </SettingRow>
-                <SettingRow setting="reduce-motion" title="减少动效" description="缩短页面、设置和歌词切换动画。" status={reduceMotion ? '已减少' : '标准'}>
+                <SettingRow setting="reduce-motion" title="减少动效" description="缩短页面、设置和歌词切换动画。">
                   <button type="button" className={`yz-switch ${reduceMotion ? 'is-on' : ''}`} onClick={() => onReduceMotionChange(!reduceMotion)} role="switch" aria-checked={reduceMotion} aria-label="减少动效"><span/></button>
                 </SettingRow>
-                <SettingRow setting="ui-sounds" title="界面音效" description="播放、返回和滑动贴纸的声音反馈。" status={sounds.enabled ? `音量 ${Math.round(sounds.volume*100)}%` : '已关闭'}>
+                <SettingRow setting="ui-sounds" title="界面音效" description="播放、返回和滑动贴纸的声音反馈。">
                   <button type="button" className={`yz-switch ${sounds.enabled ? 'is-on' : ''}`} onClick={() => {
                     updateSounds({enabled:!sounds.enabled});
                     if (!sounds.enabled) playUiSound('enter');
@@ -237,6 +237,20 @@ export default function SettingsModal({
                   </div>)}
                 </div>
               </details>}
+              </section>
+              <section className="yz-settings-group" aria-label="歌词">
+              <h3>歌词</h3>
+              <div className="yz-settings-list">
+                <SettingRow setting="desktop-lyrics" title="桌面歌词" description="在其他窗口上方显示同步歌词。">
+                  <button type="button" className={`yz-switch ${desktopLyricsVisible ? 'is-on' : ''}`} onClick={onToggleDesktopLyrics} disabled={!onToggleDesktopLyrics} role="switch" aria-checked={Boolean(desktopLyricsVisible)} aria-label="桌面歌词"><span/></button>
+                </SettingRow>
+                <SettingRow setting="pure-lyrics" title="纯歌词" description="在正在播放页面打开，展示当前句与前后各两句。"><Captions size={18}/></SettingRow>
+                <SettingRow setting="lyrics" title="歌词显示" description="播放页可调整字号、行距、翻译和歌词时间。"/>
+              </div>
+              </section>
+              <section className="yz-settings-group" aria-label="定时与本地曲库">
+              <h3>定时与本地曲库</h3>
+              <div className="yz-settings-quick-tools"><MusicToolsButton initial="timer"/></div>
               <div className="yz-settings-list">
                 <SettingRow setting="refresh-library" title="刷新本地曲库" description="重新读取已导入的音乐文件夹。">
                   <button type="button" className="yz-round-button" onClick={() => void onRefreshLibrary?.()} disabled={!onRefreshLibrary || libraryBusy} aria-label="刷新本地曲库"><RefreshCw size={17}/></button>
@@ -245,6 +259,7 @@ export default function SettingsModal({
                   <button type="button" className="yz-round-button" onClick={() => void onImportFolder()} disabled={libraryBusy} aria-label="导入音乐"><FolderOpen size={17}/></button>
                 </SettingRow>
               </div>
+              </section>
             </div>}
 
             {tab === 'sources' && <div className="yz-settings-body">
@@ -254,6 +269,16 @@ export default function SettingsModal({
 
             {tab === 'space' && <div className="yz-settings-body">
               <div className="yz-settings-intro"><h2>音乐空间</h2><p>主题只改变歌词与视觉，不移动歌曲或歌单。</p></div>
+              {homeStyle && onHomeStyleChange && <div className="yz-settings-list">
+                <SettingRow setting="desktop-home-style" title="桌面首页风格" description="只切换首页主区的展示方式。">
+                  <GlassSelect label="桌面首页风格" value={homeStyle} options={[{value:'library',label:'曲库首页'},{value:'cards',label:'环绕卡牌'}]} onChange={value => {
+                    if (value !== 'library' && value !== 'cards') return;
+                    try { onHomeStyleChange(value); setHomeStyleError(false); }
+                    catch { setHomeStyleError(true); }
+                  }}/>
+                  {homeStyleError && <small role="alert">首页风格未能保存，请重试。</small>}
+                </SettingRow>
+              </div>}
               <ThemeSettings/>
               <div data-setting="space-presentation"><SpaceAppearanceSettings/></div>
               <div className="yz-settings-list">

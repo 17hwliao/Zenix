@@ -22,6 +22,7 @@ export const settingEntries: readonly SettingSearchEntry[] = Object.freeze([
   {title:'刷新本地曲库',category:'播放',description:'重新读取已导入的音乐',tab:'playback',target:'[data-setting="refresh-library"]',keywords:'扫描 文件夹'},
   {title:'导入音乐',category:'播放',description:'选择本地音乐文件夹',tab:'playback',target:'[data-setting="import-music"]',keywords:'本地 曲库 文件夹'},
   {title:'歌词主题',category:'音乐空间',description:'黑胶夜、影院幕布、CD 机、极简留白及本地主题包',tab:'space',target:'[data-setting="themes"]',keywords:'主题 皮肤 theme 背景 字体 导入 纯歌词'},
+  {title:'桌面首页风格',category:'音乐空间',description:'在左栏曲库和环绕卡牌之间切换',tab:'space',target:'[data-setting="desktop-home-style"]',keywords:'首页 界面 桌面 主题 环绕卡牌 左栏'},
   {title:'音乐空间展示',category:'音乐空间',description:'选择贴纸拼贴、环绕或简约列表及卡片大小',tab:'space',target:'[data-setting="space-presentation"]',keywords:'歌曲 展示 风格 环绕 星轨 列表 卡片'},
   {title:'简约列表视觉',category:'音乐空间',description:'黑白中性底、黑银反射边框与清晰行层级',tab:'space',target:'[data-setting="simple-list"]',keywords:'列表 歌曲 行 样式 主题 银边'},
   {title:'背景与外观',category:'音乐空间',description:'选择或更换图片、视频背景',tab:'space',target:'.yz-appearance-preview',keywords:'壁纸 动态 背景 默认 空间'},

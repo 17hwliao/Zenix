@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Copy, Radio, Users } from 'lucide-react';
 import { KaraokeBattle, KaraokeGradeNotice, type KaraokeGradeFeedback } from './KaraokeBattle';
 import { formatKaraokeInviteText, KARAOKE_INVITE_ADDRESS_LIMIT, readKaraokeInviteText } from './karaoke-invitation';
@@ -46,6 +46,7 @@ export interface DesktopKaraokeLanProps extends DesktopKaraokePageProps {
   invite?: {addresses: readonly string[]; passwordRequired?: boolean};
   grade?: KaraokeGradeFeedback | null;
   reducedMotion?: boolean;
+  microphoneControl?: ReactNode;
   onChangeViewerMode?: KaraokeUiValueAction<'host' | 'guest'>;
   onCreateLanRoom?: KaraokeUiValueAction<KaraokeLanCreateFields>;
   onJoinLanRoom?: KaraokeUiValueAction<KaraokeLanJoinFields>;
@@ -57,10 +58,12 @@ export interface DesktopKaraokeLanProps extends DesktopKaraokePageProps {
 
 function LanSetup({
   mode,
+  waiting,
   onCreate,
   onJoin,
 }: {
   mode: 'host' | 'guest';
+  waiting: boolean;
   onCreate?: KaraokeUiValueAction<KaraokeLanCreateFields>;
   onJoin?: KaraokeUiValueAction<KaraokeLanJoinFields>;
 }) {
@@ -88,7 +91,7 @@ function LanSetup({
         if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault();
       }} onSubmit={async (event) => {
         event.preventDefault();
-        if (!canSubmit || submitting.current) return;
+        if (!canSubmit || waiting || submitting.current) return;
         const parsedAddress = host ? null : readKaraokeInviteText(address);
         if (!host && !parsedAddress) {
           setInvalidAddress(true);
@@ -145,8 +148,8 @@ function LanSetup({
         <label htmlFor={fieldId('password')}>房间口令（可选）</label>
         <input id={fieldId('password')} type="password" value={password} maxLength={128} autoComplete="off" onChange={(event) => setPassword(event.target.value)} />
         {error && <KaraokeErrorNotice error={error} onDismiss={() => setError(null)} />}
-        <button className="zenix-karaoke-primary" type="submit" disabled={pending || !canSubmit}>
-          {pending ? '正在连接…' : host ? '创建房间' : '申请加入'}
+        <button className="zenix-karaoke-primary" type="submit" disabled={waiting || pending || !canSubmit}>
+          {waiting ? '等待房主批准' : pending ? '正在连接…' : host ? '创建房间' : '申请加入'}
         </button>
       </form>
     </section>
@@ -280,6 +283,7 @@ export default function DesktopKaraokePage({
   invite,
   grade,
   reducedMotion,
+  microphoneControl,
   onChangeViewerMode,
   onCreateLanRoom,
   onJoinLanRoom,
@@ -306,7 +310,7 @@ export default function DesktopKaraokePage({
   const blocked = phase === 'loading' || phase === 'failed' || connectionInterrupted
     || phase === 'host-stopped' || phase === 'waiting' || phase === 'rejected';
   const lan = Boolean(onCreateLanRoom || onJoinLanRoom || invite);
-  const canSetUp = !room && !['waiting', 'reconnecting', 'host-stopped', 'empty', 'complete'].includes(phase)
+  const canSetUp = !room && (lan || phase !== 'waiting') && !['reconnecting', 'host-stopped', 'empty', 'complete'].includes(phase)
     && (phase !== 'loading' || lan);
   const canSetSide = room?.status === 'lobby' || room?.status === 'results';
   const activeRound = room?.status === 'countdown' || room?.status === 'singing' || room?.status === 'paused';
@@ -360,12 +364,12 @@ export default function DesktopKaraokePage({
             </div>
           )}
           {lan ? (
-            <LanSetup key={viewerMode} mode={viewerMode} onCreate={onCreateLanRoom} onJoin={onJoinLanRoom} />
+            <LanSetup key={viewerMode} mode={viewerMode} waiting={phase === 'waiting'} onCreate={onCreateLanRoom} onJoin={onJoinLanRoom} />
           ) : <KaraokeSetupForm mode={viewerMode} onCreate={onCreateRoom} onJoin={onJoinRoom} />}
         </div>
       )}
 
-      {phase === 'waiting' && <KaraokeWaitingPanel roomCode={room?.roomCode} />}
+      {phase === 'waiting' && !lan && <KaraokeWaitingPanel roomCode={room?.roomCode} />}
 
       {room && (connectionInterrupted || phase === 'host-stopped') && (
         <KaraokeBattle room={room} reducedMotion={true} />
@@ -413,6 +417,7 @@ export default function DesktopKaraokePage({
             <div className="zenix-karaoke-lan-performance">
               <KaraokeGradeNotice grade={grade} reducedMotion={reducedMotion} />
               <KaraokePerformanceStage track={currentTrack} performance={performance} lyrics={lyrics} />
+              {microphoneControl}
             </div>
           </section>
 

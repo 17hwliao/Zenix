@@ -15,12 +15,50 @@ const none=()=>{},subscribe=()=>()=>{};
 const featureState={schema:1,revision:0,bookmarks:[],lyrics:[],journal:[]};
 const diagnostics={smooth:false,sources:{}};
 const taskState={tasks:[],policy:{audio:'always',lyrics:'always',artwork:'always',preload:'always'},network:'unknown',cache:snapshot.cache};
+let releaseSearch: (() => void) | undefined;
+async function searchSongs(id:string,keyword:string){
+  calls.push({operation:'searchSongs',id,keyword});
+  if(keyword==='旧查询')await new Promise<void>(resolve=>{releaseSearch=resolve;});
+  if(keyword==='搜索错误')throw Error('隔离音乐源不可用');
+  const items:Track[]=keyword==='目标歌曲'||keyword==='旧查询'
+    ? [{...song,id:'no-lyrics',remoteId:'no-lyrics',title:keyword,providerId:id}]
+    : [];
+  return {items,nextCursor:null};
+}
+function emitKaraokeAudio(round:unknown,state:string,positionMs:number){
+  for(const listener of subscriptions.values()){
+    if(listener.eventName==='karaokeAudioStatus')listener.callback({round,state,positionMs,message:''});
+  }
+}
 async function invoke(args:Record<string,unknown>):Promise<unknown>{calls.push(args);switch(args.operation){case 'lanStatus':return{pending:pendingImport?{token:pendingImport}:null};case 'playlistPreview':if(pendingImport)throw Error('已有预览');pendingImport='fixture-preview';return{pending:{token:pendingImport}};case 'importConfirm':if(args.token!==pendingImport)throw Error('预览失效');if(failImport)throw Error('隔离保存失败');pendingImport='';return{};case 'importDiscard':if(args.token!==pendingImport)throw Error('预览失效');pendingImport='';return{};case 'personalFeatures':return args.action==='search'?[]:featureState;case 'offlineTasks':return taskState;case 'spaceFeatures':return rules.clean();case 'assistant':if(args.action==='skinSave')assistantSkin={archive:String(args.base64)};if(args.action==='skinReset')assistantSkin=null;return {enabled:false,skin:assistantSkin,error:''};case 'collaboration':return args.action==='hostStatus'?{listening:false,addresses:[],clients:[]}:{clients:[],tickets:[]};default:throw Error('unexpected fixture operation '+String(args.operation));}}
-const bridge={personal:{load:async()=>{if(failedRead)throw Error('隔离资料读取失败，原资料保留');return personal;},onChanged:subscribe},library:{load:async()=>({tracks:[],roots:[],playlists:[],looseFiles:[]}),readLyrics:async()=>({text:'[00:00.00]第一句\n[00:10.00]第二句',source:'custom',format:'lrc'})},sources:{list:async()=>snapshot.sources,onChanged:subscribe,lyrics:async()=>({text:'[00:00.00]第一句\n[00:10.00]第二句',source:'custom',format:'lrc'}),diagnostics:async()=>diagnostics},companion:{invoke},desktop:{invoke,onCommand:subscribe},onMediaCommand:subscribe,onMediaSeek:subscribe};
+const bridge={personal:{load:async()=>{if(failedRead)throw Error('隔离资料读取失败，原资料保留');return personal;},onChanged:subscribe},library:{load:async()=>({tracks:[],roots:[],playlists:[],looseFiles:[]}),readLyrics:async()=>({text:'[00:00.00]第一句\n[00:10.00]第二句',source:'custom',format:'lrc'})},sources:{list:async()=>snapshot.sources,onChanged:subscribe,lyrics:async()=>({text:'[00:00.00]第一句\n[00:10.00]第二句',source:'custom',format:'lrc'}),search:searchSongs,cancelRequest:async()=>{},diagnostics:async()=>diagnostics},companion:{invoke},desktop:{invoke,onCommand:subscribe},onMediaCommand:subscribe,onMediaSeek:subscribe};
 Object.defineProperty(window,'yzqxy',{value:bridge,configurable:true});
 const fixture={mode,calls,personal,snapshot,subscriptions,
-  async native(method:string,args:Record<string,any>){if(method==='removeListener'){subscriptions.delete(String(args.callbackId));return true;}if(method!=='invoke')throw Error('unexpected native method '+method);calls.push({native:args.action,...args.payload});const data=args.payload||{};if(args.action==='snapshot'){if(failedRead)throw Error('隔离资料读取失败，原资料保留');return {value:snapshot};}if(args.action==='features')return {value:await invoke(data)};if(args.action==='playbackFeature')return {value:data.operation==='preferences'?{mode:'any',choices:{}}:data.operation==='replacementInfo'?null:{loop:null,rate:1,preview:false}};if(args.action==='sourceDiagnostics')return {value:diagnostics};if(args.action==='lyrics'&&deferLyrics)return new Promise(resolve=>{finishLyrics=value=>resolve({value});});if(args.action==='lyrics')return {value:{text:'[00:00.00]第一句\n[00:10.00]第二句',source:'custom',format:'lrc'}};if(args.action==='collaboration')return {value:await invoke({...data,operation:'collaboration'})};throw Error('unexpected native action '+String(args.action));},
+  async native(method:string,args:Record<string,any>){
+    if(method==='removeListener'){subscriptions.delete(String(args.callbackId));return true;}
+    if(method!=='invoke')throw Error('unexpected native method '+method);
+    const data=args.payload||{};
+    calls.push({native:args.action,...data});
+    if(args.action==='snapshot'){if(failedRead)throw Error('隔离资料读取失败，原资料保留');return {value:snapshot};}
+    if(args.action==='features')return {value:await invoke(data)};
+    if(args.action==='playbackFeature')return {value:data.operation==='preferences'?{mode:'any',choices:{}}:data.operation==='replacementInfo'?null:{loop:null,rate:1,preview:false}};
+    if(args.action==='sourceDiagnostics')return {value:diagnostics};
+    if(args.action==='search')return {value:await searchSongs(data.id,data.keyword)};
+    if(args.action==='lyrics'&&deferLyrics)return new Promise(resolve=>{finishLyrics=value=>resolve({value});});
+    if(args.action==='lyrics')return {value:data.track.id==='no-lyrics'?null:{text:'[00:00.00]第一句\n[00:10.00]第二句',source:'custom',format:'lrc'}};
+    if(args.action==='collaboration')return {value:await invoke({...data,operation:'collaboration'})};
+    if(args.action==='assistant'&&data.action==='speechPermission')return {value:{permitted:false}};
+    if(args.action==='karaokeAudio'){
+      if(data.operation==='play')emitKaraokeAudio(data.round,'playing',0);
+      if(data.operation==='pause')emitKaraokeAudio(data.round,'paused',1400);
+      if(data.operation==='status')return {value:{positionMs:1400,playing:true,buffering:false}};
+      return {value:null};
+    }
+    throw Error('unexpected native action '+String(args.action));
+  },
   listen(_method:string,args:{eventName:string},callback:(data:unknown)=>void){const id=String(++listenerId);subscriptions.set(id,{eventName:args.eventName,callback});return id;},
+  finishSolo(round:unknown){emitKaraokeAudio(round,'ended',2200);},
+  finishSearch(){releaseSearch?.();releaseSearch=undefined;},
   async initialisePlayer(){const {player}=await import('../../src/core/player');player.setQueue([song],0);return player.snapshot;},
   async player(){return (await import('../../src/core/player')).player.snapshot;},
   setFailedRead(value:boolean){failedRead=value;},

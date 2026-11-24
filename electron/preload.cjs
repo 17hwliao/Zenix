@@ -8,6 +8,14 @@ function subscribe(channel, callback) {
 
 contextBridge.exposeInMainWorld('yzqxy', {
   karaokeNetwork: { invoke: args => ipcRenderer.invoke('karaoke:network', args), observe: callback => subscribe('karaoke:network-event', callback) },
+  karaokeSeparation: {
+    lookup: (track,id) => ipcRenderer.invoke('karaoke:separation','lookup',track,id),
+    inspect: (track,id) => ipcRenderer.invoke('karaoke:separation','inspect',track,id),
+    generate: (track,id) => ipcRenderer.invoke('karaoke:separation','generate',track,id),
+    generateWithChart: (track,id,lyrics,options) => ipcRenderer.invoke('karaoke:generation',track,id,lyrics,options),
+    onGenerationProgress: callback => subscribe('karaoke:generation-progress',callback),
+    cancel: id => ipcRenderer.invoke('karaoke:separation','cancel',null,id),
+  },
   assistantModel: { invoke: args => ipcRenderer.invoke('assistant-model:invoke', args) },
   desktop: {invoke: args => ipcRenderer.invoke('desktop:invoke',args), onCommand: callback => subscribe('desktop:command',callback)},
   companion: { invoke: args => ipcRenderer.invoke('companion:invoke', args), onVoice:callback=>subscribe('assistant:utterance',callback),onVoiceStart:callback=>subscribe('assistant:voice-start',callback) },
@@ -62,10 +70,11 @@ contextBridge.exposeInMainWorld('yzqxy', {
     diagnostics: () => ipcRenderer.invoke('sources:diagnostics'),
     configureDiagnostics: smooth => ipcRenderer.invoke('sources:diagnosticsConfigure', smooth),
     outcome: (id, played, reason) => ipcRenderer.invoke('sources:outcome', id, played, reason),
-    resolve: (track, quality, cacheAsId, skipCache, requestId, replacement) => ipcRenderer.invoke('sources:resolve', track, quality, cacheAsId, skipCache, requestId, replacement),
+    resolve: (track, quality, cacheAsId, skipCache, requestId, replacement, preserveCache) => ipcRenderer.invoke('sources:resolve', track, quality, cacheAsId, skipCache, requestId, replacement, preserveCache),
       lyrics: (track) => ipcRenderer.invoke('sources:lyrics', track),
       openFolder: () => ipcRenderer.invoke('sources:open-folder'),
     onChanged: (callback) => subscribe('sources:changed', callback),
+    onStreamFailure: (callback) => subscribe('sources:stream-failed', callback),
   },
   cache: {
     stats: () => ipcRenderer.invoke('cache:stats'),

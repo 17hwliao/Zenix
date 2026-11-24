@@ -26,11 +26,13 @@ import java.util.function.Consumer;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Local song playback for a LAN round, with a decoder and callbacks of its own. */
+/** Local song playback for a karaoke session, with a decoder and callbacks of its own. */
 final class KaraokeAudio {
     private final Context context;
     private final ZenixRuntime runtime;
     private final Consumer<JSONObject> notify;
+    private final boolean probeOnly;
+    private long decodedDurationMs;
     private final MusicSources.KaraokeResolution resolver;
     private final ThreadPoolExecutor work=new ThreadPoolExecutor(1,1,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(1));
     private volatile long generation;
@@ -41,9 +43,14 @@ final class KaraokeAudio {
     private boolean foreground=true, destroyed;
 
     KaraokeAudio(Context context,ZenixRuntime runtime,Consumer<JSONObject> notify){
+        this(context,runtime,notify,false);
+    }
+
+    KaraokeAudio(Context context,ZenixRuntime runtime,Consumer<JSONObject> notify,boolean probeOnly){
         this.context=context.getApplicationContext();
         this.runtime=runtime;
         this.notify=notify;
+        this.probeOnly=probeOnly;
         this.resolver=runtime.sources.new KaraokeResolution();
     }
 
@@ -76,6 +83,8 @@ final class KaraokeAudio {
             "buffering",resolving!=null||active!=null&&active.getPlaybackState()==Player.STATE_BUFFERING);
     }
 
+    long decodedDurationMs(){return decodedDurationMs;}
+
     private static String readRound(JSONObject args)throws IOException{
         Object value=args.opt("round");
         if(!(value instanceof String))throw new IOException("K 歌轮次无效");
@@ -86,7 +95,7 @@ final class KaraokeAudio {
     }
 
     private void play(String expected,JSONObject args,Consumer<Exception> complete)throws Exception{
-        if(!foreground||destroyed)throw new IOException("请在前台打开 K 歌房间");
+        if(!foreground||destroyed)throw new IOException("请在前台打开 K 歌");
         JSONObject track=args.getJSONObject("track");
         String id=track.optString("id");
         if(id.isBlank()||id.length()>32768)throw new IOException("K 歌曲目无效");
@@ -104,15 +113,17 @@ final class KaraokeAudio {
             return;
         }
         stop();
+        if(probeOnly)decodedDurationMs=0;
         round=expected;
         trackId=id;
         pending=complete;
         long ticket=generation;
-        long requestedAt=SystemClock.elapsedRealtime();
+        long requestedAt=args.optBoolean("syncElapsed",true)?SystemClock.elapsedRealtime():-1;
+        boolean exactRecording=probeOnly||args.optBoolean("exactRecording",false);
         try{
             resolving=work.submit(()->{
                 try{
-                    Prepared prepared=prepareTrack(track,ticket);
+                    Prepared prepared=prepareTrack(track,ticket,exactRecording);
                     runtime.main.post(()->install(ticket,position,requestedAt,prepared));
                 }catch(Exception error){
                     runtime.main.post(()->{
@@ -123,7 +134,7 @@ final class KaraokeAudio {
         }catch(Exception error){failed("K 歌音频正在处理另一首歌，请重试");}
     }
 
-    private Prepared prepareTrack(JSONObject track,long ticket)throws Exception{
+    private Prepared prepareTrack(JSONObject track,long ticket,boolean exactRecording)throws Exception{
         if("local".equals(track.optString("source"))){
             JSONArray library=runtime.store.array("localTracks");
             if(library!=null)for(int i=0;i<library.length();i++){
@@ -140,12 +151,14 @@ final class KaraokeAudio {
         candidate=ReplacementRules.target(candidate);
         PlaybackService ordinary=runtime.service;
         JSONObject cached=ordinary==null?null:ordinary.completeKaraokeCache(candidate);
-        if(cached!=null&&!cached.optString("url").toLowerCase(Locale.ROOT).contains(".m3u8")){
+        JSONObject cachedRecording=cached==null?null:cached.optJSONObject("playbackRecording");
+        boolean cachedExact=cachedRecording!=null&&runtime.sources.persistedRecordingKey(cachedRecording).equals(runtime.sources.currentRecordingKey(candidate));
+        if(cached!=null&&(!exactRecording||cachedExact)&&!cached.optString("url").toLowerCase(Locale.ROOT).contains(".m3u8")){
             return new Prepared(cached.getString("url"),cached.getString("cacheKey"),
                 PlaybackService.audioCacheSource(ordinary.offlineCache(),null,true).setCacheWriteDataSinkFactory(null));
         }
         ensureNetwork();
-        JSONObject resolved=resolver.resolveTrack(candidate,()->ticket!=generation||Thread.currentThread().isInterrupted());
+        JSONObject resolved=resolver.resolveTrack(candidate,exactRecording,()->ticket!=generation||Thread.currentThread().isInterrupted());
         ensureNetwork();
         okhttp3.OkHttpClient http=SourceHttp.playbackClient(resolved.optJSONArray("mediaHosts"),resolved.optBoolean("allowHttp"))
             .newBuilder().addInterceptor(chain->{
@@ -179,7 +192,7 @@ final class KaraokeAudio {
             audition.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),false);
             audition.setHandleAudioBecomingNoisy(true);
-            audition.setVolume(.65f);
+            audition.setVolume(probeOnly?0f:.65f);
             audition.addListener(new Player.Listener(){
                 @Override public void onIsPlayingChanged(boolean playing){
                     if(player==audition&&playing){
@@ -188,6 +201,11 @@ final class KaraokeAudio {
                     }
                 }
                 @Override public void onPlaybackStateChanged(int state){
+                    if(probeOnly&&player==audition&&state==Player.STATE_READY){
+                        decodedDurationMs=audition.getDuration();
+                        if(decodedDurationMs<=0){failed("无法核对练唱音轨的时长");return;}
+                        acknowledge(null);stop();return;
+                    }
                     if(player==audition&&state==Player.STATE_ENDED){
                         if(pending!=null)failed("K 歌音频已到结尾");
                         else{publish("ended","");stop();}
@@ -201,10 +219,10 @@ final class KaraokeAudio {
             if(!audio.cacheKey.isEmpty())item.setCustomCacheKey(audio.cacheKey);
             DefaultMediaSourceFactory factory=new DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(audio.factory).setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(0));
-            audition.setMediaSource(factory.createMediaSource(item.build()),
-                position+Math.max(0,SystemClock.elapsedRealtime()-requestedAt));
+            long elapsed=requestedAt<0?0:Math.max(0,SystemClock.elapsedRealtime()-requestedAt);
+            audition.setMediaSource(factory.createMediaSource(item.build()),position+elapsed);
             audition.prepare();
-            audition.play();
+            if(!probeOnly)audition.play();
         }catch(Exception error){failed("无法启动 K 歌音频 · "+SourceDiagnostics.reason(error));}
     }
 

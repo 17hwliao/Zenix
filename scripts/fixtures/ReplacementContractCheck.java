@@ -70,12 +70,28 @@ public final class ReplacementContractCheck {
   }finally{ScriptEngine.catalogRows=new JSONArray();}
   JSONObject a=song("original"),b=song("healthy");Json.put(a,"playlistId","cache-one");JSONObject state=ReplacementRules.empty();Json.put(state,"target",b);Json.put(state,"status","pending");Json.put(state,"attempts",3);Json.put(a,"replacement",state);
   PrivateStore cached=new PrivateStore();cached.set("personal",Json.obj("playlists",Json.array(Json.obj("id","cache-one","tracks",Json.array(a)),Json.obj("id","cache-two","tracks",Json.array(a)))));
-  JSONObject mapping=Json.obj("url","https://audio.example.test/b.mp3","cacheKey","b","replacementKey",ReplacementRules.key(b),"cachePlaylistId","cache-one");cached.set("cacheMappings",Json.obj(a.getString("id"),mapping));CacheService service=new CacheService(cached);
+  JSONObject mapping=Json.obj("url","https://audio.example.test/b.mp3","cacheKey","b","replacementKey",ReplacementRules.key(b),"cachePlaylistId","cache-one");cached.set("cacheMappings",Json.obj(a.getString("id"),mapping));CacheService service=new CacheService(cached,folder);
   check(service.reusableCache(a)!=null&&service.completeCachedForInspection(a),"same playlist and binding can reuse complete cache");
   service.cacheEnabled=false;check(service.completePreviewCache(b)!=null,"complete replacement recording can be previewed locally even when new caching is disabled");check(service.completePreviewCache(song("wrong-recording"))==null,"preview cache never aliases an unrelated recording");service.cacheEnabled=true;
   JSONObject other=Json.copy(a);Json.put(other,"playlistId","cache-two");check(service.reusableCache(other)==null&&!service.completeCachedForInspection(other),"different playlist cannot reuse this replacement cache");
   a.remove("replacement");cached.set("personal",Json.obj("playlists",Json.array(Json.obj("id","cache-one","tracks",Json.array(a)))));check(service.reusableCache(a)==null&&!service.completeCachedForInspection(a),"restore original rejects old replacement cache");
   Json.put(a,"replacement",Json.obj("target",song("other")));cached.set("personal",Json.obj("playlists",Json.array(Json.obj("id","cache-one","tracks",Json.array(a)))));check(service.reusableCache(a)==null,"changed target rejects previous replacement cache");
+  // K karaoke accepts only a complete cache whose immutable recording identity matches.
+  String lxRecording=MobilePlaybackContractCheck.lxRemote(42,"tx"),wrongLxRecording=MobilePlaybackContractCheck.lxRemote(43,"tx");
+  JSONObject lxSource=MobilePlaybackContractCheck.source("lx.current");Json.put(lxSource,"kind","lx");
+  PrivateStore karaokeStore=new PrivateStore();karaokeStore.sources.put(lxSource);
+  JSONObject karaokeSong=MobilePlaybackContractCheck.track("lx.current");Json.put(karaokeSong,"id","karaoke-song");Json.put(karaokeSong,"remoteId",lxRecording);
+  JSONObject wrongDirect=Json.obj("url","https://audio.example.test/wrong.mp3","cacheKey","wrong","replacementKey",ReplacementRules.key(karaokeSong),"playbackRecording",Json.obj("providerId","lx.old","providerKind","lx","remoteId",wrongLxRecording));
+  JSONObject correctLater=Json.obj("url","https://audio.example.test/correct.mp3","cacheKey","correct","playbackRecording",Json.obj("providerId","lx.old","providerKind","lx","remoteId",lxRecording));
+  karaokeStore.set("cacheMappings",Json.obj("karaoke-song",wrongDirect,"other-mapping",correctLater));
+  CacheService karaokeCache=new CacheService(karaokeStore,folder);
+  JSONObject matchedKaraoke=karaokeCache.completeKaraokeCache(karaokeSong);check(matchedKaraoke!=null&&matchedKaraoke.optString("cacheKey").equals("correct"),"wrong direct cache cannot hide a later exact recording cache");
+  wrongDirect.remove("replacementKey");karaokeStore.set("cacheMappings",Json.obj("karaoke-song",wrongDirect));check(karaokeCache.completeKaraokeCache(karaokeSong)==null,"wrong direct cache is rejected instead of reused");
+  JSONObject legacy=Json.copy(wrongDirect);Json.put(legacy,"replacementKey",ReplacementRules.key(karaokeSong));Json.put(legacy,"playbackRecording",Json.obj("providerId","lx.current","remoteId",lxRecording));karaokeStore.set("cacheMappings",Json.obj("karaoke-song",legacy));check(karaokeCache.completeKaraokeCache(karaokeSong)==null,"legacy cache without provider kind stays isolated");
+  JSONObject persistedNormal=Json.copy(wrongDirect);Json.put(persistedNormal,"replacementKey",ReplacementRules.key(karaokeSong));Json.put(persistedNormal,"playbackRecording",Json.obj("providerId","lx.current","providerKind","zenix","remoteId",lxRecording));karaokeStore.set("cacheMappings",Json.obj("karaoke-song",persistedNormal));check(karaokeCache.completeKaraokeCache(karaokeSong)==null,"persisted normal identity is not reinterpreted as LX");
+  JSONObject manualTarget=song("healthy");JSONObject manualResult;ScriptEngine.forgedPlaybackRecording=true;
+  try(MusicSources manualSources=new MusicSources(new android.content.Context(folder),store)){manualResult=manualSources.replacementExact(manualTarget,"manual-original");}finally{ScriptEngine.forgedPlaybackRecording=false;}
+  JSONObject manualRecording=manualResult.getJSONObject("playbackRecording");check(manualRecording.optString("providerId").equals("healthy")&&manualRecording.optString("providerKind").equals("zenix")&&manualRecording.optString("remoteId").equals(manualTarget.optString("remoteId"))&&!manualRecording.optString("providerId").equals("forged"),"manual replacement rebuilds recording identity from the actual source");
   JSONObject queueSong=Json.copy(a);Json.put(queueSong,"replacementPlayback","temporary");JSONArray restored=QueueEdits.apply(Json.array(queueSong),"",Json.obj("operation","restore","tracks",Json.array(queueSong)));check(restored.getJSONObject(0).optString("playlistId").equals("cache-one"),"undo retains playlist context");
   for(String edit:List.of("next","enqueue"))check(QueueEdits.apply(new JSONArray(),"",Json.obj("operation",edit,"track",queueSong)).getJSONObject(0).optString("playlistId").equals("cache-one"),"queue insert retains context");
   check(!PrivateStore.cleanTrack(queueSong).has("playlistId")&&!restored.getJSONObject(0).has("replacementPlayback"),"collections strip context and queues strip stale playback marker");
@@ -92,7 +108,7 @@ public final class ReplacementContractCheck {
  static class Cache {Object getContentMetadata(String key){return null;}boolean isCached(String key,long start,long length){return true;}long getCachedLength(String key,long start,long length){return 0;}}
  static class ContentMetadata {static long getContentLength(Object ignored){return 1024;}}
  static class Runtime {PrivateStore store;MusicSources sources;Runtime(PrivateStore store){this.store=store;}}
- static class CacheService {boolean cacheEnabled=true,clearingCache;Runtime runtime;Cache cache=new Cache();CacheService(PrivateStore store){runtime=new Runtime(store);}
+ static class CacheService {boolean cacheEnabled=true,clearingCache;Runtime runtime;Cache cache=new Cache();CacheService(PrivateStore store,File folder){runtime=new Runtime(store);runtime.sources=new MusicSources(new android.content.Context(folder),store);}
  /* PRODUCTION_CACHE_METHODS */
  }
  static class CommitStore {JSONObject data;int flushes;

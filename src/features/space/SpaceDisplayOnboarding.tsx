@@ -1,4 +1,4 @@
-import {useEffect,useRef} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {LayoutGrid,ListMusic,X} from 'lucide-react';
 import type {SpacePresentationMode} from './presentationTypes';
@@ -13,11 +13,18 @@ type SpaceDisplayOnboardingProps={
 export default function SpaceDisplayOnboarding({open,error,onChoose}:SpaceDisplayOnboardingProps){
   const dialogRef=useRef<HTMLDivElement>(null);
   const firstChoiceRef=useRef<HTMLButtonElement>(null);
+  const [dismissed,setDismissed]=useState(false);
+  const visible=open&&!dismissed;
   const chooseRef=useRef(onChoose);
   chooseRef.current=onChoose;
+  const dismiss=()=>{if(!chooseRef.current('sticker'))setDismissed(true);};
 
   useEffect(()=>{
-    if(!open)return;
+    if(!open)setDismissed(false);
+  },[open]);
+
+  useEffect(()=>{
+    if(!visible)return;
     const previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
     const previousOverflow=document.body.style.overflow;
     document.body.style.overflow='hidden';
@@ -26,7 +33,7 @@ export default function SpaceDisplayOnboarding({open,error,onChoose}:SpaceDispla
       if(event.key==='Escape'){
         event.preventDefault();
         event.stopPropagation();
-        chooseRef.current('sticker');
+        if(!chooseRef.current('sticker'))setDismissed(true);
         return;
       }
       if(event.key!=='Tab')return;
@@ -45,13 +52,13 @@ export default function SpaceDisplayOnboarding({open,error,onChoose}:SpaceDispla
       document.body.style.overflow=previousOverflow;
       previousFocus?.focus();
     };
-  },[open]);
+  },[visible]);
 
-  if(!open)return null;
+  if(!visible)return null;
   return createPortal(
-    <div className="space-display-onboarding" onMouseDown={event=>{if(event.target===event.currentTarget)onChoose('sticker');}}>
+    <div className="space-display-onboarding" onMouseDown={event=>{if(event.target===event.currentTarget)dismiss();}}>
       <div ref={dialogRef} className="space-display-onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="space-display-onboarding-title" aria-describedby="space-display-onboarding-description">
-        <button type="button" className="space-display-onboarding-close" aria-label="关闭展示选择并继续使用贴纸拼贴" onClick={()=>onChoose('sticker')}><X size={18}/></button>
+        <button type="button" className="space-display-onboarding-close" aria-label="关闭展示选择并继续使用贴纸拼贴" onClick={dismiss}><X size={18}/></button>
         <header>
           <span>YOUR MUSIC SPACE</span>
           <h2 id="space-display-onboarding-title">选择音乐空间的展示方式</h2>

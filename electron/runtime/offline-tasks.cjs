@@ -77,7 +77,11 @@ class OfflineTasks {
   pump() { if (this.active || this.closed || this.readOnly || this.clearing) return; const task = this.tasks.find(value => ACTIVE.has(value.status)); if (!task) return;
     if (!this.network.allows('preload') || !this.network.allows('audio')) { task.status = 'waiting'; return; }
     const controller = new AbortController(); this.active = { id: task.id, controller };
-    this.active.finished = this.run(task, controller.signal).catch(error => { task.status = 'paused'; task.error = text(error.message, 200); }).finally(async () => { this.active = undefined; await this.save().catch(() => {}); this.pump(); });
+    this.active.finished = this.run(task, controller.signal).catch(error => { task.status = 'paused'; task.error = text(error.message, 200); }).finally(async () => {
+      await this.save().catch(() => {});
+      this.active = undefined;
+      this.pump();
+    });
   }
   async run(task, signal) {
     task.status = 'running'; await this.save();

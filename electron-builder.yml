@@ -13,6 +13,7 @@ files:
   - config/distribution.json
   - dist/**/*
   - electron/**/*.cjs
+  - electron/runtime/karaoke-chart-worker.py
   - electron/runtime/assistant-speech.ps1
   - src/core/backupFormat.cjs
   - src/core/sourceDiagnostics.cjs
@@ -51,6 +52,8 @@ extraResources:
     to: LICENSE
   - from: THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md
+asarUnpack:
+  - electron/runtime/karaoke-chart-worker.py
 win:
   icon: assets/zenix-icon.ico
   target:

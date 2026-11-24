@@ -4,6 +4,7 @@ import {speechChunks} from './speechText';
 import {speakReply} from './replyVoice';
 import {HoldRecording} from './recording';
 import SkinCharacter from './SkinCharacter';
+import AssistantCornerCharacter from './AssistantCornerCharacter';
 import {getAssistantRuntime} from './remote/runtime';
 import ModelSettings from './remote/ModelSettings';
 import SessionContent, {remoteCharacterPhase} from './remote/SessionContent';
@@ -248,7 +249,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
       }
       if (mobile || karaokeOwnsMicrophone() || event.code !== 'Space' || event.altKey || event.ctrlKey || event.metaKey
         || event.shiftKey || event.isComposing) return;
-      if (event.target instanceof Element
+      if (event.target instanceof Element && !event.target.closest('.assistant-corner-character')
         && event.target.closest('input,textarea,select,[contenteditable="true"],button,a,[role="button"],[role="slider"]')) return;
       event.preventDefault(); event.stopImmediatePropagation();
       if (!event.repeat) void handlers.current.begin('keyboard');
@@ -320,7 +321,8 @@ export default function AssistantConversation({mobile = false, invoke: provided,
   const microphoneText = phase === 'listening' ? '松开发送' : phase === 'preparing' ? '准备中'
     : phase === 'thinking' && active.current ? '识别中' : snapshot.busy ? '处理中' : '按住说话';
 
-  return <aside className={`assistant-conversation ${mobile ? 'is-mobile' : ''}`} aria-label="星音语音助手">
+  return <aside className={`assistant-conversation ${mobile ? 'is-mobile' : ''}`} data-open={open} data-phase={phase} aria-label="星音语音助手">
+    {!mobile && <AssistantCornerCharacter hidden={open} phase={phase} invoke={invoke} onOpen={()=>setOpen(true)}/>}
     {open && <section className="assistant-chat" aria-label="与星音交流">
       <header><strong>星音 · 音乐助手</strong><button aria-label="关闭语音助手" onClick={closePanel}>×</button></header>
       <div className="assistant-chat-character" data-state={phase} data-animated="true">
@@ -349,10 +351,10 @@ export default function AssistantConversation({mobile = false, invoke: provided,
       <small>{mobile ? '按住悬浮麦克风说话，松开发送，上滑取消。' : '在应用空白处按住空格说话；输入框中的空格照常输入。'}</small>
       {(active.current || snapshot.busy) && <button onClick={cancel}>取消本次对话</button>}
     </section>}
-    <div className="assistant-voice-dock">
+    {mobile && <div className="assistant-voice-dock">
       <button className="assistant-talk-toggle" aria-label="打开星音对话" onClick={() => open ? closePanel() : setOpen(true)}>星音</button>
       <button className="assistant-hold-voice" disabled={snapshot.busy} data-phase={phase}
-        aria-label={mobile ? '按住与星音说话' : '按住说话，也可按住空格'} aria-pressed={phase === 'listening'}
+        aria-label="按住与星音说话" aria-pressed={phase === 'listening'}
         onContextMenu={event => event.preventDefault()}
         onPointerDown={event => {
           if (event.button !== 0 || !event.isPrimary) return;
@@ -375,6 +377,6 @@ export default function AssistantConversation({mobile = false, invoke: provided,
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg>
         <span>{microphoneText}</span>
       </button>
-    </div>
+    </div>}
   </aside>;
 }

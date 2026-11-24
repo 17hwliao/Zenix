@@ -33,7 +33,8 @@ app.whenReady().then(async () => {
   assert(win); win.webContents.on('console-message', event => { if (event.level === 'error') errors.push(event.message); });
   win.webContents.on('render-process-gone', (_event, details) => errors.push(JSON.stringify(details)));
   await sleep(3500); await measure(win, 'home');
-  await click(win, `[...document.querySelectorAll('button')].find(b=>b.textContent.includes('进入音乐空间'))`);
+  const openSpace = `document.querySelector('[data-destination="space"]') || [...document.querySelectorAll('button')].find(b=>b.textContent.includes('进入音乐空间'))`;
+  await click(win, openSpace);
   await measure(win, 'wall-120');
   await check('120 songs retained with bounded viewport posters', async () => { const result=await win.webContents.executeJavaScript(`(async()=>({count:(await window.yzqxy.personal.load()).history.length,mounted:document.querySelectorAll('.yz-sticker').length}))()`); assert.equal(result.count,120); assert(result.mounted>0&&result.mounted<=120); });
   await click(win, `document.querySelector('.yz-sticker.is-expanded .yz-sticker-focus-controls button')`);
@@ -54,7 +55,7 @@ app.whenReady().then(async () => {
   await check('source install/search and runner retirement', async () => { picked.push(source); const value = await win.webContents.executeJavaScript(`(async()=>{const b=window.yzqxy.sources,p=await b.importFile();await b.confirmImport(p.token);return await b.search('zenix.regression','Fixture');})()`); assert(value.items?.length === 1); });
   await measure(win, 'source-warm'); await sleep(22000); await measure(win, 'source-idle');
   await check('idle source renderer released', async () => assert(!BrowserWindow.getAllWindows().some(w => w !== win && !w.isVisible() && w.getBounds().width === 1)));
-  for (let i = 0; i < 8; i++) { await click(win, `document.querySelector('[aria-label="个人主页"]')`); await click(win, `[...document.querySelectorAll('button')].find(b=>b.textContent.includes('进入音乐空间'))`); }
+  for (let i = 0; i < 8; i++) { await click(win, `document.querySelector('[aria-label="个人主页"]')`); await click(win, openSpace); }
   await measure(win, 'wall-after-8-roundtrips');
   win.minimize(); await sleep(1500); await measure(win, 'minimized-playing'); win.restore();
   await measure(win, 'restored');

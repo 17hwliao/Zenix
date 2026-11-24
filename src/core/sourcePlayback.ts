@@ -29,7 +29,8 @@ function availableQualities(source: InstalledSource, track: Track, preference: s
   return desired.filter(tier => tier !== 'lossless24' && (!supported.length || supported.includes(tier)));
 }
 
-export async function resolveOriginalTrack(track: Track, failedAttempts: readonly string[], report: (progress: SourceProgress) => void, signal: AbortSignal): Promise<Track> {
+/** Optionally require the consumer to start playback before accepting a resolved URL. */
+export async function resolveOriginalTrack(track: Track, failedAttempts: readonly string[], report: (progress: SourceProgress) => void, signal: AbortSignal, accept?: (candidate: Track) => Promise<boolean>, exactRecording = false): Promise<Track> {
   const bridge = window.yzqxy?.sources;
   if (!bridge) throw new Error('音乐源只在桌面版中可用');
   const preference = localStorage.getItem('zenix.onlineQuality') || 'auto';
@@ -41,6 +42,7 @@ export async function resolveOriginalTrack(track: Track, failedAttempts: readonl
   };
   const failed = (reason: unknown) => {
     signal.throwIfAborted();
+    if (accept && reason instanceof DOMException && reason.name === 'NotAllowedError') throw reason;
     lastIssue = /timeout|timed out|超时/i.test(reason instanceof Error ? `${reason.name} ${reason.message}` : String(reason))
       ? '刚才的连接超时，正在自动尝试备用方案'
       : '刚才的资源未能播放，正在自动尝试备用方案';
@@ -49,7 +51,11 @@ export async function resolveOriginalTrack(track: Track, failedAttempts: readonl
   if (!failedAttempts.length) {
     notify('cache', '正在查找本地缓存', '有缓存时直接播放，无需重新连接');
     const local = await sourceDeadline(() => bridge.cachedBest(track, qualityOrder(preference)), signal, 0).catch(() => { signal.throwIfAborted(); return null; });
-    if (local) return { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
+    if (local && (!exactRecording || (local.playbackRecording?.providerId === track.providerId && local.playbackRecording?.remoteId === track.remoteId && !!local.playbackRecording))) {
+      const cached = { ...track, ...local, coverUrl: track.coverUrl || local.coverUrl };
+      if (!accept || await accept(cached)) return cached;
+      failed('本地缓存无法播放');
+    }
   }
   notify('resolving', '正在查找可用资源');
   const sources = (await sourceDeadline(() => bridge.list(), signal, 0)).filter(source => source.enabled && source.manifest.capabilities.includes('resolvePlayback'));
@@ -82,10 +88,11 @@ export async function resolveOriginalTrack(track: Track, failedAttempts: readonl
         try {
           const qualityName = { lossless24: '高解析无损', lossless: '无损', high: '高品质', standard: '标准' }[tier];
           notify('resolving', `正在获取${qualityName}音频 · ${sourceLabel}`);
-          const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId), signal, 0);
+          const resolved = await sourceRequest(requestId => bridge.resolve(candidate, tier, track.id, true, requestId, false, !!accept), signal, 0);
           if (resolved.audioUrl) {
             notify('connecting', `地址已取得，正在连接音频 · ${sourceLabel}`);
-            return { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: resolved.playbackProviderId || source.id, playbackQuality: tier,playbackRecording:resolved.playbackRecording || (resolved.playbackProviderId==='cache'?undefined:{id:candidate.id,title:candidate.title,artist:candidate.artist,album:candidate.album,source:candidate.source,providerId:source.id,remoteId:candidate.remoteId,duration:candidate.duration}) };
+            const playable = { ...track, ...resolved, coverUrl: track.coverUrl || resolved.coverUrl, playbackProviderId: resolved.playbackProviderId || source.id, playbackQuality: tier,playbackRecording:resolved.playbackRecording || (resolved.playbackProviderId==='cache'?undefined:{id:candidate.id,title:candidate.title,artist:candidate.artist,album:candidate.album,source:candidate.source,providerId:source.id,remoteId:candidate.remoteId,duration:candidate.duration}) };
+            if (!accept || await accept(playable)) return playable;
           }
           failures.push(`${source.manifest.name}的${tier}音质无法播放`);
           failed('音频不可播放');
@@ -101,7 +108,7 @@ export async function resolveOriginalTrack(track: Track, failedAttempts: readonl
       const playable = await tryCandidate(direct);
       if (playable) return playable;
     }
-    if (unavailable || !source.manifest.capabilities.includes('search')) continue;
+    if (exactRecording || unavailable || !source.manifest.capabilities.includes('search')) continue;
     try {
       notify('switching', '正在寻找同一首歌的备用资源');
       const page = await sourceRequest(requestId => bridge.search(source.id, track.title, null, 50, requestId,true), signal, 0);

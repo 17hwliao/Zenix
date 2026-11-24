@@ -1,0 +1,44 @@
+.zenix-karaoke-mode-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px 20px;
+  padding:16px clamp(14px,3vw,28px);
+  border-bottom:1px solid #ffffff18;
+  background:#181e2a;
+}
+.zenix-karaoke-mode-buttons { display:flex; flex-wrap:wrap; gap:8px; }
+.zenix-karaoke-mode-buttons button { display:flex; align-items:center; gap:8px; }
+.zenix-karaoke-song-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; min-width:0; max-width:100%; }
+.zenix-karaoke-song-controls > button { display:inline-flex; align-items:center; gap:7px; }
+.zenix-karaoke-solo-picker { display:flex; align-items:center; gap:10px; max-width:100%; font-size:13px; }
+.zenix-karaoke-solo-picker select { min-width:0; width:clamp(140px,30vw,330px); text-overflow:ellipsis; }
+.zenix-karaoke-song-search {
+  display:grid;
+  gap:10px;
+  padding:14px clamp(14px,3vw,28px);
+  border-bottom:1px solid #ffffff18;
+  background:#181e2a;
+}
+.zenix-karaoke-song-search form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.zenix-karaoke-song-search input { min-width:0; font-size:16px; }
+.zenix-karaoke-song-search ul { list-style:none; padding:0 4px; margin:0; max-height:238px; overflow:auto; }
+.zenix-karaoke-song-search li + li { border-top:1px solid #ffffff18; }
+.zenix-feature-workbench .zenix-karaoke-song-search li button {
+  width:100%;
+  display:grid;
+  gap:3px;
+  border:0;
+  background:transparent;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+.zenix-feature-workbench .zenix-karaoke-song-search li button:hover,
+.zenix-feature-workbench .zenix-karaoke-song-search li button:focus-visible { background:#ffffff10; }
+.zenix-karaoke-song-search small, .zenix-karaoke-search-status { color:#bac2d2; font-size:13px; }
+.zenix-karaoke-search-status:empty { display:none; }
+@media(max-width:560px) {
+  .zenix-karaoke-song-controls, .zenix-karaoke-solo-picker { width:100%; }
+  .zenix-karaoke-solo-picker select { flex:1; }
+}

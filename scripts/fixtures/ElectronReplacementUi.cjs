@@ -28,7 +28,7 @@ app.whenReady().then(async()=>{
  await evaluate('window.replacementFixture.showShell(8)');await wait('!!document.querySelector(".zenix-source-callout")');await click('[aria-label="关闭播放错误"]');window.setContentSize(1000,800);
  await wait('Math.abs(innerWidth-1000)<=1');await evaluate(`document.querySelector('.yz-home-search-dock input').focus()`);await sleep(300);
  assert.equal(await evaluate(`(()=>{const f=document.querySelector('.yz-home-search-dock form'),r=f.getBoundingClientRect();return !!document.elementFromPoint(r.x+r.width/2,r.y+2)?.closest('.yz-home-search-dock');})()`),true,'drag region must end above search form');
- await evaluate(`[...document.querySelectorAll('.zenix-orbit-card')].find(b=>b.textContent.includes('自定义歌单')).click()`);await wait('!!document.querySelector(".zenix-manager")');
+ await click('[data-destination=playlists]');await wait('!!document.querySelector(".zenix-manager")');
  assert.equal(await evaluate(`document.elementFromPoint(20,12)?.className`),'yz-titlebar-drag','playlist manager cannot cover global drag strip');
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.yz-titlebar-drag')).getPropertyValue('-webkit-app-region')`),'drag');
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.yz-window-controls-zone')).getPropertyValue('-webkit-app-region')`),'no-drag');

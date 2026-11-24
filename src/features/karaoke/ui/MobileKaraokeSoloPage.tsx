@@ -26,6 +26,7 @@ export default function MobileKaraokeSoloPage({
   onRetry,
   onBack,
   onStart,
+  onCancel,
   onPause,
   onResume,
   onFinish,
@@ -35,14 +36,14 @@ export default function MobileKaraokeSoloPage({
     if (result) setResultOpen(true);
   }, [result]);
 
-  const disabled = phase === 'loading' || phase === 'failed' || phase === 'host-stopped';
+  const disabled = phase === 'loading' || phase === 'host-stopped';
   const elapsed = Math.max(0, performance.elapsedMs);
   const total = Math.max(0, performance.durationMs || track.durationMs);
 
   return (
     <KaraokePageFrame
       eyebrow="单人 K 歌"
-      title="唱出你的这一刻"
+      title="个人练唱"
       phase={phase}
       onBack={onBack}
       mobile
@@ -112,14 +113,10 @@ export default function MobileKaraokeSoloPage({
             <Play aria-hidden="true" />开始演唱
           </button>
         )}
-        <button type="button" aria-label="结束演唱" disabled={disabled || !onFinish || performance.status === 'idle'} onClick={() => void onFinish?.()}>
-          <Square aria-hidden="true" />结束
+        <button type="button" aria-label={onCancel ? '取消准备' : '结束演唱'} disabled={disabled || (!onCancel && (!onFinish || !['singing', 'paused'].includes(performance.status)))} onClick={() => void (onCancel ?? onFinish)?.()}>
+          <Square aria-hidden="true" />{onCancel ? '取消准备' : '结束'}
         </button>
       </div>
-
-      <p className="zenix-karaoke-mobile-hint">
-        麦克风采音、伴奏播放和评分由主界面注入；这个页面只显示状态并触发回调。
-      </p>
 
       <KaraokeResultDialog
         open={resultOpen && Boolean(result)}

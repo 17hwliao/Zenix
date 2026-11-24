@@ -1,0 +1,210 @@
+.yz-shell--library {
+  --desktop-nav-width: clamp(184px, 16.4vw, 260px);
+  --desktop-dock-height: 0px;
+  --desktop-gutter: clamp(20px, 2.1vw, 36px);
+  --desktop-banner-height: 92px;
+  background: radial-gradient(ellipse at 84% 76%, #171e2c, transparent 66%), #111620;
+  color: #f4f6fa;
+}
+
+.yz-shell--library.has-docked-player { --desktop-dock-height: 82px; }
+.yz-shell--library:has(.yz-lattice.is-immersive) { --desktop-nav-width: 0px; }
+.yz-shell--library:has(.yz-lattice.is-immersive) .zenix-desktop-nav { display: none; }
+.yz-shell--library .yz-page { left: var(--desktop-nav-width); }
+.yz-shell--library .yz-lattice-search-zone { padding-top: 37px; width: min(570px, calc(100% - 110px)); }
+.yz-shell--library .yz-lattice-back { top: 39px; }
+
+.yz-window-controls.is-docked {
+  width: 132px;
+  right: 8px;
+  top: 3px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  backdrop-filter: none;
+}
+
+.zenix-desktop-nav {
+  position: absolute;
+  inset: 0 auto var(--desktop-dock-height) 0;
+  z-index: 11;
+  width: var(--desktop-nav-width);
+  display: flex;
+  flex-direction: column;
+  padding: 34px 14px 12px;
+  border-right: 1px solid #ffffff14;
+  background: #171e2bf2;
+}
+
+.zenix-desktop-brand {
+  flex: none;
+  align-self: flex-start;
+  margin: 0 8px 19px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  font-size: 25px;
+  font-weight: 770;
+  letter-spacing: -.06em;
+}
+
+.zenix-desktop-nav-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #69748d69 transparent; }
+.zenix-desktop-nav-group { display: grid; gap: 3px; }
+.zenix-desktop-nav-group + .zenix-desktop-nav-group { margin-top: 12px; padding-top: 11px; border-top: 1px solid #ffffff19; }
+.zenix-desktop-nav-label { padding: 1px 12px 3px; font-size: 12px; font-weight: 550; color: #aab3c4; }
+.zenix-desktop-nav-group button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 14px;
+  text-align: left;
+}
+.zenix-desktop-nav-group button svg { flex: none; color: #cbd5e8; }
+.zenix-desktop-nav-group button:hover { background: #ffffff0d; }
+.zenix-desktop-nav-group button[aria-current=page] { background: #2b3853; }
+.zenix-desktop-nav-group button:focus-visible { outline-offset: -2px; }
+.zenix-desktop-nav-settings { margin-top: auto; padding-top: 6px; border-top: 1px solid #ffffff19; }
+
+.yz-shell--library .yz-home-search-dock {
+  top: 35px;
+  left: calc(var(--desktop-nav-width) + var(--desktop-gutter));
+  width: min(420px, calc(100% - var(--desktop-nav-width) - var(--desktop-gutter) * 2));
+  height: 42px;
+  transform: none;
+}
+.yz-shell--library .yz-home-search-dock form {
+  height: 40px;
+  padding: 0 6px 0 13px;
+  border: 1px solid #ffffff21;
+  border-radius: 10px;
+  background: #1d2533;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.yz-shell--library .yz-home-search-dock input { font-size: 14px; }
+.yz-shell--library .yz-home-search-dock button { background: transparent; color: #cbd5e8 !important; }
+
+.zenix-home-space.is-library-layout, .zenix-home-space.is-orbit-layout { inset: 86px 0 var(--desktop-dock-height); }
+.zenix-home-space.is-library-layout { overflow: auto; scrollbar-width: thin; scrollbar-color: #69748d69 transparent; }
+.zenix-home-space.is-orbit-layout .zenix-home-foot { padding-bottom:40px; }
+.zenix-home-space.is-orbit-layout .zenix-space-stage { height:min(100%, 560px); }
+.zenix-desktop-home { padding: 8px var(--desktop-gutter) 30px; }
+.zenix-desktop-home h1 { margin: 0 0 16px; font-size: clamp(25px, 2.5vw, 36px); letter-spacing: -.035em; }
+.zenix-desktop-identity {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: var(--desktop-banner-height, 92px);
+  padding: 14px 20px;
+  border: 1px solid #ac864a53;
+  border-radius: 13px;
+  background: linear-gradient(116deg, #211d18, #1a1b1e 48%, #56411e);
+}
+.zenix-desktop-identity-background { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; }
+.zenix-desktop-identity-sizer { position:absolute; inset:0 var(--desktop-gutter); height:var(--desktop-banner-height); visibility:hidden; pointer-events:none; }
+.zenix-desktop-monogram {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  overflow: hidden;
+  border: 1px solid #c5a26191;
+  border-radius: 50%;
+  background: #a4782633;
+  color: #edcc8b;
+  font-size: 30px;
+}
+.zenix-desktop-monogram img { width: 100%; height: 100%; object-fit: cover; }
+.zenix-desktop-identity h2 { flex: 1; min-width: 0; overflow: hidden; margin: 0; font-size: clamp(19px, 2.15vw, 29px); text-overflow: ellipsis; white-space: nowrap; }
+.zenix-desktop-identity button, .zenix-desktop-empty button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  min-height: 37px;
+  border: 1px solid #ffffff28;
+  border-radius: 8px;
+  background: #12172266;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.zenix-desktop-identity button:hover, .zenix-desktop-empty button:hover { background: #ffffff16; }
+
+.zenix-desktop-section { margin-top: 22px; margin-inline-end: clamp(90px, 9.5vw, 145px); }
+.zenix-desktop-section > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.zenix-desktop-section > header h2 { margin: 0; font-size: clamp(16px, 1.55vw, 21px); }
+.zenix-desktop-section > header button, .zenix-desktop-playlist-play {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+}
+.zenix-desktop-section > header button:hover, .zenix-desktop-playlist-play:hover { background: #ffffff10; }
+.zenix-desktop-recent { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(10px, 1.65vw, 24px); }
+.zenix-desktop-track { display: grid; gap: 8px; min-width: 0; padding: 0; border: 0; border-radius: 8px; background: none; text-align: left; }
+.zenix-desktop-track > .yz-cover { width: 100%; height: auto; aspect-ratio: 1.15; border-radius: 8px; }
+.zenix-desktop-track-caption { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 3px; }
+.zenix-desktop-track-caption > span { min-width: 0; }
+.zenix-desktop-track-caption strong, .zenix-desktop-track-caption small, .zenix-desktop-playlist-open strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.zenix-desktop-track-caption strong, .zenix-desktop-playlist-open strong { font-size: 14px; font-weight: 650; }
+.zenix-desktop-track-caption small, .zenix-desktop-playlist-open small { margin-top: 3px; color: #a9b3c6; font-size: 12px; }
+.zenix-desktop-track-caption svg { flex: none; color: #c4ccdd; }
+.zenix-desktop-track:hover .zenix-desktop-track-caption svg { color: white; }
+
+.zenix-desktop-playlists { margin: 0; padding: 0; list-style: none; border-top: 1px solid #ffffff14; }
+.zenix-desktop-playlists li { display: flex; align-items: center; padding: 3px 4px; border-bottom: 1px solid #ffffff14; }
+.zenix-desktop-playlists li:hover { background: #ffffff08; }
+.zenix-desktop-playlist-open { min-width: 0; flex: 1; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 4px 10px 4px 2px; border: 0; background: transparent; text-align: left; }
+.zenix-desktop-playlist-open .yz-cover { width: 38px; height: 38px; border-radius: 6px; }
+.zenix-desktop-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 64px; padding: 12px 14px; border: 1px solid #ffffff13; border-radius: 9px; color: #b9c3d4; font-size: 13px; }
+.zenix-desktop-empty button { margin-left: auto; color: #edf3ff; }
+
+.yz-shell--library .yz-playerbar--home {
+  left: calc(-1 * var(--desktop-nav-width));
+  right: 0;
+  bottom: 0;
+  width: auto;
+  height: var(--desktop-dock-height);
+  padding: 6px 20px;
+  border: 0;
+  border-top: 1px solid #ffffff24;
+  border-radius: 0;
+  background: #181f2bf7;
+  transform: none;
+}
+.yz-shell--library .yz-playerbar-main { height: 44px; }
+.yz-shell--library .yz-playerbar-detail { height: 23px; }
+
+@media (max-width: 800px) {
+  .yz-shell--library { --desktop-nav-width: 64px; }
+  .zenix-desktop-nav { padding-inline: 8px; }
+  .zenix-desktop-nav-group button { justify-content: center; padding-inline: 0; }
+  .zenix-desktop-brand { align-self: center; margin-inline: 0; padding: 0; font-size: 17px; }
+  .zenix-desktop-nav-label { display: none; }
+  .zenix-desktop-nav-group button span { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .zenix-desktop-recent { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-height: 740px) {
+  .zenix-desktop-nav-group button { min-height: 32px; }
+  .zenix-desktop-nav-group + .zenix-desktop-nav-group { margin-top: 7px; padding-top: 6px; }
+}

@@ -512,7 +512,7 @@ class SourceManager {
     for (let index = 0; index < tiers.length; index += 1) { const result = await this.cached(track, tiers[index]); if (result) return { ...result, playbackQuality: tiers[index] }; }
     return null;
   }
-  async resolve(track, quality = 'high', cacheAsId = '', skipCache = false, signal,replacement=false) {
+  async resolve(track, quality = 'high', cacheAsId = '', skipCache = false, signal,replacement=false, preserveCache=false) {
     const id = track?.providerId, remoteId = track?.remoteId;
     if (!id || !remoteId) throw new Error('歌曲缺少来源 ID');
     const coverUrl = id.startsWith('lx.') ? this.makeCoverUrl(id, remoteId) : track.coverUrl;
@@ -526,7 +526,7 @@ class SourceManager {
     const cacheId = !replacement && typeof cacheAsId === 'string' && cacheAsId.startsWith('source:') ? cacheAsId : track.id;
     // A forced resolve follows a rejected cache/connection. Do not route its
     // fresh stream back into those same bytes, including aliases of the file.
-    if (skipCache && this.audioCache && !this.audioCache.readOnly) {
+    if (skipCache && !preserveCache && this.audioCache && !this.audioCache.readOnly) {
       const cached = await this.audioCache.find(cacheId, quality);
       if (cached && (!cached.recording || samePlaybackRecording(cached.recording, track))) await this.audioCache.discard(cacheId, quality);
       await this.audioCache.discard(recordingCacheId(track), quality);
@@ -542,7 +542,7 @@ class SourceManager {
     const token = randomUUID();
     const headers = this.mediaHeaders(result.headers);
     const recording = require('./audio-cache.cjs').safeRecording({ ...track, actualQuality: result.actualQuality || quality });
-    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, recording,replacement, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
+    this.sessions.set(token, { id, remoteId, trackId: cacheId, quality, url: result.url, headers, recording,replacement,bypassCache:skipCache&&preserveCache, inspectionOnly:preserveCache&&!cacheAsId, expiresAt: Number(result.expiresAt) || 0, refreshes: 0 });
     return { audioUrl: `yzqxy://stream/${token}`, actualQuality: boundedText(result.actualQuality || quality, 30), coverUrl, playbackProviderId: id, playbackRecording: recording, diagnosticAttemptId: this.diagnostics.record(id, started) };
     } catch (error) { this.diagnostics.record(id, started, error); throw error; }
   }
@@ -583,14 +583,20 @@ class SourceManager {
     await require('./runtime/audio-probe.cjs').checkResponse(response,signal);
   }
   async stream(request, token) {
-    const session = this.sessions.get(token); if (!session) return new Response('音频会话已过期', { status: 404 });
+    const reportFailure = status => {
+      if (request.method === 'GET' && !request.signal.aborted && /^[\da-f-]{36}$/i.test(token)) {
+        this.broadcast?.('sources:stream-failed', { token, status });
+      }
+    };
+    const rejectStream = status => { reportFailure(status); return new Response(null, { status }); };
+    const session = this.sessions.get(token); if (!session) return rejectStream(404);
     // The player retains this stream token across repeats and seeks. Cache may
     // have completed since it was resolved; check disk before refreshing URLs.
     const cached = await this.audioCache?.find(session.trackId, session.quality);
-    if (cached && (!session.recording || samePlaybackRecording(cached.recording, session.recording))) return require('./runtime/media-protocol.cjs').serveFile(cached.path, request, cached.contentType);
+    if (!session.bypassCache && cached && (!session.recording || samePlaybackRecording(cached.recording, session.recording))) return require('./runtime/media-protocol.cjs').serveFile(cached.path, request, cached.contentType);
     const isolatedId = session.recording ? recordingCacheId(session.recording) : null;
     const isolated = isolatedId ? await this.audioCache?.find(isolatedId, session.quality) : null;
-    if (isolated && samePlaybackRecording(isolated.recording, session.recording)) return require('./runtime/media-protocol.cjs').serveFile(isolated.path, request, isolated.contentType);
+    if (!session.bypassCache && isolated && samePlaybackRecording(isolated.recording, session.recording)) return require('./runtime/media-protocol.cjs').serveFile(isolated.path, request, isolated.contentType);
     this.networkPreferences?.require('audio');
     const record = this.record(session.id);
     if (!session.replacement&&session.expiresAt && Date.now() >= session.expiresAt - 15000) await this.refresh(session);
@@ -603,13 +609,14 @@ class SourceManager {
       finally { clearTimeout(timer); }
     };
     let response;
-    try { response = await fetchMedia(headers); } catch { return new Response(null, { status: 504 }); }
+    try { response = await fetchMedia(headers); } catch { return rejectStream(504); }
     if (!session.replacement&&[401, 403, 410].includes(response.status) && session.refreshes < 1) {
       await response.body?.cancel().catch(() => {});
       await this.refresh(session);
-      try { response = await fetchMedia({ ...session.headers, ...(headers.Range ? { Range: headers.Range } : {}) }); } catch { return new Response(null, { status: 504 }); }
+      try { response = await fetchMedia({ ...session.headers, ...(headers.Range ? { Range: headers.Range } : {}) }); } catch { return rejectStream(504); }
     }
-    if (/text\/html|application\/json/i.test(response.headers.get('content-type') || '')) { await response.body?.cancel().catch(() => {}); return new Response(null, { status: 502 }); }
+    if (/text\/html|application\/json/i.test(response.headers.get('content-type') || '')) { await response.body?.cancel().catch(() => {}); return rejectStream(502); }
+    if (!response.ok && response.status !== 416) reportFailure(response.status);
     const outgoing = new Headers();
     for (const key of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
       const value = response.headers.get(key); if (value) outgoing.set(key, value);
@@ -619,7 +626,7 @@ class SourceManager {
     const latestCached = cached || await this.audioCache?.find(session.trackId, session.quality);
     const activeCapture = this.audioCache?.jobs.get(this.audioCache.key(session.trackId, session.quality));
     const captureId = isolatedId && (latestCached && !samePlaybackRecording(latestCached.recording, session.recording) || activeCapture && !samePlaybackRecording(activeCapture.recording, session.recording)) ? isolatedId : session.trackId;
-    const body = [200, 206].includes(response.status)
+    const body = !session.inspectionOnly && [200, 206].includes(response.status)
       ? this.audioCache?.captureResponse(captureId, session.quality, response, signal => fetchAllowed(session.url, record.kind === 'lx' ? null : record.manifest.network.mediaHosts, { ...policyOptions(record), headers: session.headers, signal }), session.recording) || response.body
       : response.body;
     return new Response(body, { status: response.status, headers: outgoing });

@@ -103,7 +103,6 @@ export function KaraokeErrorNotice({
       <AlertCircle aria-hidden="true" />
       <span>
         <strong>{error.code ? `${error.code} · ` : ''}{error.message}</strong>
-        {error.recoverable && <small>可以重试；已同步的房间资料不会被清除。</small>}
       </span>
       <span className="zenix-karaoke-error-actions">
         {onRetry && error.recoverable !== false && (

@@ -226,6 +226,7 @@ export default function LatticePlayer({ assistantView,
       event.preventDefault();
       event.stopImmediatePropagation();
       setImmersive(false);
+      setPureLyrics(false);
       playUiSound('cancel');
     };
     window.addEventListener('keydown', restoreSticker, true);

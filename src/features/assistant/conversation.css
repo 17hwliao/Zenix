@@ -3,3 +3,30 @@
 .pet-portrait .pet-talking-mouth{clip-path:ellipse(5% 2.5% at 51% 28.8%);opacity:0;animation:zenix-muse-talk .32s steps(1,end) infinite}@keyframes zenix-muse-talk{0%,100%{opacity:0}50%{opacity:1}}@media(prefers-reduced-motion:reduce){.pet-portrait .pet-talking-mouth{animation:none!important}}
 
 .assistant-results,.assistant-plan ul{max-height:190px;overflow:auto;padding-left:24px;line-height:1.8;overflow-wrap:anywhere}.assistant-lyrics{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.9;max-height:230px;overflow:auto;padding:12px;background:#0a132180;border-radius:12px}.assistant-plan{border:1px solid #a7d8f34a;border-radius:16px;padding:12px;background:#182c40}.assistant-plan p{margin-top:0}
+
+.assistant-conversation:not(.is-mobile)[data-open=false] { z-index:90; }
+.assistant-corner-layer { position:fixed; inset:40px 12px 94px; pointer-events:none; }
+.assistant-conversation .assistant-corner-character {
+  position:absolute;
+  right:10px;
+  bottom:4px;
+  width:clamp(88px,9vw,126px);
+  max-width:100%;
+  height:auto;
+  max-height:100%;
+  aspect-ratio:3 / 4;
+  min-height:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  cursor:grab;
+  pointer-events:auto;
+  touch-action:none;
+  user-select:none;
+  -webkit-app-region:no-drag;
+}
+.assistant-conversation .assistant-corner-character:hover { background:transparent; }
+.assistant-corner-character[data-dragging=true] { cursor:grabbing; }
+.assistant-corner-character .pet-portrait { display:block; position:relative; width:100%; height:100%; pointer-events:none; filter:drop-shadow(0 4px 6px #0008); }
+.assistant-corner-character .pet-portrait img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; -webkit-user-drag:none; }
+.assistant-corner-character :is(.pet-blink,.pet-brand) { display:none; }

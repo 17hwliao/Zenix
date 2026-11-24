@@ -138,11 +138,12 @@ test('resolver parses LRC, enhanced LRC, UltraStar and dependency-free MIDI into
 
   const ultra = await resolver.resolve(descriptorInput({
     format: 'ultrastar',
-    text: '#TITLE:Ultra 测试\n#ARTIST:歌手\n#BPM:120\n#GAP:1000\n: 0 1 60 你\n: 1 1 62 好\n-',
+    text: '#TITLE:Ultra 测试\n#ARTIST:歌手\n#BPM:120\n#GAP:1000\n: 0 4 0 你\n: 4 4 2 好\n- 8\nE',
   }));
   assert.equal(ultra.ok, true);
   assert.equal(ultra.value.title, 'Ultra 测试');
   assert.deepEqual(ultra.value.pitchTrack.lines[0].notes.map((note) => note.midi), [60, 62]);
+  assert.deepEqual(ultra.value.pitchTrack.lines[0].notes.map((note) => note.startMs), [1000, 1500]);
 
   const midi = await resolver.resolve(descriptorInput({ format: 'midi', data: Array.from(simpleMidi()) }));
   assert.equal(midi.ok, true);

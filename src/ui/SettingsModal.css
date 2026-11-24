@@ -18,6 +18,16 @@
 }
 
 .yz-settings-modal.yz-settings-redesign {
+  --zx-bg: #151922;
+  --zx-bg-elevated: #1b202b;
+  --zx-surface: #212735;
+  --zx-surface-hover: #2a3242;
+  --zx-surface-active: #2d3953;
+  --zx-border: #323a4a;
+  --zx-border-strong: #49576d;
+  --zx-text-muted: #a8b4c6;
+  --zx-text-secondary: #cad2e0;
+  --zx-accent: #dbe6fb;
   box-sizing: border-box;
   width: min(1120px, 100%);
   height: min(820px, calc(100dvh - 56px));
@@ -36,9 +46,9 @@
 
 .yz-settings-top {
   display: grid;
-  grid-template-columns: minmax(150px, .7fr) minmax(240px, 1.5fr) 44px;
+  grid-template-columns: minmax(100px,1fr) minmax(220px,440px) 44px;
   align-items: center;
-  gap: var(--zx-space-4);
+  gap: 22px;
   flex: none;
   min-height: 84px;
   padding: 18px 24px;
@@ -50,13 +60,6 @@
   font-size: 24px;
   font-weight: 570;
   letter-spacing: -.035em;
-}
-
-.yz-settings-heading p {
-  margin: 6px 0 0;
-  color: var(--zx-text-muted);
-  font-size: 13px;
-  line-height: 1.4;
 }
 
 .yz-settings-search {
@@ -142,11 +145,11 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 18px 12px;
+  gap: 10px;
+  padding: 22px 14px;
   overflow-y: auto;
   border-right: 1px solid var(--zx-border);
-  background: #0c0c0c;
+  background: #181e29;
   scrollbar-width: thin;
   scrollbar-color: var(--zx-border-strong) transparent;
 }
@@ -214,7 +217,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 26px 30px 36px;
+  padding: clamp(22px,3vw,38px) clamp(20px,3vw,40px) 44px;
   scrollbar-width: thin;
   scrollbar-color: var(--zx-border-strong) transparent;
 }
@@ -227,7 +230,7 @@
 }
 
 .yz-settings-intro {
-  margin-bottom: 22px;
+  margin: 0;
   text-align: left;
 }
 
@@ -247,8 +250,9 @@
 }
 
 .yz-settings-list {
-  margin: 16px 0;
-  border-top: 1px solid var(--zx-border);
+  display: grid;
+  gap: 10px;
+  margin: 0;
 }
 
 .yz-setting-row {
@@ -258,9 +262,16 @@
   gap: 20px;
   min-width: 0;
   min-height: 76px;
-  padding: 14px 2px;
-  border-bottom: 1px solid var(--zx-border);
+  padding: 14px 16px;
+  border: 1px solid var(--zx-border);
+  border-radius: var(--zx-radius-md);
+  background: var(--zx-bg-elevated);
 }
+
+.yz-settings-body { display: grid; align-content: start; gap: 24px; max-width: 900px; margin-inline: auto; }
+.yz-settings-group { display: grid; gap: 12px; min-width: 0; padding: 18px; border: 1px solid var(--zx-border); border-radius: 16px; background: #ffffff03; }
+.yz-settings-group > h3 { margin: 0 0 2px; font-size: 15px; font-weight: 650; }
+.yz-settings-group .yz-settings-advanced, .yz-settings-group .yz-settings-quick-tools { margin-block: 0; }
 
 .yz-setting-copy {
   display: grid;
@@ -805,10 +816,6 @@
 
   .yz-settings-heading h2 {
     font-size: 22px;
-  }
-
-  .yz-settings-heading p {
-    display: none;
   }
 
   .yz-settings-search {

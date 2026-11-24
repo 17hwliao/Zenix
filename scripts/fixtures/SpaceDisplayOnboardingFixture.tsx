@@ -24,6 +24,6 @@ const snapshot={personal,playback,sources:[],cache:{usedBytes:0,enabled:true,lim
 const actions=(song:Track)=><><button aria-label={`喜欢 ${song.title}`}>♡</button><button aria-label={`收藏 ${song.title}`}>☆</button></>;
 const host=platform==='mobile'
  ?<div className="zenix-mobile page-space"><header style={{height:70,padding:15,boxSizing:'border-box'}}>Zenix · 音乐空间</header><StickerSpace songs={tracks} state={snapshot} label="96 首测试歌单" focusRequest={0} play={play} full={no} actions={actions} seek={no}/></div>
- :<div className="yz-shell yz-shell--player"><LatticePlayer track={tracks[0]} personal={personal} queue={tracks} queueIndex={0} displayTracks={tracks} onPlayTrack={play} lyrics={[]} playing={false} position={12} duration={240} volume={.75} muted={false} shuffle={false} repeat="all" onBack={no} onTogglePlay={no} onPrevious={no} onNext={no} onSeek={no} onVolumeChange={no} onOpenQueue={no} onExpandPlayer={no} onOpenSettings={no} onOpenSearch={no}/></div>;
+ :<div className="yz-shell yz-shell--player"><LatticePlayer track={tracks[0]} hasPlayback={true} personal={personal} queue={tracks} queueIndex={0} displayTracks={tracks} onPlayTrack={play} lyrics={[]} playing={false} position={12} duration={240} volume={.75} muted={false} shuffle={false} repeat="all" onBack={no} onTogglePlay={no} onPrevious={no} onNext={no} onSeek={no} onVolumeChange={no} onOpenQueue={no} onExpandPlayer={no} onOpenSettings={no} onOpenSearch={no}/></div>;
 Object.assign(window,{onboardingFixture:{platform,calls}});
 createRoot(document.getElementById('root')!).render(host);

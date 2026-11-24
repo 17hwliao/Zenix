@@ -79,13 +79,17 @@ async function serveFile(filePath, request, contentType) {
   return new Response(body, { status, headers });
 }
 
-function registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance }) {
+function registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance, karaokeSeparation }) {
   protocol.handle('yzqxy', async (request) => {
     const url = new URL(request.url);
     if (url.hostname === 'stream') return sourceManager.stream(request, url.pathname.slice(1));
     if (url.hostname === 'cached-audio') {
       const cached = await audioCache.byKey(url.pathname.slice(1));
       return cached ? serveFile(cached.path, request, cached.contentType) : new Response('Not found', { status: 404 });
+    }
+    if (url.hostname === 'karaoke-backing') {
+      const file = await karaokeSeparation?.fileFor(url.pathname.slice(1));
+      return file ? serveFile(file,request,'audio/wav') : new Response('Not found',{status:404});
     }
     if (url.hostname === 'source-cover') {
       const parts = url.pathname.split('/').slice(1);

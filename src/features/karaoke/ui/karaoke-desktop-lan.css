@@ -1,6 +1,8 @@
 .zenix-karaoke-lan-launch {
   display: grid;
-  gap: 16px;
+  gap: 24px;
+  width: min(100%, 940px);
+  margin-inline: auto;
 }
 
 .zenix-karaoke-room-layout[data-lan-room="true"] .zenix-karaoke-room-head {
@@ -25,11 +27,29 @@
 .zenix-karaoke-lan-setup {
   grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr);
   background: var(--zk-panel);
+  gap: clamp(24px, 4vw, 56px);
+  padding: clamp(20px, 4vw, 40px);
+  align-items: start;
 }
 
 .zenix-karaoke-lan-setup form {
   grid-column: 2;
   min-width: 0;
+}
+
+.zenix-karaoke-lan-setup h2 {
+  font-size: clamp(23px, 3vw, 32px);
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+
+.zenix-karaoke-lan-setup p { max-width: 28ch; }
+
+.zenix-karaoke-lan-setup form input { min-height: 44px; }
+
+.zenix-karaoke-lan-performance > .zenix-karaoke-connection-action {
+  margin-block-start: 12px;
+  margin-block-end: 0;
 }
 
 .zenix-karaoke-lan-invite {
