@@ -21,7 +21,7 @@ const { normalizeGenerationRequest, normalizeRequestId } = require('./runtime/ka
 const karaokeSockets = new KaraokeSockets(payload => broadcast('karaoke:network-event', payload));
 let companion, musicWidget;
 let updates;
-let personalFeatures, offlineTasks, assistant, assistantModel;
+let personalFeatures, offlineTasks, assistant, assistantModel, assistantChat;
 
 const primaryInstance = app.requestSingleInstanceLock();
 if (!primaryInstance) app.quit();
@@ -49,7 +49,7 @@ let lyricsLockWindow = null;
 let lyricsLockReady = false;
 function trustedApp(event, channel) {
   if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return false;
-  const windows = [mainWindow, lyricsWindow, ...(channel === 'lyrics:unlock' ? [lyricsLockWindow] : [])];
+  const windows = [mainWindow, lyricsWindow, ...(channel === 'lyrics:unlock' ? [lyricsLockWindow] : []), ...(channel === 'assistant-model:invoke' ? [assistantChat?.window] : [])];
   return windows.some(window => window && !window.isDestroyed() && window.webContents === event.sender);
 }
 function handleApp(channel, handler) { ipcMain.handle(channel, (event, ...args) => {
@@ -262,6 +262,7 @@ function createWindow() {
   mainWindow.on('focus', () => maintainLyricsZOrder(true));
   mainWindow.on('close', event => desktopTray?.close(event, win));
   mainWindow.on('closed', () => {
+    assistantChat?.hostClosed();
     musicWidget?.close();
     mainWindow = null;
     if (lyricsWindow && !lyricsWindow.isDestroyed()) lyricsWindow.close();
@@ -731,11 +732,19 @@ if (primaryInstance) app.whenReady().then(async () => {
   await companion.backup.load();
   assistant=new (require('./runtime/assistant.cjs').Assistant)({folder:app.getPath('userData'),dialog,getWindow:()=>mainWindow,BrowserWindow,ipcMain,screen,execute:async(action,value)=>action==='voiceStart'?mainWindow?.webContents.send('assistant:voice-start'):action==='voice'?mainWindow?.webContents.send('assistant:utterance',value):action==='show'?broadcast('desktop:command',{action:'assistant'}):broadcast('media:command',action)});
   await assistant.load();
-  assistantModel = new (require('./runtime/assistant-model.cjs').AssistantModel)({folder:app.getPath('userData')});
+  desktopControls=new DesktopControls({folder:app.getPath('userData'),globalShortcut,show:showMainWindow,command:(action,value)=>broadcast('desktop:command',{action,value})});
+  assistantChat = new (require('./runtime/assistant-chat.cjs').AssistantChat)({getHost:()=>mainWindow, getPet:()=>assistant?.window, BrowserWindow, ipcMain, screen, globalShortcut, onVisibility:value=>assistant.setChatOpen(value)});
+  assistant.openChat = () => assistantChat.toggle();
+  assistant.onMove = () => assistantChat.position();
+  assistantModel = new (require('./runtime/assistant-model.cjs').AssistantModel)({folder:app.getPath('userData'),
+    onDelta:value=>mainWindow?.webContents.send('assistant-model:delta',value)});
   await assistantModel.load();
   handleApp('assistant-model:invoke', (event, args) => {
-    if(event.sender!==mainWindow?.webContents)throw Error('无权调用远程音乐助手');
-    return assistantModel.invoke(args);
+    if(event.sender!==mainWindow?.webContents && !(event.sender===assistantChat?.window?.webContents && ['read','configure','test','cancel','attachmentImport','attachmentPreview','attachmentRemove'].includes(args?.action)))throw Error('无权调用远程音乐助手');
+    return assistantModel.invoke(args).then(value=>{
+      if(args.action==='configure' && event.sender!==mainWindow?.webContents) mainWindow?.webContents.send('assistant-chat:command',{id:'configuration',action:'configurationChanged',args:[]});
+      return value;
+    });
   });
   handleApp('companion:invoke', (event, args) => { if(event.sender!==mainWindow?.webContents)throw Error('无权调用音乐工具');if(args?.operation==='assistant')return assistant.invoke(args);if(args?.operation==='personalFeatures')return personalFeatures.invoke(args);if(args?.operation==='offlineTasks')return offlineTasks.invoke(args);if(args?.operation==='widgetUpdate'){desktopTray?.update(args);desktopControls?.update(args);assistant?.update(args);}return companion.invoke(args || {}); });
   ipcMain.handle('widget:action', (event, action) => { if(!musicWidget.trusted(event))throw Error('未授权组件请求');musicWidget.action(action); });
@@ -743,9 +752,8 @@ if (primaryInstance) app.whenReady().then(async () => {
   await sourceManager.metadataCache.prune({ bestEffort: true });
   registerMediaProtocol({ protocol, sourceManager, audioCache, library, appearance, karaokeSeparation });
   registerHandlers();
-  desktopControls=new DesktopControls({folder:app.getPath('userData'),globalShortcut,show:showMainWindow,command:(action,value)=>broadcast('desktop:command',{action,value})});
   handleApp('desktop:invoke', (event,args)=>{if(event.sender!==mainWindow?.webContents)throw Error('无权调用桌面设置');return desktopControls.invoke(args||{});});
-  try{desktopTray = new DesktopTray({app, Tray, Menu, show: showMainWindow, command: action => broadcast('media:command',action)});}catch(error){console.error('System tray unavailable; window remains the app exit fallback');}
+  try{desktopTray = new DesktopTray({app, Tray, Menu, show: showMainWindow, chat:()=>assistantChat.toggle(), command: action => broadcast('media:command',action)});}catch(error){console.error('System tray unavailable; window remains the app exit fallback');}
   createWindow();
   app.on('activate', () => {
     showMainWindow();
@@ -768,5 +776,5 @@ app.on('before-quit', event => {
     return;
   }
   void karaokeSeparation?.close();
-  karaokeSockets.stop(); assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork();
+  karaokeSockets.stop(); assistantChat?.close(); assistantModel?.close(); assistant?.close(); offlineTasks?.close(); desktopControls?.stop(); companion?.stop(); updates?.stop(); sourceManager?.close(); require('./runtime/source-network.cjs').closeNetwork();
 });

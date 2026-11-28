@@ -9,7 +9,6 @@ import type { AppearanceState, LibrarySnapshot, LyricLine, PersonalState, Player
 import { resolveCustomTrack } from './core/sourcePlayback';
 import { roaming } from './core/roaming';
 import type { RoamingStatus } from './core/types';
-import { PlaylistManager } from './playlists';
 import { ListeningTracker } from './core/listeningTracker';
 
 export default function App() {
@@ -26,7 +25,6 @@ export default function App() {
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [roamingStatus, setRoamingStatus] = useState<RoamingStatus>(roaming.snapshot);
-  const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [playerViewRequestKey, setPlayerViewRequestKey] = useState(0);
   const [lyricDisplay]=useLyricDisplay(playback.track);
   const lastHistoryEvent = useRef('');
@@ -42,7 +40,7 @@ export default function App() {
 
   useEffect(()=>{const show=(event:Event)=>setNotice(String((event as CustomEvent).detail));window.addEventListener('zenix-audio-notice',show);return()=>window.removeEventListener('zenix-audio-notice',show);},[]);
   useEffect(()=>window.yzqxy?.desktop?.onCommand(({action,value})=>{
-    if(action==='assistant'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:'assistant'}}));return;}
+    if(action==='assistant'||action==='karaoke'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:action}}));return;}
     if(action==='seek')player.seek(value||0);else if(action==='volume')player.setVolume(value||0);
     else if(action==='volume-up')player.setVolume(player.snapshot.volume+.05);else if(action==='volume-down')player.setVolume(player.snapshot.volume-.05);
     else if(action==='search')window.dispatchEvent(new Event('zenix-open-search'));
@@ -326,18 +324,12 @@ export default function App() {
       onImportFolder={importFolder}
       onAddFiles={addFiles}
       onImportPlaylist={importPlaylist}
-      onOpenPlaylists={() => setPlaylistsOpen(true)}
       onRefreshLibrary={refreshLibrary}
       onMinimize={window.yzqxy ? () => { void window.yzqxy?.window.minimize(); } : undefined}
       onMaximize={window.yzqxy ? () => { void window.yzqxy?.window.toggleFullscreen(); } : undefined}
       onClose={window.yzqxy ? () => { void window.yzqxy?.window.close(); } : undefined}
       onReplayIntro={() => setIntroVisible(true)}
     />
-    {playlistsOpen && <PlaylistManager onClose={() => setPlaylistsOpen(false)} onPlayTrack={(track, queue) => {
-      void playTrack(track, queue);
-      setPlaylistsOpen(false);
-      setPlayerViewRequestKey(value => value + 1);
-    }} />}
     {notice && <div className="yz-runtime-notice" role="alert"><span>{notice}</span><button type="button" aria-label="关闭提示" onClick={() => setNotice('')}><X size={18}/></button></div>}
     {appearanceLoaded && !introVisible && !appearance.completed && <AppearanceOnboarding busy={appearanceBusy} onChoose={chooseBackground} onSkip={completeAppearance} />}
     {introVisible && <ZenixIntro background={appearance.background} onFinish={finishIntro} />}

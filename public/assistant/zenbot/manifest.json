@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "id": "zenbot",
+  "name": "zenbot",
+  "license": "user-owned-local",
+  "drawing": {
+    "logoHeight": 292,
+    "centerX": 128,
+    "feetY": 256,
+    "referenceCanvas": [1117, 1409]
+  },
+  "defaults": {
+    "bubbleAnchor": [128, -58],
+    "hit": [128, 118, 142],
+    "extent": [-28, -72, 284, 256],
+    "accent": "#63d8ff",
+    "eye": "#4fd6ff"
+  },
+  "timing": {
+    "crossfadeMs": 140,
+    "motionTailMs": 140,
+    "turnMs": 420,
+    "expressionSeconds": 0.9,
+    "preload": [
+      "expression:happy",
+      "motion:nod",
+      "motion:look",
+      "motion:wave",
+      "motion:walk",
+      "motion:jump"
+    ]
+  },
+  "expressionAliases": {
+    "listening": "neutral",
+    "sleep": "sleepy",
+    "content": "happy",
+    "waking": "sleepy",
+    "squeeze": "neutral",
+    "bowing": "happy",
+    "dragged": "scared",
+    "run": "determined",
+    "dizzy": "confused"
+  },
+  "expressions": {
+    "neutral": { "file": "expressions/neutral.png" },
+    "happy": { "file": "expressions/happy.png" },
+    "wink": { "file": "expressions/wink.png" },
+    "love": { "file": "expressions/love.png" },
+    "shy": { "file": "expressions/shy.png" },
+    "surprised": { "file": "expressions/surprised.png" },
+    "angry": { "file": "expressions/angry.png" },
+    "sad": { "file": "expressions/sad.png" },
+    "sleepy": { "file": "expressions/sleepy.png" },
+    "thinking": { "file": "expressions/thinking.png" },
+    "smug": { "file": "expressions/smug.png" },
+    "pout": { "file": "expressions/pout.png" },
+    "worried": { "file": "expressions/worried.png" },
+    "determined": { "file": "expressions/determined.png" },
+    "flustered": { "file": "expressions/flustered.png" },
+    "scared": { "file": "expressions/scared.png" },
+    "excited": { "file": "expressions/excited.png" },
+    "cry": { "file": "expressions/cry.png" },
+    "confused": { "file": "expressions/confused.png" }
+  },
+  "motions": {
+    "stand": { "file": "motions/stand.png", "seconds": 1.2 },
+    "jump": { "file": "motions/jump.png", "seconds": 1.2 },
+    "hop": { "file": "motions/hop.png", "seconds": 0.9, "scale": 1.24 },
+    "look": { "file": "motions/look.png", "seconds": 2.7 },
+    "turn": { "file": "motions/turn.png", "seconds": 0.4, "offsetX": 10 },
+    "nod": { "file": "motions/nod.png", "seconds": 0.8 },
+    "shake": { "file": "motions/shake.png", "seconds": 0.8 },
+    "spin": { "file": "motions/spin.png", "seconds": 0.8 },
+    "sit": { "file": "motions/sit.png", "seconds": 0.8, "lasting": true },
+    "sleep": { "file": "motions/sleep.png", "seconds": 0.8, "lasting": true },
+    "dizzy": { "file": "motions/dizzy.png", "seconds": 3.2 },
+    "walk": { "file": "motions/walk.png", "seconds": 12 },
+    "run": { "file": "motions/run.png", "seconds": 12 },
+    "wave": { "file": "motions/wave.png", "seconds": 1.7 },
+    "bow": { "file": "motions/bow.png", "seconds": 1.7 },
+    "shiver": { "file": "motions/shiver.png", "seconds": 1.9 },
+    "flap": { "file": "motions/flap.png", "seconds": 1.5, "scale": 1.18 },
+    "dance": { "file": "motions/dance.png", "seconds": 3.4 }
+  }
+}

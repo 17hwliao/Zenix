@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import FeatureLauncher,{FeatureHost} from '../../src/features/FeatureLauncher';
 import type {Track,PersonalState} from '../../src/core/types';
 import {rules} from '../../src/features/space/state';
+const ZenixShell=React.lazy(()=>import('../../src/ui/ZenixShell'));
 import '../../src/ui/Zenix.css';
 import '../../src/mobile/mobile.css';
 
@@ -71,4 +72,17 @@ const fixture={mode,calls,personal,snapshot,subscriptions,
 };
 (window as any).workbenchFixture=fixture;
 function Fixture(){const [clicks,setClicks]=useState(0);return <main style={{minHeight:'100vh',padding:20,background:'#162031',color:'white',boxSizing:'border-box'}}><h1 id="main-title">隔离的播放器主界面</h1><p>歌单与播放测试资料不会写入用户客户端。</p><button id="main-action" onClick={()=>setClicks(value=>value+1)}>主界面操作 {clicks}</button><div><FeatureLauncher/></div><FeatureHost mobile={mode==='mobile'}/><output id="main-result">{clicks}</output></main>;}
-createRoot(document.getElementById('root')!).render(<Fixture/>);
+function DesktopFixture() {
+  React.useEffect(()=>{void fixture.initialisePlayer();},[]);
+  const [data,setData]=useState(personal);
+  const [playing,setPlaying]=useState(false);
+  const [current,setCurrent]=useState(song);
+  return <><ZenixShell tracks={[{...song,id:'local-fixture',source:'local',path:'fixture.mp3'}]} personal={data} currentTrack={current} queue={[song]} playing={playing} position={12} duration={180} volume={.75}
+    onPlayTrack={track=>{calls.push({action:'fixturePlay',id:track.id});setCurrent(track as Track);setPlaying(true);}}
+    onTogglePlay={()=>setPlaying(value=>!value)} onPrevious={none} onNext={none} onSeek={none} onVolumeChange={none} onImportFolder={()=>{calls.push({action:'fixtureImport'});}} onAddFiles={()=>{calls.push({action:'fixtureFiles'});}} onRefreshLibrary={async()=>{calls.push({action:'fixtureRefresh'});}}
+    onCreatePersonalPlaylist={async name=>{const id='created-'+Date.now();setData(value=>({...value,playlists:[...value.playlists,{id,name,tracks:[]}]}));return id;}}
+    onRenamePersonalPlaylist={async(id,name)=>{setData(value=>({...value,playlists:value.playlists.map(list=>list.id===id?{...list,name}:list)}));return true;}}
+    onDeletePersonalPlaylist={async id=>{setData(value=>({...value,playlists:value.playlists.filter(list=>list.id!==id)}));return true;}}
+    onRemoveSaved={(kind,id)=>setData(value=>({...value,[kind]:value[kind].filter(row=>row.id!==id)}))}/><FeatureHost/></>;
+}
+createRoot(document.getElementById('root')!).render(<React.Suspense fallback={null}>{new URLSearchParams(location.search).has('shell')?<DesktopFixture/>:<Fixture/>}</React.Suspense>);

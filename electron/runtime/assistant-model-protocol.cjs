@@ -30,7 +30,7 @@ function endpoint(raw) {
   return url.href;
 }
 function config(input, previous) {
-  object(input, ['enabled', 'endpoint', 'model', 'apiKey', 'clearKey'], ['enabled', 'endpoint', 'model']);
+  object(input, ['enabled', 'endpoint', 'model', 'apiKey', 'clearKey', 'replyStyle', 'persona', 'toolsEnabled', 'streamMode'], ['enabled', 'endpoint', 'model']);
   if (typeof input.enabled !== 'boolean' || input.clearKey !== undefined && typeof input.clearKey !== 'boolean') invalid('模型开关无效');
   const address = endpoint(input.endpoint), model = string(input.model, 200).trim();
   if (input.enabled && (!address || !model)) invalid('启用远程助手前请填写服务地址和模型');
@@ -42,7 +42,17 @@ function config(input, previous) {
     if (supplied && !/^[\x21-\x7e]+$/.test(supplied)) invalid('API Key 不能包含空白或控制字符');
     if (supplied) apiKey = supplied;
   }
-  return { enabled: input.enabled, endpoint: address, model, apiKey: apiKey || '', revision: randomUUID() };
+  const preferences = {};
+  for (const [field, choices] of [['replyStyle', ['concise', 'detailed']], ['streamMode', ['stream', 'json']]]) {
+    const value = input[field] ?? previous?.[field];
+    if (value !== undefined) { if (!choices.includes(value)) invalid('回复偏好无效'); preferences[field] = value; }
+  }
+  if (input.persona !== undefined || previous?.persona !== undefined) preferences.persona = string(input.persona ?? previous.persona, 2000);
+  if (input.toolsEnabled !== undefined || previous?.toolsEnabled !== undefined) {
+    preferences.toolsEnabled = input.toolsEnabled ?? previous.toolsEnabled;
+    if (typeof preferences.toolsEnabled !== 'boolean') invalid('工具开关无效');
+  }
+  return { enabled: input.enabled, endpoint: address, model, apiKey: apiKey || '', revision: randomUUID(), ...preferences };
 }
 function schema(value, depth = 0) {
   if (depth > 8) invalid('工具参数结构过深');
@@ -79,7 +89,15 @@ function messages(value) {
   for (const item of value) {
     object(item, ['role', 'content', 'tool_calls', 'tool_call_id'], ['role', 'content']);
     if (!['system', 'user', 'assistant', 'tool'].includes(item.role)) invalid('对话角色无效');
-    if (item.content !== null) string(item.content, item.role === 'user' ? 4000 : 24000);
+    if (Array.isArray(item.content)) {
+      if (item.role !== 'user' || item.content.length > 9 || !item.content.length) invalid('图文消息格式无效');
+      let images = 0, textLength = 0;
+      for (const part of item.content) {
+        if (part?.type === 'text') { object(part, ['type', 'text'], ['type', 'text']); textLength += string(part.text, 4000).length; }
+        else { object(part, ['type', 'attachmentId'], ['type', 'attachmentId']); if (part.type !== 'image' || !/^[a-f0-9-]{36}$/.test(part.attachmentId)) invalid('图片引用无效'); images++; }
+      }
+      if (images > 8 || textLength > 4000) invalid('图文消息超出限制');
+    } else if (item.content !== null) string(item.content, item.role === 'user' ? 4000 : 24000);
     if (item.role !== 'assistant' && item.tool_calls !== undefined || item.role !== 'tool' && item.tool_call_id !== undefined) invalid('对话工具字段无效');
     if (item.role === 'tool') {
       if (!pending.delete(item.tool_call_id)) invalid('工具结果没有对应调用');
@@ -98,7 +116,8 @@ function messages(value) {
   return value;
 }
 function request(value) {
-  object(value, ['requestId', 'revision', 'messages', 'tools'], ['requestId', 'revision', 'messages', 'tools']);
+  object(value, ['requestId', 'revision', 'messages', 'tools', 'stream'], ['requestId', 'revision', 'messages', 'tools']);
+  if (value.stream !== undefined && typeof value.stream !== 'boolean') invalid('流式设置无效');
   if (!REQUEST_ID.test(value.requestId)) invalid('模型请求编号无效');
   string(value.revision, 100, 1);
   messages(value.messages); tools(value.tools);

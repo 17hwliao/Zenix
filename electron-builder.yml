@@ -22,6 +22,7 @@ files:
   - src/features/**/*.cjs
   - electron/desktop-lyrics.html
   - electron/lyrics-lock.html
+  - electron/ui-surfaces.css
   - electron/music-widget.html
   - electron/remote-control.html
   - electron/assistant-pet.html

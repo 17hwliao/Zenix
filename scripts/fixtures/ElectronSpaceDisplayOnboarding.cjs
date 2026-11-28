@@ -34,6 +34,7 @@ app.whenReady().then(async()=>{
    await run('window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true}))');
    await wait('!document.querySelector(".yz-lattice.is-immersive")');
    await wait('!!document.querySelector(".space-display-onboarding-dialog")');
+   await wait('document.activeElement?.dataset.spaceDisplayChoice==="sticker"');
    assert.equal(await run('document.activeElement?.dataset.spaceDisplayChoice'),'sticker','reopening the controlled onboarding resets its dismissed state');
    await run('document.querySelector("[data-space-display-choice=list]").click()');await wait('!document.querySelector(".space-display-onboarding-dialog")');await wait('!!document.querySelector(".space-song-list")');
    assert.deepEqual(await run('JSON.parse(localStorage.getItem("zenix.space.presentation.v2"))'),{schema:2,mode:'list',cardScale:1});

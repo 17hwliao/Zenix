@@ -81,7 +81,7 @@ export const toolRegistry: readonly ToolDefinition[] = Object.freeze([
     resultDescription: '已保存的音乐联网策略及当前连接的限制说明。'}),
   entry({name: 'navigation.open', module: 'navigation', batch: 'A', effect: 'navigation', confirmation: 'never', retry: 'set_target', conditions: ['navigation'],
     description: '打开软件已有页面。歌单必须通过 playlist_open 指定客户端引用，本轮不提供星轨操作。',
-    parameters: object({page: choice('home', 'space', 'search', 'queue', 'settings', 'tasks', 'stats', 'connections')}, ['page']), resultDescription: '页面确已接收跳转，或当前页面无法接收。'}),
+    parameters: object({page: choice('home', 'space', 'search', 'queue', 'settings', 'tasks', 'stats', 'connections', 'karaoke')}, ['page']), resultDescription: '页面确已接收跳转，或当前页面无法接收。'}),
   entry({name: 'roaming.configure', module: 'roaming', batch: 'C', effect: 'write', confirmation: 'always', retry: 'reconcile_before_retry', conditions: ['roaming'],
     description: '设置已有漫游能力，开始、暂停、继续、临时岔路、回原路线或减少指定歌曲。临时岔路不打断当前播放；减少偏好针对歌曲，不推断整类曲风。',
     parameters: object({action: choice('start', 'pause', 'resume', 'temporary_branch', 'return', 'reduce_track'), keyword: text(100), count: integer(1, 5), trackRef: reference}, ['action']),

@@ -1,0 +1,13 @@
+/* Auxiliary windows keep transparent lyric/character canvases; only chrome is themed. */
+:root { --zx-ui-text: #f1f1ef; --zx-ui-muted: #b9b9b5; --zx-ui-border: #494949; --zx-ui-panel: #181818; }
+.desktop-lyrics :is(button,select), .lyrics-lock :is(button,select) { color: var(--zx-ui-text); }
+.icon-button, .saved-actions button, .size-grip { border-radius: 8px; color: var(--zx-ui-text); }
+.icon-button { background: #ffffff09; border-color: #ffffff26; transition: background 180ms, border-color 180ms; }
+.icon-button:hover, .icon-button:focus-visible { background: #ffffff16; border-color: #ffffff66; }
+.toolbar .mark { border-radius: 8px; background: #ffffff09; color: var(--zx-ui-text); }
+.lock-button { border-radius: 8px; background: #181818d9; border-color: var(--zx-ui-border); color: var(--zx-ui-text); }
+.playlist-menu,.editor { background: #151515f5; border-color: #ffffff32; border-radius: 16px; }
+.editor :is(select,button) { background-color: #232323; color: var(--zx-ui-text); border-color: #ffffff32; border-radius: 8px; }
+.playlist-menu input { background: #090909; border-color: #ffffff32; }
+button:focus-visible { outline: 2px solid var(--zx-ui-text); outline-offset: 2px; }
+@media (prefers-reduced-motion:reduce) { button { transition: none !important; } }

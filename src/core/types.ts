@@ -185,7 +185,13 @@ export interface DesktopBridge {
     onGenerationProgress(callback:(progress:KaraokeGenerationProgress)=>void):()=>void;
     cancel(requestId:string):Promise<void>;
   };
-  assistantModel?: { invoke<T = unknown>(args: Record<string, unknown>): Promise<T> };
+  assistantModel?: { invoke<T = unknown>(args: Record<string, unknown>): Promise<T>; onDelta?(callback: (value: {requestId: string; revision: string; text: string}) => void): () => void };
+  assistantChat?: {
+    invoke<T = unknown>(value: Record<string, unknown>): Promise<T>;
+    publish(value: unknown): void;
+    onCommand(callback: (value: {id: string; action: string; args: unknown[]}) => void): () => void;
+    respond(value: {id: string; value?: unknown; error?: string}): void;
+  };
   desktop: {invoke<T=unknown>(args:Record<string,unknown>):Promise<T>;onCommand(callback:(request:{action:string;value?:number})=>void):()=>void;};
   companion?: { invoke(args: Record<string, unknown>): Promise<unknown>; onVoiceStart?(callback:()=>void):()=>void; onVoice?(callback:(value:{transcript:string;confidence?:number})=>void):()=>void };
   updates: { invoke(args: import('./updates').UpdateRequest): Promise<import('./updates').UpdateState | string> };
@@ -283,6 +289,11 @@ export interface DesktopBridge {
 
 declare global {
   interface Window {
+    zenixChat?: {
+      pocket: boolean;
+      invoke<T = unknown>(value: Record<string, unknown>): Promise<T>;
+      onSnapshot(callback: (value: {sequence: number; snapshot: import('../features/assistant/remote/coordinator').AssistantSessionSnapshot | null}) => void): () => void;
+    };
     yzqxy?: DesktopBridge;
   }
 }

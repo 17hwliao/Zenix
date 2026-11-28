@@ -9,6 +9,7 @@ type Props = {
   onConfirm: (token: string) => void | Promise<void>;
   onCancel: () => void;
   onChoose: (ref: string) => void | Promise<void>;
+  hideMessage?: boolean;
 };
 
 const statusLabels: Record<SessionStatus, string> = {
@@ -27,7 +28,7 @@ export function remoteCharacterPhase(status: SessionStatus) {
 }
 
 /** A view of coordinator state. It never interprets tool arguments or commits business work. */
-export default function SessionContent({snapshot, onConfirm, onCancel, onChoose}: Props) {
+export default function SessionContent({snapshot, onConfirm, onCancel, onChoose, hideMessage = false}: Props) {
   const [failure, setFailure] = useState('');
   const [acting, setActing] = useState(false);
   const submitted = useRef<string | undefined>(undefined);
@@ -67,8 +68,7 @@ export default function SessionContent({snapshot, onConfirm, onCancel, onChoose}
   };
 
   return <div className="remote-session-content" data-session-state={snapshot.status}>
-    <span className="remote-session-status">{statusLabels[snapshot.status]}</span>
-    <p role="status">{snapshot.message}</p>
+    {!hideMessage && <><span className="remote-session-status">{statusLabels[snapshot.status]}</span><p role="status">{snapshot.message}</p></>}
     {items.length > 0 && <ul className="assistant-results" aria-label="检索结果">{items.map((item, index) => <li key={index}>{item}</li>)}</ul>}
     {detail && <pre className="assistant-lyrics" aria-label="歌曲资料与歌词">{detail}</pre>}
     {summaries.length > 0 && <ul className="assistant-results" aria-label="音乐资料">{summaries.map((line, index) => <li key={index}>{line}</li>)}</ul>}

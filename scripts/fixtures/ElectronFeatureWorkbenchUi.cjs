@@ -3,6 +3,7 @@ app.setPath('userData',process.env.ZENIX_TEST_USER_DATA);app.disableHardwareAcce
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const win=new BrowserWindow({show:false,width:1000,height:850,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}}),page=win.webContents;
+ page.setAudioMuted(true);
  const evaluate=async code=>{try{return await page.executeJavaScript(code,true);}catch(error){console.error("Failing UI evaluation:",code);console.error(await page.executeJavaScript("JSON.stringify(window.workbenchErrors)"));throw error;}},wait=async code=>{for(let n=0;n<200;n++){if(await evaluate(code))return;await sleep(30);}throw Error('workbench UI wait '+code+' state '+JSON.stringify(await evaluate('({width:innerWidth,height:innerHeight})'))+' bounds '+JSON.stringify(win.getContentBounds()));};
  const tabs=[['私人资料','.zenix-personal-features'],['播放与版本','.playback-features'],['K歌','.zenix-karaoke-modes'],['缓存与任务','.zenix-offline-tasks'],['空间与漫游','.space-features-panel'],['设备协作','.zenix-connections'],['音乐助手','.zenix-assistant-panel']];
  const open=async()=>{await evaluate('document.querySelector(".zenix-tools-launch").focus();document.querySelector(".zenix-tools-launch").click()');await wait('!!document.querySelector(".zenix-feature-workbench")');};
@@ -62,15 +63,41 @@ app.whenReady().then(async()=>{
      }
     }
     if(label==='音乐助手'&&width===1000){
-     await wait('document.querySelector(".assistant-character .pet-portrait img")?.naturalWidth===1086');
-     await evaluate('document.querySelector(".assistant-stage").scrollIntoView({block:"center"})');
-     const hit=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
-     page.sendInputEvent({type:'mouseDown',...hit,button:'left',clickCount:1});page.sendInputEvent({type:'mouseMove',x:hit.x+100,y:hit.y+30});page.sendInputEvent({type:'mouseUp',x:hit.x+100,y:hit.y+30,button:'left',clickCount:1});
-     await wait('new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".assistant-position")).transform).m41>80');
-     assert.equal(await evaluate('document.activeElement===document.querySelector(".zenix-assistant-panel input[aria-label=\'音乐指令\']")'),false,'drag cannot become an assistant click');
-     const moved=await evaluate('(()=>{const r=document.querySelector(".assistant-hit").getBoundingClientRect();return{x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()');
-     page.sendInputEvent({type:'mouseDown',...moved,button:'left',clickCount:1});page.sendInputEvent({type:'mouseUp',...moved,button:'left',clickCount:1});
-     await wait('document.activeElement===document.querySelector(".zenix-assistant-panel input[aria-label=\'音乐指令\']")');
+      await wait('document.querySelector(".zenix-figure-settings canvas")?.dataset.renderer==="rig"');
+      assert.deepEqual(await evaluate('Array.from(document.querySelector(".zenix-figure-settings select").options).map(option=>option.value)'),['zenbot','whale']);
+      assert.equal(await evaluate('!!document.querySelector(".assistant-costumes")'),false);
+      if(mode==='desktop'){
+        const count=await evaluate('window.workbenchFixture.calls.filter(row=>row.action==="figure").length');
+        await evaluate(`(()=>{const range=document.getElementById('zenix-pet-scale');const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;for(const value of [75,80,85]){set.call(range,String(value));range.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+        await wait('document.querySelector(".zenix-size-heading output").textContent==="85%"');
+        assert.equal(await evaluate('window.workbenchFixture.calls.filter(row=>row.action==="figure").length'),count,'sliding previews without repeated native writes');
+        await evaluate('document.getElementById("zenix-pet-scale").dispatchEvent(new PointerEvent("pointerup",{bubbles:true}));document.getElementById("zenix-pet-scale").dispatchEvent(new FocusEvent("focusout",{bubbles:true}))');
+        await wait('localStorage.getItem("zenix.assistant.zenbot-scale.v1")==="0.85"');
+        assert.equal(await evaluate('window.workbenchFixture.calls.filter(row=>row.action==="figure").length'),count+1,'release and blur commit the new size only once');
+        await evaluate('document.querySelector("[aria-label=恢复默认大小]").click()');
+        await wait('localStorage.getItem("zenix.assistant.zenbot-scale.v1")==="0.7"');
+        const handle=await evaluate(`(()=>{const r=document.querySelector('.zenix-figure-resize').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};})()`);
+        await evaluate(`window.sizeTrace=[];for(const type of ['pointerdown','pointermove','pointerup','pointercancel','lostpointercapture'])document.querySelector('.zenix-figure-resize').addEventListener(type,e=>window.sizeTrace.push({type,id:e.pointerId,output:document.querySelector('.zenix-size-heading output').textContent}));`);
+        page.debugger.attach('1.3');
+        page.focus();
+        await page.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',...handle,buttons:0});
+        await page.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mousePressed',...handle,button:'left',buttons:1,clickCount:1});
+        await page.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseMoved',x:handle.x,y:handle.y-44,buttons:1});
+        try{await wait('document.querySelector(".zenix-size-heading output").textContent==="90%"');}catch(error){throw Error(error.message+' movement '+JSON.stringify(await evaluate(`({trace:window.sizeTrace,output:document.querySelector('.zenix-size-heading output').textContent,errors:window.workbenchErrors,handle:document.querySelector('.zenix-figure-resize').getBoundingClientRect().toJSON(),hit:document.elementFromPoint(${handle.x},${handle.y})?.outerHTML?.slice(0,200)})`)));}
+        assert.equal(await evaluate('localStorage.getItem("zenix.assistant.zenbot-scale.v1")'),'0.7','drag handle previews before release');
+        await page.debugger.sendCommand('Input.dispatchMouseEvent',{type:'mouseReleased',x:handle.x,y:handle.y-44,button:'left',buttons:0,clickCount:1});
+        page.debugger.detach();
+        try{await wait('localStorage.getItem("zenix.assistant.zenbot-scale.v1")==="0.9"');}catch(error){throw Error(error.message+' resize '+JSON.stringify(await evaluate('({trace:window.sizeTrace,saved:localStorage.getItem("zenix.assistant.zenbot-scale.v1"),calls:window.workbenchFixture.calls.filter(row=>row.action==="figure"),output:document.querySelector(".zenix-size-heading output").textContent,error:document.querySelector(".zenix-figure-settings [role=alert]")?.textContent})')));}
+        await evaluate(`window.originalFigureInvoke=window.yzqxy.companion.invoke;window.yzqxy.companion.invoke=args=>args.action==='figure'?Promise.reject(Error('隔离尺寸保存失败')):window.originalFigureInvoke(args);document.querySelector('[aria-label=放大人物]').click()`);
+        await wait('document.querySelector(".zenix-figure-settings [role=alert]")?.textContent.includes("隔离尺寸保存失败")');
+        assert.equal(await evaluate('document.querySelector(".zenix-size-heading output").textContent'),'90%','failed size write restores the saved size');
+        assert.equal(await evaluate('localStorage.getItem("zenix.assistant.zenbot-scale.v1")'),'0.9');
+        await evaluate('window.yzqxy.companion.invoke=window.originalFigureInvoke;document.querySelector("[aria-label=恢复默认大小]").click()');
+        await wait('localStorage.getItem("zenix.assistant.zenbot-scale.v1")==="0.7"');
+      }
+    }
+    if(label==='音乐助手'&&(width===1000||width===390)){
+      await page.capturePage().then(image=>require('node:fs/promises').writeFile(require('node:path').resolve(`release/zenbot-settings-${mode}-${width}.png`),image.toPNG()));
     }
     const geometry=await evaluate(`(()=>{const panel=document.querySelector('.zenix-feature-workbench'),body=panel.querySelector('.zenix-feature-content'),close=panel.querySelector('[aria-label="关闭音乐工作台"]'),r=panel.getBoundingClientRect(),b=close.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:body.scrollWidth,width:body.clientWidth,document:document.documentElement.scrollWidth,viewport:innerWidth,close:document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('button')===close};})()`);
     assert(geometry.left>=0&&geometry.right<=width+1&&geometry.top>=0&&geometry.bottom<=850,mode+' dialog stays in viewport '+label+' '+width+' '+JSON.stringify(geometry));
@@ -79,26 +106,20 @@ app.whenReady().then(async()=>{
     for(const[,other]of tabs)if(other!==selector)assert.equal(await evaluate(`!!document.querySelector(${JSON.stringify(other)})`),false,'only selected tab mounts');
    }
   }
-  await evaluate('[...document.querySelectorAll(".zenix-feature-workbench>nav button")].find(button=>button.textContent==="音乐助手").click()');await wait('document.querySelectorAll(".assistant-costumes button").length===8');
-   // PNG decode/encoding is asynchronous work, not a six-second UI transition.
-   // Keep the real implementation and add test-only phase timing. One controlled
-   // slow decode proves completion remains observable beyond the generic UI wait.
-   await evaluate(`(()=>{const decode=HTMLImageElement.prototype.decode,toBlob=HTMLCanvasElement.prototype.toBlob;window.costumeTrace=[];let first=${mode==='desktop'};const mark=(phase,value)=>window.costumeTrace.push({phase,at:performance.now(),...value});HTMLImageElement.prototype.decode=function(){const src=this.currentSrc||this.src,slow=first;first=false;mark('decode-start',{src,slow});return decode.call(this).then(async value=>{if(slow)await new Promise(resolve=>setTimeout(resolve,6500));mark('decode-end',{src,slow});return value;},error=>{mark('decode-error',{src,error:String(error)});throw error;});};HTMLCanvasElement.prototype.toBlob=function(callback,type,quality){const dimensions={width:this.width,height:this.height};mark('encode-start',dimensions);return toBlob.call(this,blob=>{mark('encode-end',{...dimensions,bytes:blob?.size});callback(blob);},type,quality);};window.restoreCostumeInstrumentation=()=>{HTMLImageElement.prototype.decode=decode;HTMLCanvasElement.prototype.toBlob=toBlob;};})()`);
-   const costumeTimings=[];
-   for(let costume=0;costume<8;costume++){
-    const name=await evaluate(`document.querySelectorAll('.assistant-costumes button')[${costume}].textContent.trim()`);
-    const started=Date.now(),traceStart=await evaluate('window.costumeTrace.length');
-    await evaluate(`document.querySelectorAll('.assistant-costumes button')[${costume}].click()`);
-    // The generic success message can still belong to the previous preview while
-    // React is committing this click. Bind completion to this costume's identity.
-    try{const deadline=Date.now()+30000;let finished=false;while(Date.now()<deadline){const state=await evaluate(`({message:document.querySelector('.assistant-message')?.textContent||'',skin:document.querySelector('.assistant-character>img')?.alt,disabled:document.querySelectorAll('.assistant-costumes button')[${costume}]?.disabled})`);if(state.skin==='Zenix 星音 · '+name&&state.message.includes('皮肤已载入预览')&&state.disabled===false){finished=true;break;}if(state.disabled===false&&state.message&&!state.message.includes('皮肤已载入预览'))throw Error('Preview rejected: '+state.message);await sleep(30);}if(!finished)throw Error('PNG preview infrastructure deadline (30s)');}
-    catch(error){const state=await evaluate(`({message:document.querySelector('.assistant-message')?.textContent,skin:document.querySelector('.assistant-character>img')?.alt,disabled:document.querySelectorAll('.assistant-costumes button')[${costume}]?.disabled,trace:window.costumeTrace.slice(${traceStart}),resources:performance.getEntriesByType('resource').filter(row=>row.name.includes('/assets/assistant/')).map(row=>({name:row.name,duration:row.duration,transferSize:row.transferSize}))})`);throw Error(`${mode} costume ${costume+1}/8 (${name}) preview did not finish: ${JSON.stringify(state)}; ${error.message}`,{cause:error});}
-    const trace=await evaluate(`window.costumeTrace.slice(${traceStart})`);assert.equal(trace.filter(item=>item.phase==='decode-end').length,1,'real atlas decode completes');assert.equal(trace.filter(item=>item.phase==='encode-end'&&item.bytes>0).length,4,'all four real PNG frames encoded');if(mode==='desktop'&&costume===0){const start=trace.find(item=>item.phase==='decode-start'),end=trace.find(item=>item.phase==='decode-end');assert(end.at-start.at>=6500,'controlled slow decode exceeds the old generic six-second wait');}costumeTimings.push({name,elapsedMs:Date.now()-started,decodeMs:trace.find(item=>item.phase==='decode-end').at-trace.find(item=>item.phase==='decode-start').at,encodeMs:trace.filter(item=>item.phase==='encode-end').at(-1).at-trace.find(item=>item.phase==='encode-start').at});
-    await evaluate('document.querySelector(".assistant-message button").click()');const config=await evaluate('window.workbenchFixture.calls.filter(call=>call.action==="skinSave").length');assert.equal(config,0,'preview does not silently save skin');
-   }
-   await evaluate('window.restoreCostumeInstrumentation()');console.log('COSTUME_PREVIEW_TIMINGS',mode,JSON.stringify(costumeTimings));
-  await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="保存当前皮肤").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinSave")');const saved=await evaluate('(()=>{const call=window.workbenchFixture.calls.find(call=>call.action==="skinSave");return {name:call.config.name,frames:call.config.frames.length,animations:Object.keys(call.config.animations),archive:call.base64.length};})()');assert.match(saved.name,/Zenix/);assert.equal(saved.frames,4);assert(saved.animations.includes('greeting'));assert(saved.archive<12*1024*1024);
-  await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="打开按住说话").click()');await wait('!!document.querySelector(".assistant-chat [data-skin]")');assert.match(await evaluate('document.querySelector(".assistant-chat [data-skin]").dataset.skin'),/海蓝女仆/);await evaluate('document.querySelector("[aria-label=关闭语音助手]").click()');await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="恢复默认").click()');await wait('window.workbenchFixture.calls.some(call=>call.action==="skinReset")');
+  await evaluate('[...document.querySelectorAll(".zenix-feature-workbench>nav button")].find(button=>button.textContent==="音乐助手").click()');
+  await wait('!!document.querySelector(".zenix-figure-settings select")');
+  await evaluate('(()=>{const select=document.querySelector(".zenix-figure-settings select");Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(select,"whale");select.dispatchEvent(new Event("change",{bubbles:true}));})()');
+  await wait('document.querySelector(".zenix-figure-settings canvas")?.dataset.figure==="whale"&&document.querySelector(".zenix-figure-settings canvas")?.dataset.renderer==="rig"');
+  assert.equal(await evaluate('localStorage.getItem("zenix.assistant.figure.v1")'),'whale');
+  assert.equal(await evaluate('window.workbenchFixture.calls.filter(call=>call.action==="skinSave").length'),0);
+  await evaluate('[...document.querySelectorAll(".zenix-assistant-panel button")].find(button=>button.textContent==="打开对话与语音").click()');
+  await wait('document.querySelector(".assistant-chat canvas")?.dataset.figure==="whale"&&document.querySelector(".assistant-chat canvas")?.dataset.renderer==="rig"');
+  await wait('getComputedStyle(document.querySelector(".assistant-chat")).opacity==="1"');
+  assert.equal(await evaluate('getComputedStyle(document.querySelector(".assistant-chat input[type=file]")).display'),'none','native file control stays hidden behind the attachment button');
+  await page.capturePage().then(image=>require('node:fs/promises').writeFile(require('node:path').resolve(`release/zenbot-conversation-${mode}-320.png`),image.toPNG()));
+  const reach=await evaluate(`(()=>{const send=document.querySelector('.assistant-chat .zenix-chat-send');const r=send.getBoundingClientRect();return {visible:r.width>0&&r.bottom<innerHeight&&document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===send,rect:r.toJSON(),hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML?.slice(0,200)};})()`);
+  assert(reach.visible,'send stays visible and reachable in the narrow in-app chat '+JSON.stringify(reach));
+  await evaluate('document.querySelector("[aria-label=关闭语音助手]").click()');
   if(mode==='mobile'){
    const tab=async label=>{await evaluate(`(()=>{[...document.querySelectorAll('.zenix-feature-workbench>nav button')].find(value=>value.textContent===${JSON.stringify(label)}).click();})()`);await sleep(100);};
    const click=async label=>{try{await wait(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});return !!button&&!button.disabled;})()`);}catch(error){throw Error(error.message+' controls '+JSON.stringify(await evaluate('({buttons:[...document.querySelectorAll(".zenix-feature-content button")].map(button=>({text:button.textContent,disabled:button.disabled})),selected:document.querySelector(".zenix-feature-workbench>nav [aria-pressed=true]")?.textContent,calls:window.workbenchFixture.calls.slice(-12)})')));}await evaluate(`(()=>{const button=[...document.querySelectorAll('.zenix-feature-content button')].find(value=>value.textContent===${JSON.stringify(label)});if(!button||button.disabled)throw Error('Unavailable fixture button '+${JSON.stringify(label)});button.click();})()`);};
@@ -215,6 +236,7 @@ app.whenReady().then(async()=>{
   await close();await evaluate('document.querySelector("#main-action").click()');assert.equal(await evaluate('document.querySelector("#main-result").textContent'),'1','main remains interactive after closing');
   await open();await evaluate('window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');await wait('!document.querySelector(".zenix-feature-workbench")');
   await evaluate('window.dispatchEvent(new CustomEvent("zenix-open-workbench",{detail:{tab:"assistant"}}))');await wait('!!document.querySelector(".zenix-assistant-panel")');
+  await wait('!!document.querySelector(".remote-model-actions button:not(:disabled)")');
   assert.equal(await evaluate('(()=>{const root=document.querySelector(".zenix-feature-workbench"),nodes=root.querySelectorAll("button:not(:disabled),input:not(:disabled),textarea,select:not(:disabled),[tabindex=\\"0\\"]");nodes[0].focus();window.dispatchEvent(new KeyboardEvent("keydown",{key:"Tab",shiftKey:true,bubbles:true,cancelable:true}));return document.activeElement===nodes[nodes.length-1];})()'),true,'Shift+Tab wraps from first to last control');
   assert.equal(await evaluate('(()=>{const root=document.querySelector(".zenix-feature-workbench"),nodes=root.querySelectorAll("button:not(:disabled),input:not(:disabled),textarea,select:not(:disabled),[tabindex=\\"0\\"]");window.dispatchEvent(new KeyboardEvent("keydown",{key:"Tab",bubbles:true,cancelable:true}));return document.activeElement===nodes[0];})()'),true,'Tab wraps from last to first control');await close();
   await evaluate('window.workbenchFixture.setFailedRead(true)');await open();await wait('document.querySelector(".zenix-feature-content [role=alert]")?.textContent.includes("隔离资料读取失败")');await close();

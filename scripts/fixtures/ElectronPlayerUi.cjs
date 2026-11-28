@@ -13,7 +13,7 @@ app.whenReady().then(async () => {
   const mouse = (type, point, options = {}) => window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type, ...point, ...options});
   window.webContents.on('console-message', event => { if (event.level === 'error') console.error('Renderer:', event.message); });
   const evaluate = script => window.webContents.executeJavaScript(script, true).catch(error => { throw Error(script + '\n' + error.message); });
-  const wait = async script => { for (let i = 0; i < 100; i++) { if (await evaluate(script)) return; await sleep(50); } throw Error('UI assertion timeout: ' + script); };
+  const wait = async script => { for (let i = 0; i < 100; i++) { if (await evaluate(script)) return; await sleep(50); } throw Error('UI assertion timeout: ' + script + ' state ' + JSON.stringify(await evaluate('({hidden:document.hidden,shell:document.querySelector(".yz-shell")?.className,home:!!document.querySelector(".zenix-desktop-home"),pages:[...document.querySelectorAll(".yz-page")].map(el=>({className:el.className,opacity:getComputedStyle(el).opacity,animations:el.getAnimations().map(a=>a.playState)}))})'))); };
   await window.loadURL(process.env.ZENIX_TEST_UI_URL);
   checkpoint('fixture loaded');
   await wait('!!document.querySelector(".yz-playerbar-track")');
@@ -56,11 +56,15 @@ app.whenReady().then(async () => {
   await evaluate('document.querySelector(".zenix-desktop-playlist-play").click()');
   assert.deepEqual(await evaluate('window.fixture.plays.splice(0)'),['B'],'playlist preview plays the first track');
   await evaluate('document.querySelector(".zenix-desktop-playlist-open").click()');
-  await wait('document.querySelector(".zenix-manager main h1")?.textContent.includes("测试歌单")');
-  await evaluate('document.querySelector(".zenix-manager header>button").click()');
+  await wait('document.querySelector(".zenix-manager main h2")?.textContent.includes("测试歌单")');
+  assert.equal(await evaluate('!!document.querySelector(".zenix-manager[aria-modal=true]")'),false,'desktop collections stay inside the shell');
+  await evaluate('document.querySelector(".zenix-workspace-breadcrumb button").click()');
   await wait('!document.querySelector(".zenix-manager")');
-  await evaluate(`(()=>{window.addEventListener('zenix-open-workbench',e=>window.selectedTool=e.detail.tab,{once:true});document.querySelector('[data-destination=karaoke]').click();})()`);
-  assert.equal(await evaluate('window.selectedTool'),'karaoke');
+  await evaluate('document.querySelector("[data-destination=karaoke]").click()');
+  await wait('document.querySelector("[data-workspace=\\"tool:karaoke\\"]")?.textContent.includes("K 歌")');
+  assert.equal(await evaluate('document.querySelector("[data-destination=karaoke]").getAttribute("aria-current")'),'page');
+  await evaluate('document.querySelector(".zenix-workspace-breadcrumb button").click()');
+  await wait('!!document.querySelector(".zenix-desktop-home")');
   await evaluate('document.querySelector("[data-destination=space]").click()');
   await wait('!!document.querySelector(".yz-page.yz-player")');
   assert.equal(await evaluate('document.querySelector("[data-destination=space]").getAttribute("aria-current")'),'page');
@@ -118,7 +122,8 @@ app.whenReady().then(async () => {
     const layout=await evaluate(`(()=>{const scroll=document.querySelector('.zenix-home-scroll'),stage=document.querySelector('.zenix-space-stage'),songs=document.querySelector('#zenix-home-songs');const rect=node=>{const r=node.getBoundingClientRect();return{top:r.top,bottom:r.bottom,left:r.left,right:r.right};};return{width:innerWidth,height:innerHeight,stage:rect(stage),scroll:rect(scroll),songs:rect(songs),edit:rect(document.querySelector('.zenix-card-edit')),card:rect(document.querySelector('.zenix-card-center')),bar:rect(document.querySelector('.yz-playerbar'))};})()`);
     assert(layout.songs.top>=layout.stage.bottom&&layout.songs.bottom>layout.songs.top,'management is laid out directly below the stage');
     assert(layout.stage.bottom<=layout.scroll.bottom+1&&layout.stage.bottom-layout.stage.top<=561,'stage stays in the main content area after resize');
-    assert(layout.edit.right<=layout.stage.right&&layout.edit.top>=layout.stage.top&&layout.edit.bottom-layout.edit.top>=42,'edit control fits inside its header');
+    const selectedHeight=await evaluate('Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--zx-button-height"))');
+    assert(layout.edit.right<=layout.stage.right&&layout.edit.top>=layout.stage.top&&layout.edit.bottom-layout.edit.top>=selectedHeight,'edit control honors the selected button height inside its header: '+JSON.stringify({selectedHeight,...layout}));
     assert(layout.edit.bottom<layout.card.top||layout.edit.left>layout.card.right,'identity card and edit button do not overlap: '+JSON.stringify(layout));
     assert(layout.card.left>=layout.scroll.left&&layout.card.right<=layout.scroll.right,'identity card stays inside the viewport');
     homeSizes.push(layout);
@@ -191,7 +196,7 @@ app.whenReady().then(async () => {
   window.hide();
   checkpoint('queue and capture');
   // Going home and singly entering must not replay an old expansion request.
-  await evaluate('document.querySelector("[aria-label=个人主页]").click()'); await wait('!!document.querySelector(".yz-playerbar-track")');
+  await evaluate('document.querySelector("[aria-label=个人主页]").click()'); await wait('!!document.querySelector(".yz-page.yz-home")&&!document.querySelector(".yz-page.yz-player")');
   await evaluate('document.querySelector(".yz-playerbar-track").click()'); await wait('!!document.querySelector(".yz-lattice")'); await sleep(450);
   assert.equal(await evaluate('!!document.querySelector(".yz-lattice.is-immersive")'), false);
   await evaluate('document.querySelector(".yz-lattice-mini-focus").click()'); await sleep(70); await evaluate('document.querySelector(".yz-lattice-mini-focus").click()'); await wait('!!document.querySelector(".yz-lattice.is-immersive")');

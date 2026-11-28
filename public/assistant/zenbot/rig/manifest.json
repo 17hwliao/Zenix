@@ -1,0 +1,662 @@
+{
+  "schemaVersion": 1,
+  "id": "zenbot-rig",
+  "name": "zenbot",
+  "source": "assets/characters/zenbot/source/zenbot-master-trim.png",
+  "drawing": {
+    "logoHeight": 292,
+    "centerX": 128,
+    "feetY": 256,
+    "referenceCanvas": [
+      1117,
+      1409
+    ],
+    "view": [
+      -28,
+      -72,
+      284,
+      276
+    ]
+  },
+  "defaults": {
+    "bubbleAnchor": [
+      128,
+      -58
+    ],
+    "hit": [
+      128,
+      118,
+      142
+    ],
+    "extent": [
+      -28,
+      -72,
+      284,
+      256
+    ],
+    "accent": "#63d8ff",
+    "eye": "#4fd6ff"
+  },
+  "textures": {
+    "hair_back": "parts/hair-back.png",
+    "leg_l": "parts/leg-l.png",
+    "leg_r": "parts/leg-r.png",
+    "shoe_l": "parts/shoe-l.png",
+    "shoe_r": "parts/shoe-r.png",
+    "skirt_back": "parts/skirt-back.png",
+    "skirt_front": "parts/skirt-front.png",
+    "torso": "parts/torso.png",
+    "jacket_front": "parts/jacket-front.png",
+    "badge": "parts/badge.png",
+    "arm_l": "parts/arm-l.png",
+    "arm_r": "parts/arm-r.png",
+    "hand_l": "parts/hand-l.png",
+    "hand_r": "parts/hand-r.png",
+    "hair_front": "parts/hair-front.png",
+    "headphones": "parts/headphones.png",
+    "hair_ornament": "parts/hair-ornament.png",
+    "face_base": "parts/face-base.png"
+  },
+  "deformers": {
+    "root": {
+      "kind": "rot",
+      "parent": null,
+      "pivot": [
+        128,
+        256
+      ]
+    },
+    "body": {
+      "kind": "rot",
+      "parent": "root",
+      "pivot": [
+        136,
+        232
+      ]
+    },
+    "chest": {
+      "kind": "rot",
+      "parent": "body",
+      "pivot": [
+        140,
+        144
+      ]
+    },
+    "head": {
+      "kind": "rot",
+      "parent": "chest",
+      "pivot": [
+        140,
+        94
+      ]
+    },
+    "hair_back": {
+      "kind": "rot",
+      "parent": "head",
+      "pivot": [
+        140,
+        64
+      ]
+    },
+    "arm_l": {
+      "kind": "rot",
+      "parent": "chest",
+      "pivot": [
+        109,
+        115
+      ]
+    },
+    "arm_r": {
+      "kind": "rot",
+      "parent": "chest",
+      "pivot": [
+        164,
+        115
+      ]
+    },
+    "skirt": {
+      "kind": "rot",
+      "parent": "body",
+      "pivot": [
+        140,
+        146
+      ]
+    },
+    "leg_l": {
+      "kind": "rot",
+      "parent": "skirt",
+      "pivot": [
+        118,
+        175
+      ]
+    },
+    "leg_r": {
+      "kind": "rot",
+      "parent": "skirt",
+      "pivot": [
+        152,
+        175
+      ]
+    }
+  },
+  "parts": [
+    {
+      "id": "hair_back",
+      "tex": "hair_back",
+      "file": "parts/hair-back.png",
+      "box": [
+        15.1583,
+        -33.0987,
+        225.6835,
+        234.3875
+      ],
+      "grid": [
+        8,
+        10
+      ],
+      "parent": "hair_back",
+      "z": 10,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "leg_l",
+      "tex": "leg_l",
+      "file": "parts/leg-l.png",
+      "box": [
+        103.8566,
+        176.4202,
+        26.3194,
+        45.1781
+      ],
+      "grid": [
+        4,
+        8
+      ],
+      "parent": "leg_l",
+      "z": 20,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "leg_r",
+      "tex": "leg_r",
+      "file": "parts/leg-r.png",
+      "box": [
+        139.5018,
+        176.4202,
+        24.6615,
+        45.1781
+      ],
+      "grid": [
+        4,
+        8
+      ],
+      "parent": "leg_r",
+      "z": 20,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "shoe_l",
+      "tex": "shoe_l",
+      "file": "parts/shoe-l.png",
+      "box": [
+        98.0539,
+        213.7232,
+        37.9248,
+        41.0334
+      ],
+      "grid": [
+        4,
+        4
+      ],
+      "parent": "leg_l",
+      "z": 22,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "shoe_r",
+      "tex": "shoe_r",
+      "file": "parts/shoe-r.png",
+      "box": [
+        137.4294,
+        213.7232,
+        35.0234,
+        38.5465
+      ],
+      "grid": [
+        4,
+        4
+      ],
+      "parent": "leg_r",
+      "z": 22,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "skirt_back",
+      "tex": "skirt_back",
+      "file": "parts/skirt-back.png",
+      "box": [
+        91.8368,
+        139.7388,
+        85.797,
+        46.2143
+      ],
+      "grid": [
+        8,
+        4
+      ],
+      "parent": "skirt",
+      "z": 28,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "torso",
+      "tex": "torso",
+      "file": "parts/torso.png",
+      "box": [
+        107.1725,
+        87.3073,
+        62.379,
+        79.1654
+      ],
+      "grid": [
+        6,
+        6
+      ],
+      "parent": "chest",
+      "z": 36,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "skirt_front",
+      "tex": "skirt_front",
+      "file": "parts/skirt-front.png",
+      "box": [
+        91.8368,
+        139.7388,
+        85.797,
+        46.2143
+      ],
+      "grid": [
+        8,
+        5
+      ],
+      "parent": "skirt",
+      "z": 40,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "jacket_front",
+      "tex": "jacket_front",
+      "file": "parts/jacket-front.png",
+      "box": [
+        107.3797,
+        105.7516,
+        62.1718,
+        57.4053
+      ],
+      "grid": [
+        6,
+        6
+      ],
+      "parent": "chest",
+      "z": 44,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "badge",
+      "tex": "badge",
+      "file": "parts/badge.png",
+      "box": [
+        131.6267,
+        116.1136,
+        21.1384,
+        13.2633
+      ],
+      "grid": [
+        4,
+        3
+      ],
+      "parent": "chest",
+      "z": 46,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "arm_l",
+      "tex": "arm_l",
+      "file": "parts/arm-l.png",
+      "box": [
+        77.33,
+        109.4819,
+        37.5103,
+        54.0894
+      ],
+      "grid": [
+        3,
+        6
+      ],
+      "parent": "arm_l",
+      "z": 50,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "arm_r",
+      "tex": "arm_r",
+      "file": "parts/arm-r.png",
+      "box": [
+        158.1533,
+        110.1036,
+        26.3194,
+        51.3953
+      ],
+      "grid": [
+        3,
+        6
+      ],
+      "parent": "arm_r",
+      "z": 50,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "hand_l",
+      "tex": "hand_l",
+      "file": "parts/hand-l.png",
+      "box": [
+        72.3563,
+        155.9035,
+        20.1022,
+        14.2995
+      ],
+      "grid": [
+        3,
+        3
+      ],
+      "parent": "arm_l",
+      "z": 54,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "hand_r",
+      "tex": "hand_r",
+      "file": "parts/hand-r.png",
+      "box": [
+        173.0745,
+        154.0383,
+        13.6778,
+        12.0199
+      ],
+      "grid": [
+        3,
+        3
+      ],
+      "parent": "arm_r",
+      "z": 54,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "face_base",
+      "tex": "face_base",
+      "file": "parts/face-base.png",
+      "box": [
+        90.1789,
+        -33.0987,
+        93.0504,
+        127.0376
+      ],
+      "grid": [
+        10,
+        10
+      ],
+      "parent": "head",
+      "z": 60,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "hair_front",
+      "tex": "hair_front",
+      "file": "parts/hair-front.png",
+      "box": [
+        83.5472,
+        56.0142,
+        106.3137,
+        61.9645
+      ],
+      "grid": [
+        4,
+        8
+      ],
+      "parent": "head",
+      "z": 62,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "headphones",
+      "tex": "headphones",
+      "file": "parts/headphones.png",
+      "box": [
+        114.8403,
+        91.0376,
+        48.0795,
+        21.5529
+      ],
+      "grid": [
+        4,
+        4
+      ],
+      "parent": "head",
+      "z": 64,
+      "alpha": 1,
+      "blend": "normal"
+    },
+    {
+      "id": "hair_ornament",
+      "tex": "hair_ornament",
+      "file": "parts/hair-ornament.png",
+      "box": [
+        68.2115,
+        -15.4833,
+        127.8666,
+        78.3364
+      ],
+      "grid": [
+        4,
+        4
+      ],
+      "parent": "head",
+      "z": 66,
+      "alpha": 1,
+      "blend": "normal"
+    }
+  ],
+  "expressions": {
+    "neutral": {
+      "file": "expressions/neutral.png"
+    },
+    "happy": {
+      "file": "expressions/happy.png"
+    },
+    "wink": {
+      "file": "expressions/wink.png"
+    },
+    "love": {
+      "file": "expressions/love.png"
+    },
+    "shy": {
+      "file": "expressions/shy.png"
+    },
+    "surprised": {
+      "file": "expressions/surprised.png"
+    },
+    "angry": {
+      "file": "expressions/angry.png"
+    },
+    "sad": {
+      "file": "expressions/sad.png"
+    },
+    "sleepy": {
+      "file": "expressions/sleepy.png"
+    },
+    "thinking": {
+      "file": "expressions/thinking.png"
+    },
+    "smug": {
+      "file": "expressions/smug.png"
+    },
+    "pout": {
+      "file": "expressions/pout.png"
+    },
+    "worried": {
+      "file": "expressions/worried.png"
+    },
+    "determined": {
+      "file": "expressions/determined.png"
+    },
+    "flustered": {
+      "file": "expressions/flustered.png"
+    },
+    "scared": {
+      "file": "expressions/scared.png"
+    },
+    "excited": {
+      "file": "expressions/excited.png"
+    },
+    "cry": {
+      "file": "expressions/cry.png"
+    },
+    "confused": {
+      "file": "expressions/confused.png"
+    }
+  },
+  "motions": {
+    "stand": {
+      "seconds": 1.2,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "jump": {
+      "seconds": 1.2,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "hop": {
+      "seconds": 0.9,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "look": {
+      "seconds": 2.7,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "turn": {
+      "seconds": 0.4,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "nod": {
+      "seconds": 0.8,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "shake": {
+      "seconds": 0.8,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "spin": {
+      "seconds": 0.8,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "sit": {
+      "seconds": 0.8,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "sleep": {
+      "seconds": 0.8,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "dizzy": {
+      "seconds": 3.2,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "walk": {
+      "seconds": 12,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "run": {
+      "seconds": 12,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "wave": {
+      "seconds": 1.7,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "bow": {
+      "seconds": 1.7,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "shiver": {
+      "seconds": 1.9,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "flap": {
+      "seconds": 1.5,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    },
+    "dance": {
+      "seconds": 3.4,
+      "source": "procedural",
+      "spec": "motions/spec.json"
+    }
+  },
+  "motionBindings": {
+    "deformers": {}
+  },
+  "timing": {
+    "expressionFadeMs": 180,
+    "blinkCloseMs": 130,
+    "breathSeconds": 4.2,
+    "motionTailMs": 140,
+    "turnMs": 420
+  },
+  "expressionAliases": {
+    "listening": "neutral",
+    "sleep": "sleepy",
+    "content": "happy",
+    "waking": "sleepy",
+    "squeeze": "neutral",
+    "bowing": "happy",
+    "dragged": "scared",
+    "run": "determined",
+    "dizzy": "confused"
+  },
+  "fallback": {
+    "figure": "sprite",
+    "manifest": "assets/characters/zenbot/manifest.json"
+  }
+}

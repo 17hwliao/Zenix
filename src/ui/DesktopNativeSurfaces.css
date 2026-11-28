@@ -1,0 +1,197 @@
+/* Native desktop destinations. Blog reference: 17hwliao-blog site.css buttons,
+   content-arrive and directional arrows. Scoped to the existing desktop shell. */
+.yz-shell--library {
+  --workspace-bg: var(--zx-bg, #101010);
+  --workspace-panel: var(--zx-surface, #171717);
+  --workspace-input: var(--zx-bg-elevated, #121212);
+  --workspace-line: var(--zx-border, #303030);
+  --workspace-muted: var(--zx-text-secondary, #b9b9b5);
+  --workspace-ink: var(--zx-text, #f1f1ef);
+  --workspace-soft: var(--zx-surface-hover, #202020);
+  --workspace-curve: cubic-bezier(.22, 1, .36, 1);
+}
+.yz-shell--library .zenix-desktop-nav { background: var(--workspace-input); border-color: var(--workspace-line); }
+.yz-shell--library .zenix-desktop-nav-scroll { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
+.yz-shell--library .zenix-desktop-nav-group button { position: relative; isolation: isolate; justify-content: flex-start; min-height: 42px; border-radius: 10px; transition: color 180ms, background 180ms; }
+.yz-shell--library .zenix-desktop-nav-group button[aria-current=page] { background: transparent; color: var(--workspace-ink); font-weight: 550; }
+.zenix-desktop-nav-group button .zenix-nav-active-surface { position: absolute; inset: 0; z-index: -1; width:auto; height:auto; padding:0; clip-path:none; overflow:visible; border: 1px solid var(--workspace-line); border-radius: inherit; background: var(--workspace-soft); pointer-events: none; }
+.yz-shell--library .zenix-desktop-nav-group button>svg { transition: transform 180ms var(--workspace-curve), color 180ms; }
+.yz-shell--library .zenix-desktop-nav-group button:hover>svg { transform: translateX(2px); }
+.yz-shell--library .zenix-desktop-nav-group button:active { transform: none; }
+.yz-shell--library .zenix-desktop-nav-label { font-size: 11px; color: var(--zx-text-muted, #92928b); letter-spacing: .06em; }
+.zenix-desktop-workspace .zenix-workspace-heading { padding-top: 36px; padding-bottom: 28px; border: 0; background: var(--workspace-bg); }
+.zenix-desktop-workspace .zenix-workspace-breadcrumb { margin-bottom: 25px; gap: 12px; font-size: 12px; }
+.zenix-desktop-workspace .zenix-workspace-breadcrumb button { gap: 6px; color: var(--workspace-muted); min-height: 26px; }
+.zenix-workspace-breadcrumb button svg { transition: transform 180ms var(--workspace-curve); }
+.zenix-workspace-breadcrumb button:hover svg { transform: translateX(-3px); }
+.zenix-desktop-workspace .zenix-workspace-title { justify-content: flex-start; gap: 21px; }
+.zenix-workspace-mark { display: grid; place-items: center; flex: none; width: 72px; height: 78px; border-radius: 20px; border: 1px solid var(--workspace-line); background: var(--workspace-panel); color: var(--workspace-ink); }
+.zenix-workspace-eyebrow { display: block; font-size: 11px; letter-spacing: .08em; color: var(--workspace-muted); margin-bottom: 6px; }
+.zenix-desktop-workspace .zenix-workspace-title h1 { font-size: clamp(26px, 2.5vw, 34px); font-weight: 550; line-height: 1.25; letter-spacing: -.045em; }
+.zenix-desktop-workspace .zenix-workspace-title p { margin-top: 10px; font-size: 13px; }
+.zenix-desktop-workspace .zenix-workspace-body { padding-top: 4px; container: native-workspace / inline-size; }
+.zenix-workspace-body>*,.zenix-feature-inline { min-width: 0; }
+.zenix-desktop-workspace :is(button,input,select,textarea) { font: inherit; font-size: 13px; }
+.zenix-desktop-workspace button { min-height: 40px; border-radius: 9px; gap: 8px; border-color: var(--workspace-line); background: var(--workspace-panel); color: var(--workspace-ink); transition: background-color 180ms, border-color 180ms, color 180ms, transform 180ms var(--workspace-curve); }
+.zenix-desktop-workspace button:hover:not(:disabled) { background: var(--workspace-soft); border-color: var(--zx-border-strong, #50504c); }
+.zenix-desktop-workspace button:active:not(:disabled) { transform: translateY(1px); }
+.zenix-desktop-workspace button:disabled { opacity: .5; }
+.zenix-desktop-workspace :is(button,input,select,textarea,summary):focus-visible { outline: 2px solid var(--zx-focus, #efefeb); outline-offset: 3px; }
+.zenix-desktop-workspace :where(input:not([type=checkbox]):not([type=range]),select,textarea) { border-color: var(--workspace-line); background: var(--workspace-input); color: var(--workspace-ink); border-radius: 9px; min-height: 42px; padding: 10px 12px; }
+.zenix-desktop-workspace select { color-scheme: dark; }
+.zenix-desktop-workspace label { margin:0; justify-content:flex-start; }
+.zenix-desktop-workspace progress { appearance:none; border:0; background:var(--workspace-line); color:var(--workspace-ink); }
+.zenix-desktop-workspace progress::-webkit-progress-bar { background:var(--workspace-line); border-radius:8px; }
+.zenix-desktop-workspace progress::-webkit-progress-value { background:var(--workspace-ink); border-radius:8px; }
+.zenix-desktop-workspace input[type=checkbox] { accent-color: var(--workspace-ink); width: 16px; height: 16px; }
+.zenix-desktop-workspace .zenix-workspace-primary { background: var(--workspace-ink); color: var(--workspace-bg); border-color: var(--workspace-ink); font-weight: 550; }
+.zenix-desktop-workspace .zenix-workspace-primary:hover:not(:disabled) { background: #fff; color: #181818; border-color: #fff; }
+.zenix-desktop-workspace .zenix-feature-content:not(.is-karaoke)>:is(div,section) { min-width: 0; }
+.zenix-desktop-workspace .zenix-feature-content:not(.is-karaoke) section { padding: 24px; margin: 0; border-radius: 18px; border: 1px solid var(--workspace-line); background: var(--workspace-panel); box-shadow: none; }
+.zenix-desktop-workspace .zenix-feature-workbench h3 { font-weight: 550; font-size: 17px; letter-spacing: -.025em; }
+.zenix-desktop-workspace .zenix-feature-workbench p { color: var(--workspace-muted); font-size: 13px; line-height: 1.85; }
+.zenix-native-section-heading { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; min-width: 0; }
+.zenix-native-section-heading>div { flex: 1; min-width: 0; }
+.zenix-desktop-workspace .zenix-native-section-heading h3 { margin: 0; line-height: 1.5; }
+.zenix-desktop-workspace .zenix-native-section-heading p { margin: 5px 0 0; font-size: 12px; line-height: 1.6; }
+.zenix-native-section-icon { width: 39px; height: 39px; border-radius: 12px; display: grid; place-items: center; flex: none; border: 1px solid var(--workspace-line); color: var(--workspace-ink); background: var(--workspace-input); }
+.zenix-native-section-icon svg { stroke-width: 1.4; }
+.zenix-native-count { font: 12px ui-monospace,monospace; color: var(--workspace-muted); padding: 5px 9px; border: 1px solid var(--workspace-line); border-radius: 7px; }
+.zenix-desktop-workspace .zenix-native-empty { min-height: 170px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; color: var(--workspace-muted); text-align: center; border: 1px dashed var(--workspace-line); border-radius: 12px; }
+.zenix-native-empty>strong { color: var(--workspace-ink); font-size: 14px; font-weight: 500; }
+.zenix-desktop-workspace .zenix-native-empty p { font-size: 12px; margin: 0; }
+.zenix-desktop-workspace :is(.offline-message,.connections-message,.zenix-library-error,.zenix-manager-message) { padding: 13px 15px; border-radius: 11px; border: 1px solid var(--workspace-line); background: var(--workspace-panel); line-height: 1.8; }
+.zenix-desktop-workspace [role=alert] { color: var(--zx-danger, #e3ada7); }
+
+/* Offline preparation: work first, policy beside it, task activity below. */
+.zenix-desktop-workspace .zenix-offline-tasks { grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap: 18px; }
+.zenix-desktop-workspace .zenix-offline-queue,.zenix-desktop-workspace .zenix-offline-tasks>.offline-message { grid-column: 1/-1; }
+.zenix-desktop-workspace .zenix-offline-prepare .offline-fields { grid-template-columns: 1.4fr 1fr; margin-top: 22px; gap: 16px; }
+.zenix-desktop-workspace .zenix-offline-prepare .offline-fields>label:last-child { grid-column: 1/-1; }
+.zenix-desktop-workspace .offline-fields label { justify-content:stretch; align-items:stretch; font-size: 12px; color: var(--workspace-muted); }
+.zenix-desktop-workspace .offline-fields :is(select,input) { font-size: 13px; border-radius: 9px; width: 100%; background: var(--workspace-input); border-color: var(--workspace-line); }
+.zenix-desktop-workspace .offline-check { justify-content:flex-start; margin: 17px 0 20px; font-size: 12px; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-offline-network .offline-fields { grid-template-columns: 1fr; gap: 0; }
+.zenix-desktop-workspace .zenix-offline-network .offline-fields>label { display: grid; grid-template-columns: 1fr minmax(130px,.9fr); gap: 12px; align-items: center; border-bottom: 1px solid var(--workspace-line); padding: 12px 0; }
+.zenix-desktop-workspace .zenix-offline-network .offline-fields>label:last-child { border: 0; }
+.zenix-desktop-workspace .zenix-cache-capacity { margin-top: 25px; border-top: 1px solid var(--workspace-line); padding-top: 18px; }
+.zenix-cache-capacity>div { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.zenix-cache-capacity>div>span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--workspace-muted); }
+.zenix-cache-capacity strong { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.zenix-cache-capacity strong small { font-size: 11px; font-weight: 400; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-cache-capacity progress { height: 4px; margin: 14px 0 9px; display: block; width: 100%; border-radius: 8px; accent-color: var(--workspace-ink); overflow: hidden; }
+.zenix-cache-capacity>span { display: flex; gap: 5px; align-items: center; font-size: 11px; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-offline-tasks article { border-radius: 12px; border-color: var(--workspace-line); background: var(--workspace-input); padding: 18px; }
+.zenix-desktop-workspace .zenix-offline-tasks article progress { accent-color: var(--workspace-ink); height: 5px; }
+.zenix-desktop-workspace .zenix-offline-tasks+.zenix-activities { margin-top: 18px; }
+.zenix-desktop-workspace .zenix-feature-content>.zenix-offline-tasks+section { margin-top: 18px; }
+
+/* Pairing stays a deliberate action; status and receipts keep their real meaning. */
+.zenix-desktop-workspace .zenix-connections { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px; }
+.zenix-desktop-workspace .zenix-connection-pair { grid-column: 1/-1; }
+.zenix-desktop-workspace .zenix-connection-pair>button { background: var(--workspace-ink); color: var(--workspace-bg); border-color: var(--workspace-ink); margin-top: 6px; }
+.zenix-native-state { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--workspace-muted); white-space: nowrap; }
+.zenix-native-state i { height: 5px; width: 5px; background: currentColor; border-radius: 50%; }
+.zenix-native-state[data-active=true] { color: var(--zx-success, #b7c9bf); }
+.zenix-desktop-workspace .zenix-connections :is(input:not([type=checkbox]),select) { background: var(--workspace-input); border-color: var(--workspace-line); width: 100%; max-width: 100%; }
+.zenix-desktop-workspace .zenix-connections label { font-size: 12px; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-connections>section>label { display: grid; gap: 8px; }
+.zenix-desktop-workspace .connections-actions { gap: 9px; align-items: center; }
+.zenix-desktop-workspace .zenix-connection-sync>.connections-actions { gap: 8px; }
+.zenix-desktop-workspace .zenix-connection-sync>.connections-actions label { border: 1px solid var(--workspace-line); border-radius: 8px; padding: 9px 11px; background: var(--workspace-input); }
+.zenix-desktop-workspace .zenix-connection-sync>.connections-actions label:has(:checked) { color: var(--workspace-ink); border-color: var(--zx-border-strong,#50504c); }
+.zenix-desktop-workspace .zenix-handoff-now { margin: 18px 0; padding: 13px; border-left: 2px solid var(--zx-border-strong); background: var(--workspace-input); border-radius: 0 9px 9px 0; }
+.zenix-desktop-workspace .zenix-connections article,.zenix-desktop-workspace .connections-client { border-color: var(--workspace-line); background: var(--workspace-input); border-radius: 11px; padding: 16px; }
+.zenix-desktop-workspace .connections-message { grid-column: 1/-1; }
+
+/* Collections use a cover-led grid and readable track rows, within one shell. */
+.zenix-desktop-workspace .zenix-manager--embedded { font-size: 13px; }
+.zenix-desktop-workspace .zenix-manager--embedded main>header { display: none; }
+.zenix-desktop-workspace .zenix-manager--embedded main>header:has(h2[data-playlist-detail]) { display: flex; }
+.zenix-desktop-workspace .zenix-collection-tabs { gap: 5px; padding: 4px; width: fit-content; max-width: 100%; background: var(--workspace-input); border: 1px solid var(--workspace-line); border-radius: 12px; }
+.zenix-desktop-workspace .zenix-collection-tabs button { min-height: 36px; width: auto; border: 1px solid transparent; border-radius: 8px; font-size: 12px; background: transparent; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-collection-tabs button[aria-current=page] { border-color: var(--workspace-line); background: var(--workspace-soft); color: var(--workspace-ink); }
+.zenix-desktop-workspace .zenix-manager--embedded .zenix-collection-tabs { flex-direction: row; margin-top: 0; }
+.zenix-desktop-workspace .zenix-manager-grid { grid-template-columns: repeat(auto-fill,minmax(175px,1fr)); gap: 22px; }
+.zenix-desktop-workspace .zenix-manager-playlist-card { border: 0; background: transparent; padding: 0 0 10px; border-radius: 14px; gap: 8px; }
+.zenix-desktop-workspace .zenix-manager-playlist-card:hover { background: transparent; }
+.zenix-desktop-workspace .zenix-manager-playlist-art { border-radius: 14px; border: 1px solid var(--workspace-line); background: var(--workspace-panel); transition: border-color 180ms, transform 220ms var(--workspace-curve); }
+.zenix-desktop-workspace .zenix-manager-playlist-card:hover .zenix-manager-playlist-art { transform: translateY(-3px); border-color: var(--zx-border-strong); }
+.zenix-desktop-workspace .zenix-manager-playlist-card strong { font-weight: 500; margin: 5px 2px 0; font-size: 14px; }
+.zenix-desktop-workspace .zenix-manager-playlist-card small { color: var(--workspace-muted); margin-inline: 2px; }
+.zenix-desktop-workspace .zenix-manager-tracks { border-top: 1px solid var(--workspace-line); }
+.zenix-desktop-workspace .zenix-manager-track { padding: 6px 10px; border-radius: 10px; border-color: var(--workspace-line); transition: background 180ms; }
+.zenix-desktop-workspace .zenix-manager-track:hover { background: var(--workspace-panel); }
+.zenix-desktop-workspace .zenix-manager-track .yz-cover { width: 46px; height: 46px; border-radius: 8px; }
+.zenix-desktop-workspace .zenix-manager-track>button:first-child { background: transparent; }
+.zenix-desktop-workspace .zenix-manager-track strong { font-size: 14px; }
+.zenix-desktop-workspace .zenix-manager-track small { font-size: 12px; }
+.zenix-desktop-workspace .zenix-manager-track .zenix-manager-delete { color: var(--workspace-muted); background: transparent; border: 0; }
+.zenix-desktop-workspace .zenix-manager-track .zenix-manager-delete:hover { color: var(--zx-danger); background: var(--workspace-soft); }
+.zenix-desktop-workspace .zenix-manager-toolbar { flex-wrap: wrap; gap: 8px; }
+.zenix-desktop-workspace .zenix-manager-search { border-color: var(--workspace-line); width: min(350px,100%); background: var(--workspace-input); }
+.zenix-desktop-workspace .zenix-manager-search input { width: 100%; color: var(--workspace-ink); font-size: 13px; }
+.zenix-desktop-workspace .zenix-manager-editor,.zenix-desktop-workspace .zenix-manager-picker { background: var(--workspace-panel); border-color: var(--workspace-line); border-radius: 14px; }
+.zenix-desktop-workspace .zenix-manager-picker-list>button { background: transparent; }
+.zenix-desktop-workspace .tool-actions { justify-content: flex-end; margin: -4px 0 12px; }
+.zenix-collection-summary { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:4px 0 16px; color:var(--workspace-muted); font-size:12px; }
+.zenix-desktop-workspace .tool-actions>button { min-height: 32px; font-size: 11px; border-color: transparent; color: var(--workspace-muted); background: transparent; }
+.zenix-desktop-workspace .zenix-local-track { border-radius: 9px; }
+.zenix-desktop-workspace .zenix-local-track-song strong { font-size: 14px; }
+.zenix-desktop-workspace .zenix-library-toolbar { margin-top: 20px; }
+
+/* Assistant and karaoke retain their own task geometry and native actions. */
+.zenix-desktop-workspace .zenix-assistant-panel { gap: 18px; }
+.zenix-desktop-workspace .zenix-assistant-panel>section { padding: 24px; background: var(--workspace-panel); border-color: var(--workspace-line); }
+.zenix-desktop-workspace .zenix-assistant-panel .zenix-design-heading h3 { font-size: 19px; }
+.zenix-desktop-workspace .zenix-assistant-panel .zenix-design-primary { background: var(--workspace-ink); color: var(--workspace-bg); border-color: var(--workspace-ink); }
+.zenix-desktop-workspace .zenix-figure-stage { background: radial-gradient(ellipse at 50% 95%,#ffffff09,transparent 65%),var(--workspace-input); border-color: var(--workspace-line); }
+.zenix-desktop-workspace .zenix-figure-options { gap: 18px; }
+.zenix-desktop-workspace .zenix-feature-content.is-karaoke { background: var(--workspace-panel); border-color: var(--workspace-line); border-radius: 18px; }
+.zenix-desktop-workspace .zenix-karaoke-mode-header { background: var(--workspace-panel); border-color: var(--workspace-line); }
+.zenix-desktop-workspace .zenix-karaoke-mode-buttons button { border-radius: 9px; }
+.zenix-desktop-workspace .karaoke-ui.solo-workbench { --solo-line:var(--workspace-line); --solo-subtle:var(--workspace-muted); --solo-accent:var(--zx-success,#b7c9bf); background:var(--workspace-bg); color:var(--workspace-ink); }
+.zenix-desktop-workspace .solo-stage { background:var(--workspace-panel); border-color:var(--workspace-line); border-radius:14px; }
+.zenix-desktop-workspace .solo-workbench button { background:var(--workspace-soft); color:var(--workspace-ink); border-color:var(--workspace-line); }
+.zenix-desktop-workspace .solo-workbench button[aria-pressed=true] { background:var(--workspace-ink); color:var(--workspace-bg); }
+.zenix-desktop-workspace .solo-vocal-switch { background:var(--workspace-input); border:1px solid var(--workspace-line); }
+.zenix-desktop-workspace .solo-vocal-switch button { border:0; background:transparent; }
+.zenix-desktop-workspace .solo-pitch-guide svg { background:var(--workspace-input); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .yz-shell--library:not(.yz-reduce-motion) .zenix-workspace-title { animation: zenix-native-arrive 350ms var(--workspace-curve) both; }
+  .yz-shell--library:not(.yz-reduce-motion) .zenix-workspace-body>*,.yz-shell--library:not(.yz-reduce-motion) .zenix-feature-content>div>section { animation: zenix-native-arrive 360ms var(--workspace-curve) backwards; }
+  .yz-shell--library:not(.yz-reduce-motion) .zenix-feature-content>div>section:nth-child(2) { animation-delay: 40ms; }
+  .yz-shell--library:not(.yz-reduce-motion) .zenix-feature-content>div>section:nth-child(n+3) { animation-delay: 75ms; }
+}
+@media (hover:hover) and (pointer:fine) {
+  .yz-shell--library:not(.yz-reduce-motion) .zenix-desktop-workspace button:hover:not(:disabled) { transform: translateY(-1px); }
+  .yz-shell--library .zenix-desktop-workspace button:active:not(:disabled) { transform: translateY(1px); }
+  .zenix-desktop-workspace .connections-actions button>svg:last-child { transition: transform 220ms var(--workspace-curve); }
+  .zenix-desktop-workspace .connections-actions button:hover>svg:last-child { transform: translate(2px,-2px); }
+}
+@keyframes zenix-native-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@container native-workspace (max-width: 760px) {
+  .zenix-desktop-workspace .zenix-offline-tasks,.zenix-desktop-workspace .zenix-connections { grid-template-columns: minmax(0,1fr); }
+  .zenix-desktop-workspace .zenix-assistant-panel .zenix-figure-layout { grid-template-columns: minmax(0,1fr); gap: 20px; }
+  .zenix-desktop-workspace .zenix-offline-network .offline-fields { grid-template-columns: 1fr 1fr; gap: 16px; }
+  .zenix-desktop-workspace .zenix-offline-network .offline-fields>label { display: grid; grid-template-columns: 1fr; border: 0; padding: 0; }
+}
+@container native-workspace (max-width: 440px) {
+  .zenix-desktop-workspace .zenix-feature-content:not(.is-karaoke) section { padding: 17px; }
+  .zenix-desktop-workspace .zenix-offline-prepare .offline-fields,.zenix-desktop-workspace .zenix-offline-network .offline-fields { grid-template-columns: minmax(0,1fr); }
+  .zenix-desktop-workspace .zenix-native-section-heading { flex-wrap: wrap; gap: 10px; }
+  .zenix-desktop-workspace .zenix-native-state { margin-left: 50px; }
+  .zenix-desktop-workspace .zenix-manager-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+  .zenix-desktop-workspace .zenix-assistant-panel>section { padding: 17px; }
+}
+@media (max-width: 700px) {
+  .zenix-desktop-workspace .zenix-workspace-heading { padding-top: 32px; padding-bottom: 22px; }
+  .zenix-workspace-mark { width: 52px; height: 60px; border-radius: 15px; }
+  .zenix-desktop-workspace .zenix-workspace-title { gap: 14px; }
+  .zenix-desktop-workspace .zenix-workspace-title h1 { font-size: 25px; }
+  .zenix-desktop-workspace .zenix-workspace-title p { font-size: 12px; }
+}
+@media (max-width:800px) { .yz-shell--library .zenix-desktop-nav-group button { justify-content:center; padding-inline:0; } }
+@media (prefers-reduced-motion:reduce) { .zenix-desktop-workspace *,.zenix-desktop-nav-group button>svg { animation:none!important; transition:none!important; } }
+.yz-reduce-motion .zenix-desktop-workspace *,.yz-reduce-motion .zenix-desktop-nav-group button>svg { animation:none!important; transition:none!important; }

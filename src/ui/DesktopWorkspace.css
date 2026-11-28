@@ -1,0 +1,156 @@
+/* Desktop destinations share the shell; mobile tools retain their dialog layout. */
+.yz-shell--library {
+  --workspace-bg: #161719;
+  --workspace-panel: #1d1e20;
+  --workspace-input: #131416;
+  --workspace-line: #ffffff16;
+  --workspace-muted: #a7a7ac;
+  --workspace-ink: #f1f1f3;
+}
+.yz-shell--library .zenix-desktop-nav { background: #191a1df5; }
+.yz-shell--library .zenix-desktop-nav-group button { transition: background .15s, color .15s, transform .15s; }
+.yz-shell--library .zenix-desktop-nav-group button:hover { background: #ffffff0c; }
+.yz-shell--library .zenix-desktop-nav-group button:active { transform: translateY(1px); }
+.yz-shell--library .zenix-desktop-nav-group button[aria-current=page] { background: #ededee; color: #202023; font-weight: 650; }
+.yz-shell--library .zenix-desktop-nav-group button[aria-current=page] svg { color: inherit; }
+.yz-shell--library .zenix-desktop-nav-group button svg { color: #b9b9c1; }
+.yz-shell--library .zenix-desktop-nav-label { color: #92929b; }
+.yz-workspace-page { bottom: var(--desktop-dock-height); }
+.zenix-desktop-dock { position: absolute; z-index: 25; left: var(--desktop-nav-width); right: 0; bottom: 0; height: var(--desktop-dock-height); }
+.yz-shell--library .zenix-desktop-dock .yz-playerbar--home { background: #1a1b1efc; }
+.zenix-desktop-workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--workspace-ink); background: var(--workspace-bg); -webkit-app-region: no-drag; }
+.zenix-workspace-heading { flex: none; padding: 42px clamp(24px, 3.5vw, 56px) 24px; border-bottom: 1px solid var(--workspace-line); }
+.zenix-workspace-breadcrumb { display: flex; gap: 10px; align-items: center; margin-bottom: 26px; font-size: 12px; color: var(--workspace-muted); }
+.zenix-workspace-breadcrumb button { display: inline-flex; gap: 6px; align-items: center; padding: 0; border: 0; background: transparent; color: #d3d3d8; font-size: inherit; }
+.zenix-workspace-breadcrumb button:hover { color: white; }
+.zenix-workspace-title { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.zenix-workspace-title h1 { margin: 0; font-size: clamp(26px, 2.7vw, 36px); font-weight: 650; letter-spacing: -.04em; }
+.zenix-workspace-title h1:focus { outline: none; }
+.zenix-workspace-title p { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: var(--workspace-muted); }
+.zenix-workspace-device { flex: none; display: inline-flex; align-items: center; gap: 12px; color: #a5a5ad; font-size: 11px; }
+.zenix-workspace-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; padding: 24px clamp(24px, 3.5vw, 56px) 32px; scrollbar-width: thin; scrollbar-color: #ffffff26 transparent; }
+.zenix-desktop-workspace :is(button, input, select, textarea) { font: inherit; font-size: 13px; }
+.zenix-desktop-workspace button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 13px; border: 1px solid #ffffff23; border-radius: 8px; background: #ffffff04; color: var(--workspace-ink); cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .15s; }
+.zenix-desktop-workspace button:hover:not(:disabled) { background: #ffffff0c; border-color: #ffffff40; }
+.zenix-desktop-workspace button:active:not(:disabled) { transform: translateY(1px); }
+.zenix-desktop-workspace button:disabled { cursor: default; opacity: .42; }
+.zenix-desktop-workspace :is(button,input,select,textarea):focus-visible { outline: 2px solid #e5e5e9; outline-offset: 3px; }
+.zenix-desktop-workspace :where(input:not([type=checkbox]):not([type=range]),select,textarea) { min-width: 0; max-width: 100%; border: 1px solid #ffffff25; border-radius: 8px; padding: 10px 12px; background: var(--workspace-input); color: var(--workspace-ink); }
+.zenix-desktop-workspace input::placeholder { color: #898992; }
+.zenix-desktop-workspace input[type=checkbox] { accent-color: #e7e7ec; }
+.zenix-desktop-workspace .zenix-workspace-primary { border-color: #e7e7eb; background: #e7e7eb; color: #202023; font-weight: 600; }
+.zenix-desktop-workspace .zenix-workspace-primary:hover:not(:disabled) { border-color: #fff; background: #fff; }
+.zenix-desktop-workspace .zenix-workspace-breadcrumb button { min-height: 24px; padding: 0; border: 0; background: none; color: #b5b5bd; font-size: 12px; }
+.zenix-workspace-state { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 250px; padding: 28px; text-align: center; color: var(--workspace-muted); }
+.zenix-workspace-state h2 { margin: 0; font-size: 18px; font-weight: 550; color: var(--workspace-ink); }
+.zenix-workspace-state p { margin: 0; font-size: 13px; line-height: 1.8; }
+.zenix-workspace-spinner { animation: zenix-workspace-spin 1s linear infinite; }
+@keyframes zenix-workspace-spin { to { transform: rotate(360deg); } }
+
+/* Collections are normal page content, with contextual tabs rather than another sidebar. */
+.zenix-desktop-workspace .zenix-manager--embedded { position: static; z-index: auto; inset: auto; display: flex; flex: 1; min-height: 0; background: none; color: inherit; backdrop-filter: none; }
+.zenix-desktop-workspace .zenix-manager--embedded main { flex: 1; min-width: 0; padding: 0; overflow: visible; }
+.zenix-desktop-workspace .zenix-manager--embedded header { margin: 0 0 14px; }
+.zenix-desktop-workspace .zenix-manager--embedded header small { display: none; }
+.zenix-desktop-workspace .zenix-manager--embedded header h2 { margin: 6px 0 8px; font-size: 20px; font-weight: 600; }
+.zenix-desktop-workspace .zenix-manager--embedded header p { margin: 0; font-size: 12px; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-collection-tabs { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; }
+.zenix-desktop-workspace .zenix-collection-tabs:empty { display: none; }
+.zenix-desktop-workspace .zenix-collection-tabs button { width: auto; padding: 8px 12px; border-color: transparent; color: #ababB3; }
+.zenix-desktop-workspace .zenix-collection-tabs button[aria-current=page] { color: #f4f4f5; border-color: #ffffff20; background: #ffffff0b; }
+.zenix-collection-tabs button > span { margin-left: 5px; color: #9999a3; font-size: 11px; }
+.zenix-desktop-workspace .zenix-manager-overview { margin-top: 16px; overflow: visible; }
+.zenix-desktop-workspace .zenix-manager-overview-head h3 { display: none; }
+.zenix-desktop-workspace .zenix-manager-overview-head p { font-size: 12px; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-manager-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; }
+.zenix-desktop-workspace .zenix-manager-playlist-card { display: flex; flex-direction: column; align-items: stretch; gap: 9px; padding: 12px; border-radius: 10px; border-color: var(--workspace-line); background: #ffffff03; text-align: left; }
+.zenix-desktop-workspace .zenix-manager-playlist-card:hover { transform: translateY(-2px); border-color: #ffffff40; }
+.zenix-desktop-workspace .zenix-manager-playlist-art { border-radius: 6px; background: #ffffff06; }
+.zenix-desktop-workspace .zenix-manager-tracks { flex: none; overflow: visible; }
+.zenix-desktop-workspace .zenix-manager-track { min-height: 66px; border-color: var(--workspace-line); }
+.zenix-desktop-workspace .zenix-manager-track > button:first-child { justify-content: flex-start; padding: 10px 4px; border: 0; border-radius: 4px; }
+.zenix-desktop-workspace .zenix-manager-track strong { font-size: 13px; font-weight: 550; }
+.zenix-desktop-workspace .zenix-manager-track small { color: var(--workspace-muted); font-size: 11px; }
+.zenix-desktop-workspace .zenix-manager-toolbar { margin: 14px 0; }
+.zenix-desktop-workspace .zenix-manager-search { border-radius: 8px; background: var(--workspace-input); }
+.zenix-desktop-workspace .zenix-manager-search input { padding: 10px 0; border: 0; background: transparent; }
+.zenix-desktop-workspace .zenix-manager-empty { min-height: 220px; }
+.zenix-desktop-workspace .zenix-manager-editor { border-radius: 10px; background: var(--workspace-panel); box-shadow: none; }
+.zenix-desktop-workspace .zenix-manager-picker { flex: none; background: var(--workspace-panel); border-radius: 10px; }
+.zenix-desktop-workspace .zenix-manager-picker-list > button { justify-content: flex-start; border: 0; border-bottom: 1px solid var(--workspace-line); }
+.zenix-desktop-workspace .tool-actions { display: flex; gap: 8px; margin: 8px 0; }
+
+/* Reuse feature panels and runtime bridges inside the window, without dialog chrome. */
+.zenix-feature-inline { min-height: 0; flex: 1; }
+.zenix-desktop-workspace .zenix-feature-workbench { width: 100%; height: auto; min-height: 100%; border: 0; border-radius: 0; background: none; color: inherit; box-shadow: none; overflow: visible; }
+.zenix-desktop-workspace .zenix-feature-content { flex: 1; padding: 0; overflow: visible; }
+.zenix-desktop-workspace .zenix-feature-content:not(.is-karaoke) section { padding: 22px; margin-bottom: 18px; border: 1px solid var(--workspace-line); border-radius: 10px; background: var(--workspace-panel); }
+.zenix-desktop-workspace .zenix-feature-workbench h3 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
+.zenix-desktop-workspace .zenix-feature-workbench p { font-size: 13px; line-height: 1.85; color: var(--workspace-muted); }
+.zenix-desktop-workspace .zenix-feature-content.is-karaoke { overflow: hidden; border: 1px solid var(--workspace-line); border-radius: 12px; min-height: 520px; background: #141517; }
+.zenix-desktop-workspace .zenix-feature-workbench button[aria-pressed=true] { background: #e7e7eb; color: #202023; }
+.zenix-desktop-workspace .zenix-feature-content [role=alert] { color: #f0b9b3; }
+.zenix-desktop-workspace :is(.zenix-offline-tasks,.zenix-connections,.zenix-activities) button { min-height: 38px; border-radius: 8px; font-size: 13px; }
+.zenix-desktop-workspace :is(.zenix-offline-tasks,.zenix-connections) :is(input:not([type=checkbox]),select) { border-radius: 8px; background: var(--workspace-input); font-size: 13px; }
+
+/* All local tracks and local playlist management share one page. */
+.zenix-local-library { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.zenix-library-topline, .zenix-library-import-actions, .zenix-library-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.zenix-desktop-workspace .zenix-library-topline .zenix-collection-tabs { margin: 0; }
+.zenix-library-toolbar { margin: 26px 0 18px; }
+.zenix-library-search { display: flex; align-items: center; gap: 10px; width: min(390px, 100%); padding-left: 12px; border: 1px solid #ffffff25; border-radius: 8px; color: var(--workspace-muted); background: var(--workspace-input); }
+.zenix-desktop-workspace .zenix-library-search input { flex: 1; border: 0; background: none; }
+.zenix-library-error { padding: 12px; color: #f0b9b3; border: 1px solid #f0b9b344; border-radius: 8px; font-size: 13px; }
+.zenix-library-status { color: var(--workspace-muted); font-size: 12px; }
+.zenix-local-track-head, .zenix-desktop-workspace .zenix-local-track { display: grid; grid-template-columns: 32px minmax(140px, 1fr) minmax(80px, .55fr) 48px; align-items: center; gap: 12px; }
+.zenix-local-track-head { padding: 12px 10px; color: #92929c; border-bottom: 1px solid var(--workspace-line); font-size: 11px; }
+.zenix-desktop-workspace .zenix-local-track { width: 100%; padding: 10px; min-height: 70px; border: 0; border-bottom: 1px solid var(--workspace-line); border-radius: 0; background: none; text-align: left; }
+.zenix-desktop-workspace .zenix-local-track:hover { background: #ffffff04; border-color: var(--workspace-line); }
+.zenix-local-track-number { color: #8c8c96; font-size: 11px; }
+.zenix-local-track-number svg { display: none; }
+.zenix-local-track:hover .zenix-local-track-number > span { display: none; }
+.zenix-local-track:hover .zenix-local-track-number svg { display: block; color: var(--workspace-ink); }
+.zenix-local-track-song { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.zenix-local-track-song > span { min-width: 0; }
+.zenix-local-track-song .yz-cover { flex: none; width: 42px; height: 42px; border-radius: 5px; }
+.zenix-local-track-song strong, .zenix-local-track-song small, .zenix-local-track-album { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.zenix-local-track-song strong { font-size: 13px; font-weight: 550; }
+.zenix-local-track-song small { margin-top: 5px; color: var(--workspace-muted); font-size: 11px; }
+.zenix-local-track-album, .zenix-local-track-duration { color: var(--workspace-muted); font-size: 12px; }
+.zenix-desktop-workspace .yz-pl-embedded { display: flex; flex: 1; min-height: 440px; margin-top: 24px; }
+.zenix-desktop-workspace .yz-pl-dialog { width: 100%; height: auto; min-height: 440px; border: 1px solid var(--workspace-line); border-radius: 10px; grid-template-columns: 220px minmax(0,1fr); background: var(--workspace-panel); box-shadow: none; }
+.zenix-desktop-workspace .yz-pl-sidebar { padding: 20px 12px; background: #ffffff02; }
+.zenix-desktop-workspace .yz-pl-sidebar-heading h2 { font-size: 18px; }
+.zenix-desktop-workspace .yz-pl-eyebrow { display: none; }
+.zenix-desktop-workspace .yz-pl-main { padding: 24px; }
+.zenix-desktop-workspace .yz-pl-create { margin-top: 20px; }
+.zenix-desktop-workspace .yz-pl-create input { width: 100%; border: 0; padding: 4px 0; background: none; }
+.zenix-desktop-workspace .yz-pl-list-item { justify-content: flex-start; padding: 10px; border: 0; text-align: left; }
+.zenix-desktop-workspace .yz-pl-list-item.is-selected { background: #ffffff0a; }
+.zenix-desktop-workspace .yz-pl-header h2 { font-size: 26px; }
+.zenix-desktop-workspace .yz-pl-actions { flex-wrap: wrap; }
+.zenix-desktop-workspace .yz-pl-track-text { justify-content: flex-start; align-items: flex-start; border: 0; background: none; text-align: left; }
+
+@media (max-width: 1000px) {
+  .zenix-workspace-heading { padding: 40px 24px 20px; }
+  .zenix-workspace-body { padding: 20px 24px 28px; }
+  .zenix-workspace-device { display: none; }
+  .zenix-desktop-workspace .yz-pl-dialog { grid-template-columns: 170px minmax(0,1fr); }
+  .zenix-desktop-workspace .yz-pl-main { padding: 20px 16px; }
+  .zenix-desktop-workspace .yz-pl-content.has-add-panel { grid-template-columns: minmax(0,1fr); overflow: auto; }
+}
+@media (max-width: 700px) {
+  .zenix-workspace-heading, .zenix-workspace-body { padding-inline: 18px; }
+  .zenix-workspace-breadcrumb { margin-bottom: 18px; }
+  .zenix-desktop-workspace .zenix-feature-content:not(.is-karaoke) section { padding: 16px; }
+  .zenix-local-track-head, .zenix-desktop-workspace .zenix-local-track { grid-template-columns: 24px minmax(0,1fr) 42px; gap: 8px; }
+  .zenix-local-track-head > span:nth-child(3), .zenix-local-track-album { display: none; }
+  .zenix-desktop-workspace .yz-pl-dialog { display: flex; flex-direction: column; }
+  .zenix-desktop-workspace .yz-pl-sidebar { max-height: 250px; border-right: 0; border-bottom: 1px solid var(--workspace-line); }
+  .zenix-desktop-workspace .yz-pl-main { min-height: 320px; }
+  .zenix-desktop-workspace .zenix-feature-content.is-karaoke { min-height: 440px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zenix-desktop-workspace *, .zenix-desktop-nav-group button { animation: none !important; transition: none !important; }
+}
+.yz-reduce-motion .zenix-desktop-workspace *, .yz-reduce-motion .zenix-desktop-nav-group button { animation: none !important; transition: none !important; }

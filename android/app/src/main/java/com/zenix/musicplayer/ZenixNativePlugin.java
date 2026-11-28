@@ -33,6 +33,8 @@ public class ZenixNativePlugin extends Plugin {
     @Override public void load(){
         runtime=ZenixRuntime.get(getContext());
         assistantModel=new AssistantModel(getContext());
+        assistantModel.attachments(new AssistantAttachments(getContext()));
+        assistantModel.observe(value -> notifyListeners("assistantModelDelta", new JSObject().put("requestId", value.optString("requestId")).put("revision", value.optString("revision")).put("text", value.optString("text"))));
         karaokeAudio=new KaraokeAudio(getContext(),runtime,event->notifyListeners("karaokeAudioStatus",
             new JSObject().put("round",event.optString("round")).put("state",event.optString("state"))
                 .put("message",event.optString("message")).put("positionMs",event.optLong("positionMs"))));

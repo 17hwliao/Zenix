@@ -1,0 +1,19 @@
+@import './application-style.css';
+/* Only UI chrome is painted. Lyric and character canvases remain transparent. */
+html.zenix-native-appearance body::before{display:none}
+html.zenix-native-appearance :is(.toolbar,nav,#pet-menu,.playlist-menu,.editor,.bar,.card,.panel){background:var(--bento-dock-bg);color:var(--zx-text);border-color:var(--zx-border-strong);border-radius:var(--bento-radius)}
+html.zenix-native-appearance button{background:var(--zx-surface);color:var(--zx-text);border-color:var(--zx-border);border-radius:var(--zx-button-radius);transition:background-color 140ms,border-color 140ms,translate 120ms}
+html.zenix-native-appearance button:hover{background:var(--zx-surface-active);border-color:var(--primary-500)}
+html.zenix-native-appearance button:active{translate:0 1px}
+html.zenix-native-appearance #pet-menu button:hover{background:var(--zx-surface-active)}
+html.zenix-native-appearance :is(#message,#scale-chip,.lock-button){background:var(--zx-surface);color:var(--zx-text);border-color:var(--zx-border-strong)}
+html.zenix-native-appearance[data-button-style=solid] button:not(#voice){background:var(--primary-600);color:#fff}
+html.zenix-native-appearance[data-button-style=outline] button{background:transparent;color:var(--primary-400);border:var(--zx-button-stroke) solid var(--primary-500)}
+html.zenix-native-appearance[data-button-style=pixel] button{background:var(--zx-bg-elevated);color:var(--zx-text);border:var(--zx-button-stroke) solid var(--zx-text);box-shadow:0 var(--zx-button-depth) 0 var(--zx-text)}
+.zx-native-style-open{position:fixed;right:14px;top:14px;z-index:5;padding:8px 12px;font-size:12px;min-height:36px;border:1px solid var(--zx-border)}
+.zx-native-style-dialog{width:min(420px,calc(100vw - 30px));max-height:calc(100dvh - 40px);overflow:auto;padding:24px;background:var(--zx-bg-elevated);color:var(--zx-text);border:1px solid var(--zx-border-strong);border-radius:var(--bento-radius)}
+.zx-native-style-dialog::backdrop{background:#0009;backdrop-filter:blur(5px)}.zx-native-style-dialog form{display:flex;align-items:center;justify-content:space-between}.zx-native-style-dialog h2{margin:0;font-size:27px}.zx-native-style-dialog p{font-size:12px;color:var(--zx-text-secondary)}.zx-native-style-dialog label{display:flex;align-items:center;gap:12px;margin:18px 0;font-size:13px;flex-wrap:wrap}.zx-native-style-dialog select{margin-left:auto;min-height:40px;max-width:65%;border:1px solid var(--zx-border);padding:7px 10px}.zx-native-style-dialog input{width:50%;margin-left:auto}.zx-native-style-dialog output{font-size:12px;color:var(--primary-400);width:35px}.zx-native-style-dialog button{padding:8px 12px;min-height:40px;border:1px solid var(--zx-border)}.zx-native-style-error{color:var(--zx-danger)!important}
+html.zenix-native-appearance:has(.zx-native-style-open) body{background:var(--zx-bg)}
+html.zenix-native-appearance:has(.zx-native-style-open) main{background:var(--zx-bg-elevated);color:var(--zx-text);border-color:var(--zx-border);border-radius:var(--bento-radius)}
+html.zenix-native-appearance:has(.zx-native-style-open) :is(p,small){color:var(--zx-text-secondary)}
+html.zenix-native-appearance #pair>button{background:var(--zx-button-fill);color:var(--zx-button-ink);border-color:var(--zx-button-line)}

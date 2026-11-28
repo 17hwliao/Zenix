@@ -181,12 +181,12 @@ html,body,#root{min-height:100%;background:#101117;overscroll-behavior-y:none}
 .mobile-full-player.is-pure-lyrics .listening-lyric-controls{flex-shrink:0}
 
 /* Reserve space in alternate modes without resizing the underlying sticker canvas. */
-#root:has(.page-space .mobile-space-presentation-stage){--space-player-offset:0px;--space-roaming-offset:0px;--space-voice-offset:0px}
-#root:has(.page-space .mobile-space-presentation-stage):has(.page-space .mobile-mini){--space-player-offset:87px}
-#root:has(.page-space .mobile-space-presentation-stage):has(.page-space .mobile-roaming){--space-roaming-offset:52px}
-#root:has(.page-space .mobile-space-presentation-stage):has(.assistant-voice-dock){--space-voice-offset:52px}
+body:has(#root .page-space .mobile-space-presentation-stage){--space-player-offset:0px;--space-roaming-offset:0px;--space-voice-offset:0px}
+body:has(#root .page-space .mobile-space-presentation-stage):has(.page-space .mobile-mini){--space-player-offset:87px}
+body:has(#root .page-space .mobile-space-presentation-stage):has(.page-space .mobile-roaming){--space-roaming-offset:52px}
+body:has(#root .page-space .mobile-space-presentation-stage):has(.assistant-voice-dock){--space-voice-offset:52px}
 .page-space:has(.mobile-space-presentation-stage){--space-dock-height:calc(var(--space-roaming-offset) + var(--space-voice-offset))}
 .page-space:has(.mobile-space-presentation-stage):has(.space-more){--space-pagination-height:54px}
 .page-space:has(.mobile-space-presentation-stage) .mobile-roaming{bottom:calc(86px + var(--space-player-offset) + env(safe-area-inset-bottom))}
-#root:has(.page-space .mobile-space-presentation-stage) .assistant-conversation.is-mobile{bottom:calc(86px + var(--space-player-offset) + var(--space-roaming-offset) + env(safe-area-inset-bottom))}
+body:has(#root .page-space .mobile-space-presentation-stage) .assistant-conversation.is-mobile{bottom:calc(86px + var(--space-player-offset) + var(--space-roaming-offset) + env(safe-area-inset-bottom))}
 .page-space:has(.mobile-space-presentation-stage) .space-more{bottom:calc(88px + var(--space-player-offset) + var(--space-dock-height) + env(safe-area-inset-bottom))}

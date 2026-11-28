@@ -11,6 +11,7 @@ export type SettingSearchEntry = {
 };
 
 export const settingEntries: readonly SettingSearchEntry[] = Object.freeze([
+  {title:'全局 Style 与按钮',category:'音乐空间',description:'五种材质、六种颜色、黑色模式与按钮圆角、描边和按压厚度',tab:'space',target:'[data-setting="application-style"]',keywords:'Neon Glass Paper Sharp Default 外观 样式 颜色 style 切角'},
   {title:'输出设备',category:'播放',description:'选择声卡、耳机或系统默认输出',tab:'playback',target:'.listening-output',keywords:'扬声器 蓝牙 HDMI 音频 声音 output'},
   {title:'均衡器与声音预设',category:'播放',description:'原声、人声、低音、流行及自定义频段',tab:'playback',target:'.listening-audio details',keywords:'EQ 音效 音质 高音 低音 频段'},
   {title:'睡眠定时器',category:'播放',description:'设置到时停止播放的任务',tab:'playback',target:'.yz-settings-quick-tools',keywords:'定时 关闭 倒计时'},
@@ -18,15 +19,15 @@ export const settingEntries: readonly SettingSearchEntry[] = Object.freeze([
   {title:'歌词显示',category:'播放',description:'字号、行距、字重、翻译与当前歌曲校正',tab:'playback',target:'[data-setting="lyrics"]',keywords:'字体 颜色 对齐 时间 偏移 翻译'},
   {title:'桌面歌词',category:'播放',description:'显示、锁定和调整桌面悬浮歌词',tab:'playback',target:'[data-setting="desktop-lyrics"]',keywords:'悬浮 字体 颜色 穿透'},
   {title:'减少动效',category:'播放',description:'缩短或关闭页面及歌词过渡动画',tab:'playback',target:'[data-setting="reduce-motion"]',keywords:'动画 性能 卡顿 reduced motion'},
-  {title:'界面音效',category:'播放',description:'进入、返回和滑动贴纸的声音反馈',tab:'playback',target:'[data-setting="ui-sounds"]',keywords:'试听 音量 音色 进入 取消 滑动'},
+  {title:'界面音效',category:'播放',description:'按钮触摸、键盘激活和播放操作的声音反馈',tab:'playback',target:'[data-setting="ui-sounds"]',keywords:'试听 音量 音色 点击 按键 触摸 进入 取消 滑动'},
   {title:'刷新本地曲库',category:'播放',description:'重新读取已导入的音乐',tab:'playback',target:'[data-setting="refresh-library"]',keywords:'扫描 文件夹'},
   {title:'导入音乐',category:'播放',description:'选择本地音乐文件夹',tab:'playback',target:'[data-setting="import-music"]',keywords:'本地 曲库 文件夹'},
-  {title:'歌词主题',category:'音乐空间',description:'黑胶夜、影院幕布、CD 机、极简留白及本地主题包',tab:'space',target:'[data-setting="themes"]',keywords:'主题 皮肤 theme 背景 字体 导入 纯歌词'},
+  {title:'歌词主题',category:'音乐空间',description:'黑胶夜、影院幕布、CD 机、极简留白及本地主题包',tab:'space',target:'[data-setting="themes"]',keywords:'主题 人物形象 theme 背景 字体 导入 纯歌词'},
   {title:'桌面首页风格',category:'音乐空间',description:'在左栏曲库和环绕卡牌之间切换',tab:'space',target:'[data-setting="desktop-home-style"]',keywords:'首页 界面 桌面 主题 环绕卡牌 左栏'},
   {title:'音乐空间展示',category:'音乐空间',description:'选择贴纸拼贴、环绕或简约列表及卡片大小',tab:'space',target:'[data-setting="space-presentation"]',keywords:'歌曲 展示 风格 环绕 星轨 列表 卡片'},
   {title:'简约列表视觉',category:'音乐空间',description:'黑白中性底、黑银反射边框与清晰行层级',tab:'space',target:'[data-setting="simple-list"]',keywords:'列表 歌曲 行 样式 主题 银边'},
   {title:'背景与外观',category:'音乐空间',description:'选择或更换图片、视频背景',tab:'space',target:'.yz-appearance-preview',keywords:'壁纸 动态 背景 默认 空间'},
-  {title:'音乐助手',category:'助手',description:'打开星音助手、皮肤、语音与远程模型设置',tab:'assistant',target:'[data-setting="assistant"]',keywords:'星音 AI 模型 桌宠 悬浮 语音 对话'},
+  {title:'音乐助手',category:'助手',description:'打开Zenbot助手、人物形象、语音与远程模型设置',tab:'assistant',target:'[data-setting="assistant"]',keywords:'Zenbot AI 模型 桌宠 悬浮 语音 对话'},
   {title:'音乐源管理',category:'音乐源',description:'添加、配置、启用或停用音乐源',tab:'sources',target:'.zenix-source-settings',keywords:'源 网络 HTTP HTTPS 权限 顺序'},
   {title:'音源分享包',category:'音乐源',description:'打包全部音乐源，或导入朋友分享的源',tab:'sources',target:'.zenix-bundle-export',keywords:'一键 打包 分享 包 导出 导入'},
   {title:'播放音质',category:'音乐源',description:'选择自动、标准、高品质或无损',tab:'sources',target:'.zenix-source-quality',keywords:'flac 无损 高音质'},

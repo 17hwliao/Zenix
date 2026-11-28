@@ -20,7 +20,7 @@ type Props = {
   onReplayIntro?: () => void; onImportFolder: () => void | Promise<void>;
   onAddFiles?: () => void | Promise<void>; onOpenLocalLibrary?: () => void;
   onImportPlaylist?: () => void | Promise<void>;
-  libraryLayout: boolean; onSearch: () => void;
+  libraryLayout: boolean; onSearch: () => void; onSpace?: () => void; onTool?: (id:string) => void;
 };
 type OrbitCoverKey = 'liked' | 'favorites' | 'history' | 'playlists' | 'library';
 type Profile = { name: string; tagline: string; cardLine: string; cardNumber: string; about: string; tags: string; contact: string; subject: string; background: string; bannerSubject?: string; bannerBackground?: string; orbitCovers: Record<OrbitCoverKey, string> };
@@ -60,7 +60,7 @@ function imageToDataUrl(file: File, maxEdge: number, transparent: boolean): Prom
 }
 type OrbitCard = { id: OrbitCoverKey | 'settings'; label: string; caption: string; icon: typeof Heart; image?: string; action: () => void };
 
-export default function PersonalHome({ personal, tracks, appearanceBackground, appearanceBusy, onPlayTrack, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist, libraryLayout, onSearch }: Props) {
+export default function PersonalHome({ personal, tracks, appearanceBackground, appearanceBusy, onPlayTrack, onOpenManager, onOpenSettings, onChooseBackground, onClearBackground, onReplayIntro, onImportFolder, onAddFiles, onOpenLocalLibrary, onImportPlaylist, libraryLayout, onSearch, onSpace, onTool }: Props) {
   const [profile, setProfile] = useState<Profile>(readProfile);
   useEffect(() => { const restore = () => setProfile(readProfile()); window.addEventListener('zenix:profile-restored', restore); return () => window.removeEventListener('zenix:profile-restored', restore); }, []);
   const [draft, setDraft] = useState<Profile>(profile);
@@ -270,7 +270,7 @@ export default function PersonalHome({ personal, tracks, appearanceBackground, a
 
   return <div ref={homeRef} className={`zenix-home-space${libraryLayout ? ' is-library-layout' : ' is-orbit-layout'}`}>
     {!libraryLayout && editing && editMode==='banner' && <span className="zenix-desktop-identity-sizer" aria-hidden="true"/>}
-    {libraryLayout ? <DesktopLibraryHome name={profile.name} subject={profile.bannerSubject ?? profile.subject} background={profile.bannerBackground ?? profile.background} cropped={profile.bannerBackground !== undefined} personal={personal} onEdit={openEditor} onSearch={onSearch} onOpenCollection={onOpenManager} onPlay={onPlayTrack}/> : <>
+    {libraryLayout ? <DesktopLibraryHome onSpace={onSpace} onTool={onTool} name={profile.name} subject={profile.bannerSubject ?? profile.subject} background={profile.bannerBackground ?? profile.background} cropped={profile.bannerBackground !== undefined} personal={personal} onEdit={openEditor} onSearch={onSearch} onOpenCollection={onOpenManager} onPlay={onPlayTrack}/> : <>
     <div className="zenix-home-scroll" tabIndex={0} aria-label="个人首页内容">
       <section ref={stageRef} className="zenix-space-stage" aria-label="个人音乐空间" onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp} onLostPointerCapture={onStageUp} onPointerLeave={event => event.currentTarget.classList.remove('is-orbit-hot')}>
         <div className="zenix-stage-aura" aria-hidden="true" />

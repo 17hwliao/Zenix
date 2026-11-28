@@ -2,9 +2,9 @@ import {useAssistantUi} from '../features/assistant/controlUi';
 import {useAssistantLibraryContext} from '../features/assistant/libraryContext';
 import type {AssistantNavigation} from '../features/assistant/libraryHost';
 import CatalogBrowser from './CatalogBrowser';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {createPortal} from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Compass, Home, LoaderCircle, Maximize2, Minimize2, Minus, Search, X } from 'lucide-react';
 import PersonalBackdrop, { type PersonalScene } from './PersonalBackdrop';
 import { queueForSelection } from '../core/searchGroups';
@@ -16,6 +16,7 @@ import SettingsModal from './SettingsModal';
 import PersonalHome from './PersonalHome';
 import {DesktopLibraryNavigation, desktopHomeStyleKey, readDesktopHomeStyle, type DesktopHomeStyle} from './DesktopLibraryHome';
 import PersonalLibraryManager from './PersonalLibraryManager';
+import DesktopWorkspace, {desktopToolPages, WorkspaceLoading} from './DesktopWorkspace';
 import QueuePanel from './QueuePanel';
 import SourceCallout from './SourceCallout';
 import { playUiSound } from '../core/sounds';
@@ -24,17 +25,25 @@ import { trackCoverUrl } from '../core/trackCover';
 import type { ZenixShellProps } from './types';
 import './Zenix.css';
 import './DesktopLibraryHome.css';
+import './DesktopWorkspace.css';
+import './DesktopNativeSurfaces.css';
 import {useSpaceSettings} from '../features/space/state';
+import {useApplicationExperience} from './useApplicationExperience';
+import ApplicationTransition from './ApplicationTransition';
 
 const ShaderBackdrop = lazy(() => import('./ShaderBackdrop'));
+const DesktopTools = lazy(() => import('../features/FeatureWorkbench'));
+const DesktopLocalLibrary = lazy(() => import('./DesktopLocalLibrary'));
+type WorkspacePage = {kind: 'collection' | 'tool' | 'library'; id: string};
 
 export default function ZenixShell(props: ZenixShellProps) {
+  useApplicationExperience();
   const {
     appearanceBackground = null, interactionLocked = false, appearanceBusy = false, onChooseBackground, onClearBackground,
     tracks, playlists = [], currentTrack = null, playbackError, sourceActivity, onCancelSourceRequest, playing, position, duration, volume, muted = false,
     shuffle = false, repeat = 'off', queue = [], queueIndex = -1, lyrics = [], playerViewRequestKey, libraryBusy = false,
     onPlayTrack, onTogglePlay, onPrevious, onNext, onSeek, onVolumeChange,
-    onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onOpenPlaylists, onRefreshLibrary,
+    onToggleMute, onToggleShuffle, onCycleRepeat, onImportFolder, onAddFiles, onImportPlaylist, onRefreshLibrary,
     onMinimize, onMaximize, onClose, onReplayIntro,
     personal = { liked: [], favorites: [], history: [], playlists: [] }, onToggleSaved, onCreatePersonalPlaylist, onAddToPersonalPlaylist, onRemovePersonalTrack, onRemoveSaved, onRenamePersonalPlaylist, onDeletePersonalPlaylist, onSetQueue,
     desktopLyricsVisible = false, onToggleDesktopLyrics, roaming, onStartRoaming, onStopRoaming, onPlayRoaming,
@@ -70,7 +79,12 @@ export default function ZenixShell(props: ZenixShellProps) {
     return () => window.removeEventListener('zenix-source-search', open);
   }, []);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'options' | 'sources'>('options');
-  const [managerSection, setManagerSection] = useState<string | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspacePage>();
+  const managerSection = workspace?.kind === 'collection' ? workspace.id : null;
+  const setManagerSection = useCallback((id: string | null) => {
+    setWorkspace(id ? {kind: 'collection', id} : undefined);
+    if (id) setView('home');
+  }, []);
   const [assistantNavigation,setAssistantNavigation]=useState(0);
   useAssistantLibraryContext({playlistId:view==='player'&&playerWallMode==='queue'?currentTrack?.playlistId:undefined,collection:view==='home'?'home':playerWallMode});
   useEffect(()=>{const navigate=(event:Event)=>{const detail=(event as CustomEvent<AssistantNavigation>).detail;if(!detail||!['home','playlist'].includes(detail.page))return;if(detail.page==='playlist'&&!personal.playlists.some(list=>list.id===detail.id))return;
@@ -78,8 +92,23 @@ export default function ZenixShell(props: ZenixShellProps) {
     if(detail.page==='home'){setManagerSection(null);setView('home');}else setManagerSection(detail.id!);detail.accept();
   };window.addEventListener('zenix-assistant-navigate',navigate);return()=>window.removeEventListener('zenix-assistant-navigate',navigate);},[personal.playlists]);
   const [assistantView,setAssistantView]=useState<{pure?:boolean;zone?:string;revision:number}>();
+  const openWorkspace = useCallback((kind: WorkspacePage['kind'], id: string) => {
+    setWorkspace({kind, id}); setView('home'); setSettingsOpen(false); setQueueOpen(false);
+    setSearchOpen(false); setCatalog(undefined); setAssistantView(undefined);
+  }, []);
+  // A desktop shell owns tool navigation. Hosts without this shell (including mobile)
+  // continue to use FeatureHost's modal fallback, without mounting a second workbench.
+  useEffect(() => {
+    const open = (event: Event) => {
+      const tab = String((event as CustomEvent).detail?.tab || 'personal');
+      if (!desktopToolPages[tab]) return;
+      event.stopImmediatePropagation(); openWorkspace('tool', tab);
+    };
+    window.addEventListener('zenix-open-workbench', open, true);
+    return () => window.removeEventListener('zenix-open-workbench', open, true);
+  }, [openWorkspace]);
   useAssistantUi((action,args)=>{
-    if(action==='tasks'||action==='connections'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:action}}));return true;}
+    if(action==='tasks'||action==='connections'||action==='karaoke'){window.dispatchEvent(new CustomEvent('zenix-open-workbench',{detail:{tab:action}}));return true;}
     if(action==='stats'){window.dispatchEvent(new Event('zenix-open-assistant-stats'));return true;}
     if(action==='search'){setSearchOpen(true);return true;}
     if(action==='queue'){openQueue();return true;}
@@ -93,12 +122,14 @@ export default function ZenixShell(props: ZenixShellProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [legacyReduceMotion, setReduceMotion] = useState(false);
   const spaceSettings=useSpaceSettings();
-  const reduceMotion=legacyReduceMotion||spaceSettings.motion==='reduced';
+  const systemReducedMotion=useReducedMotion();
+  const reduceMotion=legacyReduceMotion||spaceSettings.motion==='reduced'||Boolean(systemReducedMotion);
   useEffect(()=>{const open=(event:Event)=>{const query=String((event as CustomEvent).detail?.query||'');if(query){setQuery(query);setSearchOpen(true);}};window.addEventListener('zenix-assistant-search',open);return()=>window.removeEventListener('zenix-assistant-search',open);},[]);
   const [homeSearchRevealed, setHomeSearchRevealed] = useState(false);
   const documentVisible = useDocumentVisible();
   const previousViewRequestRef = useRef(playerViewRequestKey);
   const enterPlayer = (mode: 'recent' | 'queue' = 'recent') => {
+    setManagerSection(null);
     setAssistantView(undefined);
     setExpandRequest(0);
     playUiSound('enter');
@@ -125,11 +156,12 @@ export default function ZenixShell(props: ZenixShellProps) {
     if (interactionLocked) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest('[role=dialog]')) return;
+      if (event.defaultPrevented) return;
       if (event.key === 'Escape') {
-        if (managerSection) setManagerSection(null);
-        else if (settingsOpen) { setSettingsOpen(false); setSettingsInitialTab('options'); }
+        if (settingsOpen) { setSettingsOpen(false); setSettingsInitialTab('options'); }
         else if (searchOpen) setSearchOpen(false);
         else if (queueOpen) setQueueOpen(false);
+        else if (workspace) setManagerSection(null);
         else if (view === 'player') { playUiSound('cancel'); setView('home'); }
         else if (fullscreen) void window.yzqxy?.window.toggleFullscreen();
         else return;
@@ -139,13 +171,13 @@ export default function ZenixShell(props: ZenixShellProps) {
       }
       if (event.defaultPrevented) return;
       if (event.altKey || event.ctrlKey || event.metaKey) {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !settingsOpen && !managerSection && !queueOpen) {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !settingsOpen && !queueOpen) {
           event.preventDefault();
           setSearchOpen(true);
         }
         return;
       }
-      if (settingsOpen || managerSection || queueOpen || searchOpen) return;
+      if (settingsOpen || queueOpen || searchOpen) return;
       const target = event.target;
       if (target instanceof Element && target.closest('button, a, input, textarea, select, [role="button"], [role="slider"], [contenteditable="true"]')) return;
       if (event.code === 'Space' && currentTrack) {
@@ -159,7 +191,7 @@ export default function ZenixShell(props: ZenixShellProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [currentTrack, duration, interactionLocked, onSeek, onTogglePlay, position, queueOpen, searchOpen, settingsOpen, managerSection, view, fullscreen]);
+  }, [currentTrack, duration, interactionLocked, onSeek, onTogglePlay, position, queueOpen, searchOpen, settingsOpen, managerSection, workspace, view, fullscreen]);
 
   const openSearch = (text = query) => {
     playUiSound('enter');
@@ -192,7 +224,7 @@ export default function ZenixShell(props: ZenixShellProps) {
   const toggleDesktopLyrics = () => { playUiSound(desktopLyricsVisible ? 'cancel' : 'enter'); onToggleDesktopLyrics?.(); };
 
   const showWindowControls = Boolean(onMinimize || onMaximize || onClose);
-  const searchAvailable = !interactionLocked && !searchOpen && !settingsOpen && !managerSection && !queueOpen && !catalog;
+  const searchAvailable = !interactionLocked && !searchOpen && !settingsOpen && !workspace && !queueOpen && !catalog;
   const personalScene: PersonalScene = settingsOpen ? 'settings' : searchOpen ? 'search' : managerSection ? 'collection' : queueOpen ? 'queue' : view === 'player' ? 'player' : 'home';
   const showPersonalBackground = Boolean(appearanceBackground);
   const recentTracks = personal.history.map(entry => entry.track);
@@ -204,25 +236,29 @@ export default function ZenixShell(props: ZenixShellProps) {
     setAssistantView(undefined); setView('home'); setSearchOpen(false);
     setSettingsOpen(false); setQueueOpen(false); setManagerSection(null);
   };
-  const activeDestination = settingsOpen ? 'settings' : managerSection ? (['liked', 'favorites'].includes(managerSection) ? 'liked' : managerSection === 'history' ? 'history' : 'playlists')
+  const activeDestination = settingsOpen ? 'settings' : workspace?.kind === 'tool' ? workspace.id : workspace?.kind === 'library' ? 'library' : managerSection ? (['liked', 'favorites'].includes(managerSection) ? 'liked' : managerSection === 'history' ? 'history' : 'playlists')
     : view === 'home' ? 'home' : playerWallMode === 'roaming' ? 'roaming' : 'space';
+  const workspaceTitle = workspace?.kind === 'tool' ? desktopToolPages[workspace.id]?.title || '音乐工具'
+    : workspace?.kind === 'library' ? '本地曲库' : activeDestination === 'liked' ? '喜欢与收藏' : activeDestination === 'history' ? '听歌历史' : '我的歌单';
+  const workspaceDescription = workspace?.kind === 'tool' ? desktopToolPages[workspace.id]?.description || ''
+    : workspace?.kind === 'library' ? '磁盘上的音乐，随时可以播放。' : activeDestination === 'history' ? '回到那些反复听过的旋律。' : activeDestination === 'liked' ? '把打动你的旋律留在身边。' : '按心情收纳音乐，留给下一次播放。';
 
   return (
-    <div className={`yz-shell yz-shell--${view} yz-shell--library${view === 'home' && currentTrack ? ' has-docked-player' : ''}${showWindowControls ? ' has-window-controls' : ''}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`} onPointerMove={event => {
+    <div className={`yz-shell yz-shell--${view} yz-shell--library${workspace?' has-workspace':''}${view === 'home' && currentTrack ? ' has-docked-player' : ''}${showWindowControls ? ' has-window-controls' : ''}${reduceMotion ? ' yz-reduce-motion' : ''}${showPersonalBackground ? ' has-personal-background' : ''}`} onPointerMove={event => {
       if (view === 'home' || !searchAvailable || event.buttons) return;
       const target = event.target as Element;
       const overSearch = Boolean(target.closest('.yz-home-search-dock,.yz-lattice-search-zone'));
       const overAction = Boolean(target.closest('button,a,input,select,textarea,[role="button"],.yz-window-controls-zone'));
       setHomeSearchRevealed(overSearch || (!overAction && event.clientY >= 32 && event.clientY <= 148));
     }} onPointerLeave={() => setHomeSearchRevealed(false)}>
-      {documentVisible && homeStyle === 'cards' && !showPersonalBackground && view === 'home' && <Suspense fallback={null}><ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion||spaceSettings.motion==='light'} /></Suspense>}
+      {documentVisible && homeStyle === 'cards' && !showPersonalBackground && view === 'home' && !workspace && <Suspense fallback={null}><ShaderBackdrop surface={view} playing={playing} reduceMotion={reduceMotion||spaceSettings.motion==='light'} /></Suspense>}
       {showPersonalBackground && <PersonalBackdrop background={appearanceBackground} scene={personalScene} />}
       {trackCoverUrl(currentTrack) && view === 'player' && <div className="yz-cover-backdrop" style={{ backgroundImage: `url("${trackCoverUrl(currentTrack)?.replaceAll('"', '%22')}")` }} aria-hidden="true" />}
       <div className="yz-grain" aria-hidden="true" />
-      <DesktopLibraryNavigation active={activeDestination} onHome={showHome} onSpace={() => enterPlayer('recent')}
-        onRoaming={onStartRoaming ? () => {void startRoaming();} : undefined} onCollection={setManagerSection}
-        onLibrary={onOpenPlaylists ?? (() => setManagerSection('playlists'))}
-        onTool={tab => window.dispatchEvent(new CustomEvent('zenix-open-workbench', {detail: {tab}}))}
+      <DesktopLibraryNavigation active={activeDestination} reducedMotion={reduceMotion} onHome={showHome} onSpace={() => enterPlayer('recent')}
+        onRoaming={onStartRoaming ? () => {void startRoaming();} : undefined} onCollection={id => openWorkspace('collection', id)}
+        onLibrary={() => openWorkspace('library', 'library')}
+        onTool={tab => openWorkspace('tool', tab)}
         onSettings={() => {setSettingsInitialTab('options'); setSettingsOpen(true);}}/>
       {showWindowControls && createPortal(<div className="yz-titlebar-drag" aria-hidden="true"/>,document.body)}
 
@@ -246,11 +282,21 @@ export default function ZenixShell(props: ZenixShellProps) {
         </div>,document.body)
       )}
 
+      <ApplicationTransition identity={workspace?`${workspace.kind}:${workspace.id}`:view} reduced={reduceMotion}/>
       <AnimatePresence mode="wait" initial={false}>
-        {view === 'home' ? (
+        {workspace ? (
+          <motion.div key="workspace" className="yz-page yz-workspace-page" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:reduceMotion?0:.16}}>
+            <DesktopWorkspace page={`${workspace.kind}:${workspace.id}`} title={workspaceTitle} description={workspaceDescription} onHome={showHome}>
+              {workspace.kind === 'collection' && <PersonalLibraryManager embedded key={assistantNavigation} initialSection={workspace.id} onSectionChange={id=>setWorkspace({kind:'collection',id})} personal={personal} tracks={tracks} queue={queue} onClose={showHome} onPlayTrack={onPlayTrack} onCreatePlaylist={name => onCreatePersonalPlaylist?.(name) ?? Promise.resolve(null)} onRenamePlaylist={(id, name) => onRenamePersonalPlaylist?.(id, name) ?? Promise.resolve(false)} onDeletePlaylist={id => onDeletePersonalPlaylist?.(id) ?? Promise.resolve(false)} onRemoveSaved={(kind, id) => onRemoveSaved?.(kind, id)} onRemovePersonalTrack={(id, trackId) => onRemovePersonalTrack?.(id, trackId)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} />}
+              <Suspense fallback={<WorkspaceLoading/>}>
+                {workspace.kind === 'tool' && <DesktopTools key={workspace.id} embedded mobile={false} initialTab={workspace.id} onNavigate={id=>openWorkspace('tool',id)} close={showHome}/>}
+                {workspace.kind === 'library' && <DesktopLocalLibrary tracks={tracks} busy={libraryBusy} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onRefresh={onRefreshLibrary} onPlayTrack={onPlayTrack}/>}
+              </Suspense>
+            </DesktopWorkspace>
+          </motion.div>
+        ) : view === 'home' ? (
           <motion.div key="home" className="yz-page yz-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.32 }}>
-            <PersonalHome libraryLayout={homeStyle === 'library'} onSearch={() => openSearch()} personal={personal} tracks={tracks} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenManager={setManagerSection} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={onOpenPlaylists} />
-            {currentTrack && <PlaybackBar track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} surface="home" onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenPlayer={() => enterPlayer('recent')} onExpandPlayer={expandPlaying} onOpenQueue={openQueue} />}
+            <PersonalHome onSpace={() => enterPlayer('recent')} onTool={id => openWorkspace('tool',id)} libraryLayout={homeStyle === 'library'} onSearch={() => openSearch()} personal={personal} tracks={tracks} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} onPlayTrack={onPlayTrack} onOpenManager={id=>openWorkspace('collection',id)} onOpenSettings={() => setSettingsOpen(true)} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReplayIntro={onReplayIntro} onImportFolder={onImportFolder} onAddFiles={onAddFiles} onImportPlaylist={onImportPlaylist} onOpenLocalLibrary={() => openWorkspace('library','library')} />
           </motion.div>
         ) : (
           <motion.div key="player" className="yz-page yz-player" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.34 }}>
@@ -261,6 +307,7 @@ export default function ZenixShell(props: ZenixShellProps) {
           </motion.div>
         )}
       </AnimatePresence>
+      {view==='home' && currentTrack && <div className="zenix-desktop-dock"><PlaybackBar track={currentTrack} personal={personal} onToggleSaved={onToggleSaved} onAddToPlaylist={onAddToPersonalPlaylist} onCreatePlaylist={onCreatePersonalPlaylist} playing={playing} position={position} duration={duration} volume={volume} muted={muted} shuffle={shuffle} repeat={repeat} surface="home" onTogglePlay={togglePlayback} onPrevious={previousTrack} onNext={nextTrack} onSeek={onSeek} onVolumeChange={onVolumeChange} onToggleMute={onToggleMute} onToggleShuffle={onToggleShuffle} onCycleRepeat={onCycleRepeat} onOpenPlayer={() => enterPlayer('recent')} onExpandPlayer={expandPlaying} onOpenQueue={openQueue}/></div>}
 
       {onStartRoaming && view === 'player' && (!sourceActivity || roamingAttention) && !searchOpen && !queueOpen && !settingsOpen && !managerSection && <div className={`yz-roaming-strip${playerWallMode === 'roaming' ? ' is-active' : ''}`} role="status">
         {roaming?.active && roaming.phase === 'searching' ? <LoaderCircle size={17} className="yz-roaming-spin" /> : <Compass size={17} />}
@@ -281,7 +328,6 @@ export default function ZenixShell(props: ZenixShellProps) {
         {searchOpen && <motion.div key="search" className={`yz-search-layer yz-search-layer--${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : .18 }}><SearchOverlay query={query} onQueryChange={setQuery} search={musicSearch} onPlayTrack={(track, queue) => { onPlayTrack(track, queue); enterPlayer('queue'); }} onShowResults={showSearchResults} onClose={() => setSearchOpen(false)} onOpenSources={() => { setSearchOpen(false); setSettingsInitialTab('sources'); setSettingsOpen(true); }} background={appearanceBackground} /></motion.div>}
         {catalog&&<motion.div className="yz-settings-backdrop" onClick={()=>setCatalog(undefined)}><div className="yz-settings-modal" role="dialog" aria-label="歌手与专辑" onClick={event=>event.stopPropagation()}><button onClick={()=>setCatalog(undefined)} aria-label="关闭歌手与专辑">关闭</button><CatalogBrowser initialKind={catalog.kind} initialName={catalog.name} tracks={[...tracks,...personal.liked,...personal.favorites,...personal.history.map(item=>item.track),...queue]} play={(tracks,index)=>{onPlayTrack(tracks[index],tracks);setCatalog(undefined);}}/></div></motion.div>}
         {queueOpen && <motion.div className="yz-scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setQueueOpen(false)}><QueuePanel onPlayRoaming={roaming?.active?onPlayRoaming:undefined} personal={personal} tracks={tracks} playlists={playlists} queue={queue} currentTrack={currentTrack} onPlayTrack={onPlayTrack} onToggleSaved={(kind, track) => onToggleSaved?.(kind, track)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} onCreatePlaylist={(name, track) => onCreatePersonalPlaylist?.(name, track) ?? Promise.resolve(null)} onOpenManager={() => { setQueueOpen(false); setManagerSection('playlists'); }} onClose={() => setQueueOpen(false)} /></motion.div>}
-        {managerSection && <PersonalLibraryManager key={`${managerSection}:${assistantNavigation}`} initialSection={managerSection} personal={personal} tracks={tracks} queue={queue} onClose={() => setManagerSection(null)} onPlayTrack={(track, list) => { onPlayTrack(track, list); setManagerSection(null); enterPlayer('queue'); }} onCreatePlaylist={name => onCreatePersonalPlaylist?.(name) ?? Promise.resolve(null)} onRenamePlaylist={(id, name) => onRenamePersonalPlaylist?.(id, name) ?? Promise.resolve(false)} onDeletePlaylist={id => onDeletePersonalPlaylist?.(id) ?? Promise.resolve(false)} onRemoveSaved={(kind, id) => onRemoveSaved?.(kind, id)} onRemovePersonalTrack={(id, trackId) => onRemovePersonalTrack?.(id, trackId)} onAddToPlaylist={(id, track) => onAddToPersonalPlaylist?.(id, track)} />}
         {settingsOpen && <motion.div key="settings" className="yz-settings-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><SettingsModal tracks={[...tracks,...personal.liked,...personal.favorites,...personal.history.map(item=>item.track),...queue]} initialTab={settingsInitialTab} homeStyle={homeStyle} onHomeStyleChange={changeHomeStyle} reduceMotion={reduceMotion} libraryBusy={libraryBusy} appearanceBackground={appearanceBackground} appearanceBusy={appearanceBusy} desktopLyricsVisible={desktopLyricsVisible} onToggleDesktopLyrics={onToggleDesktopLyrics ? toggleDesktopLyrics : undefined} onChooseBackground={onChooseBackground} onClearBackground={onClearBackground} onReduceMotionChange={setReduceMotion} onImportFolder={onImportFolder} onRefreshLibrary={onRefreshLibrary} onClose={() => { setSettingsOpen(false); setSettingsInitialTab('options'); }} /></motion.div>}
       </AnimatePresence>
     </div>

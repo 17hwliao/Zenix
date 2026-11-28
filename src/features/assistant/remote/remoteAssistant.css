@@ -2,6 +2,11 @@
 .remote-model-settings{padding:18px;border:1px solid #ffffff24;border-radius:18px;background:linear-gradient(145deg,#202020b8,#121212e6)}
 .remote-model-settings>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .remote-model-settings>header h3{font-size:16px;margin:0;font-weight:600}
+.remote-model-settings>header>div{display:grid;gap:5px;min-width:0}
+.zenix-model-eyebrow{font-size:10px;letter-spacing:.08em;color:#92998b}
+.remote-model-settings .zenix-model-state{display:flex;gap:6px;align-items:center;font-size:10px;white-space:nowrap;color:#a6ac9c}
+.zenix-model-state i{width:5px;height:5px;background:#909387;border-radius:50%}
+.remote-model-settings[data-configured=true] .zenix-model-state i{background:#a8b98c}
 .remote-model-settings>header>span,.remote-session-status{font-size:12px;color:#c8c8cb}
 .remote-model-settings form{display:block!important;min-width:0}
 .remote-model-settings fieldset{display:grid;gap:14px;min-width:0;margin:0;padding:0;border:0}

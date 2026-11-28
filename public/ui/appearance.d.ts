@@ -1,0 +1,10 @@
+export type Appearance = {version:1; mode:'dark'|'light'|'system'; style:'default'|'glass'|'neon'|'paper'|'sharp'; accent:'cyan'|'red'|'orange'|'blue'|'purple'|'green'; frame:boolean; button:'blog'|'solid'|'outline'|'pixel'; buttonFrame:boolean; radius:number; stroke:number; depth:number; height:number; motion:boolean};
+export const appearanceKey:string;
+export const styles:Appearance['style'][];
+export const accents:Appearance['accent'][];
+export const defaults:Readonly<Appearance>;
+export function parseAppearance(value:unknown):Appearance;
+export function readAppearance(storage?:Storage):{value:Appearance;error:string};
+export function saveAppearance(value:Appearance,options?:{reset?:boolean;storage?:Storage}):Appearance;
+export function installAppearance(doc?:Document):()=>void;
+export function applyAppearance(root:HTMLElement,value:Appearance,darkSystem?:boolean):void;

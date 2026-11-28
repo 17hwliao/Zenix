@@ -134,7 +134,8 @@
     @keyframes lrc-clockwise-turn { from { opacity:.35; transform:rotate(-90deg) scale(.72); } 65% { opacity:.93; } to { opacity:1; transform:rotate(0) scale(1); } }
     @media (max-width:680px) { .editor-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 10px; }.editor { padding:9px 14px; }.editor-colors { margin-top:6px; } }
     @media (prefers-reduced-motion:reduce) { .icon-button,.lines .line,.glass::before,.top,.bottom { transition:none; }.lines.is-browsing::after,.lines.is-browsing .jump,body.is-turning .glass { animation:none; } }
-  </style>
+  </style><link rel="stylesheet" href="../dist/ui/native-style.css"><script type="module" src="../dist/ui/native-appearance.js"></script>
+  <link rel="stylesheet" href="./ui-surfaces.css">
 </head>
 <body class="is-paused">
   <div class="glass">

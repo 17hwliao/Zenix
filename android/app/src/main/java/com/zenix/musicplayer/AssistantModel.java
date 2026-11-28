@@ -16,6 +16,14 @@ final class AssistantModel {
     interface Vault { JSONObject read() throws Exception; void write(JSONObject value) throws Exception; }
     interface ConnectionFactory { HttpURLConnection open(URL url) throws Exception; }
     interface Check { void run() throws Exception; }
+    interface AttachmentStore {
+        JSONArray hydrate(JSONArray messages) throws Exception;
+        JSONObject importImage(JSONObject value) throws Exception;
+        String preview(String id) throws Exception;
+        boolean remove(String id) throws Exception;
+        Object readHistory() throws Exception;
+        boolean saveHistory(JSONObject value) throws Exception;
+    }
     private static final class Active {
         final AtomicBoolean cancelled = new AtomicBoolean();
         volatile HttpURLConnection connection;
@@ -30,14 +38,19 @@ final class AssistantModel {
     private final LinkedHashMap<String, Long> cancelled = new LinkedHashMap<>();
     private volatile JSONObject config;
     private volatile boolean storageError, closed;
+    private AttachmentStore attachments;
+    private java.util.function.Consumer<JSONObject> onDelta;
 
     AssistantModel(Context context) { this(new AssistantModelCredentials(context), url -> (HttpsURLConnection) url.openConnection(), MODEL_TIMEOUT_MS); }
+    void attachments(AttachmentStore store) {attachments = store;}
+    void observe(java.util.function.Consumer<JSONObject> observer) {onDelta = observer;}
     AssistantModel(Vault vault, ConnectionFactory factory, int timeoutMs) {
         this.vault = vault; this.factory = factory; this.timeoutMs = timeoutMs;
         try {
             config = defaults(); JSONObject stored = vault.read();
             if (stored != null) {
-                JSONObject checked = AssistantModelProtocol.config(new JSONObject().put("enabled", stored.getBoolean("enabled")).put("endpoint", stored.getString("endpoint")).put("model", stored.getString("model")).put("apiKey", stored.getString("apiKey")), null);
+                JSONObject input = new JSONObject(stored.toString()); input.remove("revision");
+                JSONObject checked = AssistantModelProtocol.config(input, null);
                 checked.put("revision", text(stored.get("revision"), 100, 1)); config = checked;
             }
         } catch (Exception ignored) { storageError = true; }
@@ -93,9 +106,13 @@ final class AssistantModel {
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8"); connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("Authorization", "Bearer " + selected.getString("apiKey"));
             JSONArray tools = request.getJSONArray("tools");
-            JSONObject body = new JSONObject().put("model", selected.getString("model")).put("messages", request.getJSONArray("messages")).put("stream", false);
+            JSONArray messages = request.getJSONArray("messages");
+            if (attachments != null) messages = attachments.hydrate(messages);
+            JSONObject body = new JSONObject().put("model", selected.getString("model")).put("messages", messages).put("stream", request.optBoolean("stream") && !selected.optString("streamMode").equals("json") && !probe);
             if (tools.length() > 0) body.put("tools", tools).put("tool_choice", probe ? new JSONObject().put("type", "function").put("function", new JSONObject().put("name", "zenix_connection_probe")) : "auto");
-            byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8); connection.setFixedLengthStreamingMode(payload.length);
+            byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+            if (payload.length > 12 * 1024 * 1024) throw error("oversize", "图文请求超过 12 MiB，请减少图片");
+            connection.setFixedLengthStreamingMode(payload.length);
             try (OutputStream output = connection.getOutputStream()) { output.write(payload); }
             check.run(); int status = connection.getResponseCode(); check.run();
             if (status >= 300 && status < 400) throw error("redirect", "模型地址发生重定向，已停止发送凭据。请填写最终 HTTPS 接口地址");
@@ -104,10 +121,20 @@ final class AssistantModel {
                 if (status == 429) throw error("rate_limit", "模型服务限流，请稍后重试");
                 throw error("service", "模型服务返回 HTTP " + status + "，未执行功能");
             }
+            Set<String> names = new HashSet<>(); for (int i = 0; i < tools.length(); i++) names.add(tools.getJSONObject(i).getJSONObject("function").getString("name"));
+            String contentType = connection.getContentType();
+            if (contentType != null && contentType.contains("text/event-stream")) {
+                try (InputStream input = connection.getInputStream()) {
+                    JSONObject streamed = new StreamReply(selected.getString("apiKey"), text -> {
+                        try {if (onDelta != null && !state.cancelled.get() && revision.equals(config.optString("revision"))) onDelta.accept(new JSONObject().put("requestId", requestId).put("revision", revision).put("text", text));}
+                        catch (Exception ignored) {}
+                    }).read(input, check);
+                    check.run(); return response(streamed, names, selected.getString("apiKey"));
+                }
+            }
             if (connection.getContentLengthLong() > MAX_RESPONSE_BYTES) throw error("oversize", "模型回复过大，未执行功能");
             byte[] bytes; try (InputStream input = connection.getInputStream()) { bytes = readBounded(input, MAX_RESPONSE_BYTES, check); }
             JSONObject raw; try { raw = new JSONObject(new String(bytes, StandardCharsets.UTF_8)); } catch (Exception ignored) { throw error("protocol", "模型未返回兼容的完整 JSON 回复"); }
-            Set<String> names = new HashSet<>(); for (int i = 0; i < tools.length(); i++) names.add(tools.getJSONObject(i).getJSONObject("function").getString("name"));
             check.run();
             try { return response(raw, names, selected.getString("apiKey")); }
             catch (ModelException known) { throw known; }
@@ -120,8 +147,23 @@ final class AssistantModel {
             HttpURLConnection connection = state.connection; if (connection != null) connection.disconnect();
         }
     }
-    private JSONObject test(String requestId) throws Exception {
+    private JSONObject test(String requestId, String capability) throws Exception {
         ready(); String revision = config.getString("revision"), nonce = UUID.randomUUID().toString();
+        if (capability.equals("text") || capability.equals("image")) {
+            String attachmentId = null;
+            try {
+                Object content = "Reply with OK. This is a connection test.";
+                if (capability.equals("image")) {
+                    if (attachments == null) throw error("unavailable", "图片附件服务未就绪");
+                    JSONObject image = attachments.importImage(new JSONObject().put("name", "connection-test.png").put("base64", "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP48OHDfwAJdAPQXHvArAAAAABJRU5ErkJggg=="));
+                    attachmentId = image.getString("id");
+                    content = new JSONArray().put(new JSONObject().put("type", "text").put("text", "Describe this fixed test image briefly.")).put(new JSONObject().put("type", "image").put("attachmentId", attachmentId));
+                }
+                JSONObject value = complete(new JSONObject().put("requestId", requestId).put("revision", revision).put("tools", new JSONArray()).put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", content))), true);
+                return new JSONObject().put("ok", !value.getString("content").isEmpty()).put("revision", revision).put("toolCalling", false).put("text", true).put("image", capability.equals("image")).put("message", capability.equals("image") ? "图片测试已返回文字，请核对服务是否实际支持视觉输入" : "文字连接成功");
+            } finally {if (attachmentId != null) attachments.remove(attachmentId);}
+        }
+        if (!capability.equals("tools")) throw error("invalid_request", "未知能力测试");
         JSONObject parameters = new JSONObject().put("type", "object").put("properties", new JSONObject().put("nonce", new JSONObject().put("type", "string").put("enum", new JSONArray().put(nonce)))).put("required", new JSONArray().put("nonce")).put("additionalProperties", false);
         JSONObject tool = new JSONObject().put("type", "function").put("function", new JSONObject().put("name", "zenix_connection_probe").put("description", "Return the nonce to verify tool-call format. This is a connection probe with no execution.").put("parameters", parameters));
         JSONObject request = new JSONObject().put("requestId", requestId).put("revision", revision).put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", "Call zenix_connection_probe with the provided nonce. Do not request any music operations."))).put("tools", new JSONArray().put(tool));
@@ -131,11 +173,16 @@ final class AssistantModel {
     }
     Object invoke(JSONObject args) throws Exception {
         try {
-            object(args, Set.of("action", "value", "request", "requestId"), "action");
+            object(args, Set.of("action", "value", "request", "requestId", "capability", "attachmentId"), "action");
             switch (args.getString("action")) {
+                case "attachmentImport": return attachments.importImage(args.getJSONObject("value"));
+                case "attachmentPreview": return attachments.preview(args.getString("attachmentId"));
+                case "attachmentRemove": return attachments.remove(args.getString("attachmentId"));
+                case "historyRead": return attachments.readHistory();
+                case "historySave": return attachments.saveHistory(args.getJSONObject("value"));
                 case "read": ready(); return mask(config);
                 case "configure": return configure(args.getJSONObject("value"));
-                case "test": return test(args.getString("requestId"));
+                case "test": return test(args.getString("requestId"), args.optString("capability", "tools"));
                 case "complete": return complete(args.getJSONObject("request"), false);
                 case "cancel": return cancel(args.getString("requestId"));
                 default: throw error("invalid_request", "未知模型操作");

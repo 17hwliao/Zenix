@@ -1,0 +1,107 @@
+.zenix-pocket-body{margin:0;background:transparent;color:#272724;font:13px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.zenix-pocket-body *{box-sizing:border-box}
+.zenix-pocket-body #root{height:100dvh;padding:1px}
+.zenix-pocket-chat{height:100%;display:flex;flex-direction:column;min-width:0;overflow:hidden;border:1px solid #d7d7d0;border-radius:18px;background:#f8f8f5;animation:zenix-panel-in .24s cubic-bezier(.2,.8,.2,1)}
+.zenix-pocket-header{display:flex;align-items:center;gap:10px;padding:14px 12px 12px 16px;-webkit-app-region:drag;border-bottom:1px solid #e6e6e0;background:#fbfbf8}
+.zenix-pocket-avatar{width:38px;height:38px;border-radius:13px;background:#e9e9e2;border:1px solid #deded6;overflow:hidden;flex:none;position:relative}
+.zenix-pocket-avatar img{position:absolute;width:100%;height:160%;object-fit:cover;object-position:50% 12%;top:-5px}
+.zenix-pocket-identity{display:grid;gap:1px;flex:1;min-width:0}
+.zenix-pocket-identity strong{font-size:14px;font-weight:650;letter-spacing:.01em}
+.zenix-pocket-identity>span{color:#797972;font-size:10px;letter-spacing:.04em}
+.zenix-pocket-header button{-webkit-app-region:no-drag}
+.zenix-pocket-chat button{font:inherit;cursor:pointer;min-height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #dcdcd5;border-radius:9px;padding:6px 10px;background:#fff;color:#30302c;transition:background .15s,border-color .15s,transform .15s}
+.zenix-pocket-chat button:hover{background:#ecece6;border-color:#c7c7be}
+.zenix-pocket-chat .zenix-pocket-header>button{width:32px;min-height:32px;padding:0;border-color:transparent;background:transparent;color:#77776e}
+.zenix-pocket-chat .zenix-pocket-header>button:hover,.zenix-pocket-chat .zenix-pocket-header>button[aria-expanded=true]{background:#eaeae3;color:#20201d}
+.zenix-pocket-chat button:disabled,.zenix-chat-workspace button:disabled{cursor:default;opacity:.4}
+.zenix-pocket-chat :focus-visible,.zenix-chat-workspace :focus-visible{outline:2px solid #878776;outline-offset:3px}
+.zenix-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.zenix-chat-workspace{--chat-ink:#eaeae6;--chat-muted:#a1a19a;--chat-line:#ffffff14;--chat-soft:#ffffff09;--chat-field:#222321;--chat-user:#33352f;--chat-solid:#eeeee7;--chat-on-solid:#24251f;display:flex;flex-direction:column;min-height:0;min-width:0;flex:1;color:var(--chat-ink);position:relative;isolation:isolate}
+.zenix-pocket-chat .zenix-chat-workspace{--chat-ink:#30302a;--chat-muted:#818178;--chat-line:#25252012;--chat-soft:#33332005;--chat-field:#fff;--chat-user:#eaece3;--chat-solid:#30342b;--chat-on-solid:#fff}
+.zenix-chat-workspace button{font:inherit;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;min-height:32px;border:1px solid var(--chat-line);border-radius:9px;padding:6px 9px;background:var(--chat-field);color:var(--chat-ink);transition:background .15s,transform .15s,border-color .15s}
+.zenix-chat-workspace button:hover:not(:disabled){background:var(--chat-user)}
+.zenix-chat-workspace button:active:not(:disabled){transform:scale(.97)}
+.zenix-chat-workspace svg{flex-shrink:0;stroke-width:1.7}
+.zenix-chat-toolbar{display:flex;align-items:center;gap:6px;padding:8px 12px;flex-shrink:0}
+.zenix-chat-workspace .zenix-chat-toolbar>button{background:transparent;border-color:transparent;min-height:30px;padding:4px 6px;font-size:11px;color:var(--chat-muted)}
+.zenix-chat-live{flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;color:var(--chat-muted)}
+.zenix-chat-feed{overflow:auto;flex:1;min-height:90px;overscroll-behavior:contain;padding:2px 16px 16px;scrollbar-width:thin;scrollbar-color:#8885 transparent}
+.zenix-chat-message{padding:9px 0 4px;overflow-wrap:anywhere;animation:zenix-message-in .22s ease-out;contain:layout style}
+.zenix-chat-message.is-user{margin:10px 0 8px auto;padding:10px 13px;max-width:91%;width:fit-content;border-radius:15px 15px 4px 15px;background:var(--chat-user)}
+.zenix-chat-author{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--chat-muted);letter-spacing:.03em}
+.zenix-chat-author small{font-size:10px;color:inherit}
+.zenix-chat-message p{white-space:pre-wrap;margin:5px 0;line-height:1.8;font-size:13px}
+.zenix-chat-workspace .zenix-chat-copy{font-size:10px;min-height:25px;padding:2px 3px;background:transparent;border-color:transparent;color:var(--chat-muted)}
+.zenix-chat-empty{padding:8px 0 12px;text-align:center;animation:zenix-message-in .3s ease-out}
+.zenix-chat-welcome-portrait{position:relative;width:67px;height:74px;margin:0 auto 8px;overflow:hidden;border-radius:22px;background:var(--chat-soft)}
+.zenix-chat-welcome-portrait img{width:100%;height:120%;object-fit:cover;object-position:50% 5%}
+.zenix-chat-empty h2{font-size:17px;font-weight:600;letter-spacing:-.03em;margin:0 0 6px;color:var(--chat-ink)}
+.zenix-chat-empty p{font-size:11px;line-height:1.8;color:var(--chat-muted);margin:0 0 17px}
+.zenix-chat-suggestions{display:grid;gap:7px;text-align:left}
+.zenix-chat-workspace .zenix-chat-suggestions button{padding:9px 11px;justify-content:space-between;font-size:11px;background:transparent;border-radius:10px;min-height:36px;text-align:left}
+.zenix-chat-suggestions svg{transform:rotate(45deg);color:var(--chat-muted)}
+.zenix-chat-workspace .zenix-chat-composer{margin:0 10px 10px!important;padding:9px 10px 7px;display:block!important;flex-shrink:0;background:var(--chat-field);border:1px solid var(--chat-line);border-radius:16px;box-shadow:0 3px 12px #00000005;transition:border-color .2s,box-shadow .2s}
+.zenix-chat-composer:focus-within{border-color:#929784;box-shadow:0 0 0 3px #8d927810}
+.zenix-chat-input{display:block;font-size:12px}
+.zenix-chat-input textarea{display:block;box-sizing:border-box;resize:vertical;min-height:46px;max-height:120px;width:100%;margin:0;border:0;border-radius:6px;background:transparent;color:var(--chat-ink);padding:3px 3px 5px;font:13px/1.6 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;outline:none!important;box-shadow:none}
+.zenix-chat-input textarea::placeholder{color:var(--chat-muted);opacity:.9}
+.zenix-chat-compose-actions{display:flex;align-items:center;gap:6px;margin-top:4px}
+.zenix-chat-composer input[hidden]{display:none!important}
+.zenix-chat-workspace .zenix-chat-attach{background:transparent;border-color:transparent;padding:4px 2px;min-height:32px;color:var(--chat-muted);font-size:10px}
+.zenix-chat-key-hint{flex:1;color:var(--chat-muted);text-align:right;font-size:9px;padding-right:5px}
+.zenix-chat-workspace .zenix-chat-send{width:32px;min-height:32px;border-radius:50%;padding:0;background:var(--chat-solid);color:var(--chat-on-solid);border-color:transparent}
+.zenix-chat-workspace .zenix-chat-send{flex-shrink:0}
+.zenix-chat-workspace .zenix-chat-send:hover:not(:disabled){background:var(--chat-solid);filter:brightness(1.15);transform:translateY(-1px)}
+.zenix-chat-workspace .zenix-chat-send:disabled{opacity:.25}
+.zenix-chat-workspace .zenix-chat-send.is-stop{border-radius:11px}
+.zenix-chat-attachments{display:flex;gap:7px;flex-wrap:wrap;padding:5px 0;max-height:148px;overflow:auto}
+.zenix-chat-attachments>div{position:relative;flex:none}
+.zenix-chat-attachments img{width:60px;height:60px;object-fit:cover;border-radius:9px;display:block;border:1px solid var(--chat-line)}
+.zenix-chat-workspace .zenix-chat-attachments>div>button{position:absolute;right:2px;top:2px;min-height:20px;width:20px;padding:0;background:#282a25e8;color:#fff;border:0;border-radius:50%;font-size:13px}
+.zenix-chat-error{margin:3px 12px 9px;max-height:90px;overflow:auto;color:#b45343;font-size:11px;overflow-wrap:anywhere;flex-shrink:0;border-left:2px solid currentColor;padding-left:8px}
+.zenix-chat-drawer{z-index:3;margin:0 12px 8px;background:var(--chat-field);color:var(--chat-ink);border:1px solid var(--chat-line);padding:8px;border-radius:13px;max-height:48%;overflow:auto;flex-shrink:0;animation:zenix-message-in .18s ease-out}
+.zenix-chat-drawer>header{display:flex;justify-content:space-between;align-items:center;padding:0 2px 5px}
+.zenix-chat-drawer>header strong{font-size:11px;font-weight:500;color:var(--chat-muted)}
+.zenix-chat-workspace .zenix-chat-drawer>header>button{width:28px;min-height:28px;padding:0;border:0;background:transparent}
+.zenix-chat-history-list>div{display:flex;gap:3px;margin-bottom:3px}
+.zenix-chat-workspace .zenix-chat-history-list button{border:0;background:transparent;min-height:34px}
+.zenix-chat-history-list>div>button:first-child{flex:1;justify-content:flex-start;text-align:left;min-width:0;font-size:11px}
+.zenix-chat-history-list>div>button:first-child span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zenix-chat-workspace .zenix-chat-history-list [aria-current=true]{background:var(--chat-user)}
+.zenix-chat-history-list>div>button:last-child{color:var(--chat-muted);padding:4px 7px}
+.zenix-chat-workspace .zenix-chat-karaoke{width:100%;margin-top:5px;border-width:1px 0 0;border-radius:0;background:transparent;justify-content:flex-start;font-size:11px;padding-top:10px}
+.zenix-chat-karaoke span{margin-left:auto}
+.zenix-chat-drop{position:absolute;inset:5px;z-index:5;border:1px dashed #8b927a;border-radius:16px;background:#f5f6f0f5;color:#484f3f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;pointer-events:none;animation:zenix-message-in .15s ease-out}
+.zenix-chat-drop strong{font-size:13px;font-weight:500}.zenix-chat-drop span{font-size:11px;color:#858a7c}
+.zenix-thinking-dots{display:inline-flex;align-items:center;gap:3px;min-height:16px}
+.zenix-thinking-dots i{display:block;width:3px;height:3px;background:currentColor;border-radius:50%;animation:zenix-thinking 1.2s ease-in-out infinite}
+.zenix-thinking-dots i:nth-child(2){animation-delay:.15s}.zenix-thinking-dots i:nth-child(3){animation-delay:.3s}
+.zenix-spin{animation:zenix-spin .9s linear infinite}
+.zenix-pocket-settings{flex:1;min-height:0;overflow:auto;padding:10px 16px 16px;scrollbar-width:thin}
+.zenix-pocket-chat .zenix-pocket-back{padding:4px 0;min-height:30px;border:0;background:transparent;color:#77776e;font-size:11px;margin-bottom:14px}
+.zenix-pocket-chat .remote-model-settings{background:transparent;color:#30302a;border:0;margin:0;padding:0}
+.zenix-pocket-chat .remote-model-settings>header{align-items:center;flex-direction:row;margin-bottom:16px}
+.zenix-pocket-chat .remote-model-settings h3{font-size:17px}
+.zenix-pocket-chat .remote-model-settings :is(input:not([type=checkbox]),select,textarea){background:#fff;color:#30302a;border:1px solid #dcdcd3;padding:9px 10px;min-width:0;width:100%;border-radius:9px;font:inherit;margin-top:5px;min-height:38px}
+.zenix-pocket-chat .remote-model-settings input[type=checkbox]{accent-color:#454a3c;width:15px;height:15px}
+.zenix-pocket-chat .remote-model-settings label{font-size:11px}
+.zenix-pocket-chat .remote-model-settings fieldset{gap:13px;min-width:0}
+.zenix-pocket-chat .remote-model-settings .remote-model-switch{font-size:11px;background:#efefe8;padding:10px;border-radius:10px;align-items:flex-start}
+.zenix-pocket-chat :is(.remote-model-note,.remote-model-key-state,.remote-model-settings>header>span){color:#77776c;font-size:10px;line-height:1.8}
+.zenix-pocket-chat .remote-model-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.zenix-pocket-chat .remote-model-actions button{font-size:11px;min-height:36px}
+.zenix-pocket-chat .remote-model-actions button[type=submit]{background:#33372d;color:#fff;border-color:#33372d}
+.zenix-pocket-chat .remote-model-message{color:#59674c;font-size:11px}
+.zenix-pocket-chat .remote-model-error{background:#ad554510;border:1px solid #ad554530;color:#944b40;font-size:11px}
+.zenix-pocket-chat .remote-session-content{font-size:12px}
+.zenix-pocket-chat :is(.remote-session-status,.remote-song-candidates span){color:#77776c}
+.zenix-pocket-chat .remote-session-content .assistant-plan{padding:12px;border-radius:12px;background:#f0f1e9;border-color:#d5d9c9}
+.zenix-pocket-chat .remote-song-candidates>li{border-color:#deded5}
+.zenix-pocket-chat .assistant-lyrics{background:#eeeee7}
+@keyframes zenix-panel-in{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes zenix-message-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes zenix-thinking{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+@keyframes zenix-spin{to{transform:rotate(360deg)}}
+@media(max-width:430px){.assistant-conversation.is-mobile .zenix-chat-workspace button{min-height:44px}.assistant-conversation.is-mobile .zenix-chat-send{width:44px}.assistant-conversation.is-mobile .zenix-chat-toolbar{padding:4px 10px}.assistant-conversation.is-mobile .zenix-chat-input textarea{font-size:16px}}
+@media(max-height:410px){.zenix-chat-welcome-portrait{display:none}.zenix-chat-empty{padding-top:0}.zenix-chat-suggestions{gap:4px}.zenix-chat-empty p{margin-bottom:10px}.zenix-pocket-header{padding-top:8px;padding-bottom:8px}}
+@media(prefers-reduced-motion:reduce){.zenix-pocket-chat,.zenix-pocket-chat *,.zenix-chat-workspace *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

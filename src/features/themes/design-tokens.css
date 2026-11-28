@@ -30,6 +30,10 @@
   --zx-motion-fast: 120ms;
   --zx-motion: 180ms;
   --zx-ease: cubic-bezier(.22, 1, .36, 1);
+  --zx-font-sans: Inter, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --zx-overlay: #00000099;
+  --zx-shadow-dialog: 0 24px 80px #0008;
+  --zx-control-height: 40px;
   --zx-list-background: #101010;
   --zx-list-surface: #151515;
   --zx-list-border: #3a3a3a;

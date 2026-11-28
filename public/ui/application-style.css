@@ -1,0 +1,105 @@
+@import './blog-bento.css';
+
+/* One semantic palette across application documents. Lyric artwork and sticker
+   geometry keep their own presentation contracts. */
+html[data-bento-style]{
+ --color-primary:#202020;--color-secondary:#65655f;--surface:#fff;--surface-soft:#efefec;--color-border:#deded8;
+ --zx-bg:var(--color-bg);--zx-bg-elevated:var(--bento-card-bg);--zx-surface:var(--surface);--zx-surface-hover:var(--surface-soft);--zx-surface-active:color-mix(in srgb,var(--primary-500) 12%,var(--surface));
+ --zx-border:var(--bento-card-border);--zx-border-strong:color-mix(in srgb,var(--primary-500) 50%,var(--bento-card-border));--zx-text:var(--color-primary);--zx-text-secondary:var(--color-secondary);--zx-text-muted:var(--color-secondary);
+ --zx-accent:var(--primary-400);--zx-accent-soft:var(--primary-glow);--zx-focus:var(--primary-400);--zx-silver:var(--color-secondary);--zx-silver-dark:var(--color-secondary);
+ --zx-radius-sm:var(--zx-button-radius);--zx-radius-md:var(--bento-radius);--zx-radius-lg:var(--bento-radius);--zx-radius-xl:var(--bento-radius);--zx-shadow-dialog:var(--bento-card-shadow);--zx-control-height:var(--zx-button-height);
+ --zx-list-background:var(--color-bg);--zx-list-surface:var(--surface);--zx-list-border:var(--bento-card-border);--zx-list-highlight:var(--surface-soft);--zx-list-text:var(--color-primary);--zx-list-secondary:var(--color-secondary);
+ --zx-ui-text:var(--color-primary);--zx-ui-muted:var(--color-secondary);--zx-ui-border:var(--bento-card-border);--zx-ui-panel:var(--surface);
+ --zx-button-depth-color:color-mix(in srgb,var(--primary-500) 50%,transparent);--zx-success:#70caa0;--zx-danger:#ef8c96;
+ color-scheme:light;
+}
+html[data-theme=dark]{--color-primary:#e9f2ff;--color-secondary:#a0aec3;--surface:#17181c;--surface-soft:#1f2127;--color-border:#31343b;color-scheme:dark}
+html.zenix-unified-ui[data-theme=light],html.zenix-native-appearance[data-theme=light]{color-scheme:light;--primary-400:var(--primary-600)}
+html.zenix-unified-ui[data-theme=dark],html.zenix-native-appearance[data-theme=dark]{color-scheme:dark}
+html[data-bento-style] body{color:var(--zx-text)}
+html[data-bento-style] :is(button,select,input,textarea,summary){accent-color:var(--primary-500)}
+html[data-bento-style] :is(button,[role=button],a,input,select,textarea,summary):focus-visible{outline:2px solid var(--zx-focus);outline-offset:3px}
+html[data-bento-style] :is(button,select,textarea,input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color])){border-radius:var(--zx-button-radius);border-color:var(--zx-border);font-family:inherit}
+html[data-bento-style] :is(input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]),select,textarea){color:var(--zx-text);background-color:var(--zx-bg)}
+html[data-bento-style] :is(.yz-settings-modal,.yz-settings-top,.yz-settings-nav,.yz-settings-content,.zenix-tools,.zenix-feature-workbench,.zenix-desktop-workspace,.zenix-workspace-heading,.zenix-workspace-body,.yz-search-overlay,.zenix-queue,.yz-pl-dialog,.zenix-glass-dialog-card,.zenix-profile-editor,.zenix-onboarding-card,.mobile-sheet,.mobile-header,.mobile-nav,.mobile-mini,.settings-card,.mobile-settings-advanced,.mobile-settings-category,.zenix-pocket-chat,.zenix-pocket-header,.assistant-chat,.assistant-panel,.zenix-style-settings){
+ background:var(--zx-bg-elevated);color:var(--zx-text);border-color:var(--zx-border);
+}
+html[data-bento-style] :is(.yz-settings-list,.yz-setting-row,.zenix-source-card,.zenix-source-preview,.platform-replacement,.listening-panel,.zenix-connections-panel,.zenix-tasks-panel,.zenix-local-library,.zenix-assistant-settings,.assistant-plan,.remote-model-settings,.remote-session-status,.yz-playback-error,.yz-runtime-notice){border-color:var(--zx-border);color:var(--zx-text)}
+html[data-bento-style] :is(.yz-settings-modal,.zenix-feature-workbench,.zenix-glass-dialog-card,.mobile-settings,.zenix-pocket-chat) :is(h1,h2,h3,h4,strong,label){color:var(--zx-text)}
+html[data-bento-style] :is(.yz-settings-modal,.zenix-feature-workbench,.mobile-settings,.zenix-pocket-chat) :is(p,small,.muted){color:var(--zx-text-secondary)}
+html[data-bento-style] :is(.yz-settings-modal,.zenix-tools,.zenix-feature-workbench,.yz-search-overlay,.zenix-queue,.yz-pl-dialog,.zenix-glass-dialog-card,.zenix-profile-editor,.mobile-settings,.zenix-pocket-chat) :where(button){background-color:var(--zx-surface);color:var(--zx-text);border-color:var(--zx-border)}
+html[data-bento-style] :is(.yz-settings-nav,.zenix-desktop-nav,.mobile-nav,.zenix-feature-workbench nav) button:is([aria-current=page],.is-active,[aria-selected=true]),html[data-bento-style] button[aria-pressed=true]{color:var(--primary-400);background-color:var(--zx-surface-active);border-color:var(--primary-500)}
+html[data-bento-style] :is(.zenix-nav-active-surface,.mobile-nav-selection){background:var(--zx-surface-active);border:1px solid var(--zx-border-strong)}
+html[data-bento-style] .zenix-desktop-nav{background:var(--bento-dock-bg);border-color:var(--zx-border)}
+html[data-bento-style] .zenix-desktop-nav-group{border-color:var(--zx-border)}
+html[data-bento-style] .zenix-desktop-nav-group :is(button,button svg){color:var(--zx-text-secondary)}
+html[data-bento-style] .zenix-desktop-nav-group button[aria-current=page],html[data-bento-style] .zenix-desktop-nav-group button[aria-current=page] svg{color:var(--primary-400)}
+html[data-bento-style] :is(.zenix-desktop-nav-label,.yz-setting-copy small,.yz-settings-intro p,.zenix-workspace-title p,.zenix-workspace-eyebrow,.zenix-collection-count,.zenix-local-track small){color:var(--zx-text-secondary)}
+html[data-bento-style] :is(.yz-shell--library:not(.has-personal-background),.default-universe,.mobile-backdrop,.mobile-boot){background:var(--zx-bg)}
+html[data-bento-style] :is(.yz-playerbar--home,.yz-playerbar,.mobile-mini){background:var(--bento-dock-bg);color:var(--zx-text);border-color:var(--zx-border)}
+html[data-bento-style] :is(.yz-home-search-dock form,.yz-search-large,.zenix-select-trigger,.zenix-select-menu,.yz-track-actions-menu){background:var(--zx-surface);color:var(--zx-text);border-color:var(--zx-border)}
+html[data-bento-style] :is(.yz-home-search-dock form,.yz-search-large) input{background:transparent}
+html[data-bento-style] :is(.yz-switch.is-on,.toggle.on){background:var(--primary-500);border-color:var(--primary-500)}
+html[data-bento-style] :is(.yz-switch.is-on,.toggle.on)>span{background:#fff}
+html[data-bento-style] :is(.is-primary,.tool-primary,.zenix-onboarding-primary,.primary-play,.ui-primary){background:var(--primary-600);border-color:var(--primary-500);color:#fff}
+html[data-bento-style] :is(.is-danger,.source-delete,[data-danger=true]){color:var(--zx-danger);border-color:color-mix(in srgb,var(--zx-danger) 40%,transparent)}
+html[data-bento-style=glass] :is(.zenix-desktop-nav,.yz-settings-modal,.zenix-feature-workbench,.mobile-sheet,.zenix-pocket-chat,.yz-playerbar){backdrop-filter:blur(18px) saturate(140%)}
+html[data-bento-style=sharp] :is(.yz-settings-modal,.zenix-feature-workbench,.mobile-sheet,.zenix-pocket-chat){box-shadow:var(--bento-card-shadow);border-radius:0}
+html[data-bento-style] :is(.zenix-settings-search-result,.yz-setting-search-target){border-color:var(--primary-500)}
+
+/* Standard action buttons. Structural targets (artwork, switches, sliders,
+   navigation, icon-only transport and draggable stickers) retain their geometry. */
+html[data-bento-style] :is(.zx-action,.yz-setting-control>button:not(.yz-switch),.yz-appearance-actions>button,.zenix-local-toolbar>button,.zenix-collection-toolbar>button,.zenix-feature-content button:not([role=switch]),.zenix-tools-body button:not([role=switch]),.zenix-chat-composer button[type=submit],.zenix-style-settings .zx-button-sample){
+ min-height:var(--zx-button-height);border:var(--zx-button-stroke) solid var(--zx-border-strong);border-radius:var(--zx-button-radius);background:var(--zx-surface);color:var(--zx-text);box-shadow:0 var(--zx-button-depth) 0 var(--zx-button-depth-color);transition:transform 120ms,border-color 140ms,background-color 140ms,box-shadow 120ms;
+}
+html[data-bento-style] :is(.zx-action,.yz-setting-control>button:not(.yz-switch),.zenix-feature-content button,.zenix-tools-body button,.zx-button-sample):hover:not(:disabled){border-color:var(--primary-500);translate:0 -1px}
+html[data-bento-style] :is(.zx-action,.yz-setting-control>button:not(.yz-switch),.zenix-feature-content button,.zenix-tools-body button,.zx-button-sample):active:not(:disabled){translate:0 var(--zx-button-depth);box-shadow:none}
+html[data-button-style=solid] :is(.zx-action,.yz-setting-control>button:not(.yz-switch),.zenix-feature-content button:not([role=switch]),.zenix-tools-body button:not([role=switch]),.zx-button-sample){background:var(--primary-600);color:#fff;border-color:var(--primary-500)}
+html[data-button-style=outline] :is(.zx-action,.yz-setting-control>button:not(.yz-switch),.zenix-feature-content button:not([role=switch]),.zenix-tools-body button:not([role=switch]),.zx-button-sample){background:transparent;color:var(--primary-400);border-color:var(--primary-500)}
+html[data-button-style=pixel]{--zx-button-depth-color:var(--zx-text)}
+html[data-button-style=pixel] :is(.zx-action,.yz-setting-control>button:not(.yz-switch),.zenix-feature-content button:not([role=switch]),.zenix-tools-body button:not([role=switch]),.zx-button-sample){background:var(--zx-bg-elevated);color:var(--zx-text);border-color:var(--zx-text);font-family:ui-monospace,'Microsoft YaHei',monospace}
+@supports(-webkit-mask-box-image:linear-gradient(#000,#000) 10 fill / 10px stretch){
+ html[data-button-frame=custom] :is(.zx-action,.zx-button-sample){position:relative;border:0;border-radius:0;-webkit-mask-box-image:var(--bt-mask) var(--bt-slice) fill / var(--bt-border) stretch;padding-inline:20px;min-width:var(--bt-min);filter:drop-shadow(0 var(--zx-button-depth) 0 var(--zx-button-depth-color));box-shadow:none}
+ html[data-button-frame=custom] :is(.zx-action,.zx-button-sample):after{content:'';position:absolute;inset:0;pointer-events:none;background:var(--primary-500);-webkit-mask-box-image:var(--bt-rail-mask) var(--bt-slice) fill / var(--bt-border) stretch}
+ html[data-button-frame=custom] :is(.zx-action,.zx-button-sample):focus-visible:after{background:var(--zx-text)}
+}
+html[data-bento-style] :is(button,summary):disabled{opacity:.5;cursor:not-allowed}
+html[data-bento-style] :is(button,summary):disabled:hover{translate:none}
+html[data-bento-style] :is(button,summary){transition-duration:140ms}
+html[data-appearance-motion=reduced] :is(button,summary,.bento-card),html[data-ui-motion=reduced] :is(button,summary,.bento-card){animation:none!important;transition:none!important}
+/* Text actions across old and new modules use the same preset. Navigation,
+   art tiles, icon transports and switches retain their structural dimensions. */
+html[data-button-style]{--zx-button-fill:var(--zx-surface);--zx-button-ink:var(--zx-text);--zx-button-line:var(--zx-border-strong)}
+html[data-button-style=solid]{--zx-button-fill:var(--primary-600);--zx-button-ink:#fff;--zx-button-line:var(--primary-500)}
+html[data-button-style=outline]{--zx-button-fill:transparent;--zx-button-ink:var(--primary-400);--zx-button-line:var(--primary-500)}
+html[data-button-style=pixel]{--zx-button-fill:var(--zx-bg-elevated);--zx-button-ink:var(--zx-text);--zx-button-line:var(--zx-text)}
+html.zenix-unified-ui[data-bento-style][data-button-style] button[data-appearance-action]{
+ border:var(--zx-button-stroke) solid var(--zx-button-line);border-radius:var(--zx-button-radius);background-color:var(--zx-button-fill);color:var(--zx-button-ink);box-shadow:0 var(--zx-button-depth) 0 var(--zx-button-depth-color);min-height:var(--zx-button-height)
+}
+html.zenix-unified-ui[data-bento-style][data-button-style] :is(.yz-playerbar,.yz-playerbar--home){background:var(--bento-dock-bg);color:var(--zx-text);border-color:var(--zx-border)}
+html.zenix-unified-ui[data-bento-style][data-button-style] :is(.zenix-desktop-nav-group button,.zenix-workspace-mark,.yz-settings-category-tabs button){border-radius:var(--zx-button-radius)}
+html.zenix-unified-ui[data-bento-style][data-button-style] :is(.is-danger,.source-delete,[data-danger=true]){color:var(--zx-danger);border-color:var(--zx-danger)}
+html.zenix-unified-ui[data-bento-style] button:disabled{box-shadow:none;opacity:.5;translate:none}
+html.zenix-unified-ui[data-bento-style] :is(.yz-playerbar,.mobile-mini) button{color:var(--zx-text-secondary)}
+html.zenix-unified-ui[data-bento-style] :is(.yz-playerbar,.mobile-mini) button[aria-pressed=true]{color:var(--primary-400)}
+html.zenix-unified-ui[data-bento-style] .zx-swatches button{background-color:var(--swatch)}
+html[data-bento-style] button[data-appearance-action]{border:var(--zx-button-stroke) solid var(--zx-button-line);background-color:var(--zx-button-fill);color:var(--zx-button-ink);border-radius:var(--zx-button-radius);min-height:var(--zx-button-height);box-shadow:0 var(--zx-button-depth) 0 var(--zx-button-depth-color)}
+@supports(-webkit-mask-box-image:linear-gradient(#000,#000) 10 fill / 10px stretch){
+html[data-button-frame=custom] button[data-appearance-action]{position:relative;border:0;border-radius:0;-webkit-mask-box-image:var(--bt-mask) var(--bt-slice) fill / var(--bt-border) stretch;padding-inline:20px;filter:drop-shadow(0 var(--zx-button-depth) 0 var(--zx-button-depth-color));box-shadow:none}
+html[data-button-frame=custom] button[data-appearance-action]:after{content:'';position:absolute;inset:0;pointer-events:none;background:var(--primary-500);-webkit-mask-box-image:var(--bt-rail-mask) var(--bt-slice) fill / var(--bt-border) stretch}
+html[data-button-frame=custom] button[data-appearance-action]:focus-visible:after{background:var(--zx-text)}
+html.zenix-unified-ui[data-bento-style][data-button-style][data-button-frame=custom] button[data-appearance-action]{border:0;border-radius:0;box-shadow:none}
+}
+html.zenix-unified-ui[data-bento-style] :is(.yz-playerbar-tracktext strong,.yz-playerbar-detail,.zenix-desktop-brand){color:var(--zx-text)}
+html.zenix-unified-ui[data-bento-style] .yz-playerbar-tracktext small{color:var(--zx-text-secondary)}
+html.zenix-unified-ui[data-bento-style] .yz-play-button{background:var(--primary-600);color:#fff}
+html.zenix-unified-ui[data-bento-style][data-button-style] button[data-appearance-action]:is([aria-pressed=true],[aria-selected=true],.is-active){color:var(--primary-400);background:var(--zx-surface-active);border-color:var(--primary-500)}
+html.zenix-unified-ui[data-bento-style][data-button-style] button[data-appearance-action]:is(.is-danger,.source-delete,[data-danger=true]){color:var(--zx-danger);border-color:var(--zx-danger)}
+@media(prefers-reduced-motion:reduce){html[data-bento-style] :is(button,summary,.bento-card){animation:none!important;transition:none!important}}
+@media(pointer:coarse){html[data-bento-style] :is(.zx-action,.zx-button-sample,.zenix-feature-content button,.zenix-tools-body button,.yz-setting-control>button){min-height:max(44px,var(--zx-button-height))}}
+@media(pointer:coarse){html[data-bento-style] button[data-appearance-action],html.zenix-unified-ui[data-bento-style][data-button-style] button[data-appearance-action]{min-height:max(44px,var(--zx-button-height))}}
+.zx-route-transition{position:absolute;inset:32px 0 var(--desktop-dock-height,0px) var(--desktop-nav-width,0px);width:calc(100% - var(--desktop-nav-width,0px));height:calc(100% - 32px - var(--desktop-dock-height,0px));z-index:19;pointer-events:none;opacity:0}
+.zx-route-transition.is-mobile{position:fixed;inset:70px 0 100px;width:100%;height:calc(100dvh - 170px);z-index:21}
+@media(prefers-reduced-motion:reduce){.zx-route-transition{display:none}}
+html[data-ui-motion=reduced] .zx-route-transition,html[data-appearance-motion=reduced] .zx-route-transition{display:none}
+.zx-route-transition[data-reduced=true]{display:none}

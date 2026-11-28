@@ -2,6 +2,14 @@
 
 核对日期：2026-09-30。版本按当前 package-lock.json / 安装包记录。Zenix 自有且开发者有权授权的代码采用 [GPL-3.0-only](LICENSE)；第三方组件及参考代码按各自适用许可处理。
 
+## Zenbot 人物素材
+
+2026-11-27 的本地集成复用用户 codex-pet 工作区中的 Zenbot PNG 与声明式人物清单。精灵清单声明 `user-owned-local`，来源及导入边界见 `public/assistant/zenbot/NOTICE.md`。本次 Canvas 2D 渲染与动作变换由 Zenix 独立实现，分件动画与源项目的网格渲染表现存在差异。人物资产的授权声明与 Zenix 代码许可分别保留。
+
+## DeepSeek 鲸鱼娘人物素材
+
+DeepSeek 鲸鱼娘的 PNG、分件模型与人物清单来自用户本地 codex-pet 中导入的 Pal-AI-Lab Coopanion 原版形象包。保留原角色设计溟月（上善无形）与 DeepSeek 女仆二创 ZipZipPipe 的署名。该目录素材适用 AGPL-3.0-or-later 及 Steamworks 第 7 节附加许可，完整原文、原包声明和本次集成说明随包包含于 `dist/assistant/whale/LICENSE`、`NOTICE.md`、`figure.json` 与 `ZENIX-INTEGRATION.md`。
+
 ## 实际依赖
 
 | 组件 | 版本 | 许可证 | 保留的原文 |
@@ -150,3 +158,33 @@ PC 使用 node-edge-tts 1.2.12 及其运行依赖生成用户选择的晓伊音�
 | require-directory | 2.1.1 | MIT | [LICENSE](licenses/require-directory/LICENSE) |
 | y18n | 5.0.8 | ISC | [LICENSE](licenses/y18n/LICENSE) |
 | yargs-parser | 21.1.1 | ISC | [LICENSE.txt](licenses/yargs-parser/LICENSE.txt) |
+# Blog appearance system (2026-11-28)
+
+`public/ui/blog-bento.css` and `public/ui/nine-slice.js` are copied from
+[17hwliao/17hwliao-blog](https://github.com/17hwliao/17hwliao-blog), commit
+`24813d93da2670ddd84b8f5533f2ef3f7f7fcc13`, under GPL-3.0-only, compatible
+with this application's existing license. The geometry is compiled from
+`src/lib/nine-slice.ts`. Appearance controls are adapted to Zenix's own state
+and React components. Grid wave feedback is adapted from the blog's
+`src/components/reference-experience.tsx`, originally derived from
+Ladvace/astro-bento-portfolio (MIT).
+
+Copyright (c) 2024 Gianmarco Cavallo and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

@@ -67,6 +67,18 @@ public final class AssistantModelCheck {
     static Object complete(AssistantModel model, JSONObject request) throws Exception { return model.invoke(new JSONObject().put("action", "complete").put("request", request)); }
     static JSONObject read(AssistantModel model) throws Exception { return (JSONObject) model.invoke(new JSONObject().put("action", "read")); }
     public static void main(String[] ignored) throws Exception {
+        String stream = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好，fixture-\"},\"finish_reason\":null}]}\r\n\r\n"
+            + "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"secret\"},\"finish_reason\":\"stop\"}]}\r\n\r\ndata: [DONE]\r\n\r\n";
+        StringBuilder streamed = new StringBuilder();
+        JSONObject streamedReply = new AssistantModelProtocol.StreamReply("fixture-secret", streamed::append).read(new ByteArrayInputStream(stream.getBytes(StandardCharsets.UTF_8)), () -> {});
+        check(streamed.toString().equals("你好，[凭据已隐藏]"), "stream redacts a key split across events");
+        check(AssistantModelProtocol.response(streamedReply, Set.of(), "fixture-secret").getString("content").equals(streamed.toString()), "stream normalizes through shared response validation");
+        rejected("protocol", () -> new AssistantModelProtocol.StreamReply("", null).read(new ByteArrayInputStream("data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n".getBytes(StandardCharsets.UTF_8)), () -> {}));
+        JSONObject imageRequest = request("image-revision");
+        imageRequest.getJSONArray("messages").getJSONObject(0).put("content", new JSONArray().put(new JSONObject().put("type", "text").put("text", "描述图片")).put(new JSONObject().put("type", "image").put("attachmentId", UUID.randomUUID().toString())));
+        AssistantModelProtocol.request(imageRequest);
+        imageRequest.getJSONArray("messages").getJSONObject(0).getJSONArray("content").getJSONObject(1).put("url", "file:///outside");
+        rejected("invalid_request", () -> AssistantModelProtocol.request(imageRequest));
         Vault vault = new Vault(); Server server = new Server();
         AssistantModel model = new AssistantModel(vault, server, 5000);
         try {

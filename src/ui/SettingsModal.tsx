@@ -1,13 +1,14 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {Captions,Database,FolderOpen,ImagePlus,Keyboard,MonitorSmartphone,Radio,RefreshCw,Search,Sparkles,Volume2,X} from 'lucide-react';
 import type {AppearanceBackground} from '../core/types';
-import {getSoundSettings,playUiSound,setSoundSettings,type SoundKind} from '../core/sounds';
+import {getSoundSettings,playUiSound,setSoundSettings,subscribeSoundSettings,type SoundKind} from '../core/sounds';
 import {DesktopAudioSettings,DesktopDeviceSettings} from './DesktopListeningSettings';
 import BackupSettings from './BackupSettings';
 import CatalogBrowser from './CatalogBrowser';
 import FeatureLauncher from '../features/FeatureLauncher';
 import SpaceAppearanceSettings from '../features/space/SpaceAppearanceSettings';
 import ThemeSettings from '../features/themes/ThemeSettings';
+import ApplicationStyleSettings from '../features/themes/ApplicationStyleSettings';
 import GlassSelect from './GlassSelect';
 import {MusicToolsButton} from './MusicTools';
 import SettingsSearch,{type SettingSearchEntry,type SettingsTab} from './SettingsSearch';
@@ -42,7 +43,7 @@ const tabs = [
   ['playback','播放','声音与歌词',Volume2],
   ['sources','音乐源','来源与缓存',Radio],
   ['space','音乐空间','主题与展示',ImagePlus],
-  ['assistant','助手','星音与模型',Sparkles],
+  ['assistant','助手','Zenbot与模型',Sparkles],
   ['devices','设备与下载','遥控与组件',Keyboard],
   ['data','资料与更新','备份与版本',Database],
 ] as const satisfies readonly (readonly [SettingsTab,string,string,typeof Volume2])[];
@@ -101,10 +102,12 @@ export default function SettingsModal({
   const [previewError,setPreviewError] = useState(false);
   const [homeStyleError,setHomeStyleError] = useState(false);
   const [sounds,setSounds] = useState(getSoundSettings);
+  const [soundSaveError,setSoundSaveError] = useState('');
+  useEffect(() => subscribeSoundSettings(() => setSounds(getSoundSettings())), []);
   const updateSounds = (change:Partial<typeof sounds>) => {
-    const next = {...sounds,...change};
-    setSounds(next);
-    setSoundSettings(next);
+    const next = {...getSoundSettings(),...change};
+    try {setSoundSettings(next);setSounds(next);setSoundSaveError('');}
+    catch {setSoundSaveError('音效设置未能保存，请重试。');}
   };
 
   useEffect(() => setPreviewError(false),[appearanceBackground?.url]);
@@ -216,16 +219,16 @@ export default function SettingsModal({
                 <SettingRow setting="reduce-motion" title="减少动效" description="缩短页面、设置和歌词切换动画。">
                   <button type="button" className={`yz-switch ${reduceMotion ? 'is-on' : ''}`} onClick={() => onReduceMotionChange(!reduceMotion)} role="switch" aria-checked={reduceMotion} aria-label="减少动效"><span/></button>
                 </SettingRow>
-                <SettingRow setting="ui-sounds" title="界面音效" description="播放、返回和滑动贴纸的声音反馈。">
+                <SettingRow setting="ui-sounds" title="界面音效" description="按钮点击、触摸、键盘激活，以及播放、返回和贴纸滑动的声音反馈。">
                   <button type="button" className={`yz-switch ${sounds.enabled ? 'is-on' : ''}`} onClick={() => {
                     updateSounds({enabled:!sounds.enabled});
                     if (!sounds.enabled) playUiSound('enter');
                   }} role="switch" aria-checked={sounds.enabled} aria-label="界面音效"><span/></button>
                 </SettingRow>
               </div>
-              {sounds.enabled && <details className="yz-settings-advanced">
+              {soundSaveError && <p role="alert">{soundSaveError}</p>}{sounds.enabled && <details className="yz-settings-advanced">
                 <summary><span><strong>音效细节</strong><small>音量与三类操作音色</small></span></summary>
-                <div className="zenix-sound-options">
+                <div className="zenix-sound-options" data-ui-sound="off">
                   <label className="zenix-sound-volume"><span>音效音量</span><input type="range" min={0} max={1} step={.01} value={sounds.volume} onChange={event => updateSounds({volume:Number(event.target.value)})} aria-label="音效音量"/><small>{Math.round(sounds.volume*100)}%</small></label>
                   {(['enter','cancel','slide'] as SoundKind[]).map(kind => <div className="zenix-sound-choice" key={kind}>
                     <span>{kind === 'enter' ? '进入 / 播放' : kind === 'cancel' ? '取消 / 返回' : '滑动贴纸'}</span>
@@ -269,6 +272,7 @@ export default function SettingsModal({
 
             {tab === 'space' && <div className="yz-settings-body">
               <div className="yz-settings-intro"><h2>音乐空间</h2><p>主题只改变歌词与视觉，不移动歌曲或歌单。</p></div>
+              <ApplicationStyleSettings/>
               {homeStyle && onHomeStyleChange && <div className="yz-settings-list">
                 <SettingRow setting="desktop-home-style" title="桌面首页风格" description="只切换首页主区的展示方式。">
                   <GlassSelect label="桌面首页风格" value={homeStyle} options={[{value:'library',label:'曲库首页'},{value:'cards',label:'环绕卡牌'}]} onChange={value => {
@@ -304,9 +308,9 @@ export default function SettingsModal({
             </div>}
 
             {tab === 'assistant' && <div className="yz-settings-body">
-              <div className="yz-settings-intro"><h2>助手</h2><p>星音的外观、语音、远程模型与本地音乐指令集中在音乐工作台。</p></div>
+              <div className="yz-settings-intro"><h2>助手</h2><p>Zenbot的外观、语音、远程模型与本地音乐指令集中在音乐工作台。</p></div>
               <div className="yz-settings-list">
-                <SettingRow setting="assistant" title="音乐助手" description="打开星音助手、皮肤、语音、桌宠与远程模型设置。" status="独立工作台">
+                <SettingRow setting="assistant" title="音乐助手" description="打开Zenbot助手、人物形象、语音、桌宠与远程模型设置。" status="独立工作台">
                   <FeatureLauncher/>
                 </SettingRow>
               </div>

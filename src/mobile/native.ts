@@ -27,6 +27,7 @@ interface NativePlugin {
   addListener(event: 'snapshot', callback: (event: MobileUpdate) => void): Promise<PluginListenerHandle>;
   addListener(event:'assistantVoiceStatus',callback:(value:{token:string;phase:string})=>void):Promise<PluginListenerHandle>;
   addListener(event:'assistantOpen',callback:()=>void):Promise<PluginListenerHandle>;
+  addListener(event:'assistantModelDelta',callback:(value:{requestId:string;revision:string;text:string})=>void):Promise<PluginListenerHandle>;
 }
 export type MobileUpdate = Omit<Partial<MobileSnapshot>, 'playback'> & { playback?: Partial<PlayerState> };
 const plugin = registerPlugin<NativePlugin>('ZenixNative');
@@ -44,6 +45,7 @@ export const observeKaraokeAudio = (callback: (event: KaraokeAudioStatus) => voi
 export const observe = (callback: (state: MobileUpdate) => void) => plugin.addListener('snapshot', callback);
 export const observeAssistantVoice=(callback:(value:{token:string;phase:string})=>void)=>plugin.addListener('assistantVoiceStatus',callback);
 export const observeAssistantOpen=(callback:()=>void)=>plugin.addListener('assistantOpen',callback);
+export const observeAssistantModelDelta=(callback:(value:{requestId:string;revision:string;text:string})=>void)=>plugin.addListener('assistantModelDelta',callback);
 export type MobileSearchPage = { items: Track[]; nextCursor: string | null };
 export const readLyrics = (track: Track) => command<RawLyrics | null>('lyrics', { track });
 export const initialSnapshot: MobileSnapshot = {

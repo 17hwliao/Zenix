@@ -1,102 +1,37 @@
-import {useLayoutEffect, useRef, useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
+import {useReducedMotion} from 'framer-motion';
 import SkinCharacter from './SkinCharacter';
-
-type Point = {x: number; y: number};
-type Drag = {id: number; start: Point; origin: Point; events: AbortController};
-
-const arrowOffsets: Record<string, Point> = {
-  ArrowLeft: {x: -16, y: 0}, ArrowRight: {x: 16, y: 0},
-  ArrowUp: {x: 0, y: -16}, ArrowDown: {x: 0, y: 16},
-};
-
-export default function AssistantCornerCharacter({hidden, phase, invoke, onOpen}: {
-  hidden: boolean;
-  phase: string;
-  invoke: <T = unknown>(args: Record<string, unknown>) => Promise<T>;
-  onOpen: () => void;
-}) {
-  const layer = useRef<HTMLDivElement>(null);
-  const character = useRef<HTMLButtonElement>(null);
-  const drag = useRef<Drag | null>(null);
-  const moved = useRef(false);
-  const [position, setPosition] = useState<Point>();
-  const [dragging, setDragging] = useState(false);
-
-  const move = (next: Point) => {
-    const area = layer.current;
-    const body = character.current;
-    if (!area?.offsetWidth || !body) return;
-    const x = Math.max(0, Math.min(next.x, area.clientWidth - body.offsetWidth));
-    const y = Math.max(0, Math.min(next.y, area.clientHeight - body.offsetHeight));
-    setPosition(previous => previous?.x === x && previous.y === y ? previous : {x, y});
-  };
-
-  useLayoutEffect(() => {
-    if (hidden || !layer.current || !character.current) return;
-    const area = layer.current;
-    const body = character.current;
-    const observer = new ResizeObserver(() => {
-      if (body.style.left) move({x: body.offsetLeft, y: body.offsetTop});
-    });
-    observer.observe(area);
-    observer.observe(body);
-    return () => {
-      observer.disconnect();
-      drag.current?.events.abort();
-      drag.current = null;
-    };
-  }, [hidden]);
-
-  const endDrag = (id: number) => {
-    if (drag.current?.id !== id) return;
-    drag.current.events.abort();
-    drag.current = null;
-    setDragging(false);
-  };
-
-  return <div className="assistant-corner-layer" ref={layer} hidden={hidden}>
-    <button ref={character} type="button" className="assistant-corner-character" data-state={phase}
-      data-dragging={!hidden && dragging} aria-label="打开星音对话" title="点击打开星音，拖动或用方向键移动"
-      style={position ? {left: position.x, top: position.y, right: 'auto', bottom: 'auto'} : undefined}
-      onPointerDown={event => {
-        if (event.button !== 0 || !event.isPrimary || drag.current) return;
-        const body = event.currentTarget;
-        const id = event.pointerId;
-        const events = new AbortController();
-        const gesture = {id, events, start: {x: event.clientX, y: event.clientY}, origin: {x: body.offsetLeft, y: body.offsetTop}};
-        drag.current = gesture;
-        moved.current = false;
-        setDragging(false);
-        const options = {capture: true, signal: events.signal};
-        window.addEventListener('pointermove', moveEvent => {
-          if (moveEvent.pointerId !== id) return;
-          const dx = moveEvent.clientX - gesture.start.x;
-          const dy = moveEvent.clientY - gesture.start.y;
-          if (!moved.current && Math.hypot(dx, dy) < 5) return;
-          if (!moved.current) {
-            moved.current = true;
-            setDragging(true);
-          }
-          move({x: gesture.origin.x + dx, y: gesture.origin.y + dy});
-        }, options);
-        window.addEventListener('pointerup', upEvent => endDrag(upEvent.pointerId), options);
-        window.addEventListener('pointercancel', cancelEvent => endDrag(cancelEvent.pointerId), options);
-        window.addEventListener('blur', () => endDrag(id), options);
-        if (event.nativeEvent.isTrusted) body.setPointerCapture(id);
-      }}
-      onLostPointerCapture={event => endDrag(event.pointerId)}
-      onKeyDown={event => {
-        const offset = arrowOffsets[event.key];
-        if (!offset || event.altKey || event.ctrlKey || event.metaKey) return;
-        event.preventDefault();
-        const body = event.currentTarget;
-        move({x: body.offsetLeft + offset.x, y: body.offsetTop + offset.y});
-      }}
-      onClick={event => {
-        if (event.detail > 0 && moved.current) return;
-        onOpen();
-      }}>
-      {!hidden && <SkinCharacter state={phase} invoke={invoke}/>}
-    </button>
-  </div>;
+import {useSpaceSettings} from '../space/state';
+import {clamp,stepAppCompanion,useAppCompanion,type CompanionAnchor,type CompanionPoint} from './app-companion';
+type Drag={id:number;x:number;y:number;origin:CompanionPoint;events:AbortController;lastX:number;lastY:number;lastAt:number};
+const arrows:Record<string,{x:number;y:number}>={ArrowLeft:{x:-16,y:0},ArrowRight:{x:16,y:0},ArrowUp:{x:0,y:-16},ArrowDown:{x:0,y:16}};
+export default function AssistantCornerCharacter({hidden=false,chatOpen=false,phase,invoke,onOpen,onAnchor}:{hidden?:boolean;chatOpen?:boolean;phase:string;invoke:<T=unknown>(args:Record<string,unknown>)=>Promise<T>;onOpen:()=>void;onAnchor?:(anchor:CompanionAnchor|null)=>void}){
+  const layer=useRef<HTMLDivElement>(null),character=useRef<HTMLButtonElement>(null),drag=useRef<Drag|null>(null),moved=useRef(false),hovered=useRef(false);
+  const current=useRef<CompanionPoint>({x:0,y:0,vx:0,vy:0,direction:-1,mode:'idle',restUntil:performance.now()+2200});
+  const[presentation,setPresentation]=useState({mode:'idle' as CompanionPoint['mode'],direction:-1 as 1|-1});
+  const measured=useRef({width:0,height:0,bodyWidth:0,bodyHeight:0,layerLeft:12,viewportWidth:0});
+  const initialized=useRef(false);
+  const settings=useAppCompanion(),space=useSpaceSettings(),systemReduced=useReducedMotion();
+  const reduced=settings.reduced||space.motion==='reduced'||Boolean(systemReduced),invisible=hidden||settings.hidden,busy=['listening','thinking','executing','talking','preparing'].includes(phase);
+  const anchorCallback=useRef(onAnchor);anchorCallback.current=onAnchor;
+  const reportAnchor=(point=current.current)=>{const m=measured.current;anchorCallback.current?.(invisible||!m.bodyWidth?null:{left:m.layerLeft+point.x,width:m.bodyWidth,viewportWidth:m.viewportWidth});};
+  const latest=useRef({settings,reduced,busy,chatOpen});latest.current={settings,reduced,busy,chatOpen};
+  const bounds=()=>measured.current;
+  // Pointer motion and physics own only this transform. React updates the
+  // character's expression/direction on transitions, never on every movement.
+  const apply=(value:CompanionPoint)=>{const b=bounds(),before=current.current;value={...value,x:clamp(value.x,b.width-b.bodyWidth),y:clamp(value.y,b.height-b.bodyHeight)};current.current=value;if(character.current)character.current.style.transform=`translate3d(${value.x}px,${value.y}px,0)`;if(value.mode!==before.mode||value.direction!==before.direction)setPresentation({mode:value.mode,direction:value.direction});};
+  const finish=(id:number,cancel=false)=>{const gesture=drag.current;if(!gesture||gesture.id!==id)return;gesture.events.abort();drag.current=null;const body=character.current;if(body?.hasPointerCapture(id))body.releasePointerCapture(id);apply({...current.current,mode:moved.current?'falling':'idle',vx:cancel||!moved.current?0:current.current.vx,vy:cancel||!moved.current?0:current.current.vy,restUntil:performance.now()+1500});reportAnchor();};
+  useLayoutEffect(()=>{if(invisible||!layer.current||!character.current){anchorCallback.current?.(null);return;}const area=layer.current,body=character.current;const resize=()=>{const previous=bounds(),point=current.current,grounded=initialized.current&&!drag.current&&point.mode!=='falling'&&point.y>=Math.max(0,previous.height-previous.bodyHeight)-.5,rect=area.getBoundingClientRect();measured.current={width:area.clientWidth,height:area.clientHeight,bodyWidth:body.offsetWidth,bodyHeight:body.offsetHeight,layerLeft:rect.left,viewportWidth:document.documentElement.clientWidth||window.innerWidth};const b=bounds(),floor=Math.max(0,b.height-b.bodyHeight);apply(initialized.current?{...point,y:grounded?floor:Math.min(point.y,floor)}:{...point,x:b.width-b.bodyWidth-10,y:floor});initialized.current=true;reportAnchor();};resize();const observer=new ResizeObserver(resize);observer.observe(area);observer.observe(body);return()=>{observer.disconnect();if(drag.current)finish(drag.current.id,true);};},[invisible]);
+  useLayoutEffect(()=>{if(invisible)return;reportAnchor();if(!chatOpen||drag.current)return;const m=measured.current,point=current.current;if(!m.viewportWidth||!m.bodyWidth)return;const face:(1|-1)=m.layerLeft+point.x+m.bodyWidth/2>=m.viewportWidth/2?-1:1;const nextMode=point.mode==='walk'?'idle':point.mode;if(point.direction!==face||point.mode!==nextMode)apply({...point,direction:face,mode:nextMode});},[chatOpen,invisible]);
+  useEffect(()=>{if(invisible)return;let frame=0,last=performance.now(),dead=false;const tick=(now:number)=>{if(dead)return;if(now-last>=30){const dt=(now-last)/1000;last=now;const options=latest.current;if(!document.hidden&&!drag.current){const next=stepAppCompanion(current.current,bounds(),dt,now,{walk:options.settings.wandering,paused:hovered.current||options.chatOpen||options.settings.locked||options.busy,reduced:options.reduced}),before=current.current;if(next.x!==before.x||next.y!==before.y||next.mode!==before.mode||next.direction!==before.direction){apply(next);if(before.mode==='falling'&&next.mode==='idle')reportAnchor(next);}else current.current=next;}}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>{dead=true;cancelAnimationFrame(frame);};},[invisible]);
+  useEffect(()=>{if(settings.locked&&drag.current)finish(drag.current.id,true);},[settings.locked]);
+  const width=Math.round(160*settings.scale),height=Math.round(width*4/3),moving=presentation.mode;
+  return <div className="assistant-corner-layer" ref={layer} hidden={invisible} data-scope="application"><button ref={character} type="button" className="assistant-corner-character" data-state={phase} data-chat-open={chatOpen} data-ui-sound="off" data-movement={moving} data-dragging={moving==='dragged'} aria-expanded={chatOpen} aria-label={chatOpen?'收起助手对话':'打开助手对话'} title={chatOpen?'应用内助手：点击收起聊天，拖动移动':'应用内助手：点击聊天，拖动移动，松手回到底部'} style={{width,height}}
+    onPointerEnter={()=>{hovered.current=true;}} onPointerLeave={()=>{hovered.current=false;}}
+    onPointerDown={event=>{if(event.button!==0||!event.isPrimary||drag.current)return;moved.current=false;if(settings.locked)return;event.preventDefault();const id=event.pointerId,events=new AbortController(),gesture={id,events,x:event.clientX,y:event.clientY,origin:{...current.current},lastX:event.clientX,lastY:event.clientY,lastAt:performance.now()};drag.current=gesture;const options={capture:true,signal:events.signal};window.addEventListener('pointermove',e=>{if(e.pointerId!==id)return;const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;if(!moved.current&&Math.hypot(dx,dy)<5)return;moved.current=true;const at=performance.now(),dt=Math.max(.016,(at-gesture.lastAt)/1000);apply({...current.current,x:gesture.origin.x+dx,y:gesture.origin.y+dy,vx:Math.max(-700,Math.min(700,(e.clientX-gesture.lastX)/dt)),vy:Math.max(-700,Math.min(700,(e.clientY-gesture.lastY)/dt)),mode:'dragged'});gesture.lastAt=at;gesture.lastX=e.clientX;gesture.lastY=e.clientY;},options);window.addEventListener('pointerup',e=>finish(e.pointerId),options);window.addEventListener('pointercancel',e=>finish(e.pointerId,true),options);window.addEventListener('blur',()=>finish(id,true),options);if(event.nativeEvent.isTrusted)event.currentTarget.setPointerCapture(id);}}
+    onLostPointerCapture={e=>finish(e.pointerId,true)}
+    onKeyDown={event=>{const offset=arrows[event.key];if(!offset||event.altKey||event.ctrlKey||event.metaKey||settings.locked)return;event.preventDefault();const next={...current.current,x:current.current.x+offset.x,y:current.current.y+offset.y,vx:0,vy:0,mode:'falling' as const,restUntil:performance.now()+1600};apply(next);reportAnchor(next);}}
+    onClick={event=>{if(event.detail>0&&moved.current)return;onOpen();}}>
+      {!invisible&&<SkinCharacter state={moving==='dragged'?'dragged':moving==='falling'?'falling':phase} motion={!busy&&moving==='walk'?'walk':undefined} direction={presentation.direction} reduced={reduced} groundAligned invoke={invoke}/>}
+    </button></div>;
 }

@@ -5,14 +5,18 @@
 .assistant-results,.assistant-plan ul{max-height:190px;overflow:auto;padding-left:24px;line-height:1.8;overflow-wrap:anywhere}.assistant-lyrics{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.9;max-height:230px;overflow:auto;padding:12px;background:#0a132180;border-radius:12px}.assistant-plan{border:1px solid #a7d8f34a;border-radius:16px;padding:12px;background:#182c40}.assistant-plan p{margin-top:0}
 
 .assistant-conversation:not(.is-mobile)[data-open=false] { z-index:90; }
-.assistant-corner-layer { position:fixed; inset:40px 12px 94px; pointer-events:none; }
+.assistant-corner-layer { position:fixed; inset:40px 12px 0; z-index:1; pointer-events:none; overflow:hidden; }
 .assistant-conversation .assistant-corner-character {
   position:absolute;
-  right:10px;
-  bottom:4px;
+  left:0;
+  top:0;
+  right:auto;
+  bottom:auto;
+  transition:none!important;
+  will-change:transform;
   width:clamp(88px,9vw,126px);
   max-width:100%;
-  height:auto;
+  height:149px;
   max-height:100%;
   aspect-ratio:3 / 4;
   min-height:0;
@@ -30,3 +34,48 @@
 .assistant-corner-character .pet-portrait { display:block; position:relative; width:100%; height:100%; pointer-events:none; filter:drop-shadow(0 4px 6px #0008); }
 .assistant-corner-character .pet-portrait img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; -webkit-user-drag:none; }
 .assistant-corner-character :is(.pet-blink,.pet-brand) { display:none; }
+
+/* Companion chat uses the same compact hierarchy as the native pocket. */
+.assistant-conversation{color:#e9eae4;max-width:calc(100dvw - 24px)}
+.assistant-conversation *{box-sizing:border-box}
+.assistant-conversation .assistant-chat{max-width:calc(100dvw - 24px)}
+.assistant-conversation .assistant-chat{position:relative;z-index:2;display:flex;flex-direction:column;width:366px;height:min(610px,calc(100dvh - 170px));max-height:calc(100dvh - 170px);padding:0;overflow:hidden;border:1px solid #ffffff20;border-radius:22px;background:#1a1b19;box-shadow:0 20px 60px #0005,0 3px 14px #0003;animation:zenix-panel-in .23s cubic-bezier(.2,.8,.2,1)}
+.assistant-chat .assistant-conversation-header{flex:none;min-height:82px;padding:16px 14px 14px 78px;border-bottom:1px solid #ffffff0d;gap:8px}
+.assistant-conversation-header>div{flex:1;min-width:0;display:grid;gap:4px}
+.assistant-conversation-header strong{font-size:14px;font-weight:550}
+.assistant-conversation-header span{font-size:10px;color:#9da394}
+.assistant-chat .assistant-conversation-header>button{display:grid;place-items:center;width:32px;min-width:32px;min-height:32px;border:0;padding:0;border-radius:50%;color:#a7ad9c;background:transparent}
+.assistant-chat .assistant-conversation-header>button:hover{background:#ffffff09}
+.assistant-conversation .assistant-chat-character{position:absolute;top:10px;left:14px;width:48px;height:63px;display:block}
+.assistant-conversation .assistant-chat-character>button{width:48px;height:63px;min-height:0;display:block;border:0;border-radius:12px;transition:transform .2s;padding:0;background:transparent}
+.assistant-conversation .assistant-chat-character>button:hover{transform:rotate(-4deg) translateY(-2px)}
+.assistant-chat-character .assistant-expression{font-size:16px;right:-3px;top:4px}
+.assistant-conversation .assistant-chat>.zenix-chat-workspace{min-height:120px;max-height:none;flex:1}
+.assistant-conversation .assistant-chat .zenix-chat-workspace button{border-radius:9px;min-height:32px;padding:6px 9px}
+.assistant-conversation .assistant-chat .zenix-chat-workspace .zenix-chat-send{width:32px;min-height:32px;padding:0;border-radius:50%}
+.assistant-conversation .assistant-chat .zenix-chat-workspace .zenix-chat-copy{padding:2px 3px;min-height:25px}
+.assistant-conversation .assistant-chat .zenix-chat-workspace .zenix-chat-attach{padding:4px 2px}
+.assistant-preferences{padding:0 16px 10px;font-size:11px;flex:none;max-height:45%;overflow:auto;scrollbar-width:thin}
+.assistant-preferences>summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;color:#a2a798;min-height:28px;font-size:10px}
+.assistant-preferences>summary::-webkit-details-marker{display:none}
+.assistant-preferences[open]>summary svg{transform:rotate(180deg)}
+.assistant-preferences>div{padding:5px 0 10px}
+.assistant-preferences .assistant-spoken{margin:4px 0 8px;font-size:12px;accent-color:#c4ccaf}
+.assistant-chat .assistant-preferences small{font-size:10px;color:#959c89;margin:8px 0;line-height:1.8}
+.assistant-model-details>summary{cursor:pointer;min-height:30px;line-height:30px;font-size:12px}
+.assistant-chat .remote-model-settings{padding:12px;background:#141512;border-color:#ffffff13;border-radius:12px}
+.assistant-chat>p[role=status]{margin:0 16px 8px;max-height:90px;overflow:auto;font-size:12px;line-height:1.7}
+.assistant-chat>button{margin:0 12px 8px;flex:none;font-size:12px;min-height:34px}
+.assistant-conversation .assistant-corner-character{width:clamp(76px,8vw,112px)}
+.assistant-corner-character:after{content:"拖动移动 · 点击聊天";position:absolute;left:50%;bottom:-4px;transform:translate(-50%,5px);padding:5px 9px;white-space:nowrap;font-size:10px;font-weight:400;color:#e8eae1;background:#252821eb;border:1px solid #ffffff22;border-radius:20px;opacity:0;transition:opacity .18s,transform .18s;pointer-events:none}
+.assistant-corner-character[data-chat-open=true]:after{content:"拖动移动 · 点击收起"}
+.assistant-corner-character:is(:hover,:focus-visible):after{opacity:1;transform:translate(-50%,0)}
+.assistant-corner-character[data-dragging=true] .pet-portrait{transform:rotate(-5deg);filter:drop-shadow(0 12px 10px #0006)}
+.assistant-corner-character .pet-portrait{transition:transform .18s,filter .18s}
+.assistant-conversation.is-mobile{bottom:calc(100px + env(safe-area-inset-bottom));right:12px}
+.assistant-conversation.is-mobile .assistant-chat{width:min(366px,calc(100dvw - 24px));height:min(610px,calc(100dvh - 190px));max-height:calc(100dvh - 190px);margin-bottom:10px}
+.assistant-conversation.is-mobile .assistant-chat .zenix-chat-workspace button{min-height:44px}
+.assistant-conversation.is-mobile .assistant-chat .zenix-chat-send{width:44px;min-height:44px}
+.assistant-conversation.is-mobile .assistant-chat .zenix-chat-attachments>div>button{width:30px;min-height:30px;padding:0}
+@media(max-height:580px){.assistant-conversation .assistant-chat{height:calc(100dvh - 130px);max-height:calc(100dvh - 130px)}.assistant-conversation{bottom:80px}.assistant-chat .assistant-conversation-header{min-height:66px;padding-top:9px;padding-bottom:8px}.assistant-conversation .assistant-chat-character{top:2px}.assistant-conversation .zenix-chat-welcome-portrait{display:none}}
+@media(prefers-reduced-motion:reduce){.assistant-conversation .assistant-chat,.assistant-conversation .assistant-corner-character .pet-portrait,.assistant-corner-character:after{animation:none!important;transition:none!important}}

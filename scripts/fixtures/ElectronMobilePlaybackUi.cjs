@@ -10,6 +10,7 @@ app.whenReady().then(async()=>{
   // the full animation path, so establish that preference before React mounts.
   await window.loadURL('about:blank');
   window.webContents.debugger.attach('1.3');
+  window.webContents.setAudioMuted(true);
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
   window.webContents.on('console-message',event=>{if(event.level==='error')console.error(event.message);});
   const evaluate=async code=>{try{return await window.webContents.executeJavaScript(code,true);}catch(error){console.error('Fixture expression failed:',code);throw error;}};
@@ -107,6 +108,12 @@ app.whenReady().then(async()=>{
   await evaluate('document.querySelector(".zenix-theme-card[data-theme-preview=cinema-curtain] .zenix-theme-card-select").click()');
   await wait('localStorage.getItem("zenix.theme.active.v1")==="cinema-curtain"&&document.querySelector(".zenix-theme-card.is-selected")?.dataset.themePreview==="cinema-curtain"');
   window.setContentSize(390,820);
+  await evaluate('document.querySelector(".zenix-ui-sounds").scrollIntoView({block:"center"})');
+  await click('.zenix-ui-sounds input[role=switch]');
+  assert.equal(await evaluate('JSON.parse(localStorage.getItem("zenix.ui-sounds.v1")).enabled'),false,'mobile exposes a persisted UI sound switch');
+  await click('.zenix-ui-sounds input[role=switch]');
+  await wait('!!document.querySelector(".zenix-ui-sounds input[type=range]")');
+  await screenshot('mobile-ui-sounds.png');
   await evaluate(`(()=>{const input=document.querySelector('[aria-label="搜索设置"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'歌词校正');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await wait('!!document.querySelector(".yz-settings-result-list")');await screenshot('mobile-settings-search.png');
   await evaluate('document.querySelector(".yz-settings-result-list>button").click()');await wait('document.querySelector("[data-mobile-setting=lyric-display]")?.classList.contains("is-search-target")');
   await wait('!!document.querySelector(".mobile-settings input[aria-label=搜索设置]")');

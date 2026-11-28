@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "coordinateSpace": {
+    "units": "logo",
+    "centerX": 128,
+    "feetY": 256,
+    "rotation": "degrees",
+    "translation": "logo units"
+  },
+  "deformers": [
+    "body",
+    "chest",
+    "head",
+    "hair_back",
+    "arm_l",
+    "arm_r",
+    "skirt",
+    "leg_l",
+    "leg_r"
+  ],
+  "limits": {
+    "gazeX": 5,
+    "gazeY": 4,
+    "hairSwayDegrees": 3.5,
+    "skirtSwayDegrees": 4,
+    "mouthOpenLogoUnits": 5.5,
+    "talkHz": [8, 12]
+  },
+  "continuous": {
+    "breathSeconds": 4.2,
+    "sleepBreathSeconds": 5.25,
+    "blinkPeriodSeconds": 3.8,
+    "blinkJitterSeconds": 1.4,
+    "blinkCloseSeconds": 0.13,
+    "gazeUnits": [5, 4],
+    "mouth": {
+      "minHz": 8,
+      "maxHz": 12,
+      "defaultHz": 9.5,
+      "maxOpenLogoUnits": 5.5,
+      "widthLogoUnits": [42, 50]
+    },
+    "walk": {
+      "cadenceCyclesPerSecond": 2.1,
+      "legDegrees": 23,
+      "armDegrees": 17,
+      "bobLogoUnits": 1.9,
+      "leanDegrees": 2.5
+    },
+    "run": {
+      "cadenceCyclesPerSecond": 4.4,
+      "legDegrees": 40,
+      "armDegrees": 34,
+      "bobLogoUnits": 3.4,
+      "leanDegrees": 8
+    }
+  },
+  "motions": {
+    "stand": {
+      "seconds": 1.2,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.18], "peak": [0.18, 0.45], "tail": [0.45, 1.2] },
+      "peakValues": { "bodyLift": 2.1, "chestStretchDegrees": 1.4, "armDegrees": 7 }
+    },
+    "jump": {
+      "seconds": 1.2,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.16], "peak": [0.16, 0.58], "tail": [0.58, 1.2] },
+      "peakValues": { "bodyLift": 34, "crouchSquash": 0.14, "armDegrees": 52 }
+    },
+    "hop": {
+      "seconds": 0.9,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.12], "peak": [0.12, 0.42], "tail": [0.42, 0.9] },
+      "peakValues": { "bodyLift": 15, "crouchSquash": 0.09, "armDegrees": 26 }
+    },
+    "look": {
+      "seconds": 2.7,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.25], "peak": [0.25, 1.8], "tail": [1.8, 2.7] },
+      "peakValues": { "headDegrees": 2.4, "headOffset": 2.1, "gazeX": 5, "gazeY": -3.8 }
+    },
+    "turn": {
+      "seconds": 0.4,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.12], "peak": [0.12, 0.3], "tail": [0.3, 0.4] },
+      "peakValues": { "bodyDegrees": 3.5, "horizontalScale": 0.44, "headDegrees": 4.5 }
+    },
+    "nod": {
+      "seconds": 0.8,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.12], "peak": [0.12, 0.62], "tail": [0.62, 0.8] },
+      "peakValues": { "headDegrees": 4.8, "headOffset": 3.6, "chestDegrees": 2.1 }
+    },
+    "shake": {
+      "seconds": 0.8,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.1], "peak": [0.1, 0.64], "tail": [0.64, 0.8] },
+      "peakValues": { "headDegrees": 4.2, "headOffset": 3.2, "bodyOffset": 2.6 }
+    },
+    "spin": {
+      "seconds": 0.8,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.12], "peak": [0.12, 0.64], "tail": [0.64, 0.8] },
+      "peakValues": { "horizontalScaleMin": 0.18, "armDegrees": 14, "hairSwayDegrees": 3.4 }
+    },
+    "sit": {
+      "seconds": 0.8,
+      "loop": false,
+      "lasting": true,
+      "gesture": false,
+      "segments": { "windup": [0, 0.35], "peak": [0.35, 0.6], "tail": ["hold"] },
+      "peakValues": { "bodyOffset": 8.5, "legDegrees": 27, "skirtDegrees": 2.8 }
+    },
+    "sleep": {
+      "seconds": 0.8,
+      "loop": false,
+      "lasting": true,
+      "gesture": false,
+      "segments": { "windup": [0, 0.5], "peak": [0.5, "hold"], "tail": ["hold"] },
+      "peakValues": { "bodyOffset": 8, "headDegrees": 3.8, "breathSeconds": 5.25 }
+    },
+    "dizzy": {
+      "seconds": 3.2,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.25], "peak": [0.25, 2.4], "tail": [2.4, 3.2] },
+      "peakValues": { "bodyDegrees": 4.8, "headDegrees": 5.2, "armDegrees": 14 }
+    },
+    "walk": {
+      "seconds": 12,
+      "loop": true,
+      "gesture": false,
+      "segments": { "windup": [0, 0.2], "peak": [0.2, 0.8], "tail": [0.8, 12] },
+      "peakValues": { "legDegrees": 23, "armDegrees": 17, "hairSwayDegrees": 2.2, "skirtSwayDegrees": 2.8 }
+    },
+    "run": {
+      "seconds": 12,
+      "loop": true,
+      "gesture": false,
+      "segments": { "windup": [0, 0.16], "peak": [0.16, 0.52], "tail": [0.52, 12] },
+      "peakValues": { "legDegrees": 40, "armDegrees": 34, "hairSwayDegrees": 3.1, "skirtSwayDegrees": 3.8 }
+    },
+    "wave": {
+      "seconds": 1.7,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.18], "peak": [0.18, 1.2], "tail": [1.2, 1.7] },
+      "peakValues": { "armRDegrees": 112, "waveDegrees": 12, "headDegrees": 2.4 }
+    },
+    "bow": {
+      "seconds": 1.7,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.22], "peak": [0.22, 0.8], "tail": [0.8, 1.7] },
+      "peakValues": { "bodyDegrees": 5, "chestDegrees": 21, "headDegrees": 8 }
+    },
+    "shiver": {
+      "seconds": 1.9,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.16], "peak": [0.16, 1.35], "tail": [1.35, 1.9] },
+      "peakValues": { "bodyOffset": 1.1, "headDegrees": 2.4, "armDegrees": 9.2 }
+    },
+    "flap": {
+      "seconds": 1.5,
+      "loop": false,
+      "gesture": true,
+      "segments": { "windup": [0, 0.16], "peak": [0.16, 0.85], "tail": [0.85, 1.5] },
+      "peakValues": { "bodyLift": 23, "armDegrees": 82, "skirtDegrees": 4 }
+    },
+    "dance": {
+      "seconds": 3.4,
+      "loop": false,
+      "gesture": false,
+      "segments": { "windup": [0, 0.25], "peak": [0.25, 2.8], "tail": [2.8, 3.4] },
+      "peakValues": { "bodyDegrees": 4.8, "armDegrees": 32, "legDegrees": 18, "skirtSwayDegrees": 3.7 }
+    }
+  }
+}

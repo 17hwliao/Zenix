@@ -20,9 +20,19 @@ final class AssistantFeatures {
     }
     private void save(JSONObject value)throws Exception {JSONObject saved=value==null?Json.obj("default",true):value;if(saved.toString().getBytes(StandardCharsets.UTF_8).length>18*1024*1024)throw new IOException("皮肤保存内容超过18 MiB");byte[] bytes=ProtectedJson.encode(saved.toString()).getBytes(StandardCharsets.UTF_8);FileOutputStream output=null;try{output=file.startWrite();output.write(bytes);file.finishWrite(output);}catch(Exception failure){if(output!=null)file.failWrite(output);throw failure;}}
     synchronized JSONObject skin(){return skin==null?null:Json.copy(skin);}
+    synchronized JSONObject figure() throws Exception {
+        android.content.SharedPreferences preferences=context.getSharedPreferences("zenix.assistant.figure.v2",Context.MODE_PRIVATE);
+        return Json.obj("id",preferences.getString("id","zenbot").equals("whale")?"whale":"zenbot","scale",preferences.getFloat("scale",.7f),"wandering",preferences.getBoolean("wandering",true));
+    }
     synchronized Object invoke(JSONObject args)throws Exception {
         switch(args.optString("action")){
-            case "state":return Json.obj("enabled",AssistantOverlayService.running(),"skin",skin==null?JSONObject.NULL:Json.obj("archive",skin.optString("archive")),"error",error);
+            case "state":return Json.obj("enabled",AssistantOverlayService.running(),"skin",JSONObject.NULL,"figure",figure(),"error",error);
+            case "figure":{
+                String id=args.getString("figure");double scale=args.getDouble("scale");
+                if(!java.util.Set.of("zenbot","whale").contains(id)||!Double.isFinite(scale)||scale<.45||scale>1.25)throw new IOException("形象参数无效");
+                if(!context.getSharedPreferences("zenix.assistant.figure.v2",Context.MODE_PRIVATE).edit().putString("id",id).putFloat("scale",(float)scale).putBoolean("wandering",args.optBoolean("wandering",true)).commit())throw new IOException("形象设置未保存");
+                AssistantOverlayService.refreshSkin();return figure();
+            }
             case "skinSave":if(!error.isEmpty())throw new IOException(error);JSONObject next=validate(Json.obj("archive",args.optString("base64"),"config",args.getJSONObject("config"),"images",args.getJSONObject("images")));save(next);skin=next;AssistantOverlayService.refreshSkin();return true;
             case "skinReset":save(null);skin=null;error="";AssistantOverlayService.refreshSkin();return true;
             case "overlay":if(!args.optBoolean("enabled",true)){context.stopService(new Intent(context,AssistantOverlayService.class));return Json.obj("enabled",false,"permitted",Settings.canDrawOverlays(context));}if(!Settings.canDrawOverlays(context)){Intent permission=new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+context.getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);context.startActivity(permission);return Json.obj("enabled",false,"permitted",false);}Intent intent=new Intent(context,AssistantOverlayService.class).putExtra("size",Math.max(64,Math.min(220,args.optInt("size",120))));if(Build.VERSION.SDK_INT>=26)context.startForegroundService(intent);else context.startService(intent);return Json.obj("enabled",AssistantOverlayService.running(),"permitted",true,"requested",true);

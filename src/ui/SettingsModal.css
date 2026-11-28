@@ -18,16 +18,7 @@
 }
 
 .yz-settings-modal.yz-settings-redesign {
-  --zx-bg: #151922;
-  --zx-bg-elevated: #1b202b;
-  --zx-surface: #212735;
-  --zx-surface-hover: #2a3242;
-  --zx-surface-active: #2d3953;
-  --zx-border: #323a4a;
-  --zx-border-strong: #49576d;
-  --zx-text-muted: #a8b4c6;
-  --zx-text-secondary: #cad2e0;
-  --zx-accent: #dbe6fb;
+
   box-sizing: border-box;
   width: min(1120px, 100%);
   height: min(820px, calc(100dvh - 56px));

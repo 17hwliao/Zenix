@@ -13,6 +13,7 @@ import './PersonalLibraryManager.css';
 import { MusicToolsButton } from './MusicTools';
 
 type Props = {
+  embedded?: boolean; onSectionChange?: (section: string) => void;
   initialSection: string; personal: PersonalState; tracks: TrackView[]; queue: TrackView[];
   onClose: () => void; onPlayTrack: (track: TrackView, queue: TrackView[]) => void;
   onCreatePlaylist: (name: string) => Promise<string | null>;
@@ -30,7 +31,7 @@ const sections = [
   { id: 'playlists', label: '自定义歌单', icon: ListMusic },
 ];
 
-export default function PersonalLibraryManager({ initialSection, personal, tracks, queue, onClose, onPlayTrack, onCreatePlaylist, onRenamePlaylist, onDeletePlaylist, onRemoveSaved, onRemovePersonalTrack, onAddToPlaylist }: Props) {
+export default function PersonalLibraryManager({ initialSection, personal, tracks, queue, onClose, onPlayTrack, onCreatePlaylist, onRenamePlaylist, onDeletePlaylist, onRemoveSaved, onRemovePersonalTrack, onAddToPlaylist, embedded=false, onSectionChange }: Props) {
   const [section, setSection] = useState(initialSection);
   const [query, setQuery] = useState('');
   const [pickerQuery, setPickerQuery] = useState('');
@@ -66,7 +67,9 @@ export default function PersonalLibraryManager({ initialSection, personal, track
 
   const selectSection = (next: string) => {
     setSection(next); setQuery(''); setPickerOpen(false); setEditor(null); setConfirmDelete(false); setMessage('');
+    onSectionChange?.(next);
   };
+  useEffect(() => { if (initialSection === section) return; setSection(initialSection); setQuery(''); setPickerOpen(false); setEditor(null); setConfirmDelete(false); setMessage(''); }, [initialSection]);
   const openCreate = () => { setEditor('create'); setDraftName(''); setConfirmDelete(false); setMessage(''); };
   const submitEditor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -77,14 +80,14 @@ export default function PersonalLibraryManager({ initialSection, personal, track
       if (editor === 'create') {
         const id = await onCreatePlaylist(name);
         if (!id) { setMessage('新建失败，请检查名称后重试。'); return; }
-        setSection(id); setPickerOpen(true); setPickerQuery('');
+        setSection(id); onSectionChange?.(id); setPickerOpen(true); setPickerQuery('');
         setMessage('歌单已创建，可以开始添加歌曲。');
       } else if (editor === 'rename' && playlist) {
         if (!(await onRenamePlaylist(playlist.id, name))) { setMessage('重命名失败，请重试。'); return; }
         setMessage('歌单名称已更新。');
       }
       setEditor(null);
-    } finally { setBusy(false); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : '保存失败，请重试。'); } finally { setBusy(false); }
   };
   const deletePlaylist = async () => {
     if (!playlist || busy) return;
@@ -93,21 +96,23 @@ export default function PersonalLibraryManager({ initialSection, personal, track
       if (await onDeletePlaylist(playlist.id)) {
         selectSection('playlists'); setMessage('歌单已删除，歌曲仍保留在其他收藏和本地曲库。');
       } else setMessage('删除失败，请重试。');
-    } finally { setBusy(false); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : '删除失败，请重试。'); } finally { setBusy(false); }
   };
 
-  return <div className="zenix-manager" role="dialog" aria-modal="true" aria-label="歌曲与歌单管理">
-    <aside>
+  return <div className={`zenix-manager${embedded?' zenix-manager--embedded':''}`} role={embedded?'region':'dialog'} aria-modal={embedded?undefined:true} aria-label="歌曲与歌单管理">
+    {!embedded&&<aside>
       <div className="zenix-manager-brand"><button onClick={onClose} aria-label="返回主页"><ArrowLeft size={18} /></button><span>Zenix / 我的空间</span></div>
       <h2>音乐管理</h2><small>歌单保存在这台设备</small>
       <nav aria-label="收藏分类">{sections.map(item => <button key={item.id} className={section === item.id ? 'is-active' : ''} onClick={() => selectSection(item.id)}><item.icon size={17} />{item.label}</button>)}</nav>
       <div className="zenix-manager-list-head"><span>我的歌单</span><button onClick={openCreate} title="新建歌单" aria-label="新建歌单"><Plus size={17} /></button></div>
       <nav aria-label="自定义歌单">{personal.playlists.map(item => <button key={item.id} className={section === item.id ? 'is-active' : ''} onClick={() => selectSection(item.id)}><ListMusic size={17} /><span className="zenix-manager-nav-name">{item.name}</span><small>{item.tracks.length}</small></button>)}</nav>
-    </aside>
+    </aside>}
     <main>
-      <header><div><small>PERSONAL LIBRARY</small><h1>{title}</h1><p>{section === 'history' ? '每首歌只保留最近一次播放记录。' : playlist ? `${playlist.tracks.length} 首歌曲 · 只在这里删除才会从歌单移除。` : '在这台设备上整理你的音乐。'}</p></div><button onClick={onClose} aria-label="关闭"><X size={20} /></button></header>
+      {embedded&&<nav className="zenix-collection-tabs" aria-label="当前收藏分类">{['liked','favorites'].includes(section)?sections.slice(0,2).map(item=><button key={item.id} aria-current={section===item.id?'page':undefined} onClick={()=>selectSection(item.id)}><item.icon size={16}/>{item.label}<span>{personal[item.id as 'liked'|'favorites'].length}</span></button>):playlist?<button onClick={()=>selectSection('playlists')}><ArrowLeft size={16}/>全部歌单</button>:null}</nav>}
+      <header><div><small>PERSONAL LIBRARY</small>{embedded?<h2 data-playlist-detail={playlist?true:undefined}>{title}</h2>:<h1>{title}</h1>}<p>{section === 'history' ? '每首歌只保留最近一次播放记录。' : playlist ? `${playlist.tracks.length} 首歌曲 · 只在这里删除才会从歌单移除。` : '在这台设备上整理你的音乐。'}</p></div>{!embedded&&<button onClick={onClose} aria-label="关闭"><X size={20} /></button>}</header>
       {editor && <form className="zenix-manager-editor" onSubmit={event => void submitEditor(event)}><label htmlFor="zenix-playlist-name">{editor === 'create' ? '新建歌单' : '重命名歌单'}</label><div><input id="zenix-playlist-name" autoFocus maxLength={100} value={draftName} onChange={event => setDraftName(event.target.value)} placeholder="输入歌单名称" /><button type="submit" disabled={!draftName.trim() || busy}>{busy ? '保存中…' : editor === 'create' ? '创建' : '保存'}</button><button type="button" onClick={() => setEditor(null)}>取消</button></div></form>}
       {message && <p className="zenix-manager-message" role="status">{message}</p>}
+      {embedded&&section!=='playlists'&&!playlist&&<div className="zenix-collection-summary"><span>{entries.length} 首歌曲{section==='history'?' · 每首保留最近一次播放':''}</span><button className="zenix-workspace-primary" disabled={!entries.length} onClick={()=>entries[0]&&playList(entries[0].track,entries.map(item=>item.track))}><Play size={15}/>播放全部</button></div>}
       <div className="tool-actions"><MusicToolsButton personal={personal} ids={playlist?[playlist.id]:[]}/><MusicToolsButton personal={personal} initial="stats"/></div>
       {section === 'playlists' ? <div className="zenix-manager-overview">
         <div className="zenix-manager-overview-head"><div><h3>自定义歌单</h3><p>从近期播放、喜欢、收藏或本地曲库添加歌曲。</p></div><button onClick={openCreate}><Plus size={16} />新建歌单</button></div>

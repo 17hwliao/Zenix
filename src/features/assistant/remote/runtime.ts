@@ -5,11 +5,14 @@ import {createBrowserOperationJournal} from './journal';
 import {createLocalAssistantHandler} from './local';
 import {createNativeTransport} from './transport';
 import type {NativeTransport} from './contracts';
+import {invokeAssistantModel} from './transport';
+import {createPocketSession, publishDesktopSession, type AssistantSession} from './desktop-session';
+import type {ChatHistoryData} from './chat-history';
 
 type Invoke = <T = unknown>(args: Record<string, unknown>) => Promise<T>;
 type Executor = (action: string, args: Record<string, unknown>) => Promise<unknown>;
 export type AssistantRuntime = {
-  session: AssistantCoordinator;
+  session: AssistantSession;
   transport: NativeTransport;
   invoke: Invoke;
   attach(): void;
@@ -18,6 +21,7 @@ export type AssistantRuntime = {
 const clients = new Map<boolean, AssistantRuntime>();
 
 function createRuntime(mobile: boolean, provided?: Invoke, execute?: Executor): AssistantRuntime {
+  if (window.zenixChat?.pocket) return {session: createPocketSession(), transport: createNativeTransport(false), invoke: async () => {throw Error('请在主窗口使用此功能');}, attach() {}, detach() {}};
   const isolated = Boolean(provided || execute);
   const invoke: Invoke = provided || (async <T,>(args: Record<string, unknown>): Promise<T> => {
     if (mobile) return command<T>('features', args);
@@ -25,6 +29,10 @@ function createRuntime(mobile: boolean, provided?: Invoke, execute?: Executor): 
     return window.yzqxy.companion.invoke(args) as Promise<T>;
   });
   const transport = createNativeTransport(mobile);
+  if (!isolated) void invoke<{figure?: {id?: string}}>({operation:'assistant',action:'state'}).then(value => {
+    localStorage.setItem('zenix.assistant.figure.v1',value.figure?.id === 'whale' ? 'whale' : 'zenbot');
+    window.dispatchEvent(new Event('zenix-assistant-figure'));
+  }).catch(() => {});
   const local = createLocalAssistantHandler(mobile, invoke, execute);
   const session = new AssistantCoordinator({
     platform: mobile ? 'android' : 'pc',
@@ -33,10 +41,16 @@ function createRuntime(mobile: boolean, provided?: Invoke, execute?: Executor): 
     local: local.handle,
     onLocalReset: local.reset,
     ...(!isolated ? {journal: createBrowserOperationJournal(localStorage)} : {}),
+    ...(!isolated ? {history: {
+      load: () => invokeAssistantModel<ChatHistoryData | null>(mobile, {action: 'historyRead'}),
+      save: (value: ChatHistoryData) => invokeAssistantModel(mobile, {action: 'historySave', value}),
+    }} : {}),
   });
+  const unpublish = !mobile && !isolated ? publishDesktopSession(session) : () => {};
   const configured = () => session.configurationChanged();
   if (!isolated) window.addEventListener('zenix-assistant-model-configured', configured);
   const close = () => {
+    unpublish();
     session.dispose();
     window.removeEventListener('zenix-assistant-model-configured', configured);
     window.removeEventListener('beforeunload', close);

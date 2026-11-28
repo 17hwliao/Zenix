@@ -1,0 +1,154 @@
+@import './design-tokens.css';
+
+/* Application chrome shares the desktop destination palette. Music artwork,
+   sticker geometry, lyric theme tokens and character animation stay independent. */
+html.zenix-unified-ui { color-scheme: dark; color: var(--zx-text); font-family: var(--zx-font-sans); background: var(--zx-bg); }
+.zenix-unified-ui body { color: var(--zx-text); font-family: var(--zx-font-sans); }
+.zenix-unified-ui :is(button, a[href], summary) { -webkit-tap-highlight-color: transparent; }
+.zenix-unified-ui :is(button, input, select, textarea, summary, a[href]):focus-visible { outline: 2px solid var(--zx-focus); outline-offset: 3px; }
+.zenix-unified-ui :is(button, a[href], summary) { touch-action: manipulation; }
+
+/* Resets the former blue local settings palette to the shared neutral palette. */
+.zenix-unified-ui .yz-settings-modal.yz-settings-redesign {
+
+  border-radius: var(--bento-radius,20px); background: var(--zx-bg-elevated); color: var(--zx-text); box-shadow: var(--zx-shadow-dialog);
+}
+.zenix-unified-ui .yz-settings-category-tabs { background: var(--zx-bg-elevated); }
+.zenix-unified-ui :is(.yz-settings-backdrop,.zenix-tools-backdrop,.zenix-feature-backdrop,.yz-pl-backdrop,.zenix-onboarding,.zenix-profile-scrim) { background: var(--zx-overlay); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.zenix-unified-ui :is(.zenix-glass-dialog,.zenix-update-dialog)::backdrop { background: var(--zx-overlay); backdrop-filter: blur(8px); }
+
+/* Solid surfaces replace stacked glass/gradient chrome, including portal menus. */
+.zenix-unified-ui :is(.yz-search-overlay,.zenix-queue,.zenix-tools,.zenix-feature-workbench,.yz-pl-dialog,.zenix-glass-dialog-card,.zenix-update-dialog .zenix-updates,.zenix-profile-editor,.zenix-onboarding-card,.yz-track-actions-menu,.zenix-select-menu) {
+  color: var(--zx-text); background: var(--zx-bg-elevated); border-color: var(--zx-border);
+  box-shadow: var(--zx-shadow-dialog); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.zenix-unified-ui :is(.yz-search-overlay,.zenix-tools,.zenix-feature-workbench,.yz-pl-dialog,.zenix-glass-dialog-card,.zenix-profile-editor,.zenix-onboarding-card) { border-radius: 20px; }
+.zenix-unified-ui :is(.yz-track-actions-menu,.zenix-select-menu,.zenix-queue-menu,.zenix-queue-add) { border: 1px solid var(--zx-border-strong); border-radius: 10px; background: var(--zx-surface); color: var(--zx-text); }
+.zenix-unified-ui :is(.zenix-feature-content:not(.is-karaoke) section,.zenix-tools-body section,.zenix-source-card,.zenix-bundle-import,.zenix-source-preview,.platform-replacement,.listening-panel,.zenix-source-empty) {
+  border-color: var(--zx-border); border-radius: var(--zx-radius-lg); background: var(--zx-surface); color: var(--zx-text); box-shadow: none;
+}
+.zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.yz-search-overlay,.zenix-queue,.zenix-glass-dialog-card,.yz-pl-dialog,.zenix-profile-editor,.zenix-onboarding-card,.yz-track-actions-menu,.zenix-select-menu) :where(button,select,textarea,input:not([type=range]):not([type=checkbox]):not([type=radio])) {
+  font-family: inherit; color: var(--zx-text); border-color: var(--zx-border-strong); border-radius: var(--zx-radius-sm); background-color: var(--zx-surface);
+}
+.zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.yz-search-overlay,.zenix-queue,.zenix-glass-dialog-card,.yz-pl-dialog,.zenix-profile-editor,.zenix-onboarding-card,.yz-track-actions-menu,.zenix-select-menu) :where(button) {
+  transition: background-color var(--zx-motion), border-color var(--zx-motion), color var(--zx-motion), transform var(--zx-motion) var(--zx-ease);
+}
+.zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.yz-search-overlay,.zenix-queue,.zenix-glass-dialog-card,.yz-pl-dialog,.zenix-profile-editor,.zenix-onboarding-card,.yz-track-actions-menu,.zenix-select-menu) :where(button:hover:not(:disabled)) {
+  background-color: var(--zx-surface-hover); border-color: var(--zx-text-muted);
+}
+.zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.yz-search-overlay,.zenix-queue,.zenix-glass-dialog-card,.yz-pl-dialog,.zenix-profile-editor,.zenix-onboarding-card) :where(button:active:not(:disabled)) { transform: translateY(1px); }
+.zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.zenix-queue,.zenix-glass-dialog-card,.yz-pl-dialog,.zenix-profile-editor) :where(input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea) { background: var(--zx-bg); color: var(--zx-text); }
+.zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.zenix-queue,.zenix-glass-dialog-card,.yz-pl-dialog) :where(p,small) { color: var(--zx-text-secondary); }
+.zenix-unified-ui :is(.zenix-feature-workbench,.zenix-tools) :where(button[aria-pressed=true],nav>button.is-active) { color: var(--zx-bg); background: var(--zx-text); border-color: var(--zx-text); }
+.zenix-unified-ui :is(.zenix-glass-dialog-card .is-primary,.zenix-tools .tool-primary,.zenix-onboarding .zenix-onboarding-primary) { background: var(--zx-text); color: var(--zx-bg); border-color: var(--zx-text); }
+.zenix-unified-ui :is(.zenix-glass-dialog-card .is-danger,.zenix-tools .is-danger,.source-delete) { color: var(--zx-danger); background: #d6a7a712; border-color: #d6a7a744; }
+.zenix-unified-ui :is(.zenix-feature-content,.zenix-tools-body,.zenix-queue,.yz-search-overlay) :where([role=alert]) { color: var(--zx-danger); }
+
+/* Search and queue use the same fields, divider rhythm and readable secondary text. */
+.zenix-unified-ui .yz-search-overlay { border-color: var(--zx-border-strong); animation: zenix-surface-arrive var(--zx-motion) var(--zx-ease) both; }
+.zenix-unified-ui .yz-search-large { background: var(--zx-bg); border-color: var(--zx-border-strong); border-radius: 10px; box-shadow: none; }
+.zenix-unified-ui .yz-search-large input { background: none; border: 0; }
+.zenix-unified-ui .yz-search-large:focus-within { background: var(--zx-bg); border-color: var(--zx-focus); }
+.zenix-unified-ui :is(.yz-search-sources button,.yz-search-source-group h3,.yz-search-result-play,.zenix-queue-row,.zenix-tools>header,.zenix-tools>nav) { border-color: var(--zx-border); }
+.zenix-unified-ui :is(.yz-search-sources button.is-active,.zenix-queue-menu button.is-active,.zenix-select-menu button.is-highlighted) { background: var(--zx-surface-active); color: var(--zx-text); }
+.zenix-unified-ui :is(.yz-search-result-play,.zenix-queue-track,.zenix-queue-actions button,.yz-track-actions-menu>button,.zenix-select-menu>button) { background: transparent; }
+.zenix-unified-ui :is(.yz-search-result-play:hover,.zenix-queue-menu button:hover,.yz-track-actions-menu>button:hover) { background: var(--zx-surface-hover); }
+.zenix-unified-ui :is(.yz-search-result-title small,.yz-search-result-album,.yz-search-result-time,.yz-search-status,.zenix-queue-hint,.zenix-queue-index,.zenix-queue-track small) { color: var(--zx-text-secondary); }
+.zenix-unified-ui .zenix-queue { border-left-color: var(--zx-border); }
+.zenix-unified-ui .zenix-queue-switch>button { background: var(--zx-surface); border-color: var(--zx-border-strong); }
+.zenix-unified-ui .zenix-queue-row.is-current { background: var(--zx-surface-active); }
+.zenix-unified-ui :is(.zenix-queue-foot,.zenix-tools>header,.zenix-feature-workbench>header) { border-color: var(--zx-border); }
+.zenix-unified-ui .zenix-select-trigger { border-color: var(--zx-border-strong); background: var(--zx-bg-elevated); color: var(--zx-text); border-radius: 8px; }
+
+/* Home chrome follows the shared surfaces; profile artwork and card collages remain. */
+.zenix-unified-ui .yz-shell--library:not(.has-personal-background) { background: var(--zx-bg); }
+.zenix-unified-ui .yz-shell--library .yz-home-search-dock form { background: var(--zx-bg-elevated); border-color: var(--zx-border); }
+.zenix-unified-ui .zenix-desktop-identity button { background: var(--zx-surface); border-color: var(--zx-border-strong); }
+.zenix-unified-ui :is(.zenix-desktop-empty,.zenix-desktop-playlists,.zenix-desktop-playlists li) { border-color: var(--zx-border); }
+.zenix-unified-ui :is(.zenix-desktop-track-caption small,.zenix-desktop-playlist-open small) { color: var(--zx-text-secondary); }
+.zenix-unified-ui :is(.zenix-editor-body input,.zenix-editor-body textarea,.zenix-editor-mini-card,.zenix-editor-orbit-section,.zenix-editor-space-section) { border-color: var(--zx-border-strong); background: var(--zx-bg); color: var(--zx-text); }
+.zenix-unified-ui :is(.zenix-profile-editor,.zenix-onboarding-card) :where(p,small) { color: var(--zx-text-secondary); }
+.zenix-unified-ui .zenix-onboarding h1 em { color: var(--zx-text); }
+.zenix-unified-ui .zenix-onboarding-glow { opacity: .12; filter: grayscale(1); }
+.zenix-unified-ui :is(.yz-runtime-notice,.yz-playback-error,.zenix-source-callout,.mobile-toast) { background: var(--zx-surface); color: var(--zx-text); border-color: var(--zx-border-strong); box-shadow: var(--zx-shadow-dialog); }
+.zenix-unified-ui :is(.zenix-source-callout,.yz-playback-error) :where(span,small) { color: var(--zx-text-secondary); }
+.zenix-unified-ui .zenix-editor-modes { background: var(--zx-bg); border-color: var(--zx-border); }
+.zenix-unified-ui .zenix-editor-modes button[aria-pressed=true] { background: var(--zx-surface-active); color: var(--zx-text); }
+.zenix-unified-ui .zenix-crop-frame { background: var(--zx-bg); border-color: var(--zx-border-strong); }
+.zenix-unified-ui .zenix-crop-controls { color: var(--zx-text-secondary); }
+.zenix-unified-ui .zenix-crop-controls input { accent-color: var(--zx-text); }
+.zenix-unified-ui .zenix-profile-editor .zenix-crop-actions button:last-child:not(:disabled) { background: var(--zx-text); color: var(--zx-bg); }
+.zenix-unified-ui :is(.listening-panel,.listening-search-assist,.listening-lyric-controls,.listening-bulk) { color: var(--zx-text); background: var(--zx-bg-elevated); border-color: var(--zx-border); border-radius: 12px; }
+.zenix-unified-ui :is(.listening-panel,.listening-search-assist,.listening-lyric-controls) :where(small,p) { color: var(--zx-text-secondary); }
+.zenix-unified-ui :is(.yz-switch,.toggle) { background: var(--zx-surface-active); border-color: var(--zx-border-strong); }
+.zenix-unified-ui :is(.yz-switch.is-on,.toggle.on) { background: var(--zx-text); border-color: var(--zx-text); }
+.zenix-unified-ui :is(.yz-switch.is-on,.toggle.on)>span { background: var(--zx-bg); }
+
+/* Mobile keeps its native layout, safe areas and 44px controls with the same palette. */
+.zenix-unified-ui .zenix-mobile { background: transparent; color: var(--zx-text); }
+.zenix-unified-ui :is(.default-universe,.mobile-boot) { background: var(--zx-bg); }
+.zenix-unified-ui .mobile-backdrop { background: var(--zx-bg); }
+.zenix-unified-ui .mobile-backdrop:after { background: linear-gradient(0deg,#090909c0,transparent 75%); }
+.zenix-unified-ui .mobile-header { background: #111111ec; border-bottom: 1px solid var(--zx-border); backdrop-filter: blur(12px); }
+.zenix-unified-ui :is(.brand span,.mobile-boot h1 span) { color: var(--zx-text); }
+.zenix-unified-ui .zenix-mobile :is(.glass,.settings-card,.source-card,.mobile-search,.mobile-sheet,.mobile-share-inbox) {
+  background: var(--zx-bg-elevated); border-color: var(--zx-border); color: var(--zx-text); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 18px;
+}
+.zenix-unified-ui .mobile-sheet { background: var(--zx-bg-elevated); color: var(--zx-text); border-color: var(--zx-border-strong); }
+.zenix-unified-ui :is(.mobile-overlay,.sheet-overlay) { background: var(--zx-overlay); }
+.zenix-unified-ui .zenix-mobile :is(button,summary) { transition: background-color var(--zx-motion),color var(--zx-motion),border-color var(--zx-motion),transform var(--zx-motion) var(--zx-ease); }
+.zenix-unified-ui .zenix-mobile :where(button:active:not(:disabled)) { background-color: var(--zx-surface-active); }
+.zenix-unified-ui .zenix-mobile :is(input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]),select,textarea) {
+  background: var(--zx-bg); border-color: var(--zx-border-strong); color: var(--zx-text); border-radius: 9px;
+}
+.zenix-unified-ui .zenix-mobile select { color-scheme: dark; }
+.zenix-unified-ui .zenix-mobile .yz-settings-search input { border: 0; background: transparent; box-shadow: none; }
+.zenix-unified-ui .zenix-mobile :is(.muted,small,.section-heading p,.source-card p,.mobile-setting-heading p) { color: var(--zx-text-secondary); }
+.zenix-unified-ui .zenix-mobile :is(.pill,.primary-play) { background: var(--zx-text); color: var(--zx-bg); border-radius: 10px; }
+.zenix-unified-ui .mobile-nav { background: #111111f5; border-color: var(--zx-border); box-shadow: none; }
+.zenix-unified-ui .mobile-nav button { color: var(--zx-text-secondary); }
+.zenix-unified-ui .mobile-nav button.is-active { color: var(--zx-text); }
+.zenix-unified-ui .mobile-nav-selection { background: var(--zx-surface-active); border: 1px solid var(--zx-border); border-radius: 10px; }
+.zenix-unified-ui .mobile-mini { background: #181818f5; border-color: var(--zx-border-strong); box-shadow: 0 8px 30px #0005; }
+.zenix-unified-ui .mobile-mini button { color: var(--zx-text); }
+.zenix-unified-ui .mobile-settings :is(.mobile-settings-advanced,.mobile-settings-category,.mobile-settings-result-list,.zenix-source-card,.reliability-card) { background: var(--zx-bg-elevated); border-color: var(--zx-border); }
+.zenix-unified-ui .mobile-settings :is(button[aria-pressed=true],button.is-active) { background: var(--zx-surface-active); color: var(--zx-text); }
+.zenix-unified-ui .mobile-settings input[type=range] { accent-color: var(--zx-text); }
+.zenix-ui-sounds { padding: 20px; margin-bottom: 18px; border: 1px solid var(--zx-border); border-radius: 18px; background: var(--zx-bg-elevated); }
+.zenix-ui-sounds h3 { margin: 0 0 8px; font-size: 17px; }
+.zenix-ui-sounds p { margin: 0 0 16px; color: var(--zx-text-secondary); font-size: 13px; line-height: 1.7; }
+.zenix-ui-sounds label { display: flex; align-items: center; gap: 12px; }
+.zenix-ui-sounds label input[type=range] { flex: 1; min-width: 0; }
+.zenix-ui-sounds output { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; }
+.zenix-unified-ui .zenix-ui-sounds input[type=checkbox] { accent-color: var(--zx-text); }
+.zenix-unified-ui .zenix-ui-sounds [role=alert] { color: var(--zx-danger); }
+
+/* Conversation windows adopt the same dark surfaces and preserve message roles. */
+.zenix-unified-ui :is(.zenix-pocket-chat,.assistant-chat,.assistant-conversation.is-mobile .assistant-chat) { background: var(--zx-bg-elevated); color: var(--zx-text); border-color: var(--zx-border-strong); }
+.zenix-unified-ui .zenix-pocket-body { background: transparent; }
+.zenix-unified-ui .zenix-pocket-header { background: var(--zx-bg-elevated); border-color: var(--zx-border); }
+.zenix-unified-ui .zenix-pocket-avatar { background: var(--zx-surface); border-color: var(--zx-border); }
+.zenix-unified-ui :is(.zenix-pocket-identity>span,.zenix-pocket-back) { color: var(--zx-text-secondary); }
+.zenix-unified-ui :is(.zenix-chat-workspace,.zenix-pocket-chat .zenix-chat-workspace) {
+  --chat-ink: var(--zx-text); --chat-muted: var(--zx-text-secondary); --chat-line: var(--zx-border);
+  --chat-soft: var(--zx-bg-elevated); --chat-field: var(--zx-bg); --chat-user: var(--zx-surface-active);
+  --chat-solid: var(--zx-text); --chat-on-solid: var(--zx-bg);
+}
+.zenix-unified-ui .zenix-pocket-chat button { background: var(--zx-surface); border-color: var(--zx-border-strong); color: var(--zx-text); }
+.zenix-unified-ui .zenix-pocket-chat .remote-model-settings { color: var(--zx-text); }
+.zenix-unified-ui .zenix-pocket-chat .remote-model-settings :is(input:not([type=checkbox]),select,textarea) { background: var(--zx-bg); color: var(--zx-text); border-color: var(--zx-border-strong); }
+.zenix-unified-ui .zenix-pocket-chat :is(.remote-model-switch,.assistant-plan,.assistant-lyrics,.zenix-chat-drop) { background: var(--zx-surface); color: var(--zx-text); border-color: var(--zx-border); }
+.zenix-unified-ui .zenix-pocket-chat :is(.remote-model-note,.remote-model-key-state,.remote-session-status,.remote-song-candidates span,.remote-model-settings>header>span) { color: var(--zx-text-secondary); }
+.zenix-unified-ui .zenix-pocket-chat .remote-model-actions button[type=submit] { color: var(--zx-bg); background: var(--zx-text); border-color: var(--zx-text); }
+.zenix-unified-ui :is(.zenix-chat-error,.remote-model-error) { color: var(--zx-danger); }
+
+@keyframes zenix-surface-arrive { from { opacity: 0; translate: 0 7px; } to { opacity: 1; translate: 0 0; } }
+@media (hover:hover) and (pointer:fine) {
+  .zenix-unified-ui :is(.zenix-tools,.zenix-feature-workbench,.zenix-glass-dialog-card) :where(button:hover:not(:disabled)) { border-color: var(--zx-text-muted); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .zenix-unified-ui :is(.yz-search-overlay,.zenix-tools,.zenix-feature-workbench,.zenix-queue,.zenix-glass-dialog-card,.zenix-onboarding-card,.zenix-pocket-chat,.mobile-settings,.mobile-nav,.mobile-mini),
+  .zenix-unified-ui :is(button,summary,input,select,textarea) { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+.zenix-unified-ui[data-ui-motion=reduced] :is(.yz-search-overlay,.zenix-tools,.zenix-feature-workbench,.zenix-queue,.zenix-glass-dialog-card,.zenix-pocket-chat,.mobile-settings,.mobile-nav,.mobile-mini),
+.zenix-unified-ui[data-ui-motion=reduced] :is(button,summary,input,select,textarea) { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

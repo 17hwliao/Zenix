@@ -1,0 +1,86 @@
+.zenix-assistant-panel{--companion-line:#ffffff16;--companion-muted:#a6a69f;--companion-field:#101110;display:grid;gap:18px;padding:3px 0 12px;color:#edede8}
+.zenix-assistant-panel *{box-sizing:border-box}
+.zenix-assistant-panel :is(.zenix-figure-settings,.zenix-interaction-settings,.remote-model-settings){margin:0;padding:24px;border:1px solid var(--companion-line);border-radius:20px;background:#1b1c1a}
+.zenix-assistant-panel button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #ffffff20;border-radius:10px;background:#ffffff07;color:inherit;min-height:38px;padding:8px 12px;font:inherit;font-size:12px;cursor:pointer;transition:background .16s,transform .16s,border-color .16s}
+.zenix-assistant-panel button:hover:not(:disabled){background:#ffffff13;border-color:#ffffff36}
+.zenix-assistant-panel button:active:not(:disabled){transform:scale(.98)}
+.zenix-assistant-panel button:disabled{opacity:.4;cursor:default}
+.zenix-assistant-panel :focus-visible{outline:2px solid #b9bcae;outline-offset:3px}
+.zenix-design-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:23px}
+.zenix-design-heading h3{font-size:20px;line-height:1.5;margin:4px 0 0;font-weight:550;letter-spacing:-.035em}
+.zenix-design-eyebrow,.zenix-model-eyebrow{font-size:10px;letter-spacing:.12em;color:#9b9d92}
+.zenix-design-heading>svg{color:#c1c4b1;stroke-width:1.3}
+.zenix-setting-save{font-size:11px;color:#bcc3a8;white-space:nowrap}
+.zenix-figure-layout{display:grid;grid-template-columns:minmax(160px,1fr) minmax(200px,1.1fr);gap:28px;align-items:stretch}
+.zenix-figure-stage{position:relative;min-height:292px;display:flex;align-items:flex-end;justify-content:center;padding:34px 12px 25px;overflow:hidden;border:1px solid #ffffff0c;border-radius:16px;background:radial-gradient(ellipse at 50% 110%,#969c7525,transparent 67%),#141512}
+.zenix-figure-stage:before{content:"";position:absolute;inset:0;background-image:radial-gradient(#ffffff13 .7px,transparent .7px);background-size:16px 16px;pointer-events:none}
+.zenix-figure-stage-caption{position:absolute;left:14px;top:13px;font-size:10px;color:#909386;letter-spacing:.03em}
+.zenix-figure-preview{width:100%;max-width:240px;height:250px!important;position:relative;z-index:1;transition:transform .16s ease-out;filter:drop-shadow(0 8px 8px #0003);transform-origin:50% 100%}
+.zenix-figure-ground{position:absolute;left:24%;right:24%;bottom:27px;height:7px;border-radius:50%;background:#0004;filter:blur(4px)}
+.zenix-figure-measure{position:absolute;left:13px;bottom:11px;font:10px ui-monospace,monospace;color:#8f9384}
+.zenix-assistant-panel .zenix-figure-resize{position:absolute;right:6px;bottom:5px;z-index:2;width:30px;min-height:30px;padding:0;border:0;background:transparent;color:#a2a891;cursor:ns-resize;touch-action:none}
+.zenix-figure-options{display:flex;flex-direction:column;gap:20px;justify-content:center;min-width:0}
+.zenix-setting-field{display:grid;gap:7px;font-size:11px;color:#b7b9ac}
+.zenix-assistant-panel select{display:block;min-width:0;max-width:100%;height:40px;padding:8px 10px;border:1px solid #ffffff20;border-radius:9px;background:#10110f;color:#e5e7dc;font:inherit;font-size:12px;color-scheme:dark}
+.zenix-size-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.zenix-size-heading label{font-size:11px;color:#b7b9ac}
+.zenix-size-heading output{font-size:23px;font-weight:350;font-variant-numeric:tabular-nums;letter-spacing:-.06em;line-height:1.3}
+.zenix-size-heading output small{font-size:11px;color:#999e8d;margin-left:4px}
+.zenix-size-slider{display:flex;align-items:center;gap:9px}
+.zenix-assistant-panel .zenix-size-slider button{width:28px;min-height:28px;flex:none;padding:0;border-radius:50%;background:transparent}
+.zenix-size-slider input{width:100%;min-width:0;accent-color:#cbd0b8;cursor:ew-resize;height:22px;margin:0}
+.zenix-size-presets{display:flex;gap:5px;margin-top:10px}
+.zenix-assistant-panel .zenix-size-presets button{flex:1;font-size:10px;min-height:29px;padding:3px 8px;background:transparent;border-color:#ffffff14}
+.zenix-assistant-panel .zenix-size-presets button[aria-pressed=true]{background:#cbd0b815;color:#dde3ca;border-color:#cbd0b850}
+.zenix-assistant-panel .zenix-size-presets button:last-child{flex:0;padding:4px 8px}
+.zenix-setting-hint{font-size:10px!important;line-height:1.9!important;color:#8e9383!important;margin:9px 0 0!important}
+.zenix-setting-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;min-height:36px;margin:0;font-size:12px}
+.zenix-setting-toggle>span{display:flex;align-items:center;gap:9px;min-width:0}
+.zenix-setting-toggle small{display:block;font-size:10px;color:#8f9485;margin-top:4px;line-height:1.6}
+.zenix-setting-toggle svg{color:#abb29b;flex:none;stroke-width:1.5}
+.zenix-assistant-panel .zenix-setting-toggle>input{appearance:none;width:30px!important;height:18px;min-width:30px;display:block;border-radius:20px;border:1px solid #ffffff22;background:#ffffff09;margin:0;position:relative;cursor:pointer;transition:background .18s}
+.zenix-setting-toggle>input:before{content:"";position:absolute;top:3px;left:3px;width:10px;height:10px;border-radius:50%;background:#8b8e82;transition:transform .18s,background .18s}
+.zenix-assistant-panel .zenix-setting-toggle>input:checked{background:#ced4be;border-color:#ced4be}
+.zenix-setting-toggle>input:checked:before{transform:translateX(12px);background:#383d30}
+.zenix-assistant-panel .zenix-design-primary{background:#dee2d3;color:#292d23;border-color:#dee2d3}
+.zenix-assistant-panel .zenix-design-primary:hover:not(:disabled){background:#eef1e5;border-color:#eef1e5}
+.zenix-figure-expression{margin-top:20px;border-top:1px solid var(--companion-line);padding-top:13px;font-size:11px;color:#c3c6b8}
+.zenix-figure-expression summary{cursor:pointer;line-height:2}
+.zenix-figure-expression summary>span{float:right;font-size:10px;color:#838979}
+.zenix-figure-expression>label{display:inline-flex;gap:8px;align-items:center;margin:14px 18px 0 0}
+.zenix-interaction-guide{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+.zenix-interaction-guide>div{padding:13px 8px;display:grid;gap:6px;justify-items:center;text-align:center;background:#ffffff04;border-radius:11px;border:1px solid #ffffff08}
+.zenix-interaction-guide svg{color:#b9c0aa;stroke-width:1.4;margin-bottom:3px}
+.zenix-interaction-guide strong{font-size:11px;font-weight:500}
+.zenix-interaction-guide span{font-size:9px;color:#929988;line-height:1.6}
+.zenix-assistant-panel .assistant-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:6px 0 22px}
+.zenix-assistant-panel .assistant-controls label{font-size:11px;gap:8px}
+.zenix-interaction-actions{display:flex;gap:8px;flex-wrap:wrap}
+.zenix-assistant-panel .assistant-shortcuts{gap:6px;margin:13px 0 0}
+.zenix-assistant-panel .assistant-shortcuts button{min-height:28px;padding:4px 8px;font-size:10px;border-color:transparent;color:#a6ad9a}
+.zenix-assistant-panel .remote-model-settings{background:#1b1c1a}
+.zenix-assistant-panel .remote-model-settings fieldset{grid-template-columns:1fr 1fr;gap:16px}
+.zenix-assistant-panel .remote-model-settings fieldset>label{font-size:11px;color:#b7baad}
+.zenix-assistant-panel .remote-model-settings fieldset>:is(.remote-model-switch,.remote-model-key-state,p),.zenix-assistant-panel .remote-model-settings fieldset>label:has(textarea),.zenix-assistant-panel .remote-model-settings fieldset>label:has(input[type=password]){grid-column:1/-1}
+.zenix-assistant-panel .remote-model-settings .remote-model-switch{background:#ffffff05;border:1px solid #ffffff0d;border-radius:10px;padding:12px;font-size:12px;color:#e0e3d6;align-items:center}
+.zenix-assistant-panel .remote-model-settings :is(input:not([type=checkbox]),select,textarea){border:1px solid #ffffff20;border-radius:9px;background:#10110f;font:inherit;font-size:12px;padding:10px;color:#e5e7dc;width:100%;max-width:100%;min-width:0;resize:vertical}
+.zenix-assistant-panel .remote-model-settings select{margin-top:7px}
+.zenix-assistant-panel .remote-model-settings textarea{margin-top:7px;min-height:80px}
+.zenix-assistant-panel .remote-model-settings input[type=checkbox]{accent-color:#cbd1bc}
+.zenix-assistant-panel :is(.remote-model-note,.remote-model-key-state){color:#969d8a;font-size:10px;line-height:1.9}
+.zenix-assistant-panel .remote-model-actions{margin-top:16px;display:flex;flex-wrap:wrap;gap:7px}
+.zenix-assistant-panel .remote-model-actions button[type=submit]{background:#dfe4d2;color:#282c23;border-color:#dfe4d2}
+.zenix-assistant-panel .zenix-setting-field select{width:100%;height:42px;font-size:13px}
+.zenix-design-eyebrow,.zenix-model-eyebrow,.zenix-setting-hint{font-size:11px!important}
+.zenix-setting-field,.zenix-size-heading label,.zenix-assistant-panel .assistant-controls label{font-size:13px}
+.zenix-assistant-panel .zenix-size-presets button{font-size:12px}
+.zenix-figure-stage-caption,.zenix-figure-measure{font-size:11px}
+.zenix-interaction-guide strong{font-size:13px}
+.zenix-interaction-guide span{font-size:11px}
+.zenix-assistant-panel .remote-model-settings fieldset>label{font-size:13px}
+.zenix-assistant-panel :is(.remote-model-note,.remote-model-key-state){font-size:12px}
+.zenix-assistant-panel .remote-model-settings :is(input:not([type=checkbox]),select,textarea){font-size:13px}
+.zenix-figure-expression{font-size:12px}
+.zenix-design-error{font-size:12px;color:#e1a89b;overflow-wrap:anywhere}
+@media(max-width:680px){.zenix-assistant-panel :is(.zenix-figure-settings,.zenix-interaction-settings,.remote-model-settings){padding:18px}.zenix-figure-layout{grid-template-columns:1fr;gap:20px}.zenix-figure-stage{min-height:240px}.zenix-figure-preview{max-height:250px}.zenix-design-heading h3{font-size:18px}.zenix-figure-options{gap:18px}.zenix-assistant-panel .assistant-controls{grid-template-columns:1fr;gap:3px}.zenix-setting-toggle{min-height:44px}.zenix-assistant-panel .remote-model-settings fieldset{grid-template-columns:1fr}.zenix-assistant-panel .remote-model-settings fieldset>*{grid-column:auto!important}.zenix-figure-expression summary>span{float:none;display:block;margin-left:15px}.zenix-assistant-panel button{min-height:44px}.zenix-interaction-guide{gap:5px}.zenix-interaction-guide>div{padding:12px 5px}.zenix-interaction-guide strong{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.zenix-assistant-panel *{transition:none!important;animation:none!important}}

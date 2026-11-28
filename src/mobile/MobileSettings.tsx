@@ -13,6 +13,8 @@ import {useLyricDisplay,type LyricDisplay} from '../core/listening';
 import {SettingsSearchResults,type SearchableSetting} from '../ui/SettingsSearch';
 import type {Track} from '../core/types';
 import SpaceAppearanceSettings from '../features/space/SpaceAppearanceSettings';
+import UiSoundSettings from '../ui/UiSoundSettings';
+import ApplicationStyleSettings from '../features/themes/ApplicationStyleSettings';
 import FeatureLauncher from '../features/FeatureLauncher';
 import ThemeSettings from '../features/themes/ThemeSettings';
 import '../features/themes/settings-surfaces.css';
@@ -36,11 +38,12 @@ const entries:readonly Entry[] = [
   {title:'纯歌词',category:'播放',description:'当前句与前后各两句，越远越小并淡出',keywords:'纯净 歌词 五句 缩放 移动布局',key:'playback',target:'pure-lyrics'},
   {title:'歌词校正与显示',category:'播放',description:'校正当前歌曲时间、字号、行距与翻译',keywords:'歌词 偏移 时间 字重 翻译 颜色',key:'playback',target:'lyric-display'},
   {title:'悬浮歌词',category:'播放',description:'跨应用歌词、字体、颜色和布局',keywords:'歌词 授权 锁定 字号 桌面',key:'playback',target:'overlay',overlay:true},
-  {title:'歌词主题',category:'音乐空间',description:'黑胶夜、影院幕布、CD 机、极简留白及本地主题',keywords:'主题 皮肤 theme 纯歌词 导入 背景',key:'space',target:'themes'},
+  {title:'歌词主题',category:'音乐空间',description:'黑胶夜、影院幕布、CD 机、极简留白及本地主题',keywords:'主题 人物形象 theme 纯歌词 导入 背景',key:'space',target:'themes'},
   {title:'音乐空间展示',category:'音乐空间',description:'贴纸拼贴与简约列表',keywords:'歌曲 展示 风格 贴纸 列表 卡片',key:'space',target:'space-presentation'},
   {title:'背景与外观',category:'音乐空间',description:'图片、动态视频和首页卡片透明度',keywords:'主题 壁纸 背景 卡片',key:'space',target:'appearance'},
+  {title:'界面音效',category:'音乐空间',description:'按钮触摸音效与独立音量',keywords:'点击 按键 声音 触摸 音效',key:'space',target:'ui-sounds'},
   {title:'简约列表视觉',category:'音乐空间',description:'黑白中性底、黑银边框与 44px 操作',keywords:'列表 歌曲 样式 银边',key:'space',target:'simple-list'},
-  {title:'音乐助手',category:'助手',description:'打开星音助手、皮肤、语音和远程模型设置',keywords:'星音 AI 桌宠 悬浮 语音',key:'assistant',target:'assistant'},
+  {title:'音乐助手',category:'助手',description:'打开Zenbot助手、人物形象、语音和远程模型设置',keywords:'Zenbot AI 桌宠 悬浮 语音',key:'assistant',target:'assistant'},
   {title:'歌单分享与迁移',category:'资料与更新',description:'平台歌单链接、文本导入、歌单文件与局域网迁移',keywords:'转移 歌单 导出 导入 平台 分享 LAN IP',key:'data',target:'tools'},
   {title:'听歌统计与回忆',category:'资料与更新',description:'聆听时长和音乐回忆卡',keywords:'回忆卡 统计 排行 记录',key:'data',target:'tools'},
   {title:'资料备份与恢复',category:'资料与更新',description:'备份喜欢、收藏、歌单等资料',keywords:'数据 迁移 备份 恢复',key:'data',target:'backup',android:true},
@@ -217,11 +220,13 @@ export default function MobileSettings({
       </>}
 
       {activeCategory === 'assistant' && <section className="settings-card" data-mobile-setting="assistant">
-        <div className="mobile-setting-heading"><div><h3>音乐助手</h3><p>星音外观、语音、桌宠和远程模型设置集中在音乐工作台。</p></div><Sparkles size={19}/></div>
+        <div className="mobile-setting-heading"><div><h3>音乐助手</h3><p>Zenbot外观、语音、桌宠和远程模型设置集中在音乐工作台。</p></div><Sparkles size={19}/></div>
         <FeatureLauncher mobileSnapshot={state}/>
       </section>}
 
       {activeCategory === 'space' && <>
+        <ApplicationStyleSettings/>
+        <UiSoundSettings/>
         <ThemeSettings/>
         <div data-mobile-setting="space-presentation"><SpaceAppearanceSettings allowOrbit={false}/></div>
         <section className="settings-card" data-mobile-setting="simple-list">

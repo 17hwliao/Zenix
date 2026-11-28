@@ -64,9 +64,11 @@ export interface BusinessAdapter {
 }
 
 export type ModelToolCall = {id: string; name: string; arguments: string};
+export type AssistantAttachment = {id: string; name: string; preview: string; bytes: number; width: number; height: number};
+export type ModelContentPart = {type: 'text'; text: string} | {type: 'image'; attachmentId: string};
 export type ModelMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  content: string | ModelContentPart[] | null;
   tool_calls?: {id: string; type: 'function'; function: {name: string; arguments: string}}[];
   tool_call_id?: string;
 };
@@ -97,6 +99,10 @@ export type MaskedModelConfig = {
   keyPresent: boolean;
   keyHint: string;
   revision: string;
+  replyStyle?: 'concise' | 'detailed';
+  persona?: string;
+  toolsEnabled?: boolean;
+  streamMode?: 'stream' | 'json';
 };
 export type ModelConfigInput = {
   enabled: boolean;
@@ -104,20 +110,25 @@ export type ModelConfigInput = {
   model: string;
   apiKey?: string;
   clearKey?: boolean;
+  replyStyle?: 'concise' | 'detailed';
+  persona?: string;
+  toolsEnabled?: boolean;
+  streamMode?: 'stream' | 'json';
 };
 export type ModelRequest = {
   requestId: string;
   revision: string;
   messages: ModelMessage[];
   tools: ModelToolDefinition[];
+  stream?: boolean;
 };
 export type ModelResponse = {content: string; toolCalls: ModelToolCall[]};
-export type ModelConnectionResult = {ok: boolean; message: string; revision: string; toolCalling: boolean};
+export type ModelConnectionResult = {ok: boolean; message: string; revision: string; toolCalling: boolean; text?: boolean; image?: boolean};
 export interface NativeTransport {
   read(): Promise<MaskedModelConfig>;
   configure(value: ModelConfigInput): Promise<MaskedModelConfig>;
-  test(signal?: AbortSignal): Promise<ModelConnectionResult>;
-  complete(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse>;
+  test(signal?: AbortSignal, capability?: 'text' | 'image' | 'tools'): Promise<ModelConnectionResult>;
+  complete(request: ModelRequest, signal?: AbortSignal, onDelta?: (text: string) => void): Promise<ModelResponse>;
   cancel(requestId: string): Promise<void>;
 }
 

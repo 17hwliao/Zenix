@@ -3,7 +3,7 @@ if(!process.env.ZENIX_TEST_USER_DATA||!process.env.ZENIX_TEST_UI_URL)throw Error
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 app.whenReady().then(async()=>{
  const window=new BrowserWindow({show:false,width:1000,height:800,webPreferences:{offscreen:true,contextIsolation:true,sandbox:true,nodeIntegration:false,backgroundThrottling:false}});
- const evaluate=code=>window.webContents.executeJavaScript(code,true),wait=async code=>{for(let n=0;n<100;n++){if(await evaluate(code))return;await sleep(40);}throw Error('UI timeout '+code);},click=async selector=>{await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await sleep(80);};
+ const evaluate=code=>window.webContents.executeJavaScript(code,true).catch(error=>{throw Error(code+'\n'+error.message);}),wait=async code=>{for(let n=0;n<100;n++){if(await evaluate(code))return;await sleep(40);}throw Error('UI timeout '+code);},click=async selector=>{await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await sleep(80);};
  await window.loadURL(process.env.ZENIX_TEST_UI_URL);await wait('!!document.querySelector(".platform-replacement")');await evaluate(`document.querySelector('.platform-replacement').open=true;document.querySelector('.replacement-manual').open=true`);
  await click('.replacement-policy input');await wait('window.replacementFixture.state.playlists[0].autoReplacement===true');
  await click('.replacement-buttons button');await wait('document.querySelector(".replacement-row em")?.textContent.includes("需要选择")');assert.equal(await evaluate('window.replacementFixture.state.playlists[0].tracks[0].replacement.attempts'),0);
@@ -32,8 +32,8 @@ app.whenReady().then(async()=>{
  assert.equal(await evaluate(`document.elementFromPoint(20,12)?.className`),'yz-titlebar-drag','playlist manager cannot cover global drag strip');
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.yz-titlebar-drag')).getPropertyValue('-webkit-app-region')`),'drag');
  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.yz-window-controls-zone')).getPropertyValue('-webkit-app-region')`),'no-drag');
- await evaluate(`[...document.querySelectorAll('.zenix-manager nav button')].find(b=>b.textContent.includes('QQ 导入')).click()`);await wait('!!document.querySelector(".platform-replacement")');assert.equal(await evaluate('document.elementFromPoint(20,12)?.className'),'yz-titlebar-drag','playlist detail preserves drag strip');
- await click('.zenix-manager header>button');await click('[aria-label="播放队列"]');await wait('!!document.querySelector(".zenix-queue .replacement-policy input")');
+ await evaluate(`[...document.querySelectorAll('.zenix-manager-playlist-card')].find(b=>b.textContent.includes('QQ 导入')).click()`);await wait('!!document.querySelector(".platform-replacement")');assert.equal(await evaluate('document.elementFromPoint(20,12)?.className'),'yz-titlebar-drag','playlist detail preserves drag strip');
+ await click('[data-destination=home]');await click('[aria-label="播放队列"]');await wait('!!document.querySelector(".zenix-queue .replacement-policy input")');
  assert.equal(await evaluate('!!document.querySelector(".zenix-queue .replacement-manual")'),false,'playing playlist exposes automatic switch without manual maintenance');
  assert.equal(await evaluate('document.elementFromPoint(20,12)?.className'),'yz-titlebar-drag','queue keeps top drag strip');
  process.stdout.write('REPLACEMENT_UI_PASS\n');app.exit(0);

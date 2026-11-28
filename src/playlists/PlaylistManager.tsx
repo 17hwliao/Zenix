@@ -7,6 +7,7 @@ import { trackCoverUrl } from '../core/trackCover';
 import './PlaylistManager.css';
 
 export interface PlaylistManagerProps {
+  embedded?: boolean;
   onClose: () => void;
   onPlayTrack: (track: Track, queue: Track[]) => void;
 }
@@ -21,7 +22,7 @@ function TrackArt({ track }: { track: Track }) {
   return <CoverArt title={track.title} coverUrl={trackCoverUrl(track)} className="yz-pl-art" />;
 }
 
-export function PlaylistManager({ onClose, onPlayTrack }: PlaylistManagerProps) {
+export function PlaylistManager({ onClose, onPlayTrack, embedded=false }: PlaylistManagerProps) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const [snapshot, setSnapshot] = useState<LibrarySnapshot>(library.snapshot);
@@ -41,11 +42,11 @@ export function PlaylistManager({ onClose, onPlayTrack }: PlaylistManagerProps) 
       setNotice(error instanceof Error ? error.message : '曲库读取失败');
     });
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeRef.current();
+      if (!embedded && event.key === 'Escape') closeRef.current();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => { unsubscribe(); window.removeEventListener('keydown', onKeyDown); };
-  }, []);
+  }, [embedded]);
 
   useEffect(() => {
     if (selectedId && snapshot.playlists.some((playlist) => playlist.id === selectedId)) return;
@@ -126,17 +127,17 @@ export function PlaylistManager({ onClose, onPlayTrack }: PlaylistManagerProps) 
 
   function play(track: Track): void {
     onPlayTrack(track, playlistTracks);
-    onClose();
+    if (!embedded) onClose();
   }
 
-  return <div className="yz-pl-backdrop" role="presentation" onMouseDown={(event) => {
-    if (event.target === event.currentTarget) onClose();
+  return <div className={embedded?'yz-pl-embedded':'yz-pl-backdrop'} role="presentation" onMouseDown={(event) => {
+    if (!embedded && event.target === event.currentTarget) onClose();
   }}>
-    <section className="yz-pl-dialog" role="dialog" aria-modal="true" aria-label="歌单管理">
+    <section className="yz-pl-dialog" role={embedded?'region':'dialog'} aria-modal={embedded?undefined:true} aria-label="歌单管理">
       <aside className="yz-pl-sidebar">
         <div className="yz-pl-sidebar-heading">
           <div><span className="yz-pl-eyebrow">YOUR COLLECTION</span><h2>我的歌单</h2></div>
-          <button className="yz-pl-icon-button" type="button" title="关闭" aria-label="关闭歌单管理" onClick={onClose}><X size={18} /></button>
+          {!embedded&&<button className="yz-pl-icon-button" type="button" title="关闭" aria-label="关闭歌单管理" onClick={onClose}><X size={18} /></button>}
         </div>
         <form className="yz-pl-create" onSubmit={createPlaylist}>
           <input aria-label="新歌单名称" placeholder="新建歌单" value={newName} maxLength={100}

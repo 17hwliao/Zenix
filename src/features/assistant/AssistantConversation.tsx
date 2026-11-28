@@ -4,13 +4,17 @@ import {speechChunks} from './speechText';
 import {speakReply} from './replyVoice';
 import {HoldRecording} from './recording';
 import SkinCharacter from './SkinCharacter';
+import {ChevronDown, X} from 'lucide-react';
+import {createPortal} from 'react-dom';
 import AssistantCornerCharacter from './AssistantCornerCharacter';
+import {companionChatRight, type CompanionAnchor} from './app-companion';
 import {getAssistantRuntime} from './remote/runtime';
 import ModelSettings from './remote/ModelSettings';
-import SessionContent, {remoteCharacterPhase} from './remote/SessionContent';
+import {remoteCharacterPhase} from './remote/SessionContent';
 import {resultSummaryLines} from './remote/presentation';
 import {karaokeOwnsMicrophone} from '../karaoke/voice-lock';
 import './conversation.css';
+import ChatWorkspace from './ChatWorkspace';
 
 type Invoke = <T = unknown>(args: Record<string, unknown>) => Promise<T>;
 type RecordingSession = {
@@ -33,7 +37,11 @@ export default function AssistantConversation({mobile = false, invoke: provided,
   const {session, invoke} = runtime;
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState('');
+  const [companionAnchor, setCompanionAnchor] = useState<CompanionAnchor | null>(null);
+  const updateAnchor = useCallback((next: CompanionAnchor | null) => {
+    setCompanionAnchor(prev => prev && next && prev.left === next.left && prev.width === next.width && prev.viewportWidth === next.viewportWidth ? prev : next);
+  }, []);
+
   const [phase, setPhase] = useState<Phase>('idle');
   const [voiceMessage, setVoiceMessage] = useState<string>();
   const [spoken, setSpoken] = useState(() => {
@@ -131,7 +139,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
     if (!alive.current || token !== revision.current) return;
     silence();
     setOpen(true);
-    setText(value.transcript);
+
     setVoiceMessage(undefined);
     session.setListening(false);
     const confidence = value.confidence === undefined || value.confidence < 0 ? .5 : value.confidence;
@@ -271,6 +279,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
     window.addEventListener('zenix-assistant-conversation', request);
     window.addEventListener('zenix-assistant-input', input);
     window.addEventListener('zenix-assistant-cancel', cancelRequest);
+    window.addEventListener('zenix-assistant-silence', silence);
     window.addEventListener('zenix-karaoke-voice-lock', blur);
     const startStop = mobile ? undefined : window.yzqxy?.companion?.onVoiceStart?.(() => {blur(); silence();});
     const stop = mobile ? undefined : window.yzqxy?.companion?.onVoice?.(value => {
@@ -290,6 +299,7 @@ export default function AssistantConversation({mobile = false, invoke: provided,
       window.removeEventListener('zenix-assistant-conversation', request);
       window.removeEventListener('zenix-assistant-input', input);
       window.removeEventListener('zenix-assistant-cancel', cancelRequest);
+      window.removeEventListener('zenix-assistant-silence', silence);
       window.removeEventListener('zenix-karaoke-voice-lock', blur);
       runtime.detach();
     };
@@ -299,6 +309,12 @@ export default function AssistantConversation({mobile = false, invoke: provided,
     if (active.current) {revision.current++; stopRecording();}
     setOpen(false);
   };
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!active.current) document.querySelector<HTMLTextAreaElement>('.assistant-chat .zenix-chat-input textarea')?.focus({preventScroll: true});
+    return () => {if (previous?.isConnected) previous.focus({preventScroll: true});};
+  }, [open]);
   const confirm = async (token: string) => {
     silence(); revision.current++; setVoiceMessage(undefined); await session.confirm(token);
   };
@@ -311,34 +327,29 @@ export default function AssistantConversation({mobile = false, invoke: provided,
     const token = ++revision.current;
     const mood = (['shy', 'greeting', 'cheer'] as const)[reaction.current++ % 3];
     answer(mood === 'shy' ? '突然被你碰到，有一点害羞……' : mood === 'greeting'
-      ? '你好呀，星音在这里。' : '和你一起听歌很开心！', mood, token);
+      ? '你好呀，助手在这里。' : '和你一起听歌很开心！', mood, token);
     clearTimeout(reactionTimer.current);
     reactionTimer.current = setTimeout(() => {
       if (token === revision.current) experience(remoteCharacterPhase(session.getSnapshot().status) as Phase);
     }, 3500);
   };
-  const shown = voiceMessage ? {...snapshot, message: voiceMessage} : snapshot;
+
   const microphoneText = phase === 'listening' ? '松开发送' : phase === 'preparing' ? '准备中'
     : phase === 'thinking' && active.current ? '识别中' : snapshot.busy ? '处理中' : '按住说话';
 
-  return <aside className={`assistant-conversation ${mobile ? 'is-mobile' : ''}`} data-open={open} data-phase={phase} aria-label="星音语音助手">
-    {!mobile && <AssistantCornerCharacter hidden={open} phase={phase} invoke={invoke} onOpen={()=>setOpen(true)}/>}
-    {open && <section className="assistant-chat" aria-label="与星音交流">
-      <header><strong>星音 · 音乐助手</strong><button aria-label="关闭语音助手" onClick={closePanel}>×</button></header>
+  return createPortal(<aside className={`assistant-conversation ${mobile ? 'is-mobile' : ''}`} data-open={open} data-phase={phase} aria-label="助手语音助手" style={!mobile && open ? {right: companionChatRight(companionAnchor)} : undefined} onKeyDown={event => {if (event.key === 'Escape' && !event.defaultPrevented) {event.preventDefault();event.stopPropagation();closePanel();}}}>
+    {!mobile && <AssistantCornerCharacter hidden={false} chatOpen={open} phase={phase} invoke={invoke} onOpen={() => open ? closePanel() : setOpen(true)} onAnchor={updateAnchor}/>}
+    {open && <section className="assistant-chat" aria-label="与助手交流">
+      <header className="assistant-conversation-header"><div><strong>你的音乐伙伴</strong><span>聊聊天，也一起听歌</span></div><button aria-label="关闭语音助手" title="收起聊天" onClick={closePanel}><X size={18}/></button></header>
       <div className="assistant-chat-character" data-state={phase} data-animated="true">
-        <button aria-label="轻触星音：害羞回应" onClick={shy}><SkinCharacter state={phase} invoke={invoke}/></button>
+        <button aria-label="轻触助手：害羞回应" onClick={shy}><SkinCharacter state={phase} invoke={invoke}/></button>
         <span className="assistant-expression" aria-hidden="true">{phase === 'shy' ? '♡' : phase === 'listening' ? '•••' : phase === 'thinking' ? '⋯' : phase === 'success' ? '✦' : ''}</span>
       </div>
-      <SessionContent snapshot={shown} onConfirm={confirm} onCancel={cancel} onChoose={choose}/>
-      {snapshot.heard && <small>听到：“{snapshot.heard}”</small>}
-      <form onSubmit={event => {
-        event.preventDefault();
-        if (!active.current && text.trim()) void accept({transcript: text, confidence: 1});
-      }}>
-        <label>你想说的话<input value={text} maxLength={4000} onChange={event => setText(event.target.value)} placeholder="例如：找一下王菲的红豆"/></label>
-        <button disabled={!text.trim() || Boolean(active.current)}>发送</button>
-      </form>
+      <ChatWorkspace session={session} snapshot={snapshot} mobile={mobile} onStop={cancel} onSubmit={silence}/>
+      {voiceMessage && <p role="status">{voiceMessage}</p>}
+
       {phase === 'talking' && <button onClick={() => {silence(); experience('idle', '已停止朗读，文字结果保留。');}}>停止朗读</button>}
+      <details className="assistant-preferences"><summary>语音与连接<ChevronDown size={14}/></summary><div>
       <label className="assistant-spoken"><input type="checkbox" checked={spoken} onChange={event => {
         setSpoken(event.target.checked);
         if (!event.target.checked) silence();
@@ -349,12 +360,13 @@ export default function AssistantConversation({mobile = false, invoke: provided,
         <ModelSettings mobile={mobile} transport={runtime.transport} onConfigurationChanged={()=>session.configurationChanged()}/>
       </details>
       <small>{mobile ? '按住悬浮麦克风说话，松开发送，上滑取消。' : '在应用空白处按住空格说话；输入框中的空格照常输入。'}</small>
+      </div></details>
       {(active.current || snapshot.busy) && <button onClick={cancel}>取消本次对话</button>}
     </section>}
     {mobile && <div className="assistant-voice-dock">
-      <button className="assistant-talk-toggle" aria-label="打开星音对话" onClick={() => open ? closePanel() : setOpen(true)}>星音</button>
+      <button className="assistant-talk-toggle" aria-label="打开助手对话" onClick={() => open ? closePanel() : setOpen(true)}>助手</button>
       <button className="assistant-hold-voice" disabled={snapshot.busy} data-phase={phase}
-        aria-label="按住与星音说话" aria-pressed={phase === 'listening'}
+        aria-label="按住与助手说话" aria-pressed={phase === 'listening'}
         onContextMenu={event => event.preventDefault()}
         onPointerDown={event => {
           if (event.button !== 0 || !event.isPrimary) return;
@@ -378,5 +390,5 @@ export default function AssistantConversation({mobile = false, invoke: provided,
         <span>{microphoneText}</span>
       </button>
     </div>}
-  </aside>;
+  </aside>, document.body);
 }
